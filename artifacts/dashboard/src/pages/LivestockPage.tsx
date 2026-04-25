@@ -5029,9 +5029,491 @@ function StrawInventorySection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Lambing Records ──────────────────────────────────────────────────────────
+
+interface LambingRecord {
+  id: number;
+  herdId?: number | null;
+  eweAnimalId?: number | null;
+  eweEarTag?: string | null;
+  lambingDate: string;
+  lambingEaseScore?: number | null;
+  expectedLitterSize?: number | null;
+  numberOfLambs: number;
+  lambOutcome1?: string | null; lambSex1?: string | null; lambEarTag1?: string | null; lambEidNumber1?: string | null; lambBirthWeightKg1?: string | null; lambAnimalId1?: number | null;
+  lambOutcome2?: string | null; lambSex2?: string | null; lambEarTag2?: string | null; lambEidNumber2?: string | null; lambBirthWeightKg2?: string | null; lambAnimalId2?: number | null;
+  lambOutcome3?: string | null; lambSex3?: string | null; lambEarTag3?: string | null; lambEidNumber3?: string | null; lambBirthWeightKg3?: string | null; lambAnimalId3?: number | null;
+  lambOutcome4?: string | null; lambSex4?: string | null; lambEarTag4?: string | null; lambEidNumber4?: string | null; lambBirthWeightKg4?: string | null; lambAnimalId4?: number | null;
+  assistanceRequired: boolean; assistanceType?: string | null;
+  vetAttended: boolean; vetName?: string | null;
+  colostrumGivenWithin2Hours?: boolean | null; colostrumSource?: string | null;
+  fosteringRequired: boolean; fosteringDetails?: string | null;
+  ramEarTag?: string | null; ramBreed?: string | null; sireRegisterId?: number | null; conceptionMethod?: string | null;
+  eweComplications?: string | null; notes?: string | null;
+}
+
+function LambingEaseBadge({ v }: { v?: number | null }) {
+  if (!v) return null;
+  const map: Record<number, { label: string; cls: string }> = {
+    1: { label: "Ease 1 — Unassisted", cls: "bg-green-100 text-green-700" },
+    2: { label: "Ease 2 — Easy assist", cls: "bg-yellow-100 text-yellow-700" },
+    3: { label: "Ease 3 — Hard assist", cls: "bg-orange-100 text-orange-700" },
+    4: { label: "Ease 4 — Vet required", cls: "bg-red-100 text-red-700" },
+  };
+  const d = map[v];
+  if (!d) return null;
+  return <span className={`text-xs px-2 py-0.5 rounded font-medium ${d.cls}`}>{d.label}</span>;
+}
+
+// LambSection extracted to avoid component-inside-component anti-pattern (prevents focus loss on type)
+function LambSection({ n, form, set }: {
+  n: 1 | 2 | 3 | 4;
+  form: Partial<LambingRecord>;
+  set: <K extends keyof LambingRecord>(k: K, v: unknown) => void;
+}) {
+  const outcomeKey = `lambOutcome${n}` as keyof LambingRecord;
+  const sexKey = `lambSex${n}` as keyof LambingRecord;
+  const tagKey = `lambEarTag${n}` as keyof LambingRecord;
+  const eidKey = `lambEidNumber${n}` as keyof LambingRecord;
+  const weightKey = `lambBirthWeightKg${n}` as keyof LambingRecord;
+  const animalIdKey = `lambAnimalId${n}` as keyof LambingRecord;
+  const outcome = form[outcomeKey] as string | undefined;
+  const earTag = form[tagKey] as string | undefined;
+  const animalId = form[animalIdKey] as number | undefined;
+  const showHint = outcome === "live" && earTag?.trim();
+  return (
+    <div className="rounded border p-3 space-y-2 bg-gray-50/50">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lamb {n}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>Outcome</Label>
+          <Select value={(form[outcomeKey] as string) || "__none__"} onValueChange={v => set(outcomeKey, v === "__none__" ? null : v)}>
+            <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Not recorded</SelectItem>
+              <SelectItem value="live">Live</SelectItem>
+              <SelectItem value="stillborn">Stillborn</SelectItem>
+              <SelectItem value="died-within-24h">Died within 24h</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Sex</Label>
+          <Select value={(form[sexKey] as string) || "__none__"} onValueChange={v => set(sexKey, v === "__none__" ? null : v)}>
+            <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Not recorded</SelectItem>
+              <SelectItem value="male">Male (ram lamb)</SelectItem>
+              <SelectItem value="female">Female (ewe lamb)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>Ear Tag</Label>
+          <Input value={(form[tagKey] as string) || ""} onChange={e => set(tagKey, e.target.value)} placeholder="e.g. UK0141092 0200" />
+          {showHint && !animalId && <p className="text-xs text-teal-600 mt-1">Live lamb — will be registered in Livestock on save.</p>}
+          {animalId && <p className="text-xs text-teal-600 mt-1">Already in Flock Register (ID #{animalId}) ✓</p>}
+        </div>
+        <div>
+          <Label>EID / Transponder</Label>
+          <Input value={(form[eidKey] as string) || ""} onChange={e => set(eidKey, e.target.value)} placeholder="15-digit ISO 11784 EID" />
+        </div>
+      </div>
+      <div>
+        <Label>Birth Weight (kg)</Label>
+        <Input type="number" step="0.1" min="0" value={(form[weightKey] as string) || ""} onChange={e => set(weightKey, e.target.value || null)} placeholder="e.g. 4.2" className="w-32" />
+      </div>
+    </div>
+  );
+}
+
+function LambingSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const EMPTY: Partial<LambingRecord> = { numberOfLambs: 1, lambingDate: todayStr(), assistanceRequired: false, vetAttended: false, fosteringRequired: false };
+
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<LambingRecord | null>(null);
+  const [form, setForm] = useState<Partial<LambingRecord>>(EMPTY);
+  const [showManualEwe, setShowManualEwe] = useState(false);
+  const [showManualVet, setShowManualVet] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: LambingRecord[] }>({
+    queryKey: ["lambing-records", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lambing-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const animalsQ = useQuery<{ records: Array<{ id: number; earTagNumber?: string | null; eidNumber?: string | null; species: string; sex?: string | null; status: string }> }>({
+    queryKey: ["lambing-animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`, { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const SHEEP_SPECIES = ["sheep", "ovine"];
+  const ewes = (animalsQ.data?.records ?? []).filter(a => SHEEP_SPECIES.includes(a.species?.toLowerCase()) && a.status === "active" && a.earTagNumber);
+
+  const siresQ = useQuery<{ records: Array<{ id: number; name: string; breed?: string | null; tagNumber?: string | null; species: string; isActive?: boolean | null }> }>({
+    queryKey: ["lambing-sires", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sires`, { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const ramSires = (siresQ.data?.records ?? []).filter(s => s.isActive !== false && ["sheep", "ovine"].includes(s.species?.toLowerCase()));
+
+  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string }> }>({
+    queryKey: ["lambing-vet-visits", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-visits`, { credentials: "include" }).then(r => r.json()),
+    enabled: open && !!form.vetAttended,
+  });
+  const uniqueVetNames = [...new Set((vetVisitsQ.data?.records ?? []).map(v => v.vetName).filter(Boolean))] as string[];
+
+  const save = useMutation({
+    mutationFn: (body: Partial<LambingRecord>) => {
+      const url = editing ? `/api/farms/${farmId}/lambing-records/${editing.id}` : `/api/farms/${farmId}/lambing-records`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lambing-records", farmId] }); closeDialog(); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/lambing-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lambing-records", farmId] }); setConfirmDelete(null); },
+  });
+
+  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); setShowManualEwe(false); setShowManualVet(false); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY, lambingDate: todayStr() }); setShowManualEwe(false); setShowManualVet(false); setOpen(true); }
+  function openEdit(r: LambingRecord) {
+    setEditing(r);
+    setForm({ ...r, lambingDate: r.lambingDate?.slice(0, 10) ?? "" });
+    setShowManualEwe(!r.eweAnimalId && !!r.eweEarTag);
+    setShowManualVet(!!r.vetAttended && !!r.vetName);
+    setOpen(true);
+  }
+  function set<K extends keyof LambingRecord>(k: K, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  const numLambs = form.numberOfLambs ?? 1;
+
+  const records = data?.records ?? [];
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <p className="text-sm text-gray-500 mb-1">Lambing records including ease score, up to 4 lambs, colostrum, fostering, and automatic registration of live lambs in the flock register.</p>
+          <p className="text-xs text-gray-400">Red Tractor Sheep Assurance: lambing performance must be recorded and available at audit.</p>
+        </div>
+        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Lambing</Button>
+      </div>
+      {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
+        <div className="space-y-2">
+          {records.length === 0 && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No lambing records yet. Add the first record above.</CardContent></Card>}
+          {records.map(r => {
+            const liveCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "live").length;
+            const deadCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "stillborn" || o === "died-within-24h").length;
+            const registeredCount = [r.lambAnimalId1, r.lambAnimalId2, r.lambAnimalId3, r.lambAnimalId4].filter(Boolean).length;
+            const litterLabel = r.numberOfLambs === 1 ? "Single" : r.numberOfLambs === 2 ? "Twins" : r.numberOfLambs === 3 ? "Triplets" : "Quads";
+            return (
+              <Card key={r.id}>
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="font-medium text-sm">{formatDate(r.lambingDate)}</span>
+                      {r.eweEarTag && <span className="text-sm text-gray-700 font-mono">Ewe: {r.eweEarTag}</span>}
+                      <LambingEaseBadge v={r.lambingEaseScore} />
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{litterLabel} ({r.numberOfLambs})</span>
+                      {liveCount > 0 && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{liveCount} live</span>}
+                      {deadCount > 0 && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">{deadCount} dead</span>}
+                      {r.expectedLitterSize && r.expectedLitterSize !== r.numberOfLambs && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Scan: {r.expectedLitterSize} → Actual: {r.numberOfLambs}</span>
+                      )}
+                      {registeredCount > 0 && <span className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded">In Flock Register ✓ ×{registeredCount}</span>}
+                      {r.fosteringRequired && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Fostered</span>}
+                      {r.colostrumGivenWithin2Hours !== null && r.colostrumGivenWithin2Hours !== undefined && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${r.colostrumGivenWithin2Hours ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                          {r.colostrumGivenWithin2Hours ? "Colostrum ≤2h ✓" : "Colostrum >2h"}
+                        </span>
+                      )}
+                      {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Vet attended</span>}
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => setConfirmDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                  {r.notes && <p className="text-xs text-gray-400 mt-1">{r.notes}</p>}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Confirm delete */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Lambing Record"
+        message="This will permanently remove this lambing record. Live lamb livestock register entries will be kept."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => confirmDelete !== null && del.mutate(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) closeDialog(); }}>
+        <DialogContent style={{ maxWidth: "68rem" }} className="max-h-[92vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Lambing Record" : "Add Lambing Record"}</DialogTitle></DialogHeader>
+          <div className="flex gap-6 py-2">
+            {/* Left column: ewe + event details */}
+            <div className="flex-1 flex flex-col gap-3 min-w-0">
+              {/* Ewe details */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ewe Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Lambing Date *</Label>
+                    <Input type="date" value={form.lambingDate?.slice(0, 10) || ""} onChange={e => set("lambingDate", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Ewe Ear Tag</Label>
+                    {ewes.length > 0 && !showManualEwe ? (
+                      <Select
+                        value={form.eweAnimalId ? String(form.eweAnimalId) : "__none__"}
+                        onValueChange={v => {
+                          if (v === "__manual__") { setShowManualEwe(true); set("eweAnimalId", null); return; }
+                          const a = ewes.find(x => x.id === parseInt(v));
+                          set("eweAnimalId", v === "__none__" ? null : parseInt(v));
+                          set("eweEarTag", a?.earTagNumber ?? null);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select ewe..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {ewes.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.earTagNumber!}</SelectItem>)}
+                          <SelectItem value="__manual__">Enter tag manually…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex gap-1">
+                        <Input value={form.eweEarTag || ""} onChange={e => set("eweEarTag", e.target.value)} placeholder="Ewe ear tag" />
+                        {ewes.length > 0 && <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => { setShowManualEwe(false); set("eweAnimalId", null); set("eweEarTag", null); }}>↩</Button>}
+                      </div>
+                    )}
+                    {ewes.length === 0 && animalsQ.isSuccess && (
+                      <p className="text-xs text-amber-600 mt-1">No sheep registered. Add animals in the Individual Animals tab, or enter the tag above.</p>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Lambing Ease Score</Label>
+                    <Select value={form.lambingEaseScore ? String(form.lambingEaseScore) : "__none__"} onValueChange={v => set("lambingEaseScore", v === "__none__" ? null : parseInt(v))}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not recorded</SelectItem>
+                        <SelectItem value="1">1 — Unassisted</SelectItem>
+                        <SelectItem value="2">2 — Easy assistance (1 person)</SelectItem>
+                        <SelectItem value="3">3 — Hard assistance (ropes/snares)</SelectItem>
+                        <SelectItem value="4">4 — Vet required / caesarean</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Number of Lambs Born *</Label>
+                    <Select value={String(numLambs)} onValueChange={v => set("numberOfLambs", parseInt(v))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 — Single</SelectItem>
+                        <SelectItem value="2">2 — Twins</SelectItem>
+                        <SelectItem value="3">3 — Triplets</SelectItem>
+                        <SelectItem value="4">4 — Quads</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Expected Litter (from scan)</Label>
+                    <Select value={form.expectedLitterSize ? String(form.expectedLitterSize) : "__none__"} onValueChange={v => set("expectedLitterSize", v === "__none__" ? null : parseInt(v))}>
+                      <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not recorded / no scan</SelectItem>
+                        <SelectItem value="1">1 — Single</SelectItem>
+                        <SelectItem value="2">2 — Twins</SelectItem>
+                        <SelectItem value="3">3 — Triplets</SelectItem>
+                        <SelectItem value="4">4 — Quads</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Ewe Complications</Label>
+                    <Input value={form.eweComplications || ""} onChange={e => set("eweComplications", e.target.value)} placeholder="e.g. prolapse, twin lamb disease" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Lamb sections */}
+              {([1, 2, 3, 4] as const).slice(0, numLambs).map(n => (
+                <LambSection key={n} n={n} form={form} set={set} />
+              ))}
+            </div>
+
+            {/* Right column: assistance, colostrum, fostering, ram, notes */}
+            <div className="w-72 flex-shrink-0 flex flex-col gap-3">
+              {/* Assistance */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Assistance & Vet</p>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="ar-lamb" checked={!!form.assistanceRequired} onChange={e => { set("assistanceRequired", e.target.checked); if (!e.target.checked) set("assistanceType", null); }} className="rounded" />
+                  <Label htmlFor="ar-lamb">Assistance required</Label>
+                </div>
+                {form.assistanceRequired && (
+                  <div className="pl-6">
+                    <Label>Type of Assistance</Label>
+                    <Select value={form.assistanceType || "__none__"} onValueChange={v => set("assistanceType", v === "__none__" ? null : v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        <SelectItem value="manual-1-person">Manual — 1 person</SelectItem>
+                        <SelectItem value="manual-2-person">Manual — 2 persons</SelectItem>
+                        <SelectItem value="ropes-snares">Ropes / snares</SelectItem>
+                        <SelectItem value="vet-assisted">Vet-assisted delivery</SelectItem>
+                        <SelectItem value="caesarean">Caesarean section</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="va-lamb" checked={!!form.vetAttended} onChange={e => { set("vetAttended", e.target.checked); if (!e.target.checked) { set("vetName", null); setShowManualVet(false); } }} className="rounded" />
+                  <Label htmlFor="va-lamb">Vet attended</Label>
+                </div>
+                {form.vetAttended && (
+                  <div className="pl-6">
+                    <Label>Vet Name</Label>
+                    {uniqueVetNames.length > 0 && !showManualVet ? (
+                      <Select value={form.vetName || "__none__"} onValueChange={v => { if (v === "__manual__") { setShowManualVet(true); set("vetName", null); return; } set("vetName", v === "__none__" ? null : v); }}>
+                        <SelectTrigger><SelectValue placeholder="Select vet..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                          <SelectItem value="__manual__">Enter name manually…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex gap-1">
+                        <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="Vet's full name" />
+                        {uniqueVetNames.length > 0 && <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => { setShowManualVet(false); set("vetName", null); }}>↩</Button>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Colostrum */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Colostrum Management</p>
+                <p className="text-xs text-gray-400">Lambs should receive colostrum within 2 hours of birth. 50ml/kg is the target first feed.</p>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="col-lamb" checked={form.colostrumGivenWithin2Hours === true} onChange={e => set("colostrumGivenWithin2Hours", e.target.checked ? true : false)} className="rounded" />
+                  <Label htmlFor="col-lamb">Colostrum given within 2 hours</Label>
+                </div>
+                <div>
+                  <Label>Colostrum Source</Label>
+                  <Select value={form.colostrumSource || "__none__"} onValueChange={v => set("colostrumSource", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not recorded</SelectItem>
+                      <SelectItem value="own-dam">Own dam (natural suck)</SelectItem>
+                      <SelectItem value="other-ewe">Other ewe (bottle)</SelectItem>
+                      <SelectItem value="frozen">Frozen colostrum</SelectItem>
+                      <SelectItem value="supplement">Colostrum supplement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Fostering */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fostering</p>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="foster-lamb" checked={!!form.fosteringRequired} onChange={e => { set("fosteringRequired", e.target.checked); if (!e.target.checked) set("fosteringDetails", null); }} className="rounded" />
+                  <Label htmlFor="foster-lamb">Fostering required</Label>
+                </div>
+                {form.fosteringRequired && (
+                  <div>
+                    <Label>Fostering Details</Label>
+                    <Textarea value={form.fosteringDetails || ""} onChange={e => set("fosteringDetails", e.target.value)} placeholder="e.g. Lamb 2 fostered onto ewe UK0141092 0301 — skin graft method used" rows={3} />
+                  </div>
+                )}
+              </div>
+
+              {/* Ram / Sire */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ram / Sire</p>
+                <div>
+                  <Label>Conception Method</Label>
+                  <Select value={form.conceptionMethod || "__none__"} onValueChange={v => set("conceptionMethod", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not recorded</SelectItem>
+                      <SelectItem value="natural-service">Natural service</SelectItem>
+                      <SelectItem value="ai">AI (artificial insemination)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {ramSires.length > 0 ? (
+                  <div>
+                    <Label>Ram (from Sire Register)</Label>
+                    <Select value={form.sireRegisterId ? String(form.sireRegisterId) : "__none__"} onValueChange={v => {
+                      const sid = v === "__none__" ? null : parseInt(v);
+                      const sr = ramSires.find(s => s.id === sid);
+                      set("sireRegisterId", sid);
+                      set("ramEarTag", sr?.tagNumber ?? null);
+                      set("ramBreed", sr?.breed ?? null);
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select ram..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not linked</SelectItem>
+                        {ramSires.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.breed ? ` (${s.breed})` : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Ram Ear Tag</Label>
+                    <Input value={form.ramEarTag || ""} onChange={e => set("ramEarTag", e.target.value)} placeholder="Tag no." />
+                  </div>
+                  <div>
+                    <Label>Ram Breed</Label>
+                    <Input value={form.ramBreed || ""} onChange={e => set("ramBreed", e.target.value)} placeholder="e.g. Texel" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</p>
+                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} placeholder="Any additional notes..." rows={3} />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button disabled={save.isPending || !form.lambingDate} onClick={() => save.mutate(form)}>
+              {save.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Saving…</> : editing ? "Save Changes" : "Add Lambing Record"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws"]; return valid.includes(t) ? t : "herds"; });
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing"]; return valid.includes(t) ? t : "herds"; });
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -5067,6 +5549,9 @@ export default function LivestockPage() {
         <TabButton active={tab === "vet-rx"} onClick={() => setTab("vet-rx")}>
           <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Health Register</span>
         </TabButton>
+        <TabButton active={tab === "lambing"} onClick={() => setTab("lambing")}>
+          <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Lambing Records</span>
+        </TabButton>
       </TabBar>
       <ErrorBoundary key={tab}>
         {tab === "herds" && <HerdsSection farmId={farmId} />}
@@ -5080,6 +5565,7 @@ export default function LivestockPage() {
         {tab === "straws" && <StrawInventorySection farmId={farmId} />}
         {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
         {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
+        {tab === "lambing" && <LambingSection farmId={farmId} />}
       </ErrorBoundary>
     </AppLayout>
   );

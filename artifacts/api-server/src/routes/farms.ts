@@ -60,6 +60,7 @@ import {
   dairyMilkRecordsTable,
   dairyMastitisRecordsTable,
   dairyCalvingRecordsTable,
+  lambingRecordsTable,
   dairyBcsRecordsTable,
   dairyMobilityScoringsTable,
   dairyBulkTanksTable,
@@ -10879,6 +10880,156 @@ router.delete("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, req
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
   await db.delete(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Lambing Records ──────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/lambing-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(lambingRecordsTable).where(eq(lambingRecordsTable.farmId, farmId)).orderBy(desc(lambingRecordsTable.lambingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, eweAnimalId, eweEarTag, lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs,
+    lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1,
+    lambOutcome2, lambSex2, lambEarTag2, lambEidNumber2, lambBirthWeightKg2,
+    lambOutcome3, lambSex3, lambEarTag3, lambEidNumber3, lambBirthWeightKg3,
+    lambOutcome4, lambSex4, lambEarTag4, lambEidNumber4, lambBirthWeightKg4,
+    assistanceRequired, assistanceType, vetAttended, vetName,
+    colostrumGivenWithin2Hours, colostrumSource,
+    fosteringRequired, fosteringDetails,
+    ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
+    eweComplications, notes } = req.body;
+  const numLambs = numberOfLambs || 1;
+
+  // Auto-register live lambs in the livestock animals table
+  async function registerLamb(earTag: string | undefined, eid: string | undefined, sex: string | undefined, outcome: string | undefined): Promise<number | null> {
+    if (!earTag?.trim() || outcome !== "live") return null;
+    const tag = earTag.trim();
+    const existing = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+    if (existing.length > 0) return existing[0].id;
+    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+      farmId,
+      herdId: herdId || null,
+      earTagNumber: tag,
+      tagNumber: tag,
+      eidNumber: eid?.trim() || null,
+      species: "sheep",
+      sex: sex || null,
+      dateOfBirth: new Date(lambingDate),
+      damId: eweAnimalId || null,
+      acquisitionDate: new Date(lambingDate),
+      acquisitionSource: "Home bred",
+      status: "active",
+    }).returning({ id: livestockAnimalsTable.id });
+    return newAnimal?.id ?? null;
+  }
+
+  const lambAnimalId1 = await registerLamb(lambEarTag1, lambEidNumber1, lambSex1, lambOutcome1);
+  const lambAnimalId2 = numLambs >= 2 ? await registerLamb(lambEarTag2, lambEidNumber2, lambSex2, lambOutcome2) : null;
+  const lambAnimalId3 = numLambs >= 3 ? await registerLamb(lambEarTag3, lambEidNumber3, lambSex3, lambOutcome3) : null;
+  const lambAnimalId4 = numLambs >= 4 ? await registerLamb(lambEarTag4, lambEidNumber4, lambSex4, lambOutcome4) : null;
+
+  const [record] = await db.insert(lambingRecordsTable).values({
+    farmId, herdId: herdId || null, eweAnimalId: eweAnimalId || null, eweEarTag,
+    lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs: numLambs,
+    lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1, lambAnimalId1: lambAnimalId1 || null,
+    lambOutcome2: numLambs >= 2 ? lambOutcome2 : null, lambSex2: numLambs >= 2 ? lambSex2 : null, lambEarTag2: numLambs >= 2 ? lambEarTag2 : null, lambEidNumber2: numLambs >= 2 ? lambEidNumber2 : null, lambBirthWeightKg2: numLambs >= 2 ? lambBirthWeightKg2 : null, lambAnimalId2: lambAnimalId2 || null,
+    lambOutcome3: numLambs >= 3 ? lambOutcome3 : null, lambSex3: numLambs >= 3 ? lambSex3 : null, lambEarTag3: numLambs >= 3 ? lambEarTag3 : null, lambEidNumber3: numLambs >= 3 ? lambEidNumber3 : null, lambBirthWeightKg3: numLambs >= 3 ? lambBirthWeightKg3 : null, lambAnimalId3: lambAnimalId3 || null,
+    lambOutcome4: numLambs >= 4 ? lambOutcome4 : null, lambSex4: numLambs >= 4 ? lambSex4 : null, lambEarTag4: numLambs >= 4 ? lambEarTag4 : null, lambEidNumber4: numLambs >= 4 ? lambEidNumber4 : null, lambBirthWeightKg4: numLambs >= 4 ? lambBirthWeightKg4 : null, lambAnimalId4: lambAnimalId4 || null,
+    assistanceRequired: !!assistanceRequired, assistanceType: assistanceRequired ? assistanceType : null,
+    vetAttended: !!vetAttended, vetName,
+    colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : null, colostrumSource,
+    fosteringRequired: !!fosteringRequired, fosteringDetails: fosteringRequired ? fosteringDetails : null,
+    ramEarTag, ramBreed, sireRegisterId: sireRegisterId || null, conceptionMethod,
+    eweComplications, notes,
+  }).returning();
+
+  if (vetAttended && vetName?.trim()) {
+    await db.insert(vetVisitsTable).values({
+      farmId,
+      visitDate: lambingDate ? String(lambingDate).substring(0, 10) : new Date().toISOString().substring(0, 10),
+      vetName: vetName.trim(),
+      reasonForVisit: "Lambing assistance" + (eweEarTag ? " — " + eweEarTag : "") + (lambOutcome1 ? " · " + lambOutcome1 : ""),
+      animalIds: eweAnimalId ? JSON.stringify([eweAnimalId]) : null,
+    });
+  }
+
+  res.json({ record, lambRegistered1: !!lambAnimalId1, lambRegistered2: !!lambAnimalId2, lambRegistered3: !!lambAnimalId3, lambRegistered4: !!lambAnimalId4 });
+});
+
+router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, eweAnimalId, eweEarTag, lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs,
+    lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1,
+    lambOutcome2, lambSex2, lambEarTag2, lambEidNumber2, lambBirthWeightKg2,
+    lambOutcome3, lambSex3, lambEarTag3, lambEidNumber3, lambBirthWeightKg3,
+    lambOutcome4, lambSex4, lambEarTag4, lambEidNumber4, lambBirthWeightKg4,
+    assistanceRequired, assistanceType, vetAttended, vetName,
+    colostrumGivenWithin2Hours, colostrumSource,
+    fosteringRequired, fosteringDetails,
+    ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
+    eweComplications, notes } = req.body;
+  const numLambs = numberOfLambs ?? 1;
+
+  const [existing] = await db.select({
+    lambAnimalId1: lambingRecordsTable.lambAnimalId1, lambAnimalId2: lambingRecordsTable.lambAnimalId2,
+    lambAnimalId3: lambingRecordsTable.lambAnimalId3, lambAnimalId4: lambingRecordsTable.lambAnimalId4,
+  }).from(lambingRecordsTable).where(and(eq(lambingRecordsTable.id, recordId), eq(lambingRecordsTable.farmId, farmId))).limit(1);
+
+  async function registerLambIfNeeded(earTag: string | undefined, eid: string | undefined, sex: string | undefined, outcome: string | undefined, existingAnimalId: number | null | undefined): Promise<number | null | undefined> {
+    if (existingAnimalId) return existingAnimalId;
+    if (!earTag?.trim() || outcome !== "live") return null;
+    const tag = earTag.trim();
+    const found = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+    if (found.length > 0) return found[0].id;
+    const effectiveDob = lambingDate ? new Date(lambingDate) : new Date();
+    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+      farmId, herdId: herdId || null, earTagNumber: tag, tagNumber: tag, eidNumber: eid?.trim() || null,
+      species: "sheep", sex: sex || null, dateOfBirth: effectiveDob, damId: eweAnimalId || null,
+      acquisitionDate: effectiveDob, acquisitionSource: "Home bred", status: "active",
+    }).returning({ id: livestockAnimalsTable.id });
+    return newAnimal?.id ?? null;
+  }
+
+  const resolvedId1 = await registerLambIfNeeded(lambEarTag1, lambEidNumber1, lambSex1, lambOutcome1, existing?.lambAnimalId1);
+  const resolvedId2 = numLambs >= 2 ? await registerLambIfNeeded(lambEarTag2, lambEidNumber2, lambSex2, lambOutcome2, existing?.lambAnimalId2) : null;
+  const resolvedId3 = numLambs >= 3 ? await registerLambIfNeeded(lambEarTag3, lambEidNumber3, lambSex3, lambOutcome3, existing?.lambAnimalId3) : null;
+  const resolvedId4 = numLambs >= 4 ? await registerLambIfNeeded(lambEarTag4, lambEidNumber4, lambSex4, lambOutcome4, existing?.lambAnimalId4) : null;
+
+  const [record] = await db.update(lambingRecordsTable).set({
+    herdId: herdId || null, eweAnimalId: eweAnimalId || null, eweEarTag,
+    lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs,
+    lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1, lambAnimalId1: resolvedId1 ?? null,
+    lambOutcome2: numLambs >= 2 ? lambOutcome2 : null, lambSex2: numLambs >= 2 ? lambSex2 : null, lambEarTag2: numLambs >= 2 ? lambEarTag2 : null, lambEidNumber2: numLambs >= 2 ? lambEidNumber2 : null, lambBirthWeightKg2: numLambs >= 2 ? lambBirthWeightKg2 : null, lambAnimalId2: resolvedId2 ?? null,
+    lambOutcome3: numLambs >= 3 ? lambOutcome3 : null, lambSex3: numLambs >= 3 ? lambSex3 : null, lambEarTag3: numLambs >= 3 ? lambEarTag3 : null, lambEidNumber3: numLambs >= 3 ? lambEidNumber3 : null, lambBirthWeightKg3: numLambs >= 3 ? lambBirthWeightKg3 : null, lambAnimalId3: resolvedId3 ?? null,
+    lambOutcome4: numLambs >= 4 ? lambOutcome4 : null, lambSex4: numLambs >= 4 ? lambSex4 : null, lambEarTag4: numLambs >= 4 ? lambEarTag4 : null, lambEidNumber4: numLambs >= 4 ? lambEidNumber4 : null, lambBirthWeightKg4: numLambs >= 4 ? lambBirthWeightKg4 : null, lambAnimalId4: resolvedId4 ?? null,
+    assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined,
+    assistanceType: assistanceRequired ? assistanceType : null,
+    vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName,
+    colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumSource,
+    fosteringRequired: fosteringRequired !== undefined ? !!fosteringRequired : undefined,
+    fosteringDetails: fosteringRequired ? fosteringDetails : null,
+    ramEarTag, ramBreed, sireRegisterId: sireRegisterId || null, conceptionMethod,
+    eweComplications, notes,
+  }).where(and(eq(lambingRecordsTable.id, recordId), eq(lambingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(lambingRecordsTable).where(and(eq(lambingRecordsTable.id, recordId), eq(lambingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

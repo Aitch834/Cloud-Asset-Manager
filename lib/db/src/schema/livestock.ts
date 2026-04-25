@@ -688,3 +688,68 @@ export const bcmsSubmissionsTable = pgTable("bcms_submissions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+// ─── Lambing Records ───────────────────────────────────────────────────────────
+// Sheep-specific birth recording. Supports up to 4 lambs per lambing event
+// (singles, twins, triplets, quads). Mirrors dairy_calving_records in purpose
+// but is tailored to sheep husbandry and Red Tractor sheep assurance requirements.
+export const lambingRecordsTable = pgTable("lambing_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  eweAnimalId: integer("ewe_animal_id").references(() => livestockAnimalsTable.id),
+  eweEarTag: text("ewe_ear_tag"),
+  lambingDate: date("lambing_date").notNull(),
+  lambingEaseScore: integer("lambing_ease_score"),   // 1=unassisted, 2=easy assist, 3=hard assist, 4=vet/caesarean
+  expectedLitterSize: integer("expected_litter_size"), // from pre-lambing scan
+  numberOfLambs: integer("number_of_lambs").notNull().default(1),
+  // Lamb 1
+  lambOutcome1: text("lamb_outcome_1"),    // live | stillborn | died-within-24h
+  lambSex1: text("lamb_sex_1"),            // male | female
+  lambEarTag1: text("lamb_ear_tag_1"),
+  lambEidNumber1: text("lamb_eid_number_1"),
+  lambBirthWeightKg1: numeric("lamb_birth_weight_kg_1", { precision: 5, scale: 2 }),
+  lambAnimalId1: integer("lamb_animal_id_1").references(() => livestockAnimalsTable.id),
+  // Lamb 2
+  lambOutcome2: text("lamb_outcome_2"),
+  lambSex2: text("lamb_sex_2"),
+  lambEarTag2: text("lamb_ear_tag_2"),
+  lambEidNumber2: text("lamb_eid_number_2"),
+  lambBirthWeightKg2: numeric("lamb_birth_weight_kg_2", { precision: 5, scale: 2 }),
+  lambAnimalId2: integer("lamb_animal_id_2").references(() => livestockAnimalsTable.id),
+  // Lamb 3
+  lambOutcome3: text("lamb_outcome_3"),
+  lambSex3: text("lamb_sex_3"),
+  lambEarTag3: text("lamb_ear_tag_3"),
+  lambEidNumber3: text("lamb_eid_number_3"),
+  lambBirthWeightKg3: numeric("lamb_birth_weight_kg_3", { precision: 5, scale: 2 }),
+  lambAnimalId3: integer("lamb_animal_id_3").references(() => livestockAnimalsTable.id),
+  // Lamb 4
+  lambOutcome4: text("lamb_outcome_4"),
+  lambSex4: text("lamb_sex_4"),
+  lambEarTag4: text("lamb_ear_tag_4"),
+  lambEidNumber4: text("lamb_eid_number_4"),
+  lambBirthWeightKg4: numeric("lamb_birth_weight_kg_4", { precision: 5, scale: 2 }),
+  lambAnimalId4: integer("lamb_animal_id_4").references(() => livestockAnimalsTable.id),
+  // Assistance & vet
+  assistanceRequired: boolean("assistance_required").notNull().default(false),
+  assistanceType: text("assistance_type"),
+  vetAttended: boolean("vet_attended").notNull().default(false),
+  vetName: text("vet_name"),
+  // Colostrum
+  colostrumGivenWithin2Hours: boolean("colostrum_given_within_2_hours"),
+  colostrumSource: text("colostrum_source"),  // own-dam | other-ewe | frozen | supplement
+  // Fostering
+  fosteringRequired: boolean("fostering_required").notNull().default(false),
+  fosteringDetails: text("fostering_details"),
+  // Sire / ram
+  ramEarTag: text("ram_ear_tag"),
+  ramBreed: text("ram_breed"),
+  sireRegisterId: integer("sire_register_id"),
+  conceptionMethod: text("conception_method"),  // natural-service | ai
+  // Ewe health
+  eweComplications: text("ewe_complications"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
