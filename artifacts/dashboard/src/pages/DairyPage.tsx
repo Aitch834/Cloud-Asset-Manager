@@ -1346,10 +1346,10 @@ function BulkTankTab({ farmId }: { farmId: number }) {
             <div><Label>Date *</Label><Input type="date" value={monForm.recordDate?.slice(0, 10) || ""} onChange={e => setMon("recordDate", e.target.value)} /></div>
             <div>
               <Label>Tank</Label>
-              <Select value={String(monForm.tankId ?? "")} onValueChange={v => setMon("tankId", v ? parseInt(v) : null)}>
-                <SelectTrigger><SelectValue placeholder="Not specified" /></SelectTrigger>
+              <Select value={monForm.tankId ? String(monForm.tankId) : "__none__"} onValueChange={v => setMon("tankId", v !== "__none__" ? parseInt(v) : null)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Not specified</SelectItem>
+                  <SelectItem value="__none__">Not specified</SelectItem>
                   {tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.location ? ` — ${t.location}` : ""}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -1431,10 +1431,10 @@ function BulkTankTab({ farmId }: { farmId: number }) {
             <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate?.slice(0, 10) || ""} onChange={e => setColl("collectionDate", e.target.value)} /></div>
             <div>
               <Label>Tank Collected From</Label>
-              <Select value={String(collForm.tankId ?? "")} onValueChange={v => setColl("tankId", v ? parseInt(v) : null)}>
-                <SelectTrigger><SelectValue placeholder="Not specified" /></SelectTrigger>
+              <Select value={collForm.tankId ? String(collForm.tankId) : "__none__"} onValueChange={v => setColl("tankId", v !== "__none__" ? parseInt(v) : null)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Not specified</SelectItem>
+                  <SelectItem value="__none__">Not specified</SelectItem>
                   {tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.location ? ` — ${t.location}` : ""}</SelectItem>)}
                 </SelectContent>
               </Select>
