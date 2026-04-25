@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -553,6 +554,9 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
               <Textarea placeholder="Conditions on day, issues encountered, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          {editRecord && farmId && (
+            <RecordAttachments farmId={farmId} recordType="harvest_record" recordId={editRecord.id} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button

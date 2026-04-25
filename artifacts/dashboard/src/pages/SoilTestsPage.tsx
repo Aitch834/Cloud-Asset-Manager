@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { SoilLocationPicker } from "@/components/ui/SoilLocationPicker";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
@@ -559,6 +560,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
                 />
               </div>
             </div>
+            {editTest && (
+              <RecordAttachments farmId={farmId} recordType="soil_test" recordId={editTest.id} />
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); }}>Cancel</Button>
               <Button type="submit" disabled={createTest.isPending || updateTest.isPending}>

@@ -16,6 +16,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
 import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -291,6 +292,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [form, setForm] = useState<typeof DEFECT_EMPTY>(DEFECT_EMPTY);
   const [raiseTaskDefect, setRaiseTaskDefect] = useState<DefectReport | null>(null);
+  const [viewRecord, setViewRecord] = useState<DefectReport | null>(null);
 
   const equipQ = useQuery<{ records: EquipmentRecord[] }>({
     queryKey: ["equipment-for-defects", farmId],
@@ -475,6 +477,35 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 540 }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-primary" />
+                Defect Report {viewRecord.defectRef ? `— ${viewRecord.defectRef}` : ""}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-sm">
+              {viewRecord._equipName && <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Equipment</p><p>{viewRecord._equipName}</p></div>}
+              <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Description</p><p className="text-foreground">{viewRecord.description}</p></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Severity</p><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${SEVERITY_COLORS[viewRecord.severity ?? "medium"]}`}>{viewRecord.severity ?? "medium"}</span></div>
+                <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Status</p><p>{viewRecord.status}</p></div>
+                <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Reported</p><p>{viewRecord.reportedDate ? new Date(viewRecord.reportedDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Reported By</p><p>{viewRecord.reportedBy || "—"}</p></div>
+                {viewRecord.resolvedDate && <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Resolved</p><p>{new Date(viewRecord.resolvedDate).toLocaleDateString("en-GB")}</p></div>}
+              </div>
+              {viewRecord.notes && <div><p className="text-xs uppercase font-semibold tracking-widest text-foreground/40 mb-0.5">Notes</p><p className="text-foreground">{viewRecord.notes}</p></div>}
+            </div>
+            <RecordAttachments farmId={farmId} recordType="equipment_defect" recordId={viewRecord.id} />
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {raiseTaskDefect && (
         <RaiseTaskDialog
@@ -1148,6 +1179,9 @@ export default function EquipmentPage() {
                   <PhotoUploader photos={editPhotos} onChange={setEditPhotos} />
                 </div>
               </div>
+              {farmId && managingItem && (
+                <RecordAttachments farmId={farmId} recordType="equipment_item" recordId={managingItem.id} />
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setManagingItem(null)}>Cancel</Button>
                 <Button type="submit" disabled={updateMutation.isPending}>

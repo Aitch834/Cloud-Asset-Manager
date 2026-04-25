@@ -37,6 +37,7 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 - Offline-first architecture using SQLite/AsyncStorage with sync queue, connectivity detection, and exponential backoff retries.
 - Features GPS-tagged records, visitor logging, Red Tractor compliance forms, and field boundary mapping.
 - Includes a `ref_cache` SQLite layer for syncing reference data.
+- All 15 record-capture screens include a shared `PhotoAttachButton` component (camera/library picker) and `uploadPhotoToStorage` utility; captured photo paths are persisted on each record as `documentUrl`.
 
 **Marketing Website (`artifacts/website`):**
 - React + Vite application with `wouter` for routing.

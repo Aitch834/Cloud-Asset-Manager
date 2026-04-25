@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { MaintenanceLog } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type MaintenanceType = MaintenanceLog["maintenanceType"];
 
@@ -42,6 +44,7 @@ export default function MaintenanceLogScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -75,6 +78,13 @@ export default function MaintenanceLogScreen() {
       return;
     }
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "maintenance-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: MaintenanceLog = {
@@ -100,7 +110,7 @@ export default function MaintenanceLogScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.MAINTENANCE_LOGS, record);
+    await appendToList(STORAGE_KEYS.MAINTENANCE_LOGS, { ...record, documentUrl } as MaintenanceLog);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "Maintenance log saved offline and queued for sync.", [
@@ -179,6 +189,12 @@ export default function MaintenanceLogScreen() {
 
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Additional observations…" multiline numberOfLines={3} />
 
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo / Invoice"
+            promptTitle="Attach Photo to Maintenance Log"
+          />
           <Button title={saving ? "Saving…" : "Save Maintenance Log"} onPress={handleSave} disabled={saving} style={styles.saveButton} />
         </ScrollView>
       </View>

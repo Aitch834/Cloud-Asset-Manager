@@ -25,6 +25,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigFarrowingRecord } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type FarrowingEase = string;
 type BCS = PigFarrowingRecord["sowConditionScore"];
@@ -50,6 +52,7 @@ export default function PigFarrowingScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -94,6 +97,13 @@ export default function PigFarrowingScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "farrowing-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: PigFarrowingRecord = {
@@ -117,7 +127,7 @@ export default function PigFarrowingScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.PIG_FARROWING_RECORDS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.PIG_FARROWING_RECORDS, { ...record, documentUrl } as PigFarrowingRecord, currentFarm?.id);
     await refreshPendingCount();
     setSaving(false);
 
@@ -293,6 +303,12 @@ export default function PigFarrowingScreen() {
           </View>
 
           <View style={styles.section}>
+            <PhotoAttachButton
+              photoUri={photoUri}
+              onPhotoSelected={setPhotoUri}
+              label="Attach Photo"
+              promptTitle="Attach Photo to Farrowing Record"
+            />
             <Button
               title={saving ? "Saving…" : "Save Farrowing Record"}
               onPress={handleSave}

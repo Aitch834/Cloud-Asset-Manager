@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyCalvingRecord } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 const CALVING_EASE = ["Unassisted", "Easy pull", "Hard pull", "Mechanical assistance", "C-section"];
 const CALF_OUTCOMES = ["Live", "Stillbirth", "Weak — survived", "Weak — died"];
@@ -113,6 +115,7 @@ export default function CalvingRecordScreen() {
   const [bcmsPassportApplied, setBcmsPassportApplied] = useState(false);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const handleSave = async () => {
     if (!cowEarTag.trim()) {
@@ -129,6 +132,13 @@ export default function CalvingRecordScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "calving-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: DairyCalvingRecord = {
@@ -159,7 +169,7 @@ export default function CalvingRecordScreen() {
     };
 
     try {
-      await appendToList(STORAGE_KEYS.DAIRY_CALVING_RECORDS, record);
+      await appendToList(STORAGE_KEYS.DAIRY_CALVING_RECORDS, { ...record, documentUrl } as DairyCalvingRecord);
       await refreshPendingCount();
       Alert.alert(
         "Calving Record Saved",
@@ -302,6 +312,12 @@ export default function CalvingRecordScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        <PhotoAttachButton
+          photoUri={photoUri}
+          onPhotoSelected={setPhotoUri}
+          label="Attach Photo"
+          promptTitle="Attach Photo to Calving Record"
+        />
         <Pressable
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={handleSave}

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
@@ -847,6 +848,9 @@ export default function FeedManagementPage() {
             <div><Label>Received by</Label><Input value={deliveryForm.receivedBy ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, receivedBy: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea value={deliveryForm.notes ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          {editDelivery && farmId && (
+            <RecordAttachments farmId={farmId} recordType="feed_delivery" recordId={editDelivery.id} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {

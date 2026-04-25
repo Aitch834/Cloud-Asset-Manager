@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -135,6 +137,7 @@ export default function VetVisitScreen() {
   const { refreshPendingCount } = useSync();
   const { herds, loading: herdsLoading, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -179,6 +182,15 @@ export default function VetVisitScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const apiBase = getApiBase();
+        const objectPath = await uploadPhotoToStorage(photoUri, apiBase, "vet-visit-document.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch { /* best-effort */ }
+    }
+
     const record = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -200,7 +212,7 @@ export default function VetVisitScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.VET_VISITS, record);
+    await appendToList(STORAGE_KEYS.VET_VISITS, { ...record, documentUrl });
     await refreshPendingCount();
     setSaving(false);
 
@@ -408,6 +420,13 @@ export default function VetVisitScreen() {
               Visit will sync to the Vet Ledger on the dashboard when connectivity is restored. Add the vet invoice in the Vet Ledger once received to reconcile costs.
             </Text>
           </View>
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Vet Report / Prescription"
+            promptTitle="Attach Vet Visit Document"
+          />
 
           <Button
             title={saving ? "Saving…" : "Log Vet Visit"}

@@ -1722,6 +1722,7 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
               {viewPlan.mastitisPrevention && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Mastitis Prevention</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.mastitisPrevention}</p></div>}
               {viewPlan.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.notes}</p></div>}
             </div>
+            <RecordAttachments farmId={farmId} recordType="vet_plan" recordId={viewPlan.id} />
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewPlan); setViewPlan(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
               <Button variant="ghost" onClick={() => setViewPlan(null)}>Close</Button>

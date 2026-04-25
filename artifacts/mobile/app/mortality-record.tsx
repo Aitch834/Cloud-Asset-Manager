@@ -26,6 +26,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AnimalMortality } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 const SPECIES_FALLBACK = ["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Deer", "Other"];
 
@@ -143,6 +145,7 @@ export default function MortalityRecordScreen() {
   const { refreshPendingCount } = useSync();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_FALLBACK);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [herdName, setHerdName] = useState("");
   const [tagNumber, setTagNumber] = useState("");
@@ -173,6 +176,15 @@ export default function MortalityRecordScreen() {
 
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const apiBase = getApiBase();
+        const objectPath = await uploadPhotoToStorage(photoUri, apiBase, "mortality-document.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch { /* best-effort — will save without photo if offline */ }
+    }
 
     let latitude: number | undefined;
     let longitude: number | undefined;
@@ -214,7 +226,7 @@ export default function MortalityRecordScreen() {
     };
 
     try {
-      await appendToList(STORAGE_KEYS.MORTALITY_RECORDS, record);
+      await appendToList(STORAGE_KEYS.MORTALITY_RECORDS, { ...record, documentUrl } as AnimalMortality);
       await refreshPendingCount();
       Alert.alert(
         "Mortality Record Saved",
@@ -396,6 +408,12 @@ export default function MortalityRecordScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        <PhotoAttachButton
+          photoUri={photoUri}
+          onPhotoSelected={setPhotoUri}
+          label="Attach Supporting Document (e.g. disposal certificate)"
+          promptTitle="Attach Mortality Document"
+        />
         <Button
           onPress={handleSave}
           disabled={saving}

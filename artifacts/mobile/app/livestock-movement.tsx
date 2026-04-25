@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockMovement } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { livestockMovementHtml } from "@/lib/printTemplates";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
@@ -45,6 +47,7 @@ export default function LivestockMovementScreen() {
   const { print, savePdf } = usePrint();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const [herdName, setHerdName] = useState("");
   const [species, setSpecies] = useState("");
@@ -65,6 +68,13 @@ export default function LivestockMovementScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "movement-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     let latitude: number | undefined;
@@ -101,7 +111,7 @@ export default function LivestockMovementScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, record);
+    await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, { ...record, documentUrl } as LivestockMovement);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert(
@@ -260,6 +270,13 @@ export default function LivestockMovementScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={2}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo"
+            promptTitle="Attach Photo to Movement Record"
           />
 
           <Button

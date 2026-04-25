@@ -3,6 +3,8 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -46,6 +48,7 @@ export default function EquipmentDefectScreen() {
   const { refreshPendingCount } = useSync();
   const params = useLocalSearchParams<{ assetId?: string; assetName?: string }>();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
 
   const [equipmentName, setEquipmentName] = useState(params.assetName ?? "");
@@ -63,6 +66,15 @@ export default function EquipmentDefectScreen() {
 
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const apiBase = getApiBase();
+        const objectPath = await uploadPhotoToStorage(photoUri, apiBase, "defect-document.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch { /* best-effort */ }
+    }
 
     let latitude: number | undefined;
     let longitude: number | undefined;
@@ -93,7 +105,7 @@ export default function EquipmentDefectScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.EQUIPMENT_DEFECTS, record);
+    await appendToList(STORAGE_KEYS.EQUIPMENT_DEFECTS, { ...record, documentUrl } as EquipmentDefect);
     await refreshPendingCount();
     setSaving(false);
 
@@ -229,6 +241,13 @@ export default function EquipmentDefectScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={2}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo of Defect"
+            promptTitle="Photograph Equipment Defect"
           />
 
           <Button

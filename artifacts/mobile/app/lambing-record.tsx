@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList, generateId } from "@/lib/storage";
 import type { LambingRecord } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 const EASE_OPTIONS = [
   { key: 1, label: "1 — Unassisted", color: "#16a34a" },
@@ -163,6 +165,7 @@ export default function LambingRecordScreen() {
   const [attendedBy, setAttendedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   function updateLamb(index: number, fields: Partial<LambFields>) {
     setLambs((prev) => {
@@ -182,6 +185,13 @@ export default function LambingRecordScreen() {
       return;
     }
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "lambing-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     try {
       const farmId = String(currentFarm?.id ?? "");
       const record: LambingRecord = {
@@ -215,7 +225,7 @@ export default function LambingRecordScreen() {
         createdAt: new Date().toISOString(),
         synced: false,
       };
-      await appendToList(STORAGE_KEYS.LAMBING_RECORDS, record);
+      await appendToList(STORAGE_KEYS.LAMBING_RECORDS, { ...record, documentUrl } as LambingRecord);
       await triggerSync();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Saved", "Lambing record saved successfully.", [
@@ -359,6 +369,13 @@ export default function LambingRecordScreen() {
           </Text>
           <Text style={styles.summaryLine}>Colostrum ≤2h: {colostrum2h ? "Yes" : "No"}</Text>
         </View>
+
+        <PhotoAttachButton
+          photoUri={photoUri}
+          onPhotoSelected={setPhotoUri}
+          label="Attach Photo"
+          promptTitle="Attach Photo to Lambing Record"
+        />
 
         <Pressable
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}

@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { WasteDisposalRecord } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -60,6 +62,7 @@ export default function WasteDisposalScreen() {
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const [wasteType, setWasteType] = useState("");
   const [customWasteType, setCustomWasteType] = useState("");
@@ -91,6 +94,13 @@ export default function WasteDisposalScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "waste-disposal-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: WasteDisposalRecord = {
@@ -109,7 +119,7 @@ export default function WasteDisposalScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.WASTE_DISPOSAL_RECORDS, record);
+    await appendToList(STORAGE_KEYS.WASTE_DISPOSAL_RECORDS, { ...record, documentUrl } as WasteDisposalRecord);
     await refreshPendingCount();
 
     setSaving(false);
@@ -319,6 +329,13 @@ export default function WasteDisposalScreen() {
               numberOfLines={3}
             />
           </View>
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo"
+            promptTitle="Attach Photo to Waste Disposal Record"
+          />
 
           <Button
             title="Save Waste Disposal Record"

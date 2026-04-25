@@ -29,6 +29,8 @@ import {
 } from "@/lib/refCache";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { GrainQualityTest } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type PassFail = GrainQualityTest["passOrFail"];
 
@@ -44,6 +46,7 @@ export default function GrainQualityTestScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -80,6 +83,13 @@ export default function GrainQualityTestScreen() {
       return;
     }
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "grain-quality-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: GrainQualityTest = {
@@ -103,7 +113,7 @@ export default function GrainQualityTestScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.GRAIN_QUALITY_TESTS, record);
+    await appendToList(STORAGE_KEYS.GRAIN_QUALITY_TESTS, { ...record, documentUrl } as GrainQualityTest);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "Grain quality test saved offline and queued for sync.", [
@@ -192,6 +202,12 @@ export default function GrainQualityTestScreen() {
 
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any additional observations…" multiline numberOfLines={3} />
 
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo / Certificate"
+            promptTitle="Attach Photo to Grain Quality Test"
+          />
           <Button title={saving ? "Saving…" : "Save Quality Test"} onPress={handleSave} disabled={saving} style={styles.saveButton} />
         </ScrollView>
       </View>

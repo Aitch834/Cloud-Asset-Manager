@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, ClipboardList } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -737,6 +738,9 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               <Textarea placeholder="Buffer zones, conditions, observations..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          {editRecord && farmId && (
+            <RecordAttachments farmId={farmId} recordType="spray_application" recordId={editRecord.id} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button

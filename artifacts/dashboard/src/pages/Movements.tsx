@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useUpload } from "@workspace/object-storage-web";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { printProReport, openPrintWindow } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -622,6 +623,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 </div>
               );
             })()}
+            <RecordAttachments farmId={farmId} recordType="mortality" recordId={viewRecord.id} />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Record</Button>

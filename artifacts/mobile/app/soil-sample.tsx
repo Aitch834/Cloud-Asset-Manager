@@ -29,6 +29,8 @@ import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiLabs } from "@/lib/hooks/useApiLabs";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SoilSample } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type GpsStatus = "idle" | "capturing" | "captured" | "denied" | "error";
 
@@ -39,6 +41,7 @@ export default function SoilSampleScreen() {
   const { fields, loading: fieldsLoading, error: fieldsError, fromCache: fieldsCached } = useApiFields(currentFarm?.id);
   const { labs, loading: labsLoading, error: labsError, fromCache: labsCached } = useApiLabs(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
@@ -93,6 +96,13 @@ export default function SoilSampleScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "soil-sample-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const sample: SoilSample = {
@@ -120,7 +130,7 @@ export default function SoilSampleScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.SOIL_SAMPLES, sample);
+    await appendToList(STORAGE_KEYS.SOIL_SAMPLES, { ...sample, documentUrl } as SoilSample);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "Soil sample saved. Lab results can be added in the dashboard once synced.", [
@@ -324,6 +334,13 @@ export default function SoilSampleScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo"
+            promptTitle="Attach Photo to Soil Sample"
           />
 
           <Button

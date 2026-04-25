@@ -29,6 +29,8 @@ import {
 } from "@/lib/refCache";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CoshhAssessment } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type ExposureRisk = CoshhAssessment["exposureRisk"];
 
@@ -60,6 +62,7 @@ export default function CoshhAssessmentScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const farmId = currentFarm?.id ?? "";
   const today = new Date().toISOString().split("T")[0];
@@ -118,6 +121,13 @@ export default function CoshhAssessmentScreen() {
       return;
     }
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "coshh-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const record: CoshhAssessment = {
@@ -141,7 +151,7 @@ export default function CoshhAssessmentScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.COSHH_ASSESSMENTS, record);
+    await appendToList(STORAGE_KEYS.COSHH_ASSESSMENTS, { ...record, documentUrl } as CoshhAssessment);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "COSHH assessment saved offline and queued for sync.", [
@@ -234,6 +244,12 @@ export default function CoshhAssessmentScreen() {
           <Input label="Review Date (auto-set to +1 year)" value={reviewDate} onChangeText={setReviewDate} placeholder="YYYY-MM-DD" />
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any additional information…" multiline numberOfLines={3} />
 
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Safety Data Sheet Photo"
+            promptTitle="Attach Photo to COSHH Assessment"
+          />
           <Button title={saving ? "Saving…" : "Save COSHH Assessment"} onPress={handleSave} disabled={saving} style={styles.saveButton} />
         </ScrollView>
       </View>

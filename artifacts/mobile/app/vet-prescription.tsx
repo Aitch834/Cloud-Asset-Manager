@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -36,6 +38,7 @@ export default function VetPrescriptionScreen() {
   const { refreshPendingCount } = useSync();
   const { herds, loading: herdsLoading, fromCache: herdsCached, error: herdsError } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -67,6 +70,15 @@ export default function VetPrescriptionScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const apiBase = getApiBase();
+        const objectPath = await uploadPhotoToStorage(photoUri, apiBase, "prescription-document.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch { /* best-effort */ }
+    }
+
     const record: VetPrescription = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -93,7 +105,7 @@ export default function VetPrescriptionScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.VET_PRESCRIPTIONS, record);
+    await appendToList(STORAGE_KEYS.VET_PRESCRIPTIONS, { ...record, documentUrl } as VetPrescription);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "Veterinary prescription saved offline and queued for sync.", [
@@ -198,6 +210,13 @@ export default function VetPrescriptionScreen() {
           </View>
 
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Additional information…" multiline numberOfLines={3} />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Prescription Document"
+            promptTitle="Photograph Prescription"
+          />
 
           <Button title={saving ? "Saving…" : "Save Prescription"} onPress={handleSave} disabled={saving} style={styles.saveButton} />
         </ScrollView>

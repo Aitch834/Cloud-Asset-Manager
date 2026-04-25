@@ -24,6 +24,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 type IncidentType = "disease-suspicion" | "notifiable-disease" | "welfare-concern" | "injury" | "environmental-incident";
 
@@ -66,6 +68,7 @@ export default function DiseaseIncidentScreen() {
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const [incidentType, setIncidentType] = useState<IncidentType>("disease-suspicion");
   const [notifiableDisease, setNotifiableDisease] = useState("");
@@ -99,6 +102,13 @@ export default function DiseaseIncidentScreen() {
     }
 
     setSaving(true);
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "incident-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {}
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
     let latitude: number | undefined;
@@ -135,7 +145,7 @@ export default function DiseaseIncidentScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.DISEASE_INCIDENTS, record);
+    await appendToList(STORAGE_KEYS.DISEASE_INCIDENTS, { ...record, documentUrl });
     await refreshPendingCount();
     setSaving(false);
 
@@ -351,6 +361,13 @@ export default function DiseaseIncidentScreen() {
             <Feather name="map-pin" size={13} color={colors.textSecondary} />
             <Text style={styles.infoText}>GPS coordinates will be captured automatically and attached to the incident report.</Text>
           </View>
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo / Evidence"
+            promptTitle="Attach Photo to Disease Incident Report"
+          />
 
           <Button
             title={saving ? "Saving…" : "Log Incident"}

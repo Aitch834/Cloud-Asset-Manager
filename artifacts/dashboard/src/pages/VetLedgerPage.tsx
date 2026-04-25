@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -772,6 +773,9 @@ export default function VetLedgerPage() {
             </DialogTitle>
           </DialogHeader>
           <VetVisitViewBody visit={viewVisit} visits={visits} herds={herds} allAnimals={allAnimals} />
+          {viewVisit && farmId && (
+            <RecordAttachments farmId={farmId} recordType="vet_visit" recordId={Number(viewVisit.id)} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowViewVisitDialog(false)}>Close</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => { setShowViewVisitDialog(false); openVisitEdit(viewVisit!); }}>
@@ -940,6 +944,9 @@ export default function VetLedgerPage() {
             </DialogTitle>
           </DialogHeader>
           <InvoiceViewBody invoice={viewInvoice} visits={visits} />
+          {viewInvoice && farmId && (
+            <RecordAttachments farmId={farmId} recordType="vet_invoice" recordId={Number(viewInvoice.id)} />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowViewInvoiceDialog(false)}>Close</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => { setShowViewInvoiceDialog(false); openInvoiceEdit(viewInvoice!); }}>

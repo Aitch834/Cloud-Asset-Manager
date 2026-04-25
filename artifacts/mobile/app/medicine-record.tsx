@@ -3,6 +3,8 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -52,6 +54,7 @@ export default function MedicineRecordScreen() {
   const { print, savePdf } = usePrint();
   const { herds, loading: herdsLoading, error: herdsError, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [herdName, setHerdName] = useState("");
   const [animalId, setAnimalId] = useState("");
@@ -90,6 +93,15 @@ export default function MedicineRecordScreen() {
       console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const apiBase = getApiBase();
+        const objectPath = await uploadPhotoToStorage(photoUri, apiBase, "medicine-document.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch { /* best-effort */ }
+    }
+
     const record: MedicineRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -113,7 +125,7 @@ export default function MedicineRecordScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.MEDICINE_RECORDS, record);
+    await appendToList(STORAGE_KEYS.MEDICINE_RECORDS, { ...record, documentUrl } as MedicineRecord);
     await refreshPendingCount();
     setSaving(false);
     Alert.alert("Saved", "Medicine record saved. Print or save the treatment record?", [
@@ -269,6 +281,13 @@ export default function MedicineRecordScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Treatment Document"
+            promptTitle="Attach Medicine Record Document"
           />
 
           <Button
