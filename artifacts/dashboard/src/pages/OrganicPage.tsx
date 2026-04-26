@@ -1508,13 +1508,17 @@ const TAB_ICONS: Record<TabKey, React.ElementType> = {
 };
 
 export default function OrganicPage() {
-  const { selectedFarmId, farms } = useAppStore();
+  const { farmId } = useAppStore();
   const [activeTab, setActiveTab] = useState<TabKey>("certification");
 
-  if (!selectedFarmId) return <Redirect to="/" />;
+  const { data: farmData } = useQuery<{ name: string }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.name ?? "Farm";
 
-  const farm = farms.find(f => f.id === selectedFarmId);
-  const farmName = farm?.name ?? "Farm";
+  if (!farmId) return <Redirect to="/" />;
 
   return (
     <AppLayout>
@@ -1535,11 +1539,11 @@ export default function OrganicPage() {
           })}
         </TabBar>
 
-        {activeTab === "certification" && <CertificationTab farmId={selectedFarmId} />}
-        {activeTab === "fields" && <FieldsTab farmId={selectedFarmId} farmName={farmName} />}
-        {activeTab === "inspections" && <InspectionsTab farmId={selectedFarmId} farmName={farmName} />}
-        {activeTab === "restricted-inputs" && <RestrictedInputsTab farmId={selectedFarmId} farmName={farmName} />}
-        {activeTab === "input-register" && <InputRegisterTab farmId={selectedFarmId} farmName={farmName} />}
+        {activeTab === "certification" && <CertificationTab farmId={farmId} />}
+        {activeTab === "fields" && <FieldsTab farmId={farmId} farmName={farmName} />}
+        {activeTab === "inspections" && <InspectionsTab farmId={farmId} farmName={farmName} />}
+        {activeTab === "restricted-inputs" && <RestrictedInputsTab farmId={farmId} farmName={farmName} />}
+        {activeTab === "input-register" && <InputRegisterTab farmId={farmId} farmName={farmName} />}
       </div>
     </AppLayout>
   );
