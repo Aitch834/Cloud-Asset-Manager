@@ -61,3 +61,21 @@ export const organicRestrictedInputTable = pgTable("organic_restricted_input", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const organicInputsTable = pgTable("organic_inputs", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productName: text("product_name").notNull(),
+  inputType: text("input_type"),
+  supplier: text("supplier"),
+  approvalStatus: text("approval_status").notNull().default("permitted"),
+  certifierApprovalRef: text("certifier_approval_ref"),
+  cropYear: integer("crop_year"),
+  dateOfUse: date("date_of_use"),
+  quantityAmount: text("quantity_amount"),
+  quantityUnit: text("quantity_unit"),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  fieldName: text("field_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -9,7 +9,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
   Calendar, Printer, Leaf, ShieldCheck, FlaskConical, BookOpen,
-  Clock, Info, ExternalLink, Eye,
+  Clock, Info, ExternalLink, Eye, ClipboardList, Package,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -132,6 +132,29 @@ function printRestrictedInputsLog(records: RestrictedInput[], farmName: string) 
 <table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Restricted Inputs Log — Complementary record for Soil Association / OF&G portal. Retain with derogation approvals. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
+  const rows = records.map(r => `<tr>
+    <td style="white-space:nowrap">${r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="font-weight:600">${r.productName}</td>
+    <td>${r.inputType || "—"}</td>
+    <td>${r.supplier || "—"}</td>
+    <td style="font-weight:600;color:${r.approvalStatus === "permitted" ? "#166534" : r.approvalStatus === "restricted" ? "#92400e" : "#991b1b"}">${APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</td>
+    <td>${r.certifierApprovalRef || "—"}</td>
+    <td>${r.fieldName || "—"}</td>
+    <td>${r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "—"}</td>
+    <td>${r.notes || "—"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Input Register — ${farmName} — ${yearLabel}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel} · Complementary Record</p></div>
+<div class="hdr-r"><b>Input Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>Approval Status</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Organic Input Register — Complementary record for Soil Association / OF&G portal. This register demonstrates that inputs used comply with organic standards. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
 }
 
@@ -827,6 +850,32 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
 const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "" };
 const INPUT_CATEGORIES = ["Fertiliser / Soil Amendment", "Crop Protection / Pesticide", "Growth Regulator", "Cleaning / Disinfectant", "Veterinary Treatment", "Other"];
 
+interface OrganicInput {
+  id: number; farmId: number; productName: string; inputType: string | null;
+  supplier: string | null; approvalStatus: string; certifierApprovalRef: string | null;
+  cropYear: number | null; dateOfUse: string | null; quantityAmount: string | null;
+  quantityUnit: string | null; fieldId: number | null; fieldName: string | null;
+  notes: string | null; createdAt: string;
+}
+
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  permitted: "Permitted",
+  restricted: "Restricted (notify certifier)",
+  derogation: "Derogation Required",
+};
+const APPROVAL_STATUS_COLORS: Record<string, string> = {
+  permitted: "bg-green-100 text-green-800 border-green-200",
+  restricted: "bg-amber-100 text-amber-800 border-amber-200",
+  derogation: "bg-red-100 text-red-800 border-red-200",
+};
+const INPUT_TYPES = ["Fertiliser / Soil Amendment", "Crop Protection", "Seed Treatment", "Feed Supplement / Additive", "Cleaning & Disinfection", "Other"];
+const QUANTITY_UNITS = ["kg", "g", "tonnes", "L", "mL", "bags", "units", "other"];
+
+function yearRange(): number[] {
+  const y = new Date().getFullYear();
+  return [y + 1, y, y - 1, y - 2, y - 3, y - 4];
+}
+
 function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -836,12 +885,16 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INPUT);
   const [productCustom, setProductCustom] = useState(false);
+  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
 
   const { data, isLoading } = useQuery<{ records: RestrictedInput[] }>({
     queryKey: ["organic-restricted", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic/restricted-inputs`).then(r => r.json()),
   });
-  const records = data?.records ?? [];
+  const allRecords = data?.records ?? [];
+  const records = yearFilter === "all"
+    ? allRecords
+    : allRecords.filter(r => r.dateApplied && new Date(r.dateApplied).getFullYear() === yearFilter);
 
   const { data: fieldsData } = useQuery<{ records: FarmField[] }>({
     queryKey: ["farm-fields-lookup", farmId],
@@ -926,11 +979,21 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
         <p>Restricted inputs are products not normally permitted under organic standards but used in exceptional circumstances with certifier approval or notification. Always consult your certifier before use.</p>
       </div>
       <div className="flex justify-between items-center mb-6">
-        {records.length > 0 ? (
-          <Button variant="outline" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
-            <Printer className="w-4 h-4" />Print Log
-          </Button>
-        ) : <div />}
+        <div className="flex items-center gap-2">
+          <select
+            className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
+            value={yearFilter}
+            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+          >
+            <option value="all">All years</option>
+            {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {records.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
+              <Printer className="w-4 h-4" />Print Log
+            </Button>
+          )}
+        </div>
         <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Record Restricted Input</Button>
       </div>
 
@@ -1086,21 +1149,362 @@ function mapSprayCategory(cat: string): string {
   return "Other";
 }
 
+// ─── Input Register Tab ───────────────────────────────────────────────────────
+
+const EMPTY_ORG_INPUT = {
+  fieldId: null as number | null,
+  fieldName: "",
+  productName: "",
+  inputType: "",
+  supplier: "",
+  approvalStatus: "permitted",
+  certifierApprovalRef: "",
+  cropYear: new Date().getFullYear(),
+  dateOfUse: new Date().toISOString().slice(0, 10),
+  quantityAmount: "",
+  quantityUnit: "kg",
+  notes: "",
+};
+
+function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [formOpen, setFormOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<OrganicInput | null>(null);
+  const [editing, setEditing] = useState<OrganicInput | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [form, setForm] = useState(EMPTY_ORG_INPUT);
+  const [productCustom, setProductCustom] = useState(false);
+  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
+
+  const { data, isLoading } = useQuery<{ records: OrganicInput[] }>({
+    queryKey: ["organic-inputs", farmId, yearFilter],
+    queryFn: () => {
+      const url = yearFilter === "all"
+        ? `/api/farms/${farmId}/organic/inputs`
+        : `/api/farms/${farmId}/organic/inputs?cropYear=${yearFilter}`;
+      return fetch(url).then(r => r.json());
+    },
+  });
+  const records = data?.records ?? [];
+
+  const { data: fieldsData } = useQuery<{ records: FarmField[] }>({
+    queryKey: ["farm-fields-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
+
+  const { data: sprayData } = useQuery<{ records: SprayProduct[] }>({
+    queryKey: ["spray-products-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const sprayProducts: SprayProduct[] = (sprayData?.records ?? []).map((p: any) => ({ id: p.id, productName: p.productName, category: p.category ?? null }));
+
+  const createM = useMutation({
+    mutationFn: (body: typeof EMPTY_ORG_INPUT) => fetch(`/api/farms/${farmId}/organic/inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inputs", farmId] }); setFormOpen(false); setForm(EMPTY_ORG_INPUT); toast({ title: "Input recorded" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const updateM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: typeof EMPTY_ORG_INPUT }) => fetch(`/api/farms/${farmId}/organic/inputs/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inputs", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_ORG_INPUT); toast({ title: "Input updated" }); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/inputs/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inputs", farmId] }); setDeleteId(null); toast({ title: "Input deleted" }); },
+  });
+
+  function openEdit(r: OrganicInput) {
+    setEditing(r);
+    const productInList = sprayProducts.some(p => p.productName === r.productName);
+    setProductCustom(!productInList);
+    setForm({
+      fieldId: r.fieldId ?? null,
+      fieldName: r.fieldName ?? "",
+      productName: r.productName,
+      inputType: r.inputType ?? "",
+      supplier: r.supplier ?? "",
+      approvalStatus: r.approvalStatus,
+      certifierApprovalRef: r.certifierApprovalRef ?? "",
+      cropYear: r.cropYear ?? new Date().getFullYear(),
+      dateOfUse: r.dateOfUse?.slice(0, 10) ?? "",
+      quantityAmount: r.quantityAmount ?? "",
+      quantityUnit: r.quantityUnit ?? "kg",
+      notes: r.notes ?? "",
+    });
+    setFormOpen(true);
+  }
+
+  function openCreate() {
+    setEditing(null);
+    setProductCustom(false);
+    setForm(EMPTY_ORG_INPUT);
+    setFormOpen(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editing) { updateM.mutate({ id: editing.id, body: form }); }
+    else { createM.mutate(form); }
+  }
+
+  const productSelectValue = sprayProducts.find(p => p.productName === form.productName)
+    ? form.productName
+    : productCustom ? "__other__"
+    : form.productName !== "" ? "__other__"
+    : "";
+
+  function handleProductSelect(val: string) {
+    if (val === "__other__") {
+      setProductCustom(true);
+      setForm(f => ({ ...f, productName: "" }));
+    } else if (val === "") {
+      setProductCustom(false);
+      setForm(f => ({ ...f, productName: "" }));
+    } else {
+      const product = sprayProducts.find(p => p.productName === val);
+      if (product) {
+        setProductCustom(false);
+        setForm(f => ({
+          ...f,
+          productName: product.productName,
+          inputType: product.category ? mapInputTypeFromSpray(product.category) : f.inputType,
+        }));
+      }
+    }
+  }
+
+  const permitted = records.filter(r => r.approvalStatus === "permitted").length;
+  const restricted = records.filter(r => r.approvalStatus === "restricted").length;
+  const derogation = records.filter(r => r.approvalStatus === "derogation").length;
+
+  if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
+
+  return (
+    <>
+      <div className="mb-4 flex gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
+        <Info className="w-4 h-4 mt-0.5 shrink-0" />
+        <p>Record every input used on organic land — fertilisers, crop protection, seed treatments, feed supplements, and cleaning products. This demonstrates to your certifier that all products comply with organic standards.</p>
+      </div>
+
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-2">
+          <select
+            className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
+            value={yearFilter}
+            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+          >
+            <option value="all">All years</option>
+            {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {records.length > 0 && (
+            <>
+              <div className="flex gap-3 text-sm pl-1">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{permitted} permitted</span>
+                {restricted > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{restricted} restricted</span>}
+                {derogation > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{derogation} derogation</span>}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => printInputRegister(records, farmName, yearFilter === "all" ? null : yearFilter)} className="gap-2">
+                <Printer className="w-4 h-4" />Print Register
+              </Button>
+            </>
+          )}
+        </div>
+        <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Add Input</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Package className="w-10 h-10 mx-auto mb-3 text-green-500 opacity-50" />
+          <p className="font-semibold mb-1">No inputs recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+          <p className="text-sm text-foreground/60">Log every input used on organic land — this is your evidence register for annual inspection.</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {records.map(r => {
+            const statusColor = APPROVAL_STATUS_COLORS[r.approvalStatus] ?? APPROVAL_STATUS_COLORS.permitted;
+            return (
+              <Card key={r.id} className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Package className="w-4 h-4 text-green-600 shrink-0" />
+                      <span className="font-semibold">{r.productName}</span>
+                      {r.inputType && <span className="text-xs text-foreground/60 bg-secondary px-2 py-0.5 rounded-full">{r.inputType}</span>}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor}`}>{APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</span>
+                    </div>
+                    <div className="text-sm text-foreground/60 space-y-0.5">
+                      <p className="flex items-center gap-3 flex-wrap">
+                        {r.dateOfUse && <span>{fmt(r.dateOfUse)}</span>}
+                        {r.supplier && <span>Supplier: {r.supplier}</span>}
+                        {r.fieldName && <span>Field: {r.fieldName}</span>}
+                        {r.quantityAmount && <span>Qty: {r.quantityAmount}{r.quantityUnit ? ` ${r.quantityUnit}` : ""}</span>}
+                      </p>
+                      {(r.approvalStatus === "restricted" || r.approvalStatus === "derogation") && r.certifierApprovalRef && (
+                        <p>Certifier ref: {r.certifierApprovalRef}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Input Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{viewRecord.productName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Input Type</p><p className="font-medium">{viewRecord.inputType || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{viewRecord.supplier || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Status</p><p className="font-medium">{APPROVAL_STATUS_LABELS[viewRecord.approvalStatus] ?? viewRecord.approvalStatus}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{viewRecord.certifierApprovalRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Year</p><p className="font-medium">{viewRecord.cropYear ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date of Use</p><p className="font-medium">{fmt(viewRecord.dateOfUse)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Area</p><p className="font-medium">{viewRecord.fieldName || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p><p className="font-medium">{viewRecord.quantityAmount ? `${viewRecord.quantityAmount}${viewRecord.quantityUnit ? " " + viewRecord.quantityUnit : ""}` : "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes || "—"}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Input Record" : "Add Input"}</DialogTitle>
+            <DialogDescription>Record an input used on organic land for your evidence register.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label>Product Name *</Label>
+              {sprayProducts.length > 0 ? (
+                <div className="space-y-1.5">
+                  <select className={INPUT_CLS} value={productSelectValue} onChange={e => handleProductSelect(e.target.value)}>
+                    <option value="">Select from spray products…</option>
+                    {sprayProducts.map(p => (
+                      <option key={p.id} value={p.productName}>{p.productName}</option>
+                    ))}
+                    <option value="__other__">Other / specify below</option>
+                  </select>
+                  {(productCustom || productSelectValue === "__other__") && (
+                    <Input className={INPUT_CLS} required placeholder="Product name" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} autoFocus />
+                  )}
+                </div>
+              ) : (
+                <Input className={INPUT_CLS} required value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Input Type</Label>
+                <select className={INPUT_CLS} value={form.inputType} onChange={e => setForm(f => ({ ...f, inputType: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {INPUT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><Label>Supplier</Label><Input className={INPUT_CLS} value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Approval Status *</Label>
+                <select className={INPUT_CLS} value={form.approvalStatus} onChange={e => setForm(f => ({ ...f, approvalStatus: e.target.value }))}>
+                  <option value="permitted">Permitted</option>
+                  <option value="restricted">Restricted (notify certifier)</option>
+                  <option value="derogation">Derogation Required</option>
+                </select>
+              </div>
+              {(form.approvalStatus === "restricted" || form.approvalStatus === "derogation") && (
+                <div><Label>Certifier Approval Ref</Label><Input className={INPUT_CLS} value={form.certifierApprovalRef} onChange={e => setForm(f => ({ ...f, certifierApprovalRef: e.target.value }))} /></div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Crop Year</Label>
+                <select className={INPUT_CLS} value={form.cropYear} onChange={e => setForm(f => ({ ...f, cropYear: parseInt(e.target.value) }))}>
+                  {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div><Label>Date of Use</Label><Input type="date" className={INPUT_CLS} value={form.dateOfUse} onChange={e => setForm(f => ({ ...f, dateOfUse: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Field / Area</Label>
+                <FieldPicker
+                  farmFields={farmFields}
+                  fieldId={form.fieldId}
+                  fieldName={form.fieldName}
+                  onFieldChange={(id, name) => setForm(f => ({ ...f, fieldId: id, fieldName: name }))}
+                />
+              </div>
+              <div>
+                <Label>Quantity</Label>
+                <div className="flex gap-1.5">
+                  <Input className={INPUT_CLS} placeholder="Amount" value={form.quantityAmount} onChange={e => setForm(f => ({ ...f, quantityAmount: e.target.value }))} />
+                  <select className="h-12 rounded-xl border-2 border-border bg-transparent px-2 text-sm" value={form.quantityUnit} onChange={e => setForm(f => ({ ...f, quantityUnit: e.target.value }))}>
+                    {QUANTITY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
+              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.productName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Delete Input</DialogTitle><DialogDescription>Delete this input record? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteM.isPending} onClick={() => deleteId && deleteM.mutate(deleteId)}>{deleteM.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function mapInputTypeFromSpray(cat: string): string {
+  const c = cat.toLowerCase();
+  if (c.includes("herbicide") || c.includes("fungicide") || c.includes("insecticide") || c.includes("pesticide")) return "Crop Protection";
+  if (c.includes("fertiliser") || c.includes("fertilizer") || c.includes("nutrient")) return "Fertiliser / Soil Amendment";
+  if (c.includes("seed")) return "Seed Treatment";
+  if (c.includes("growth")) return "Fertiliser / Soil Amendment";
+  return "Other";
+}
+
 // ─── Page shell ──────────────────────────────────────────────────────────────
 
-const TABS = ["certification", "fields", "inspections", "restricted-inputs"] as const;
+const TABS = ["certification", "fields", "inspections", "restricted-inputs", "input-register"] as const;
 type TabKey = typeof TABS[number];
 const TAB_LABELS: Record<TabKey, string> = {
   certification: "Certification",
   fields: "Field Status",
   inspections: "Inspections",
   "restricted-inputs": "Restricted Inputs",
+  "input-register": "Input Register",
 };
 const TAB_ICONS: Record<TabKey, React.ElementType> = {
   certification: Leaf,
   fields: BookOpen,
   inspections: ShieldCheck,
   "restricted-inputs": FlaskConical,
+  "input-register": ClipboardList,
 };
 
 export default function OrganicPage() {
@@ -1135,6 +1539,7 @@ export default function OrganicPage() {
         {activeTab === "fields" && <FieldsTab farmId={selectedFarmId} farmName={farmName} />}
         {activeTab === "inspections" && <InspectionsTab farmId={selectedFarmId} farmName={farmName} />}
         {activeTab === "restricted-inputs" && <RestrictedInputsTab farmId={selectedFarmId} farmName={farmName} />}
+        {activeTab === "input-register" && <InputRegisterTab farmId={selectedFarmId} farmName={farmName} />}
       </div>
     </AppLayout>
   );
