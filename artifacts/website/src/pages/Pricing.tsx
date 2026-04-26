@@ -12,7 +12,7 @@ const MODULES = [
   { id: "crop-trials", name: "Crop Trials", price: 15 },
   { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
   { id: "soil-management", name: "Soil Management", price: 10 },
-  { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules" },
+  { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules; link workshop jobs to Farm Services customers and raise invoices (labour + parts) with one click" },
   { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management, Vet Ledger (visit log & invoice reconciliation), BCMS one-click cattle submission (CTS Web Services), LIS one-click sheep/goat/deer submission (England CLA API), individual animal linking on movements with automatic status updates, incoming animal registration, and Bluetooth RFID ear tag scanning (mobile)" },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
   { id: "organic-compliance", name: "Organic Compliance", price: 12, note: "Complementary records alongside Soil Association / OF&G portal — certification, field status, inspections & restricted inputs" },
@@ -29,7 +29,7 @@ const MODULES = [
   { id: "horticulture", name: "Horticulture & Fresh Produce", price: 20 },
   { id: "farm-diversification", name: "Farm Diversification", price: 15, note: "Farm Shop management, equine & livery health records, shooting & game logs, food hygiene inspections (FHRS), accommodation bookings and diversification income tracking" },
   { id: "grain-crop-storage", name: "Grain & Crop Storage", price: 18, note: "Storage location register, stock movements (intake/dispatch/transfer/drying loss), merchant storage charges, and record drill-down linking to haulage, sales and harvest records" },
-  { id: "farm-services-contracting", name: "Farm Services & Contracting", price: 15, note: "Farm-as-service-provider: contracting jobs, equipment hire, customer directory, revenue summary, and insurance cross-reference" },
+  { id: "farm-services-contracting", name: "Farm Services & Contracting", price: 15, note: "Farm-as-service-provider: contracting jobs, equipment hire, customer directory, revenue summary, insurance cross-reference, and workshop job invoicing — raise billable invoices for repairs or maintenance done for other farms directly from the Workshop module" },
 ];
 
 interface Farm {
