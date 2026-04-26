@@ -26,9 +26,10 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close mobile menu on route change
+  // On route change: close mobile menu and re-evaluate scroll position
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsScrolled(window.scrollY > 20);
   }, [location]);
 
   return (
