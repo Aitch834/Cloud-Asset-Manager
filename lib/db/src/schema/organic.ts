@@ -61,6 +61,9 @@ export const organicRestrictedInputTable = pgTable("organic_restricted_input", {
   approvalReference: text("approval_reference"),
   certifierNotified: boolean("certifier_notified").notNull().default(false),
   notes: text("notes"),
+  supplier: text("supplier"),
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -70,6 +73,8 @@ export const organicInputsTable = pgTable("organic_inputs", {
   productName: text("product_name").notNull(),
   inputType: text("input_type"),
   supplier: text("supplier"),
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
   approvalStatus: text("approval_status").notNull().default("permitted"),
   certifierApprovalRef: text("certifier_approval_ref"),
   cropYear: integer("crop_year"),

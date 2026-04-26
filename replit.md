@@ -72,6 +72,14 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 ### Modules
 The platform supports 17 core compliance modules with monthly pricing, covering areas like Field & Crop Management, Sprays & Inputs, Soil Management, Livestock Management, Biosecurity, and Financial Records. A dedicated Dairy Management module provides detailed tracking.
 
+#### Organic Compliance Module
+The Organic Compliance module (key: `organic-compliance`) covers five tabs: Certification, Field Status, Inspections, Restricted Inputs, and Input Register. Both the Input Register and Restricted Inputs forms include:
+- **Substance picker** (SubstancePicker component) searching Annex I (permitted inputs) and Annex II (restricted plant protection products) from UK retained EC 889/2008.
+- **Supplier combobox** (SupplierCombobox component) — searches the farm's Trade Contacts list via `GET /api/farms/:farmId/suppliers`.
+- **Purchase Order lookup** — dropdown filtered by selected supplier via `GET /api/farms/:farmId/purchase-orders`, stores PO number as `poReference` text field.
+- **GRN / Delivery Note lookup** — dropdown filtered by selected PO via `GET /api/farms/:farmId/stock-deliveries`, stores GRN number as `grnReference` text field.
+- Schema: `organicInputsTable` and `organicRestrictedInputTable` in `lib/db/src/schema/organic.ts`.
+
 ## External Dependencies
 
 - **Monorepo Tool:** pnpm workspaces

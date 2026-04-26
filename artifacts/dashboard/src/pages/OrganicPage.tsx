@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -9,8 +9,10 @@ import { Redirect } from "wouter";
 import {
   Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
   Calendar, Printer, Leaf, ShieldCheck, FlaskConical, BookOpen,
-  Clock, Info, ExternalLink, Eye, ClipboardList, Package,
+  Clock, Info, ExternalLink, Eye, ClipboardList, Package, ChevronsUpDown, Check,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -123,6 +125,9 @@ function printRestrictedInputsLog(records: RestrictedInput[], farmName: string) 
     <td>${r.productCategory || "—"}</td>
     <td>${r.fieldName || "—"}</td>
     <td>${r.appliedBy || "—"}</td>
+    <td>${r.supplier || "—"}</td>
+    <td>${r.poReference || "—"}</td>
+    <td>${r.grnReference || "—"}</td>
     <td>${r.justification}</td>
     <td>${r.approvalReference || "—"}</td>
     <td>${r.certifierNotified ? "Yes" : "No"}</td>
@@ -130,7 +135,7 @@ function printRestrictedInputsLog(records: RestrictedInput[], farmName: string) 
   openPrint(`<!DOCTYPE html><html><head><title>Restricted Inputs Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Restricted Inputs Log · Complementary Record</p></div>
 <div class="hdr-r"><b>Restricted Inputs</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th></tr></thead>
+<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Restricted Inputs Log — Complementary record for Soil Association / OF&G portal. Retain with derogation approvals. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
@@ -144,6 +149,8 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
     <td style="font-weight:600">${r.productName}</td>
     <td>${r.inputType || "—"}</td>
     <td>${r.supplier || "—"}</td>
+    <td>${r.poReference || "—"}</td>
+    <td>${r.grnReference || "—"}</td>
     <td style="font-weight:600;color:${r.approvalStatus === "permitted" ? "#166534" : r.approvalStatus === "restricted" ? "#92400e" : "#991b1b"}">${APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</td>
     <td>${r.certifierApprovalRef || "—"}</td>
     <td>${r.fieldName || "—"}</td>
@@ -153,7 +160,7 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
   openPrint(`<!DOCTYPE html><html><head><title>Input Register — ${farmName} — ${yearLabel}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel} · Complementary Record</p></div>
 <div class="hdr-r"><b>Input Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>Approval Status</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
+<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Approval Status</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Organic Input Register — Complementary record for Soil Association / OF&G portal. This register demonstrates that inputs used comply with organic standards. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
@@ -182,6 +189,7 @@ interface RestrictedInput {
   productName: string; productCategory: string | null; dateApplied: string;
   appliedBy: string | null; justification: string; approvalReference: string | null;
   certifierNotified: boolean; notes: string | null;
+  supplier: string | null; poReference: string | null; grnReference: string | null;
 }
 interface FarmField { id: number; name: string; areaHectares: string | null; }
 
@@ -993,16 +1001,21 @@ function SubstancePicker({
 
 // ─── Restricted Inputs Tab ───────────────────────────────────────────────────
 
-const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "" };
+const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "", supplier: "", poReference: "", grnReference: "" };
 const INPUT_CATEGORIES = ["Fertiliser / Soil Amendment", "Crop Protection / Pesticide", "Growth Regulator", "Cleaning / Disinfectant", "Veterinary Treatment", "Other"];
 
 interface OrganicInput {
   id: number; farmId: number; productName: string; inputType: string | null;
-  supplier: string | null; approvalStatus: string; certifierApprovalRef: string | null;
+  supplier: string | null; poReference: string | null; grnReference: string | null;
+  approvalStatus: string; certifierApprovalRef: string | null;
   cropYear: number | null; dateOfUse: string | null; quantityAmount: string | null;
   quantityUnit: string | null; fieldId: number | null; fieldName: string | null;
   notes: string | null; createdAt: string;
 }
+
+interface Supplier { id: number; name: string; supplierType: string; accountNumber?: string | null; }
+interface PurchaseOrder { id: number; poNumber: string; supplierId: number | null; orderDate: string | null; status: string; }
+interface StockDelivery { id: number; grnNumber: string | null; supplierId: number | null; poId: number | null; deliveryDate: string | null; }
 
 const APPROVAL_STATUS_LABELS: Record<string, string> = {
   permitted: "Permitted",
@@ -1022,6 +1035,55 @@ function yearRange(): number[] {
   return [y + 1, y, y - 1, y - 2, y - 3, y - 4];
 }
 
+function SupplierCombobox({ suppliers, value, valueId, onChange }: {
+  suppliers: Supplier[];
+  value: string;
+  valueId: number | null;
+  onChange: (id: number | null, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" role="combobox" type="button"
+            className="flex-1 justify-between font-normal text-left h-12 px-3 rounded-xl border-2 border-border">
+            <span className={value ? "text-foreground" : "text-muted-foreground"}>
+              {value || "Search Trade Contacts…"}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search suppliers…" />
+            <CommandList>
+              <CommandEmpty>No supplier found in Trade Contacts.</CommandEmpty>
+              <CommandGroup>
+                {suppliers.map(s => (
+                  <CommandItem key={s.id} value={s.name} onSelect={() => { onChange(s.id, s.name); setOpen(false); }}>
+                    <Check className={`mr-2 h-4 w-4 ${valueId === s.id ? "opacity-100" : "opacity-0"}`} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-medium truncate">{s.name}</span>
+                      {s.accountNumber && <span className="text-xs text-muted-foreground">Acct: {s.accountNumber}</span>}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {(value || valueId !== null) && (
+        <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null, "")}
+          className="px-2 h-12 text-muted-foreground hover:text-destructive" title="Clear supplier">
+          ×
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -1031,6 +1093,8 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INPUT);
   const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
+  const [supplierIdFilter, setSupplierIdFilter] = useState<number | null>(null);
+  const [poIdFilter, setPoIdFilter] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ records: RestrictedInput[] }>({
     queryKey: ["organic-restricted", farmId],
@@ -1046,6 +1110,35 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
     queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
   });
   const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
+
+  const { data: suppliersData } = useQuery<Supplier[]>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const suppliers: Supplier[] = suppliersData ?? [];
+
+  const { data: posData } = useQuery<PurchaseOrder[]>({
+    queryKey: ["purchase-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const allPOs: PurchaseOrder[] = posData ?? [];
+
+  const { data: grnsData } = useQuery<StockDelivery[]>({
+    queryKey: ["stock-deliveries", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const allGRNs: StockDelivery[] = grnsData ?? [];
+
+  const filteredPOs = useMemo(
+    () => supplierIdFilter ? allPOs.filter(p => p.supplierId === supplierIdFilter) : allPOs,
+    [allPOs, supplierIdFilter]
+  );
+  const filteredGRNs = useMemo(
+    () => poIdFilter ? allGRNs.filter(g => g.poId === poIdFilter)
+      : supplierIdFilter ? allGRNs.filter(g => g.supplierId === supplierIdFilter)
+      : allGRNs,
+    [allGRNs, poIdFilter, supplierIdFilter]
+  );
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_INPUT) => fetch(`/api/farms/${farmId}/organic/restricted-inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -1064,13 +1157,19 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
 
   function openEdit(r: RestrictedInput) {
     setEditing(r);
-    setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "" });
+    setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "", supplier: r.supplier ?? "", poReference: r.poReference ?? "", grnReference: r.grnReference ?? "" });
+    const matchedSupplier = suppliers.find(s => s.name === (r.supplier ?? ""));
+    setSupplierIdFilter(matchedSupplier?.id ?? null);
+    const matchedPO = allPOs.find(p => p.poNumber === (r.poReference ?? ""));
+    setPoIdFilter(matchedPO?.id ?? null);
     setFormOpen(true);
   }
 
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_INPUT);
+    setSupplierIdFilter(null);
+    setPoIdFilter(null);
     setFormOpen(true);
   }
 
@@ -1133,6 +1232,13 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
                     <p>Applied: {fmt(r.dateApplied)}{r.fieldName ? ` · ${r.fieldName}` : ""}{r.appliedBy ? ` · By: ${r.appliedBy}` : ""}</p>
                     <p><span className="font-medium text-foreground/80">Justification:</span> {r.justification}</p>
                     {r.approvalReference && <p>Approval ref: {r.approvalReference}</p>}
+                    {(r.supplier || r.poReference) && (
+                      <p className="flex items-center gap-2 flex-wrap">
+                        {r.supplier && <span>Supplier: {r.supplier}</span>}
+                        {r.poReference && <span>· PO: {r.poReference}</span>}
+                        {r.grnReference && <span>· GRN: {r.grnReference}</span>}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -1158,6 +1264,9 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Applied By</p><p className="font-medium">{String(viewRecord.appliedBy ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Reference</p><p className="font-medium">{String(viewRecord.approvalReference ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{String(viewRecord.supplier ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{String(viewRecord.poReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{String(viewRecord.grnReference ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{String(viewRecord.justification ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
@@ -1211,6 +1320,44 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
               <div><Label>Applied By</Label><Input className={INPUT_CLS} value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} /></div>
               <div><Label>Approval Reference</Label><Input className={INPUT_CLS} placeholder="Certifier approval ref" value={form.approvalReference} onChange={e => setForm(f => ({ ...f, approvalReference: e.target.value }))} /></div>
             </div>
+            <div>
+              <Label>Supplier</Label>
+              <SupplierCombobox
+                suppliers={suppliers}
+                value={form.supplier}
+                valueId={supplierIdFilter}
+                onChange={(id, name) => {
+                  setSupplierIdFilter(id);
+                  setPoIdFilter(null);
+                  setForm(f => ({ ...f, supplier: name, poReference: "", grnReference: "" }));
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Purchase Order</Label>
+                <select className={INPUT_CLS} value={form.poReference} onChange={e => {
+                  const poNum = e.target.value;
+                  const po = allPOs.find(p => p.poNumber === poNum);
+                  setPoIdFilter(po?.id ?? null);
+                  setForm(f => ({ ...f, poReference: poNum, grnReference: "" }));
+                }}>
+                  <option value="">— None —</option>
+                  {filteredPOs.map(p => (
+                    <option key={p.id} value={p.poNumber}>{p.poNumber}{p.orderDate ? ` · ${fmt(p.orderDate)}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>GRN / Delivery Note</Label>
+                <select className={INPUT_CLS} value={form.grnReference} onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {filteredGRNs.filter(g => g.grnNumber).map(g => (
+                    <option key={g.id} value={g.grnNumber!}>{g.grnNumber}{g.deliveryDate ? ` · ${fmt(g.deliveryDate)}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div><Label>Justification *</Label><Textarea required value={form.justification} onChange={e => setForm(f => ({ ...f, justification: e.target.value }))} rows={3} placeholder="Explain the exceptional circumstances that required this input…" /></div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="notified" checked={form.certifierNotified} onChange={e => setForm(f => ({ ...f, certifierNotified: e.target.checked }))} className="rounded border-border" />
@@ -1247,6 +1394,8 @@ const EMPTY_ORG_INPUT = {
   productName: "",
   inputType: "",
   supplier: "",
+  poReference: "",
+  grnReference: "",
   approvalStatus: "permitted",
   certifierApprovalRef: "",
   cropYear: new Date().getFullYear(),
@@ -1265,6 +1414,8 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_ORG_INPUT);
   const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
+  const [supplierIdFilter, setSupplierIdFilter] = useState<number | null>(null);
+  const [poIdFilter, setPoIdFilter] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ records: OrganicInput[] }>({
     queryKey: ["organic-inputs", farmId, yearFilter],
@@ -1282,6 +1433,35 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
     queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
   });
   const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
+
+  const { data: suppliersData } = useQuery<Supplier[]>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const suppliers: Supplier[] = suppliersData ?? [];
+
+  const { data: posData } = useQuery<PurchaseOrder[]>({
+    queryKey: ["purchase-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const allPOs: PurchaseOrder[] = posData ?? [];
+
+  const { data: grnsData } = useQuery<StockDelivery[]>({
+    queryKey: ["stock-deliveries", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const allGRNs: StockDelivery[] = grnsData ?? [];
+
+  const filteredPOs = useMemo(
+    () => supplierIdFilter ? allPOs.filter(p => p.supplierId === supplierIdFilter) : allPOs,
+    [allPOs, supplierIdFilter]
+  );
+  const filteredGRNs = useMemo(
+    () => poIdFilter ? allGRNs.filter(g => g.poId === poIdFilter)
+      : supplierIdFilter ? allGRNs.filter(g => g.supplierId === supplierIdFilter)
+      : allGRNs,
+    [allGRNs, poIdFilter, supplierIdFilter]
+  );
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_ORG_INPUT) => fetch(`/api/farms/${farmId}/organic/inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -1306,6 +1486,8 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       productName: r.productName,
       inputType: r.inputType ?? "",
       supplier: r.supplier ?? "",
+      poReference: r.poReference ?? "",
+      grnReference: r.grnReference ?? "",
       approvalStatus: r.approvalStatus,
       certifierApprovalRef: r.certifierApprovalRef ?? "",
       cropYear: r.cropYear ?? new Date().getFullYear(),
@@ -1314,12 +1496,18 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       quantityUnit: r.quantityUnit ?? "kg",
       notes: r.notes ?? "",
     });
+    const matchedSupplier = suppliers.find(s => s.name === (r.supplier ?? ""));
+    setSupplierIdFilter(matchedSupplier?.id ?? null);
+    const matchedPO = allPOs.find(p => p.poNumber === (r.poReference ?? ""));
+    setPoIdFilter(matchedPO?.id ?? null);
     setFormOpen(true);
   }
 
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_ORG_INPUT);
+    setSupplierIdFilter(null);
+    setPoIdFilter(null);
     setFormOpen(true);
   }
 
@@ -1395,6 +1583,12 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                         {r.fieldName && <span>Field: {r.fieldName}</span>}
                         {r.quantityAmount && <span>Qty: {r.quantityAmount}{r.quantityUnit ? ` ${r.quantityUnit}` : ""}</span>}
                       </p>
+                      {(r.poReference || r.grnReference) && (
+                        <p className="flex items-center gap-2 flex-wrap">
+                          {r.poReference && <span>PO: {r.poReference}</span>}
+                          {r.grnReference && <span>· GRN: {r.grnReference}</span>}
+                        </p>
+                      )}
                       {(r.approvalStatus === "restricted" || r.approvalStatus === "derogation") && r.certifierApprovalRef && (
                         <p>Certifier ref: {r.certifierApprovalRef}</p>
                       )}
@@ -1421,6 +1615,8 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Input Type</p><p className="font-medium">{viewRecord.inputType || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{viewRecord.supplier || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Status</p><p className="font-medium">{APPROVAL_STATUS_LABELS[viewRecord.approvalStatus] ?? viewRecord.approvalStatus}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{viewRecord.poReference || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{viewRecord.grnReference || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{viewRecord.certifierApprovalRef || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Year</p><p className="font-medium">{viewRecord.cropYear ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date of Use</p><p className="font-medium">{fmt(viewRecord.dateOfUse)}</p></div>
@@ -1463,7 +1659,44 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                   {INPUT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div><Label>Supplier</Label><Input className={INPUT_CLS} value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} /></div>
+              <div className="col-span-1">
+                <Label>Supplier</Label>
+                <SupplierCombobox
+                  suppliers={suppliers}
+                  value={form.supplier}
+                  valueId={supplierIdFilter}
+                  onChange={(id, name) => {
+                    setSupplierIdFilter(id);
+                    setPoIdFilter(null);
+                    setForm(f => ({ ...f, supplier: name, poReference: "", grnReference: "" }));
+                  }}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Purchase Order</Label>
+                <select className={INPUT_CLS} value={form.poReference} onChange={e => {
+                  const poNum = e.target.value;
+                  const po = allPOs.find(p => p.poNumber === poNum);
+                  setPoIdFilter(po?.id ?? null);
+                  setForm(f => ({ ...f, poReference: poNum, grnReference: "" }));
+                }}>
+                  <option value="">— None —</option>
+                  {filteredPOs.map(p => (
+                    <option key={p.id} value={p.poNumber}>{p.poNumber}{p.orderDate ? ` · ${fmt(p.orderDate)}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>GRN / Delivery Note</Label>
+                <select className={INPUT_CLS} value={form.grnReference} onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {filteredGRNs.filter(g => g.grnNumber).map(g => (
+                    <option key={g.id} value={g.grnNumber!}>{g.grnNumber}{g.deliveryDate ? ` · ${fmt(g.deliveryDate)}` : ""}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Approval Status *</Label>

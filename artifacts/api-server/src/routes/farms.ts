@@ -10020,38 +10020,61 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       title: "Organic Input Register & Restricted Inputs",
       category: "Organic Compliance",
       content: `<h2>Organic Input Register & Restricted Inputs</h2>
-<p>Maintaining an accurate record of every input used on your organic holding is a core certification requirement. The Organic Input Register captures sprays, fertilisers, soil treatments, and other materials used across your fields, and flags any that do not meet organic standards.</p>
+<p>Maintaining an accurate record of every input used on your organic holding is a core certification requirement. The Organic Input Register captures fertilisers, crop protection products, soil treatments, feed supplements, and cleaning materials used across your fields. Both the Input Register and the Restricted Inputs log now include full supplier and procurement traceability — linking each applied product back to the Purchase Order that authorised it and the Goods Received Note (GRN) that confirmed delivery.</p>
+
+<h3>Substance Lookup</h3>
+<p>Both forms include a substance picker that searches against the UK organic permitted and restricted substance lists:</p>
+<ul>
+<li><strong>Input Register</strong> — searches Annex I substances (fertilisers, soil conditioners, plant extracts, and cleaning agents permitted under retained EC 889/2008).</li>
+<li><strong>Restricted Inputs</strong> — searches Annex II plant protection products (copper compounds, microbials, pyrethrin, spinosad, and others subject to conditions or certifier approval).</li>
+</ul>
+<p>Selecting a substance auto-fills the Input Type or Category field. You can also type a trade name not in the list and save it as a free-text entry — this covers novel products or derogations. Any substance not recognised by the picker is flagged for review.</p>
+
+<h3>Supplier, Purchase Order & GRN Linking</h3>
+<p>Certifiers may ask to cross-reference your input records against delivery documentation. BDE Farm Trac connects each input directly to your Trade Contacts and procurement records:</p>
+<ol>
+<li><strong>Supplier</strong> — click the Supplier field and search your Trade Contacts list. The combobox shows all suppliers already in your system. Select one to link it, or clear the field if the purchase was ad hoc.</li>
+<li><strong>Purchase Order</strong> — once a supplier is selected, the Purchase Order dropdown is filtered to show only POs raised against that supplier. Select the PO that authorised the purchase of this product. If no supplier is selected, all farm POs are shown.</li>
+<li><strong>GRN / Delivery Note</strong> — once a PO is selected, the GRN dropdown is filtered to show only deliveries receipted against that PO. Select the GRN that confirmed the product was received on farm. This creates a complete audit chain: product applied → supplier → order raised → goods received.</li>
+</ol>
+<p>The PO and GRN numbers are stored on each input record and displayed in the list view, making it straightforward to trace any applied product back to its delivery paperwork during an inspection.</p>
 
 <h3>What Is a Restricted Input?</h3>
 <p>Under UK organic standards (aligned with EC 889/2008 as retained in UK law), certain inputs are only permitted under specific conditions or with prior approval from your certification body. Examples include:</p>
 <ul>
-<li>Copper-based fungicides (restricted volume per hectare per year)</li>
-<li>Certain botanical pest control products</li>
-<li>Some mineral fertilisers requiring derogation</li>
+<li>Copper-based fungicides (restricted to a maximum of 4 kg Cu/ha averaged over seven years)</li>
+<li>Botanical pest control products such as pyrethrin and spinosad (subject to conditions)</li>
+<li>Certain mineral fertilisers requiring derogation</li>
 <li>Conventional seed used under derogation when organic seed is unavailable</li>
 </ul>
-<p>BDE Farm Trac maintains a reference list of commonly used restricted inputs. When you add an input record that matches a restricted product, the app displays a yellow warning badge and prompts you to record the justification or derogation reference.</p>
+<p>The Restricted Inputs tab is separate from the main Input Register and carries an amber warning banner. It includes all the same supplier, PO, and GRN linking fields, plus a mandatory Justification field and a Certifier Notified checkbox.</p>
 
 <h3>Adding an Input Record (Dashboard)</h3>
 <ol>
 <li>Go to <strong>Organic Compliance → Input Register</strong> and click <strong>Add Input</strong>.</li>
-<li>Select the field(s) and enter the product name, active ingredient or material type, application date, rate, and operator.</li>
-<li>If the product is flagged as restricted, a <strong>Justification</strong> field appears — enter your derogation reference or reason for use (e.g. "Copper fungicide — 2.0 kg Cu/ha applied, annual total remains within 4 kg Cu/ha limit").</li>
-<li>Click <strong>Save</strong>. Restricted inputs appear highlighted in the register so they are easy to review before an inspection.</li>
+<li>Use the substance picker to find and select the product. The Input Type field is filled automatically for known substances.</li>
+<li>Select the Supplier from your Trade Contacts. Then choose the Purchase Order (filtered to that supplier) and GRN (filtered to that PO) to link the procurement trail.</li>
+<li>Set Approval Status — Permitted, Restricted (notify certifier), or Derogation Required. For Restricted or Derogation, a Certifier Approval Ref field appears.</li>
+<li>Complete the date, field, and quantity fields and click <strong>Save</strong>.</li>
+</ol>
+
+<h3>Adding a Restricted Input Record (Dashboard)</h3>
+<ol>
+<li>Go to <strong>Organic Compliance → Restricted Inputs</strong> and click <strong>Record Restricted Input</strong>.</li>
+<li>Use the Annex II substance picker. Select the field and date, and fill in the Applied By and Approval Reference fields.</li>
+<li>Select the Supplier, Purchase Order, and GRN as described above — the same filtered-lookup flow applies.</li>
+<li>Enter a Justification explaining the exceptional circumstances. Tick <strong>Certifier has been notified</strong> once you have informed your certification body.</li>
+<li>Click <strong>Save</strong>. The record appears in the Restricted Inputs list highlighted in amber.</li>
 </ol>
 
 <h3>Adding an Input Record (Mobile App)</h3>
 <ol>
 <li>Tap <strong>Record → Organic Input</strong> from the mobile app home screen.</li>
-<li>Select the field, enter the product and date, and tap <strong>Save</strong>. The record syncs to the dashboard when online.</li>
-<li>Restricted-input warnings are shown on mobile in the same way as the dashboard.</li>
+<li>Select the field, enter the product and date, and tap <strong>Save</strong>. The record syncs to the dashboard when online, where you can add the supplier and PO/GRN links.</li>
 </ol>
 
 <h3>Filtering & Reporting</h3>
-<p>Use the date and field filters at the top of the Input Register to narrow the view for a specific growing season or parcel. The <strong>Export CSV</strong> button produces a full register in the column format most certification bodies accept — date, field, product, active substance, rate, area, operator, justification.</p>
-
-<h3>Non-Approved Inputs</h3>
-<p>If you record an input that BDE Farm Trac cannot match to any approved or restricted product, it is flagged as "Non-Approved — Review Required". Contact your certification body before using the product on certified land. You can also use the notes field to record any clarification received.</p>`,
+<p>Use the year filter at the top of each tab to narrow the view to a specific growing season. Click <strong>Print Register</strong> or <strong>Print Log</strong> to produce a formatted report suitable for handing to an inspector — it includes all supplier, PO, and GRN references alongside the field, product, quantity, and approval data.</p>`,
     },
     {
       id: 10055,
@@ -17612,15 +17635,15 @@ router.get("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenan
 
 router.post("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
-  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes } = req.body;
-  const [record] = await db.insert(organicRestrictedInputTable).values({ farmId, fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null }).returning();
+  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes, supplier, poReference, grnReference } = req.body;
+  const [record] = await db.insert(organicRestrictedInputTable).values({ farmId, fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes } = req.body;
-  await db.update(organicRestrictedInputTable).set({ fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null }).where(eq(organicRestrictedInputTable.id, id));
+  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes, supplier, poReference, grnReference } = req.body;
+  await db.update(organicRestrictedInputTable).set({ fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null }).where(eq(organicRestrictedInputTable.id, id));
   const [record] = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
   res.json({ record });
 });
@@ -17643,15 +17666,15 @@ router.get("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireM
 
 router.post("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
-  const { productName, inputType, supplier, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
-  const [record] = await db.insert(organicInputsTable).values({ farmId, productName, inputType: inputType ?? null, supplier: supplier ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).returning();
+  const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
+  const [record] = await db.insert(organicInputsTable).values({ farmId, productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { productName, inputType, supplier, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
-  await db.update(organicInputsTable).set({ productName, inputType: inputType ?? null, supplier: supplier ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).where(eq(organicInputsTable.id, id));
+  const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
+  await db.update(organicInputsTable).set({ productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).where(eq(organicInputsTable.id, id));
   const [record] = await db.select().from(organicInputsTable).where(eq(organicInputsTable.id, id));
   res.json({ record });
 });
