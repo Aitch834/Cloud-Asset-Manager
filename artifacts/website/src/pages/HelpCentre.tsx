@@ -1,8 +1,8 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, ChevronDown, ChevronUp, BookOpen, Sprout, ShieldCheck, FlaskConical,
+  Search, ChevronDown, BookOpen, Sprout, ShieldCheck, FlaskConical,
   Tractor, PawPrint, ClipboardCheck, LifeBuoy, Phone, Mail,
   LeafyGreen, Leaf, AlertTriangle, LineChart, CloudRain, Landmark, Store, Fuel, Package,
   Warehouse, Wrench, Map,
@@ -228,18 +228,28 @@ function AccordionItem({ item }: { item: FaqItem }) {
         className="w-full flex items-start justify-between gap-4 py-4 text-left text-sm font-medium text-foreground hover:text-brand transition-colors"
       >
         <span>{item.q}</span>
-        {open ? <ChevronUp className="w-4 h-4 shrink-0 mt-0.5" /> : <ChevronDown className="w-4 h-4 shrink-0 mt-0.5" />}
-      </button>
-      {open && (
-        <motion.p
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-          className="pb-4 text-sm text-muted-foreground leading-relaxed"
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="shrink-0 mt-0.5"
         >
-          {item.a}
-        </motion.p>
-      )}
+          <ChevronDown className="w-4 h-4" />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="answer"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
