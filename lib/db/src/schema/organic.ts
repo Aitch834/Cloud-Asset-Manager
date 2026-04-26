@@ -43,6 +43,8 @@ export const organicInspectionTable = pgTable("organic_inspection", {
   nonConformances: text("non_conformances"),
   actions: text("actions"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -17453,6 +17453,14 @@ router.delete("/farms/:farmId/organic/inspections/:id", requireAuth, requireTena
   res.json({ ok: true });
 });
 
+router.patch("/farms/:farmId/organic/inspections/:id/document", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const { documentPath, documentName } = req.body;
+  await db.update(organicInspectionTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(organicInspectionTable.id, id), eq(organicInspectionTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
 router.get("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const records = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.farmId, farmId)).orderBy(desc(organicRestrictedInputTable.dateApplied));

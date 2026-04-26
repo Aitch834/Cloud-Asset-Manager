@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { DocAttach } from "@/components/DocAttach";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,7 @@ interface InspectionRecord {
   id: number; farmId: number; certifier: string; inspectorName: string | null;
   inspectionDate: string; outcome: string; certificateReference: string | null;
   nextDueDate: string | null; nonConformances: string | null; actions: string | null; notes: string | null;
+  documentPath: string | null; documentName: string | null;
 }
 interface RestrictedInput {
   id: number; farmId: number; fieldId: number | null; fieldName: string | null;
@@ -756,6 +758,16 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                       )}
                       {r.nonConformances && <p className="text-orange-700"><span className="font-medium">Non-conformances:</span> {r.nonConformances}</p>}
                       {r.actions && <p><span className="font-medium">Actions:</span> {r.actions}</p>}
+                      <p className="mt-1">
+                        <DocAttach
+                          farmId={farmId}
+                          endpoint="organic/inspections"
+                          recordId={r.id}
+                          documentPath={r.documentPath}
+                          documentName={r.documentName}
+                          queryKey={["organic-inspections", farmId]}
+                        />
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
