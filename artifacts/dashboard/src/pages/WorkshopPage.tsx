@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from "rea
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff, Receipt, Users } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -384,9 +384,12 @@ interface WorkshopJob {
     estimatedCompletionDate: string | null; completedAt: string | null;
     labourHours: number | null; labourCostPence: number | null; partsCostPence: number | null;
     partsUsed: string | null; rootCause: string | null; notes: string | null;
+    customerId: number | null; serviceInvoiceId: number | null;
   };
   equipmentName: string | null;
   assetNumber: string | null;
+  customerName: string | null;
+  invoiceNumber: string | null;
 }
 
 interface IssuedPart {
@@ -529,6 +532,7 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
 
 function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId?: number | null; initialStatus?: string }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WorkshopJob["job"] | null>(null);
   const [form, setForm] = useState<Partial<WorkshopJob["job"]>>(EMPTY_JOB);
@@ -573,6 +577,24 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     queryKey: ["job-issued-parts", editing?.id],
     queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/parts`), { credentials: "include" }).then(r => r.json()),
     enabled: open && !!editing?.id,
+  });
+
+  const { data: customersData } = useQuery<{ records: { id: number; name: string; isActive: boolean }[] }>({
+    queryKey: ["farm-customers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-customers`), { credentials: "include" }).then(r => r.json()),
+  });
+  const customers = (customersData?.records ?? []).filter(c => c.isActive);
+
+  const raiseInvoice = useMutation({
+    mutationFn: (jobId: number) =>
+      fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/raise-invoice`), {
+        method: "POST", credentials: "include",
+      }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
+      toast({ title: "Invoice raised", description: "Draft invoice created in Farm Services & Contracting." });
+    },
+    onError: () => toast({ title: "Failed to raise invoice", variant: "destructive" }),
   });
 
   // Derive step/min from the selected part's UOM — must be after workshopParts query
@@ -654,7 +676,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
         <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No job cards found. Log a repair or service with "New Job".</CardContent></Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(({ job, equipmentName, assetNumber: an }) => (
+          {filtered.map(({ job, equipmentName, assetNumber: an, customerName, invoiceNumber }) => (
             <Card key={job.id} ref={(el) => { if (el) cardRefs.current.set(job.id, el as HTMLElement); }} className={`transition-shadow${hlId === job.id ? " ring-2 ring-amber-400 bg-amber-50 shadow-md" : " hover:shadow-md"}`}>
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-start justify-between gap-2">
@@ -670,6 +692,11 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-2">
                 {equipmentName && <p className="text-xs text-gray-500">{an ? `${an} — ` : ""}{equipmentName}</p>}
+                {customerName && (
+                  <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                    <Users className="h-3 w-3" />For: {customerName}
+                  </p>
+                )}
                 {job.description && <p className="text-xs text-gray-600 line-clamp-2">{job.description}</p>}
                 <div className="flex gap-2 flex-wrap pt-1">
                   <StatusBadge value={job.status} map={JOB_STATUS} />
@@ -681,6 +708,24 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                   <p className="text-xs text-gray-400">Due: {new Date(job.estimatedCompletionDate).toLocaleDateString("en-GB")}</p>
                 )}
                 {job.labourHours != null && <p className="text-xs text-gray-400">Labour: {job.labourHours} hrs</p>}
+                {job.status === "completed" && job.customerId && !job.serviceInvoiceId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-1 h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                    onClick={() => raiseInvoice.mutate(job.id)}
+                    disabled={raiseInvoice.isPending}
+                  >
+                    <Receipt className="h-3.5 w-3.5 mr-1" />
+                    {raiseInvoice.isPending ? "Raising…" : "Raise Invoice"}
+                  </Button>
+                )}
+                {job.serviceInvoiceId && invoiceNumber && (
+                  <div className="flex items-center gap-1.5 mt-1 px-2 py-1 rounded bg-green-50 border border-green-200">
+                    <Receipt className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                    <span className="text-xs text-green-700 font-medium">Invoice {invoiceNumber} raised</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -746,6 +791,21 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(JOB_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5 text-amber-600" />
+                  Customer <span className="text-xs text-gray-400 font-normal ml-1">(for work done for another farm)</span>
+                </Label>
+                <Select value={form.customerId ? String(form.customerId) : "none"} onValueChange={v => set("customerId", v !== "none" ? parseInt(v) : null)}>
+                  <SelectTrigger><SelectValue placeholder="None — internal job" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — internal job</SelectItem>
+                    {customers.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

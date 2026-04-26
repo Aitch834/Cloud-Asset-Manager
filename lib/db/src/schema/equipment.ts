@@ -3,6 +3,7 @@ import { farmsTable } from "./core";
 import { suppliersTable, stockItemsTable } from "./stock-suppliers";
 import { farmLocationsTable } from "./farm-locations";
 import { storageLocationsTable } from "./fields-crops";
+import { farmCustomersTable, serviceInvoicesTable } from "./farm-services";
 
 export const equipmentTable = pgTable("equipment", {
   id: serial("id").primaryKey(),
@@ -97,6 +98,8 @@ export const workshopJobsTable = pgTable("workshop_jobs", {
   partsUsed: text("parts_used"),
   rootCause: text("root_cause"),
   notes: text("notes"),
+  customerId: integer("customer_id").references(() => farmCustomersTable.id),
+  serviceInvoiceId: integer("service_invoice_id").references(() => serviceInvoicesTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

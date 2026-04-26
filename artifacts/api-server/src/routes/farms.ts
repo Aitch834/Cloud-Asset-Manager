@@ -12567,9 +12567,17 @@ router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requir
 router.get("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const jobs = await db
-    .select({ job: workshopJobsTable, equipmentName: equipmentTable.name, assetNumber: equipmentTable.assetNumber })
+    .select({
+      job: workshopJobsTable,
+      equipmentName: equipmentTable.name,
+      assetNumber: equipmentTable.assetNumber,
+      customerName: farmCustomersTable.name,
+      invoiceNumber: serviceInvoicesTable.invoiceNumber,
+    })
     .from(workshopJobsTable)
     .leftJoin(equipmentTable, eq(workshopJobsTable.equipmentId, equipmentTable.id))
+    .leftJoin(farmCustomersTable, eq(workshopJobsTable.customerId, farmCustomersTable.id))
+    .leftJoin(serviceInvoicesTable, eq(workshopJobsTable.serviceInvoiceId, serviceInvoicesTable.id))
     .where(eq(workshopJobsTable.farmId, farmId))
     .orderBy(desc(workshopJobsTable.createdAt));
   res.json({ jobs });
@@ -12586,7 +12594,7 @@ router.post("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireM
 router.put("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
-  const { id: _id, farmId: _f, jobNumber: _jn, createdAt: _c, ...rest } = req.body;
+  const { id: _id, farmId: _f, jobNumber: _jn, createdAt: _c, serviceInvoiceId: _si, ...rest } = req.body;
   const [record] = await db.update(workshopJobsTable).set(rest).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId))).returning();
   res.json(record);
 });
@@ -12596,6 +12604,108 @@ router.delete("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, re
   const id = parseInt(req.params.id);
   await db.delete(workshopJobsTable).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const jobId = parseInt(req.params.jobId);
+  if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+
+  const [job] = await db.select().from(workshopJobsTable)
+    .where(and(eq(workshopJobsTable.id, jobId), eq(workshopJobsTable.farmId, farmId)));
+  if (!job) { res.status(404).json({ error: "Job not found" }); return; }
+  if (!job.customerId) { res.status(400).json({ error: "No customer assigned to this job" }); return; }
+  if (job.serviceInvoiceId) { res.status(409).json({ error: "Invoice already raised for this job" }); return; }
+
+  // Generate invoice number
+  const [countRow] = await db.select({ c: sql<number>`count(*)` }).from(serviceInvoicesTable).where(eq(serviceInvoicesTable.farmId, farmId));
+  const invoiceNumber = `INV-${String(Number(countRow.c) + 1).padStart(4, "0")}`;
+
+  // Fetch parts issued from parts store for this job
+  const issuedParts = await db
+    .select({
+      partName: stockItemsTable.name,
+      quantity: stockMovementsTable.quantityChange,
+      unit: stockItemsTable.unit,
+      unitCostPence: stockItemsTable.unitCostPence,
+    })
+    .from(stockMovementsTable)
+    .innerJoin(stockItemsTable, eq(stockMovementsTable.stockItemId, stockItemsTable.id))
+    .where(and(
+      eq(stockMovementsTable.farmId, farmId),
+      eq(stockMovementsTable.referenceType, "workshop_job"),
+      eq(stockMovementsTable.referenceId, jobId),
+      eq(stockMovementsTable.movementType, "out"),
+    ));
+
+  // Build invoice lines
+  const lines: { description: string; quantity: number; unit: string; unitPricePence: number; lineTotalPence: number }[] = [];
+
+  if (job.labourCostPence && job.labourCostPence > 0) {
+    const hrs = job.labourHours ?? 0;
+    const unitPrice = hrs > 0 ? Math.round(job.labourCostPence / hrs) : job.labourCostPence;
+    lines.push({
+      description: `Workshop labour — ${job.title}${hrs > 0 ? ` (${hrs} hrs)` : ""}`,
+      quantity: hrs > 0 ? hrs : 1,
+      unit: hrs > 0 ? "hrs" : "job",
+      unitPricePence: unitPrice,
+      lineTotalPence: job.labourCostPence,
+    });
+  }
+
+  if (issuedParts.length > 0) {
+    for (const p of issuedParts) {
+      const qty = Math.abs(Number(p.quantity));
+      const unitPrice = p.unitCostPence ?? 0;
+      lines.push({
+        description: `Parts — ${p.partName}`,
+        quantity: qty,
+        unit: p.unit ?? "unit",
+        unitPricePence: unitPrice,
+        lineTotalPence: Math.round(qty * unitPrice),
+      });
+    }
+  } else if (job.partsCostPence && job.partsCostPence > 0) {
+    lines.push({
+      description: `Parts & materials — ${job.partsUsed || job.title}`,
+      quantity: 1,
+      unit: "job",
+      unitPricePence: job.partsCostPence,
+      lineTotalPence: job.partsCostPence,
+    });
+  }
+
+  // Create service invoice
+  const today = new Date().toISOString().split("T")[0];
+  const [invoice] = await db.insert(serviceInvoicesTable).values({
+    farmId,
+    customerId: job.customerId,
+    invoiceNumber,
+    invoiceDate: today,
+    status: "draft",
+    subtotalPence: 0,
+    vatRatePercent: "20",
+    vatPence: 0,
+    totalPence: 0,
+    notes: `Auto-generated from Workshop Job ${job.jobNumber}`,
+  }).returning();
+
+  if (lines.length > 0) {
+    await db.insert(serviceInvoiceLinesTable).values(lines.map(l => ({ ...l, invoiceId: invoice.id })));
+    const subtotal = lines.reduce((s, l) => s + l.lineTotalPence, 0);
+    const vatPence = Math.round(subtotal * 20 / 100);
+    await db.update(serviceInvoicesTable)
+      .set({ subtotalPence: subtotal, vatPence, totalPence: subtotal + vatPence })
+      .where(eq(serviceInvoicesTable.id, invoice.id));
+  }
+
+  // Link invoice back to workshop job
+  await db.update(workshopJobsTable)
+    .set({ serviceInvoiceId: invoice.id })
+    .where(eq(workshopJobsTable.id, jobId));
+
+  const [updated] = await db.select().from(serviceInvoicesTable).where(eq(serviceInvoicesTable.id, invoice.id));
+  res.json({ invoice: updated });
 });
 
 router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
