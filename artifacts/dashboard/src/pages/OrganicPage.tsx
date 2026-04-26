@@ -184,7 +184,6 @@ interface RestrictedInput {
   certifierNotified: boolean; notes: string | null;
 }
 interface FarmField { id: number; name: string; areaHectares: string | null; }
-interface SprayProduct { id: number; productName: string; category: string | null; }
 
 // ─── Field picker helper ─────────────────────────────────────────────────────
 
@@ -896,7 +895,6 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
   const [editing, setEditing] = useState<RestrictedInput | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INPUT);
-  const [productCustom, setProductCustom] = useState(false);
   const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
 
   const { data, isLoading } = useQuery<{ records: RestrictedInput[] }>({
@@ -913,12 +911,6 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
     queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
   });
   const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
-
-  const { data: sprayData } = useQuery<{ records: SprayProduct[] }>({
-    queryKey: ["spray-products-lookup", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.ok ? r.json() : { records: [] }),
-  });
-  const sprayProducts: SprayProduct[] = (sprayData?.records ?? []).map((p: any) => ({ id: p.id, productName: p.productName, category: p.category ?? null }));
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_INPUT) => fetch(`/api/farms/${farmId}/organic/restricted-inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -937,15 +929,12 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
 
   function openEdit(r: RestrictedInput) {
     setEditing(r);
-    const productInList = sprayProducts.some(p => p.productName === r.productName);
-    setProductCustom(!productInList);
     setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "" });
     setFormOpen(true);
   }
 
   function openCreate() {
     setEditing(null);
-    setProductCustom(false);
     setForm(EMPTY_INPUT);
     setFormOpen(true);
   }
@@ -954,32 +943,6 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
     e.preventDefault();
     if (editing) { updateM.mutate({ id: editing.id, body: form }); }
     else { createM.mutate(form); }
-  }
-
-  const productSelectValue = sprayProducts.find(p => p.productName === form.productName)
-    ? form.productName
-    : productCustom ? "__other__"
-    : form.productName !== "" ? "__other__"
-    : "";
-
-  function handleProductSelect(val: string) {
-    if (val === "__other__") {
-      setProductCustom(true);
-      setForm(f => ({ ...f, productName: "" }));
-    } else if (val === "") {
-      setProductCustom(false);
-      setForm(f => ({ ...f, productName: "" }));
-    } else {
-      const product = sprayProducts.find(p => p.productName === val);
-      if (product) {
-        setProductCustom(false);
-        setForm(f => ({
-          ...f,
-          productName: product.productName,
-          productCategory: product.category ? mapSprayCategory(product.category) : f.productCategory,
-        }));
-      }
-    }
   }
 
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
@@ -1080,29 +1043,7 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Product Name *</Label>
-              {sprayProducts.length > 0 ? (
-                <div className="space-y-1.5">
-                  <select className={INPUT_CLS} value={productSelectValue} onChange={e => handleProductSelect(e.target.value)}>
-                    <option value="">Select from spray products…</option>
-                    {sprayProducts.map(p => (
-                      <option key={p.id} value={p.productName}>{p.productName}</option>
-                    ))}
-                    <option value="__other__">Other / specify below</option>
-                  </select>
-                  {(productCustom || productSelectValue === "__other__") && (
-                    <Input
-                      className={INPUT_CLS}
-                      required
-                      placeholder="Product name"
-                      value={form.productName}
-                      onChange={e => setForm(f => ({ ...f, productName: e.target.value }))}
-                      autoFocus
-                    />
-                  )}
-                </div>
-              ) : (
-                <Input className={INPUT_CLS} required value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
-              )}
+              <Input className={INPUT_CLS} required placeholder="e.g. Cuprokylt, Pyrethrin, Rock Phosphate" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
             </div>
             <div><Label>Category</Label>
               <select className={INPUT_CLS} value={form.productCategory} onChange={e => setForm(f => ({ ...f, productCategory: e.target.value }))}>
@@ -1153,13 +1094,6 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
   );
 }
 
-function mapSprayCategory(cat: string): string {
-  const c = cat.toLowerCase();
-  if (c.includes("herbicide") || c.includes("fungicide") || c.includes("insecticide") || c.includes("pesticide")) return "Crop Protection / Pesticide";
-  if (c.includes("fertiliser") || c.includes("fertilizer") || c.includes("nutrient")) return "Fertiliser / Soil Amendment";
-  if (c.includes("growth")) return "Growth Regulator";
-  return "Other";
-}
 
 // ─── Input Register Tab ───────────────────────────────────────────────────────
 
@@ -1186,7 +1120,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [editing, setEditing] = useState<OrganicInput | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_ORG_INPUT);
-  const [productCustom, setProductCustom] = useState(false);
   const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
 
   const { data, isLoading } = useQuery<{ records: OrganicInput[] }>({
@@ -1206,12 +1139,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   });
   const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
 
-  const { data: sprayData } = useQuery<{ records: SprayProduct[] }>({
-    queryKey: ["spray-products-lookup", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.ok ? r.json() : { records: [] }),
-  });
-  const sprayProducts: SprayProduct[] = (sprayData?.records ?? []).map((p: any) => ({ id: p.id, productName: p.productName, category: p.category ?? null }));
-
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_ORG_INPUT) => fetch(`/api/farms/${farmId}/organic/inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inputs", farmId] }); setFormOpen(false); setForm(EMPTY_ORG_INPUT); toast({ title: "Input recorded" }); },
@@ -1229,8 +1156,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   function openEdit(r: OrganicInput) {
     setEditing(r);
-    const productInList = sprayProducts.some(p => p.productName === r.productName);
-    setProductCustom(!productInList);
     setForm({
       fieldId: r.fieldId ?? null,
       fieldName: r.fieldName ?? "",
@@ -1250,7 +1175,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   function openCreate() {
     setEditing(null);
-    setProductCustom(false);
     setForm(EMPTY_ORG_INPUT);
     setFormOpen(true);
   }
@@ -1259,32 +1183,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
     e.preventDefault();
     if (editing) { updateM.mutate({ id: editing.id, body: form }); }
     else { createM.mutate(form); }
-  }
-
-  const productSelectValue = sprayProducts.find(p => p.productName === form.productName)
-    ? form.productName
-    : productCustom ? "__other__"
-    : form.productName !== "" ? "__other__"
-    : "";
-
-  function handleProductSelect(val: string) {
-    if (val === "__other__") {
-      setProductCustom(true);
-      setForm(f => ({ ...f, productName: "" }));
-    } else if (val === "") {
-      setProductCustom(false);
-      setForm(f => ({ ...f, productName: "" }));
-    } else {
-      const product = sprayProducts.find(p => p.productName === val);
-      if (product) {
-        setProductCustom(false);
-        setForm(f => ({
-          ...f,
-          productName: product.productName,
-          inputType: product.category ? mapInputTypeFromSpray(product.category) : f.inputType,
-        }));
-      }
-    }
   }
 
   const permitted = records.filter(r => r.approvalStatus === "permitted").length;
@@ -1403,22 +1301,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Product Name *</Label>
-              {sprayProducts.length > 0 ? (
-                <div className="space-y-1.5">
-                  <select className={INPUT_CLS} value={productSelectValue} onChange={e => handleProductSelect(e.target.value)}>
-                    <option value="">Select from spray products…</option>
-                    {sprayProducts.map(p => (
-                      <option key={p.id} value={p.productName}>{p.productName}</option>
-                    ))}
-                    <option value="__other__">Other / specify below</option>
-                  </select>
-                  {(productCustom || productSelectValue === "__other__") && (
-                    <Input className={INPUT_CLS} required placeholder="Product name" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} autoFocus />
-                  )}
-                </div>
-              ) : (
-                <Input className={INPUT_CLS} required value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
-              )}
+              <Input className={INPUT_CLS} required placeholder="e.g. Calcified Seaweed, Compost, Organic Seed" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Input Type</Label>
@@ -1491,14 +1374,6 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   );
 }
 
-function mapInputTypeFromSpray(cat: string): string {
-  const c = cat.toLowerCase();
-  if (c.includes("herbicide") || c.includes("fungicide") || c.includes("insecticide") || c.includes("pesticide")) return "Crop Protection";
-  if (c.includes("fertiliser") || c.includes("fertilizer") || c.includes("nutrient")) return "Fertiliser / Soil Amendment";
-  if (c.includes("seed")) return "Seed Treatment";
-  if (c.includes("growth")) return "Fertiliser / Soil Amendment";
-  return "Other";
-}
 
 // ─── Page shell ──────────────────────────────────────────────────────────────
 
