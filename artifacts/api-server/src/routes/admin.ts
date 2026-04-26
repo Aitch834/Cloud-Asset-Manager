@@ -1110,6 +1110,65 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
   res.json({ success: true });
 });
 
+router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const farmId = parseInt(req.params.farmId as string, 10);
+  const trialDays: number = typeof req.body.trialDays === "number" && req.body.trialDays > 0 ? req.body.trialDays : 30;
+
+  const [farm] = await db
+    .select()
+    .from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
+    .limit(1);
+
+  if (!farm) {
+    res.status(404).json({ error: "Farm not found for this tenant" });
+    return;
+  }
+
+  const modules = await db.select().from(modulesTable).where(eq(modulesTable.isActive, true));
+
+  const existing = await db
+    .select({ moduleId: subscriptionsTable.moduleId, status: subscriptionsTable.status })
+    .from(subscriptionsTable)
+    .where(and(eq(subscriptionsTable.farmId, farmId), eq(subscriptionsTable.tenantId, tenantId)));
+
+  const blockedModuleIds = new Set(
+    existing.filter((s) => s.status === "active" || s.status === "trial").map((s) => s.moduleId),
+  );
+
+  const trialStart = new Date();
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + trialDays);
+
+  const toInsert = modules.filter((m) => !blockedModuleIds.has(m.id));
+
+  if (toInsert.length > 0) {
+    await db.insert(subscriptionsTable).values(
+      toInsert.map((m) => ({
+        tenantId,
+        farmId,
+        moduleId: m.id,
+        status: "trial",
+        currentPeriodStart: trialStart,
+        currentPeriodEnd: trialEnd,
+      })),
+    );
+  }
+
+  await writeAuditLog(
+    req.userId!,
+    "start_trial",
+    { tenantId, farmId, trialDays, modulesProvisioned: toInsert.length, trialEndsAt: trialEnd.toISOString() },
+    tenantId,
+    farmId,
+  );
+
+  res.json({ success: true, modulesProvisioned: toInsert.length, trialEndsAt: trialEnd.toISOString() });
+});
+
 router.post("/admin/seed-demo-data", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   try {

@@ -463,4 +463,11 @@ export const api = {
 
   logLookupReview: (key: string, data: { reviewedBy: string; notes?: string; nextReviewDue?: string }, secret: string) =>
     post<{ log: LookupReviewEntry }>(`/admin/lookups/${key}/review`, data, secret),
+
+  startTrial: (tenantId: number, farmId: number, trialDays: number, secret: string) =>
+    post<{ success: boolean; modulesProvisioned: number; trialEndsAt: string }>(
+      `/admin/tenants/${tenantId}/farms/${farmId}/start-trial`,
+      { trialDays },
+      secret,
+    ),
 };

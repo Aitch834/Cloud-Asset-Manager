@@ -59,7 +59,8 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 - Each client is a tenant managing multiple farms.
 - Users are authenticated and linked to tenants.
 - System roles (BDE Super Admin, Client Admin, Farm Manager, Farm Staff) define module-based permissions.
-- Subscriptions are managed per-farm and per-module.
+- Subscriptions are managed per-farm and per-module. The `status` column supports `'active'`, `'trial'`, `'cancelled'`, and `'past_due'`.
+- **Trial lifecycle**: Admin portal has a per-farm "Start Trial" button (admin route: `POST /api/admin/tenants/:tenantId/farms/:farmId/start-trial`) that bulk-provisions all modules with `status='trial'` and a 30-day `currentPeriodEnd`. Idempotent — skips modules already active or on trial. Dashboard API (`/farms/:farmId/dashboard`) includes non-expired trial subs in `activeSubscriptions`, making them visible to the Sidebar. Sidebar shows an amber/red/green trial countdown banner with a "Choose a Plan" CTA whenever trial subscriptions are present.
 - API requests are tenant-scoped using the `x-tenant-slug` header.
 
 ### System Roles

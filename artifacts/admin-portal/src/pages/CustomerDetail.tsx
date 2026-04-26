@@ -5,7 +5,7 @@ import { getSecret } from "@/lib/auth";
 import {
   ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2,
   FileDown, Loader2, Mail, MailCheck, Bell, BellOff, Gift, Share2, Copy,
-  TrendingDown, RotateCcw, AlertTriangle,
+  TrendingDown, RotateCcw, AlertTriangle, Zap,
 } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -95,6 +95,7 @@ function statusVariant(status: string): "success" | "destructive" | "warning" | 
   if (status === "active") return "success";
   if (status === "cancelled") return "destructive";
   if (status === "past_due") return "warning";
+  if (status === "trial") return "warning";
   return "default";
 }
 
@@ -198,6 +199,27 @@ export default function CustomerDetail() {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [reinstating, setReinstating] = useState(false);
+  const [trialFarmId, setTrialFarmId] = useState<number | null>(null);
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [trialResult, setTrialResult] = useState<{ farmId: number; success: boolean; endsAt?: string } | null>(null);
+
+  const activeModules = subscriptions.filter((s) => s.status === "active" || s.status === "trial");
+
+  async function handleStartTrial(farm: Farm) {
+    setTrialFarmId(farm.id);
+    setTrialLoading(true);
+    try {
+      const result = await api.startTrial(tenantId, farm.id, 30, secret);
+      setTrialResult({ farmId: farm.id, success: true, endsAt: result.trialEndsAt });
+      const d = await api.getTenantDetail(tenantId, secret);
+      setSubscriptions(d.subscriptions);
+    } catch {
+      setTrialResult({ farmId: farm.id, success: false });
+    } finally {
+      setTrialLoading(false);
+      setTrialFarmId(null);
+    }
+  }
 
   useEffect(() => {
     api.getTenantDetail(tenantId, secret)
@@ -302,7 +324,6 @@ export default function CustomerDetail() {
   }
 
   const isChurned = !!tenant.cancelledAt;
-  const activeModules = subscriptions.filter((s) => s.status === "active");
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
@@ -475,7 +496,8 @@ export default function CustomerDetail() {
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             {farms.map((farm, i) => {
-              const farmSubs = subscriptions.filter((s) => s.farmId === farm.id && s.status === "active");
+              const farmSubs = subscriptions.filter((s) => s.farmId === farm.id && (s.status === "active" || s.status === "trial"));
+              const hasTrial = farmSubs.some((s) => s.status === "trial");
               const isDownloading = downloadingFarmId === farm.id;
               return (
                 <div
@@ -499,8 +521,14 @@ export default function CustomerDetail() {
                     )}
                     {farmSubs.length > 0 && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        {farmSubs.length} active module{farmSubs.length !== 1 ? "s" : ""}:{" "}
-                        {farmSubs.map((s) => s.moduleName).join(", ")}
+                        {farmSubs.filter(s => s.status === "active").length > 0 && (
+                          <>{farmSubs.filter(s => s.status === "active").length} active module{farmSubs.filter(s => s.status === "active").length !== 1 ? "s" : ""}</>
+                        )}
+                        {hasTrial && (
+                          <span className="ml-1 inline-flex items-center gap-1 text-amber-600 font-medium">
+                            <Zap className="w-3 h-3" />trial active
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>
@@ -544,6 +572,33 @@ export default function CustomerDetail() {
                           {sentResult && !sentResult.success && (
                             <span className="text-red-500 ml-1">(failed)</span>
                           )}
+                        </button>
+                      );
+                    })()}
+
+                    {(() => {
+                      const isStarting = trialFarmId === farm.id && trialLoading;
+                      const result = trialResult?.farmId === farm.id ? trialResult : null;
+                      if (result?.success) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-1.5 bg-amber-50">
+                            <Zap className="w-3.5 h-3.5" />
+                            Trial started
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => handleStartTrial(farm)}
+                          disabled={isStarting || hasTrial}
+                          title={hasTrial ? "Trial already active for this farm" : "Start a 30-day free trial for all modules"}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isStarting
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Zap className="w-3.5 h-3.5" />
+                          }
+                          {isStarting ? "Starting…" : hasTrial ? "Trial active" : "Start Trial"}
                         </button>
                       );
                     })()}

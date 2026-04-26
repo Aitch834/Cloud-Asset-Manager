@@ -356,9 +356,12 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
     .where(and(eq(subscriptionsTable.farmId, farmId), eq(subscriptionsTable.tenantId, req.tenantId!)));
 
-  const activeSubs = subs.filter((s) => s.status === "active");
-
   const now = new Date();
+  const activeSubs = subs.filter(
+    (s) =>
+      s.status === "active" ||
+      (s.status === "trial" && (!s.currentPeriodEnd || s.currentPeriodEnd > now)),
+  );
 
   const [
     [inspResult],
@@ -526,15 +529,20 @@ router.get("/farms/:farmId/modules", requireAuth, requireTenant, async (req: Req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const subs = await db
-    .select({ moduleKey: modulesTable.key })
+    .select({ moduleKey: modulesTable.key, status: subscriptionsTable.status, currentPeriodEnd: subscriptionsTable.currentPeriodEnd })
     .from(subscriptionsTable)
     .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
     .where(and(
       eq(subscriptionsTable.farmId, farmId),
       eq(subscriptionsTable.tenantId, req.tenantId!),
-      eq(subscriptionsTable.status, "active")
     ));
-  res.json({ activeModuleKeys: subs.map((s) => s.moduleKey) });
+  const nowMs = Date.now();
+  const activeSubs = subs.filter(
+    (s) =>
+      s.status === "active" ||
+      (s.status === "trial" && (!s.currentPeriodEnd || new Date(s.currentPeriodEnd).getTime() > nowMs)),
+  );
+  res.json({ activeModuleKeys: activeSubs.map((s) => s.moduleKey) });
 });
 
 router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {

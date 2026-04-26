@@ -52,6 +52,7 @@ import {
   ClipboardList,
   Layers,
   Stethoscope,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -208,7 +209,12 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav }: {
+interface TrialInfo {
+  daysRemaining: number | null;
+  endsAt: string | null;
+}
+
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav, trialInfo }: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
@@ -221,6 +227,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredSpecialistNav: NavItem[];
   filteredOtherNav: NavItem[];
   filteredBottomNav: NavItem[];
+  trialInfo?: TrialInfo | null;
 }) {
   const navRef = useRef<HTMLElement>(null);
   const [, setLocation] = useLocation();
@@ -288,6 +295,61 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
       </nav>
 
+      {trialInfo && (
+        <div className="mx-3 mb-2 flex-shrink-0">
+          <div className={cn(
+            "rounded-xl px-4 py-3 border",
+            trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 2
+              ? "bg-red-500/15 border-red-500/30"
+              : trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 7
+              ? "bg-amber-500/15 border-amber-500/30"
+              : "bg-emerald-500/10 border-emerald-500/20",
+          )}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Zap className={cn(
+                "w-3.5 h-3.5 shrink-0",
+                trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 2
+                  ? "text-red-400"
+                  : trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 7
+                  ? "text-amber-400"
+                  : "text-emerald-400",
+              )} />
+              <p className={cn(
+                "text-xs font-semibold",
+                trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 2
+                  ? "text-red-400"
+                  : trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 7
+                  ? "text-amber-400"
+                  : "text-emerald-400",
+              )}>
+                {trialInfo.daysRemaining === 0
+                  ? "Trial expires today"
+                  : trialInfo.daysRemaining === 1
+                  ? "1 day left in trial"
+                  : trialInfo.daysRemaining !== null
+                  ? `${trialInfo.daysRemaining} days left in trial`
+                  : "Free trial active"}
+              </p>
+            </div>
+            <p className="text-[10px] text-white/45 mb-2.5 leading-relaxed">
+              All modules unlocked. Subscribe before your trial ends to keep your records.
+            </p>
+            <Link href="/settings" onClick={onNavClick}>
+              <div className={cn(
+                "w-full text-xs font-semibold px-3 py-1.5 rounded-lg text-center transition-colors",
+                trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 2
+                  ? "bg-red-500 hover:bg-red-600 text-white"
+                  : trialInfo.daysRemaining !== null && trialInfo.daysRemaining <= 7
+                  ? "bg-amber-500 hover:bg-amber-600 text-white"
+                  : "bg-primary/80 hover:bg-primary text-white",
+              )}>
+                Choose a Plan
+              </div>
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="mx-3 my-1 flex-shrink-0">
         <div className="h-px bg-white/10 rounded-full" />
       </div>
@@ -327,7 +389,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const { data: dashboardData } = useQuery<{
     farm: Record<string, unknown>;
-    activeSubscriptions: Array<{ moduleKey: string; moduleName: string; status: string }>;
+    activeSubscriptions: Array<{ moduleKey: string; moduleName: string; status: string; currentPeriodEnd?: string | null }>;
   }>({
     queryKey: ["farm-dashboard", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
@@ -357,6 +419,21 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     return { hasLivestock };
   }, [dashboardData?.farm]);
 
+  const trialInfo = useMemo((): TrialInfo | null => {
+    const subs = dashboardData?.activeSubscriptions;
+    if (!Array.isArray(subs)) return null;
+    const trialSubs = subs.filter((s) => s.status === "trial");
+    if (trialSubs.length === 0) return null;
+    const withEnd = trialSubs.filter((s) => s.currentPeriodEnd);
+    if (withEnd.length === 0) return { daysRemaining: null, endsAt: null };
+    const earliest = withEnd.reduce((a, b) =>
+      new Date(a.currentPeriodEnd!).getTime() < new Date(b.currentPeriodEnd!).getTime() ? a : b,
+    );
+    const msRemaining = new Date(earliest.currentPeriodEnd!).getTime() - Date.now();
+    const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+    return { daysRemaining, endsAt: earliest.currentPeriodEnd! };
+  }, [dashboardData?.activeSubscriptions]);
+
   const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole) : coreNav;
   const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole) : complianceNav;
   const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole) : biosecurityNav;
@@ -385,6 +462,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     filteredSpecialistNav,
     filteredOtherNav,
     filteredBottomNav,
+    trialInfo,
   };
 
   return (
