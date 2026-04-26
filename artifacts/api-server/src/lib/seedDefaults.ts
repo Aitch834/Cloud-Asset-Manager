@@ -104,28 +104,32 @@ async function seedDevData() {
   }
 
   const allModules = await db.select().from(modulesTable);
-  for (const mod of allModules) {
-    const existing = await db.select().from(subscriptionsTable).where(and(
-      eq(subscriptionsTable.farmId, farm.id),
-      eq(subscriptionsTable.tenantId, tenant.id),
-      eq(subscriptionsTable.moduleId, mod.id),
-    )).limit(1);
+  const allDevFarms = await db.select().from(farmsTable).where(eq(farmsTable.tenantId, tenant.id));
 
-    if (existing.length === 0) {
-      const periodStart = new Date();
-      const periodEnd = new Date(periodStart);
-      periodEnd.setFullYear(periodEnd.getFullYear() + 10);
-      await db.insert(subscriptionsTable).values({
-        tenantId: tenant.id,
-        farmId: farm.id,
-        moduleId: mod.id,
-        status: "active",
-        currentPeriodStart: periodStart,
-        currentPeriodEnd: periodEnd,
-      });
+  for (const devFarm of allDevFarms) {
+    for (const mod of allModules) {
+      const existing = await db.select().from(subscriptionsTable).where(and(
+        eq(subscriptionsTable.farmId, devFarm.id),
+        eq(subscriptionsTable.tenantId, tenant.id),
+        eq(subscriptionsTable.moduleId, mod.id),
+      )).limit(1);
+
+      if (existing.length === 0) {
+        const periodStart = new Date();
+        const periodEnd = new Date(periodStart);
+        periodEnd.setFullYear(periodEnd.getFullYear() + 10);
+        await db.insert(subscriptionsTable).values({
+          tenantId: tenant.id,
+          farmId: devFarm.id,
+          moduleId: mod.id,
+          status: "active",
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+        });
+      }
     }
+    console.log("[SEED] Dev subscriptions ensured for all modules on farm:", devFarm.id);
   }
-  console.log("[SEED] Dev subscriptions ensured for all modules on farm:", farm.id);
 
   await seedCropData(farm.id);
   await seedMovementData(farm.id);
