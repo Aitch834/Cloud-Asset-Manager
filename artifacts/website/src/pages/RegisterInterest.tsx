@@ -26,7 +26,7 @@ const FARM_TYPES = [
 const MODULES = [
   { id: "crop-management", label: "Crop Management (spray records, field journal, varieties)" },
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
-  { id: "livestock-management", label: "Livestock & Feed Management (incl. BCMS & LIS government submissions)" },
+  { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, individual animal linking, Bluetooth RFID scanning)" },
   { id: "biosecurity", label: "Biosecurity & Visitors" },
   { id: "organic-compliance", label: "Organic Compliance" },
   { id: "staff-training", label: "Staff & Training" },
@@ -43,6 +43,8 @@ const MODULES = [
   { id: "farm-diversification", label: "Farm Diversification" },
   { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking)" },
   { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
+  { id: "weather-tracking", label: "Weather Tracking" },
+  { id: "platform-addons", label: "Platform Add-ons (SMS Alerts & Advisor / Inspector Access)" },
 ];
 
 const HEARD_VIA = [
