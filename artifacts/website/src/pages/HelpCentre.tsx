@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Search, ChevronDown, BookOpen, Sprout, ShieldCheck, FlaskConical,
   Tractor, PawPrint, ClipboardCheck, LifeBuoy, Phone, Mail,
@@ -228,28 +228,15 @@ function AccordionItem({ item }: { item: FaqItem }) {
         className="w-full flex items-start justify-between gap-4 py-4 text-left text-sm font-medium text-foreground hover:text-brand transition-colors"
       >
         <span>{item.q}</span>
-        <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="shrink-0 mt-0.5"
-        >
-          <ChevronDown className="w-4 h-4" />
-        </motion.span>
+        <ChevronDown
+          className={`w-4 h-4 shrink-0 mt-0.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="answer"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeInOut" }}
-            style={{ overflow: "hidden" }}
-          >
-            <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+        </div>
+      </div>
     </div>
   );
 }
