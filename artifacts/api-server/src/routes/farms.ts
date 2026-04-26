@@ -9949,6 +9949,149 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Planning for API Integration</h3>
 <p>If you use Pessl Instruments (METOS/FieldClimate), METER Group (ZENTRA Cloud), or Sentek (DataStore), these platforms offer REST APIs that can export your sensor data automatically. BDE Farm Trac's data model is already structured to receive readings tagged as "api" source — a future integration update will allow you to connect your account with one of these platforms and have readings pulled in automatically on a schedule, eliminating manual CSV exports altogether. Contact your BDE Farm Trac account manager to discuss early access to this integration.</p>`,
     },
+    {
+      id: 10052,
+      title: "Organic Compliance Overview & Certification Tracking",
+      category: "Organic Compliance",
+      content: `<h2>Organic Compliance Overview & Certification Tracking</h2>
+<p>The Organic Compliance module gives certified and converting organic farms a dedicated record-keeping hub that satisfies the evidence requirements of UK certification bodies (Soil Association, OF&G, Organic Farmers & Growers, and others). All records are timestamped and exportable for inspection audits.</p>
+
+<h3>Dashboard Hub</h3>
+<p>Open <strong>Organic Compliance</strong> from the left-hand navigation to reach the hub. The hub is divided into four areas:</p>
+<ul>
+<li><strong>Certification Status</strong> — displays your current certification body, scheme reference, certification date, next renewal date, and a colour-coded status badge (Active, Expiring Soon, Expired).</li>
+<li><strong>Conversion Tracker</strong> — shows each field or unit undergoing the conversion period with a progress bar, start date, and estimated conversion completion date.</li>
+<li><strong>Recent Inspections</strong> — a quick-view list of the last five inspection records with date, inspector, outcome, and any linked documents.</li>
+<li><strong>Input Alerts</strong> — flags any restricted or non-approved inputs recorded against your farm in the last 30 days, allowing you to review and act before an inspection.</li>
+</ul>
+
+<h3>Certification Details</h3>
+<p>To update your certification details, click <strong>Edit Certification</strong> on the hub. You can record:</p>
+<ul>
+<li>Certification body name and scheme</li>
+<li>Certificate reference number</li>
+<li>Certification start and renewal dates</li>
+<li>Scope (e.g. arable, livestock, horticulture)</li>
+</ul>
+<p>BDE Farm Trac will display a yellow "Expiring Soon" banner when your renewal date is within 60 days, giving you time to arrange renewal before lapsing.</p>
+
+<h3>Conversion Tracker</h3>
+<p>UK organic certification requires a minimum two-year conversion period for land (three years for some crops). The Conversion Tracker lets you record each parcel or production unit separately:</p>
+<ol>
+<li>Click <strong>Add Conversion Unit</strong> and enter the field or unit name, conversion start date, and target conversion date.</li>
+<li>The tracker calculates the elapsed percentage automatically and updates daily.</li>
+<li>Once the target date passes, the unit status moves to <strong>Eligible for Certification</strong> — you can then mark it as converted after your certification body confirms.</li>
+</ol>
+<p>Parallel production (growing the same variety both organically and conventionally) must be declared to your certification body. Use the notes field on each conversion unit to record any parallel production arrangements.</p>`,
+    },
+    {
+      id: 10053,
+      title: "Recording Organic Inspections & Attaching Documents",
+      category: "Organic Compliance",
+      content: `<h2>Recording Organic Inspections & Attaching Documents</h2>
+<p>Certification bodies carry out announced and unannounced inspections at least once per year. BDE Farm Trac lets you log every inspection — whether a formal certification body visit, an internal audit, or a pre-inspection self-check — with full supporting documentation.</p>
+
+<h3>Adding an Inspection Record (Dashboard)</h3>
+<ol>
+<li>Navigate to <strong>Organic Compliance → Inspections</strong> and click <strong>Add Inspection</strong>.</li>
+<li>Complete the form: inspection date, inspector name, organisation (e.g. Soil Association), inspection type (announced / unannounced / internal), and overall outcome (Pass / Pass with Conditions / Non-Conformance).</li>
+<li>Add free-text notes to describe findings, recommendations, or corrective actions required.</li>
+<li>Use the <strong>Attach Documents</strong> button to upload one or more files — inspection reports, photographs, certificates, or written undertakings. Accepted formats include PDF, DOCX, JPG, and PNG. There is no per-record file limit, though individual files must be under 25 MB.</li>
+<li>Click <strong>Save Inspection</strong>. The record appears immediately in the Inspections list and on the dashboard hub.</li>
+</ol>
+
+<h3>Adding an Inspection Record (Mobile App)</h3>
+<p>You can log inspections offline in the field using the BDE Farm Trac mobile app:</p>
+<ol>
+<li>Tap <strong>Record</strong> at the bottom of the screen, then select <strong>Organic Inspection</strong> under the Compliance section.</li>
+<li>Fill in the date, inspector, type, and outcome fields — all available without a data connection.</li>
+<li>Tap <strong>Attach Photo / Document</strong> to attach images taken with your device camera or files from your device storage.</li>
+<li>Tap <strong>Save</strong>. If you are offline, the record is queued and synced automatically when connectivity returns.</li>
+</ol>
+
+<h3>Managing Non-Conformances</h3>
+<p>If an inspection results in a non-conformance, record the corrective action plan in the notes field and set a <strong>Resolution Date</strong>. The inspection will show as "Open Non-Conformance" until you mark it resolved, ensuring nothing is overlooked before the follow-up visit.</p>
+
+<h3>Viewing & Exporting Inspection History</h3>
+<p>The Inspections list can be filtered by date range, inspector, or outcome. Use <strong>Export CSV</strong> to download a full inspection log, or open any record to download the individual attached documents — useful for sharing evidence with your certification body between formal audits.</p>`,
+    },
+    {
+      id: 10054,
+      title: "Organic Input Register & Restricted Inputs",
+      category: "Organic Compliance",
+      content: `<h2>Organic Input Register & Restricted Inputs</h2>
+<p>Maintaining an accurate record of every input used on your organic holding is a core certification requirement. The Organic Input Register captures sprays, fertilisers, soil treatments, and other materials used across your fields, and flags any that do not meet organic standards.</p>
+
+<h3>What Is a Restricted Input?</h3>
+<p>Under UK organic standards (aligned with EC 889/2008 as retained in UK law), certain inputs are only permitted under specific conditions or with prior approval from your certification body. Examples include:</p>
+<ul>
+<li>Copper-based fungicides (restricted volume per hectare per year)</li>
+<li>Certain botanical pest control products</li>
+<li>Some mineral fertilisers requiring derogation</li>
+<li>Conventional seed used under derogation when organic seed is unavailable</li>
+</ul>
+<p>BDE Farm Trac maintains a reference list of commonly used restricted inputs. When you add an input record that matches a restricted product, the app displays a yellow warning badge and prompts you to record the justification or derogation reference.</p>
+
+<h3>Adding an Input Record (Dashboard)</h3>
+<ol>
+<li>Go to <strong>Organic Compliance → Input Register</strong> and click <strong>Add Input</strong>.</li>
+<li>Select the field(s) and enter the product name, active ingredient or material type, application date, rate, and operator.</li>
+<li>If the product is flagged as restricted, a <strong>Justification</strong> field appears — enter your derogation reference or reason for use (e.g. "Copper fungicide — 2.0 kg Cu/ha applied, annual total remains within 4 kg Cu/ha limit").</li>
+<li>Click <strong>Save</strong>. Restricted inputs appear highlighted in the register so they are easy to review before an inspection.</li>
+</ol>
+
+<h3>Adding an Input Record (Mobile App)</h3>
+<ol>
+<li>Tap <strong>Record → Organic Input</strong> from the mobile app home screen.</li>
+<li>Select the field, enter the product and date, and tap <strong>Save</strong>. The record syncs to the dashboard when online.</li>
+<li>Restricted-input warnings are shown on mobile in the same way as the dashboard.</li>
+</ol>
+
+<h3>Filtering & Reporting</h3>
+<p>Use the date and field filters at the top of the Input Register to narrow the view for a specific growing season or parcel. The <strong>Export CSV</strong> button produces a full register in the column format most certification bodies accept — date, field, product, active substance, rate, area, operator, justification.</p>
+
+<h3>Non-Approved Inputs</h3>
+<p>If you record an input that BDE Farm Trac cannot match to any approved or restricted product, it is flagged as "Non-Approved — Review Required". Contact your certification body before using the product on certified land. You can also use the notes field to record any clarification received.</p>`,
+    },
+    {
+      id: 10055,
+      title: "Field Conversion Tracker & Parallel Production",
+      category: "Organic Compliance",
+      content: `<h2>Field Conversion Tracker & Parallel Production</h2>
+<p>UK organic certification requires land to pass through a conversion period — typically two years for arable and pasture, and three years for some perennial crops — during which organic management practices are applied but the produce cannot yet be marketed as organic. The Conversion Tracker in BDE Farm Trac helps you manage this process and maintain the records your certification body requires.</p>
+
+<h3>Setting Up Conversion Units</h3>
+<p>A conversion unit is any distinct parcel of land or production system you are converting separately. This might be an individual field, a block of fields, a polytunnel, or a livestock unit.</p>
+<ol>
+<li>Go to <strong>Organic Compliance → Conversion Tracker</strong> and click <strong>Add Conversion Unit</strong>.</li>
+<li>Enter a name (e.g. "North Block — 12.4 ha"), the conversion start date, and the expected conversion end date.</li>
+<li>Select the land type (arable, pasture, horticulture, other) — this determines the minimum conversion period displayed.</li>
+<li>Add any notes, such as the previous land use or input history, which your certification body may ask to review.</li>
+</ol>
+<p>Once saved, the unit appears on the tracker with a progress bar, elapsed days, and remaining days. The dashboard hub also shows an at-a-glance summary.</p>
+
+<h3>Marking a Unit as Converted</h3>
+<p>When the conversion period is complete and your certification body has confirmed eligibility:</p>
+<ol>
+<li>Open the conversion unit record and click <strong>Mark as Converted</strong>.</li>
+<li>Enter the official conversion confirmation date and any certificate reference.</li>
+<li>The unit status changes to <strong>Certified Organic</strong> and is removed from the active tracker.</li>
+</ol>
+
+<h3>Parallel Production</h3>
+<p>Parallel production — cultivating the same crop species both organically (or in conversion) and conventionally on the same holding — is only permitted in very limited circumstances and requires prior written approval from your certification body. If you operate any parallel production arrangements, you must declare them.</p>
+<p>To record a parallel production declaration in BDE Farm Trac:</p>
+<ol>
+<li>Open the relevant conversion unit and scroll to the <strong>Parallel Production</strong> section.</li>
+<li>Toggle <strong>Parallel Production Declared</strong> to on.</li>
+<li>Enter the crop species, conventional area, organic/conversion area, justification, and the date approval was received from your certification body.</li>
+<li>Attach the written approval document using the document attachment tool.</li>
+</ol>
+<p>Parallel production records are included in the inspection export so your certification body can verify the declaration during their visit.</p>
+
+<h3>Conversion History Export</h3>
+<p>Use <strong>Export CSV</strong> on the Conversion Tracker page to produce a full history of all conversion units — active, completed, and abandoned — including start dates, end dates, land type, and notes. This report is suitable for submission to your certification body as part of a farm system description or annual update.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;

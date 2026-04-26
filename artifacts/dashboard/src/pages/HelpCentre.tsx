@@ -49,6 +49,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Compliance & Plans": "bg-red-50 text-red-700",
   "Fuel & Energy": "bg-orange-50 text-orange-700",
   "Haulage": "bg-zinc-50 text-zinc-700",
+  "Organic Compliance": "bg-green-50 text-green-800",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -95,6 +96,7 @@ const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Compliance & Plans": "biosecurity",
   "Fuel & Energy": ["equipment-workshop", "fuel-management"],
   "Haulage": "haulage-transport",
+  "Organic Compliance": "organic-compliance",
 };
 
 function categoryColor(cat: string) {
