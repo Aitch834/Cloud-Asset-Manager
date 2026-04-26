@@ -71,6 +71,135 @@ interface Farm {
   eidCymruNumber: string | null;
 }
 
+interface AnimalRecord {
+  id: number;
+  earTagNumber: string | null;
+  tagNumber: string | null;
+  animalCode: string | null;
+  name?: string | null;
+  species: string;
+  breed: string | null;
+  sex: string | null;
+  status: string;
+}
+
+interface MovementAnimal {
+  id: number;
+  animalId: number | null;
+  tagNumber: string | null;
+  species: string | null;
+  breed: string | null;
+  sex: string | null;
+  animalCode: string | null;
+  animalEarTagNumber: string | null;
+  animalTagNumber: string | null;
+}
+
+function AnimalRegisterPicker({
+  animals,
+  speciesFilter,
+  selectedIds,
+  onChange,
+}: {
+  animals: AnimalRecord[];
+  speciesFilter: string;
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const active = animals.filter(
+    (a) =>
+      a.status === "active" &&
+      (!speciesFilter || a.species === speciesFilter) &&
+      (!search ||
+        (a.earTagNumber ?? a.tagNumber ?? a.animalCode ?? "")
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        (a.name ?? "").toLowerCase().includes(search.toLowerCase()))
+  );
+  const toggleId = (id: number) =>
+    onChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id]
+    );
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+        <Search className="w-3.5 h-3.5 text-foreground/40 flex-shrink-0" />
+        <input
+          type="text"
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-foreground/40"
+          placeholder="Search by ear tag, name or code…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {selectedIds.length > 0 && (
+          <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+            {selectedIds.length} selected
+          </span>
+        )}
+      </div>
+      <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+        {active.length === 0 ? (
+          <p className="text-xs text-foreground/40 italic px-3 py-4 text-center">
+            {speciesFilter
+              ? `No active ${speciesFilter} found in your Animal Register`
+              : "No active animals found in your Animal Register"}
+          </p>
+        ) : (
+          active.map((a) => {
+            const tag = a.earTagNumber ?? a.tagNumber ?? a.animalCode ?? `#${a.id}`;
+            const selected = selectedIds.includes(a.id);
+            return (
+              <label
+                key={a.id}
+                className={`flex items-center gap-3 px-3 py-2 cursor-pointer select-none transition-colors ${
+                  selected ? "bg-green-50" : "hover:bg-muted/30"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 flex-shrink-0"
+                  style={{ accentColor: "#16a34a" }}
+                  checked={selected}
+                  onChange={() => toggleId(a.id)}
+                />
+                <span className="font-mono text-sm font-medium text-foreground flex-1 truncate">
+                  {tag}
+                </span>
+                {a.name && (
+                  <span className="text-xs text-foreground/60 truncate max-w-[80px]">{a.name}</span>
+                )}
+                {a.breed && (
+                  <span className="text-xs text-foreground/50 hidden sm:inline">{a.breed}</span>
+                )}
+                {a.sex && (
+                  <span className="text-xs text-foreground/40 capitalize hidden sm:inline">{a.sex}</span>
+                )}
+              </label>
+            );
+          })
+        )}
+      </div>
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-2 bg-green-50/60 border-t border-border">
+          <span className="text-xs text-green-800 font-medium">
+            {selectedIds.length} animal{selectedIds.length !== 1 ? "s" : ""} linked to this movement
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-red-500 hover:text-red-700 font-medium"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
   try {
@@ -880,6 +1009,10 @@ export default function Movements() {
   const [submittingId, setSubmittingId] = useState<number | null>(null);
   const [lisSubmitConfirmId, setLisSubmitConfirmId] = useState<number | null>(null);
   const [lisSubmittingId, setLisSubmittingId] = useState<number | null>(null);
+  const [linkedAnimalIds, setLinkedAnimalIds] = useState<number[]>([]);
+  const [incomingAnimalTags, setIncomingAnimalTags] = useState("");
+  const [incomingAnimalBreed, setIncomingAnimalBreed] = useState("");
+  const [incomingAnimalSex, setIncomingAnimalSex] = useState("");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -905,6 +1038,30 @@ export default function Movements() {
     enabled: !!farmId,
   });
 
+  const { data: animalsData } = useQuery({
+    queryKey: ["animals-for-movements", farmId],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/animals`);
+      if (!res.ok) return [];
+      const d = await res.json() as { records?: AnimalRecord[] };
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+  });
+  const allAnimals: AnimalRecord[] = animalsData ?? [];
+
+  const { data: viewMovementAnimalsData } = useQuery({
+    queryKey: ["movement-animals-view", farmId, viewMovement?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/livestock-movements/${viewMovement!.id}/animals`);
+      if (!res.ok) return [];
+      const d = await res.json() as { animals?: MovementAnimal[] };
+      return d.animals ?? [];
+    },
+    enabled: !!farmId && !!viewMovement?.id,
+  });
+  const viewMovementAnimals: MovementAnimal[] = viewMovementAnimalsData ?? [];
+
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await fetch(baseUrl, {
@@ -917,8 +1074,13 @@ export default function Movements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["animals-for-movements", farmId] });
       setShowForm(false);
       setFormData(EMPTY_FORM);
+      setLinkedAnimalIds([]);
+      setIncomingAnimalTags("");
+      setIncomingAnimalBreed("");
+      setIncomingAnimalSex("");
     },
   });
 
@@ -934,8 +1096,13 @@ export default function Movements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["animals-for-movements", farmId] });
       setEditingRecord(null);
       setFormData(EMPTY_FORM);
+      setLinkedAnimalIds([]);
+      setIncomingAnimalTags("");
+      setIncomingAnimalBreed("");
+      setIncomingAnimalSex("");
     },
   });
 
@@ -1051,13 +1218,21 @@ export default function Movements() {
   const pendingCount = yearRecords.filter(r => requiresBcms(r) && !r.legalNotificationSubmitted).length;
   const submittedCount = yearRecords.filter(r => r.legalNotificationSubmitted).length;
 
+  const resetAnimalState = () => {
+    setLinkedAnimalIds([]);
+    setIncomingAnimalTags("");
+    setIncomingAnimalBreed("");
+    setIncomingAnimalSex("");
+  };
+
   const openAdd = () => {
     setEditingRecord(null);
     setFormData({ ...EMPTY_FORM, movementDate: new Date().toISOString().slice(0, 10) });
+    resetAnimalState();
     setShowForm(true);
   };
 
-  const openEdit = (r: Movement) => {
+  const openEdit = async (r: Movement) => {
     setEditingRecord(r);
     setFormData({
       movementType: r.movementType ?? "",
@@ -1075,18 +1250,53 @@ export default function Movements() {
       reason: r.reason ?? "",
       notes: r.notes ?? "",
     });
+    resetAnimalState();
+    if (r.movementType === "off") {
+      try {
+        const res = await fetch(`/api/farms/${farmId}/livestock-movements/${r.id}/animals`);
+        if (res.ok) {
+          const d = await res.json() as { animals?: MovementAnimal[] };
+          const ids = (d.animals ?? []).filter((a) => a.animalId != null).map((a) => a.animalId as number);
+          setLinkedAnimalIds(ids);
+        }
+      } catch { /* ignore */ }
+    }
     setShowForm(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const body = {
+    const parsedTags = incomingAnimalTags
+      .split(/[\n,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const autoCount =
+      formData.movementType === "off" && linkedAnimalIds.length > 0
+        ? linkedAnimalIds.length
+        : formData.movementType === "on" && parsedTags.length > 0
+        ? parsedTags.length
+        : null;
+    const body: Record<string, unknown> = {
       ...formData,
-      numberOfAnimals: formData.numberOfAnimals ? Number(formData.numberOfAnimals) : null,
-      legalNotificationDate: formData.legalNotificationSubmitted && formData.legalNotificationDate
-        ? new Date(formData.legalNotificationDate).toISOString()
-        : null,
+      numberOfAnimals: formData.numberOfAnimals
+        ? Number(formData.numberOfAnimals)
+        : autoCount,
+      legalNotificationDate:
+        formData.legalNotificationSubmitted && formData.legalNotificationDate
+          ? new Date(formData.legalNotificationDate).toISOString()
+          : null,
     };
+    if (formData.movementType === "off" && linkedAnimalIds.length > 0) {
+      body.linkedAnimalIds = linkedAnimalIds;
+    }
+    if (formData.movementType === "on" && parsedTags.length > 0) {
+      body.incomingAnimalEntries = parsedTags.map((tag) => ({
+        tagNumber: tag,
+        species: formData.species || undefined,
+        breed: incomingAnimalBreed || undefined,
+        sex: incomingAnimalSex || undefined,
+      }));
+    }
     if (editingRecord) {
       updateMutation.mutate({ id: editingRecord.id, body });
     } else {
@@ -1323,6 +1533,26 @@ export default function Movements() {
                     <F label="BCMS Ref." value={r.bcmsSubmissionRef} />
                   </div>
                   {r.earTagNumbers && <F label="Ear Tag Numbers" value={r.earTagNumbers} />}
+                  {viewMovementAnimals.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-widest text-foreground/40 mb-2">
+                        Linked Animals ({viewMovementAnimals.length})
+                      </div>
+                      <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/50">
+                        {viewMovementAnimals.map((a) => {
+                          const tag = a.animalEarTagNumber ?? a.animalTagNumber ?? a.tagNumber ?? a.animalCode ?? (a.animalId ? `#${a.animalId}` : "—");
+                          return (
+                            <div key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                              <span className="font-mono font-medium text-foreground flex-1">{tag}</span>
+                              {a.breed && <span className="text-xs text-foreground/50">{a.breed}</span>}
+                              {a.sex && <span className="text-xs text-foreground/40 capitalize">{a.sex}</span>}
+                              {!a.animalId && <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Unlinked</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <F label="BCMS / APHA Notified" value={r.legalNotificationSubmitted ? `Yes${r.legalNotificationDate ? ` — ${fmt(r.legalNotificationDate)}` : ""}` : "⚠ Not yet notified"} />
                   {r.transporterDetails && <F label="Transporter" value={r.transporterDetails} />}
                   {r.reason && <F label="Reason" value={r.reason} />}
@@ -1458,27 +1688,133 @@ export default function Movements() {
                 </div>
               </div>
 
-              {/* Ear tag numbers — shown for cattle, sheep, goats */}
+              {/* Individual animal section — type-specific */}
               {(formData.species === "cattle" || formData.species === "sheep" || formData.species === "goats") && (
-                <div>
-                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
-                    Individual Ear Tag Numbers
-                    {formData.species === "cattle" && <span className="ml-1.5 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Required for BCMS cattle traceability</span>}
-                  </label>
-                  <textarea
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[72px] resize-y"
-                    placeholder={formData.species === "cattle"
-                      ? "e.g. UK123456789012, UK123456789013 (one per line or comma-separated)"
-                      : "e.g. UK123456789012, UK123456789013 (optional for sheep/goats)"}
-                    value={formData.earTagNumbers}
-                    onChange={(e) => setField("earTagNumbers", e.target.value)}
-                  />
-                  <p className="text-xs text-foreground/50 mt-1">
-                    {formData.species === "cattle"
-                      ? "BCMS requires individual ear tag numbers for all cattle movements. Enter one per line or comma-separated."
-                      : "Ear tag numbers are optional for sheep/goats (batch movements are acceptable) but aid traceability."}
-                  </p>
-                </div>
+                formData.movementType === "off" ? (
+                  /* OFF movement: link existing animals from register */
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground/70 flex items-center gap-2">
+                      Link Animals from Register
+                      <span className="text-xs font-normal text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                        Status set to Sold on save
+                      </span>
+                    </label>
+                    <AnimalRegisterPicker
+                      animals={allAnimals}
+                      speciesFilter={formData.species}
+                      selectedIds={linkedAnimalIds}
+                      onChange={(ids) => {
+                        setLinkedAnimalIds(ids);
+                        if (ids.length > 0 && !formData.numberOfAnimals) {
+                          setField("numberOfAnimals", String(ids.length));
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-foreground/50">
+                      Select the animals leaving this holding. Their status will be updated to <strong>Sold</strong> automatically.
+                    </p>
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                        Additional / Unregistered Tags <span className="font-normal text-foreground/40">(optional)</span>
+                      </label>
+                      <textarea
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[56px] resize-y"
+                        placeholder="Ear tags not yet in your Animal Register…"
+                        value={formData.earTagNumbers}
+                        onChange={(e) => setField("earTagNumbers", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : formData.movementType === "on" ? (
+                  /* ON movement: register incoming animals */
+                  <div className="space-y-3 border border-emerald-200 bg-emerald-50/30 rounded-xl p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                        <Plus className="w-3.5 h-3.5 text-emerald-700" />
+                      </div>
+                      <label className="text-sm font-semibold text-emerald-900">Register Incoming Animals</label>
+                      <span className="text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded">
+                        Adds to Animal Register
+                      </span>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Ear Tag Numbers</label>
+                      <textarea
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[80px] resize-y"
+                        placeholder={"Enter ear tag numbers, one per line or comma-separated\ne.g. UK123456789012\nUK123456789013"}
+                        value={incomingAnimalTags}
+                        onChange={(e) => {
+                          setIncomingAnimalTags(e.target.value);
+                          const count = e.target.value.split(/[\n,]+/).map((t) => t.trim()).filter(Boolean).length;
+                          if (count > 0 && !formData.numberOfAnimals) setField("numberOfAnimals", String(count));
+                        }}
+                      />
+                      {incomingAnimalTags.trim() && (() => {
+                        const n = incomingAnimalTags.split(/[\n,]+/).map((t) => t.trim()).filter(Boolean).length;
+                        return (
+                          <p className="text-xs text-emerald-700 font-medium mt-1">
+                            {n} animal record{n !== 1 ? "s" : ""} will be created in the Animal Register
+                          </p>
+                        );
+                      })()}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-foreground/70 mb-1 block">Default Breed <span className="font-normal text-foreground/40">(optional)</span></label>
+                        <Input
+                          placeholder="e.g. Charolais"
+                          value={incomingAnimalBreed}
+                          onChange={(e) => setIncomingAnimalBreed(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-foreground/70 mb-1 block">Default Sex <span className="font-normal text-foreground/40">(optional)</span></label>
+                        <select
+                          className="w-full h-10 rounded-xl border border-border bg-transparent px-3 py-2 text-sm focus:outline-none"
+                          value={incomingAnimalSex}
+                          onChange={(e) => setIncomingAnimalSex(e.target.value)}
+                        >
+                          <option value="">Not specified</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="castrated">Castrated</option>
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-foreground/50">
+                      Animals will be added to your Individual Animal Register with status <strong>Active</strong>. Edit individual records from the Animal Register afterwards.
+                    </p>
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Additional Tag Notes <span className="font-normal text-foreground/40">(optional free text)</span></label>
+                      <Input
+                        placeholder="Any additional tag reference notes…"
+                        value={formData.earTagNumbers}
+                        onChange={(e) => setField("earTagNumbers", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Other movement types: free-text textarea */
+                  <div>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                      Individual Ear Tag Numbers
+                      {formData.species === "cattle" && <span className="ml-1.5 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Required for BCMS cattle traceability</span>}
+                    </label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[72px] resize-y"
+                      placeholder={formData.species === "cattle"
+                        ? "e.g. UK123456789012, UK123456789013 (one per line or comma-separated)"
+                        : "e.g. UK123456789012, UK123456789013 (optional for sheep/goats)"}
+                      value={formData.earTagNumbers}
+                      onChange={(e) => setField("earTagNumbers", e.target.value)}
+                    />
+                    <p className="text-xs text-foreground/50 mt-1">
+                      {formData.species === "cattle"
+                        ? "BCMS requires individual ear tag numbers for all cattle movements. Enter one per line or comma-separated."
+                        : "Ear tag numbers are optional for sheep/goats (batch movements are acceptable) but aid traceability."}
+                    </p>
+                  </div>
+                )
               )}
 
               {/* BCMS / Legal Notification section */}
@@ -1545,7 +1881,7 @@ export default function Movements() {
               </div>
 
               <div className="flex gap-3 justify-end pt-2 border-t border-border">
-                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_FORM); }}>
+                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_FORM); resetAnimalState(); }}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>

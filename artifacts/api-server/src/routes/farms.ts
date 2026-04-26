@@ -2246,7 +2246,50 @@ router.get("/farms/:farmId/movements", requireAuth, requireTenant, requireModule
 router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(livestockMovementsTable).values({ ...req.body, farmId }).returning();
+  const body = req.body as Record<string, unknown>;
+  const linkedAnimalIds: number[] = Array.isArray(body.linkedAnimalIds)
+    ? (body.linkedAnimalIds as unknown[]).map(Number).filter((n) => !isNaN(n))
+    : [];
+  const incomingAnimalEntries: Array<{ tagNumber: string; species?: string; breed?: string; sex?: string }> =
+    Array.isArray(body.incomingAnimalEntries)
+      ? (body.incomingAnimalEntries as Array<{ tagNumber: string; species?: string; breed?: string; sex?: string }>)
+      : [];
+  const { linkedAnimalIds: _la, incomingAnimalEntries: _ia, ...movementBody } = body;
+  const [record] = await db.insert(livestockMovementsTable).values({ ...movementBody, farmId }).returning();
+  if (linkedAnimalIds.length > 0) {
+    await db.insert(livestockMovementAnimalsTable).values(
+      linkedAnimalIds.map((animalId) => ({ farmId, movementId: record.id, animalId }))
+    );
+    if (record.movementType === "off") {
+      await db.update(livestockAnimalsTable).set({ status: "sold" }).where(
+        and(inArray(livestockAnimalsTable.id, linkedAnimalIds), eq(livestockAnimalsTable.farmId, farmId))
+      );
+    }
+  }
+  if (incomingAnimalEntries.length > 0 && record.movementType === "on") {
+    const species = (movementBody.species as string) || "cattle";
+    const acquiDate = record.movementDate ? new Date(record.movementDate as string) : new Date();
+    const acquiSource = (record.fromLocation as string) ?? undefined;
+    const newIds: number[] = [];
+    for (const entry of incomingAnimalEntries) {
+      const [animal] = await db.insert(livestockAnimalsTable).values({
+        farmId,
+        earTagNumber: entry.tagNumber,
+        species: entry.species || species,
+        breed: entry.breed ?? undefined,
+        sex: entry.sex ?? undefined,
+        acquisitionDate: acquiDate,
+        acquisitionSource: acquiSource,
+        status: "active",
+      }).returning({ id: livestockAnimalsTable.id });
+      newIds.push(animal.id);
+    }
+    await db.insert(livestockMovementAnimalsTable).values(
+      incomingAnimalEntries.map((entry, i) => ({
+        farmId, movementId: record.id, animalId: newIds[i], tagNumber: entry.tagNumber,
+      }))
+    );
+  }
   res.status(201).json({ record });
 });
 
@@ -4759,8 +4802,24 @@ router.put("/farms/:farmId/movements/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockMovementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMovementsTable.id, recordId), eq(livestockMovementsTable.farmId, farmId))).returning();
+  const body = req.body as Record<string, unknown>;
+  const linkedAnimalIds: number[] = Array.isArray(body.linkedAnimalIds)
+    ? (body.linkedAnimalIds as unknown[]).map(Number).filter((n) => !isNaN(n))
+    : [];
+  const { linkedAnimalIds: _la, incomingAnimalEntries: _ia, ...movementBody } = body;
+  const [record] = await db.update(livestockMovementsTable).set(sanitiseBody(movementBody)).where(and(eq(livestockMovementsTable.id, recordId), eq(livestockMovementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  if (linkedAnimalIds.length > 0 && record.movementType === "off") {
+    await db.delete(livestockMovementAnimalsTable).where(
+      and(eq(livestockMovementAnimalsTable.movementId, recordId), eq(livestockMovementAnimalsTable.farmId, farmId))
+    );
+    await db.insert(livestockMovementAnimalsTable).values(
+      linkedAnimalIds.map((animalId) => ({ farmId, movementId: recordId, animalId }))
+    );
+    await db.update(livestockAnimalsTable).set({ status: "sold" }).where(
+      and(inArray(livestockAnimalsTable.id, linkedAnimalIds), eq(livestockAnimalsTable.farmId, farmId))
+    );
+  }
   res.json({ record });
 });
 
@@ -16485,7 +16544,8 @@ router.get("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth
     notes: livestockMovementAnimalsTable.notes,
     createdAt: livestockMovementAnimalsTable.createdAt,
     animalCode: livestockAnimalsTable.animalCode,
-    animalName: livestockAnimalsTable.name,
+    animalEarTagNumber: livestockAnimalsTable.earTagNumber,
+    animalTagNumber: livestockAnimalsTable.tagNumber,
   }).from(livestockMovementAnimalsTable)
     .leftJoin(livestockAnimalsTable, eq(livestockMovementAnimalsTable.animalId, livestockAnimalsTable.id))
     .where(and(eq(livestockMovementAnimalsTable.movementId, movementId), eq(livestockMovementAnimalsTable.farmId, farmId)));
