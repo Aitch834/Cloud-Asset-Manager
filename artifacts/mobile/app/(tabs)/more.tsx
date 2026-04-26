@@ -135,6 +135,36 @@ export default function MoreScreen() {
           />
         </View>
 
+        <SectionHeader title="Organic Compliance" />
+        <View style={styles.section}>
+          <ListItem
+            title="Organic Overview"
+            subtitle="Certification status, inspections and input register"
+            icon="leaf"
+            iconColor="#16a34a"
+            iconBgColor="#f0fdf4"
+            onPress={() => router.push("/organic-overview")}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Record Inspection Visit"
+            subtitle="Log an organic certifier inspection"
+            icon="shield"
+            iconColor="#16a34a"
+            iconBgColor="#f0fdf4"
+            onPress={() => router.push("/organic-inspection")}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Log Organic Input"
+            subtitle="Add to the organic input register"
+            icon="package"
+            iconColor="#2563eb"
+            iconBgColor="#eff6ff"
+            onPress={() => router.push("/organic-input")}
+          />
+        </View>
+
         <SectionHeader title="Equipment" />
         <View style={styles.section}>
           <ListItem

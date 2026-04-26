@@ -1753,3 +1753,37 @@ export interface LambingRecord {
   createdAt: string;
   synced: boolean;
 }
+
+export interface OrganicInspection {
+  id: string;
+  farmId: string;
+  certifier: string;
+  inspectorName: string;
+  inspectionDate: string;
+  outcome: string;
+  certificateReference: string;
+  nextDueDate: string;
+  nonConformances: string;
+  actions: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface OrganicInput {
+  id: string;
+  farmId: string;
+  productName: string;
+  inputType: string;
+  approvalStatus: string;
+  supplier: string;
+  dateOfUse: string;
+  fieldName: string;
+  quantityAmount: string;
+  quantityUnit: string;
+  cropYear: string;
+  certifierApprovalRef: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}

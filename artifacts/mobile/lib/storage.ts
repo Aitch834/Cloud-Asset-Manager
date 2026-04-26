@@ -199,4 +199,6 @@ export const STORAGE_KEYS = {
   FOOD_HYGIENE_INSPECTIONS: "bde_food_hygiene_inspections",
   THIRD_PARTY_GRAIN_INTAKES: "bde_third_party_grain_intakes",
   THIRD_PARTY_GRAIN_OUTLOADINGS: "bde_third_party_grain_outloadings",
+  ORGANIC_INSPECTIONS: "bde_organic_inspections",
+  ORGANIC_INPUTS: "bde_organic_inputs",
 } as const;

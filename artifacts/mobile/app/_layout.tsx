@@ -91,6 +91,9 @@ function RootLayoutNav() {
         <Stack.Screen name="fuel-tank-delivery" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="dispatch-plans" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="rfid-settings" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="organic-overview" options={{ headerShown: false }} />
+        <Stack.Screen name="organic-inspection" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="organic-input" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
