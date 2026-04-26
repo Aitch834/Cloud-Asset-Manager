@@ -94,6 +94,47 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string) 
 </body></html>`);
 }
 
+function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const rows = records.map(r => `<tr>
+    <td>${r.fieldName}</td>
+    <td style="font-weight:600">${STATUS_LABELS[r.status] ?? r.status}</td>
+    <td style="white-space:nowrap">${r.conversionStartDate ? new Date(r.conversionStartDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="white-space:nowrap">${r.certificationDate ? new Date(r.certificationDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td>${r.certifierRef || "—"}</td>
+    <td>${r.parallelProduction ? "Yes" : "No"}</td>
+    <td>${r.notes || "—"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Field Status Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Field Status Register · Complementary Record</p></div>
+<div class="hdr-r"><b>Field Register</b>${records.length} field${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Field Name</th><th>Status</th><th>Conversion Start</th><th>Certified From</th><th>Certifier Ref</th><th>Parallel Production</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Organic Field Status Register — Complementary record for Soil Association / OF&G portal. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function printRestrictedInputsLog(records: RestrictedInput[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const rows = records.map(r => `<tr>
+    <td style="white-space:nowrap">${r.dateApplied ? new Date(r.dateApplied).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="font-weight:600">${r.productName}</td>
+    <td>${r.productCategory || "—"}</td>
+    <td>${r.fieldName || "—"}</td>
+    <td>${r.appliedBy || "—"}</td>
+    <td>${r.justification}</td>
+    <td>${r.approvalReference || "—"}</td>
+    <td>${r.certifierNotified ? "Yes" : "No"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Restricted Inputs Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Restricted Inputs Log · Complementary Record</p></div>
+<div class="hdr-r"><b>Restricted Inputs</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Restricted Inputs Log — Complementary record for Soil Association / OF&G portal. Retain with derogation approvals. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Certification {
@@ -116,6 +157,82 @@ interface RestrictedInput {
   productName: string; productCategory: string | null; dateApplied: string;
   appliedBy: string | null; justification: string; approvalReference: string | null;
   certifierNotified: boolean; notes: string | null;
+}
+interface FarmField { id: number; name: string; areaHectares: string | null; }
+interface SprayProduct { id: number; productName: string; category: string | null; }
+
+// ─── Field picker helper ─────────────────────────────────────────────────────
+
+function FieldPicker({
+  farmFields,
+  fieldId,
+  fieldName,
+  onFieldChange,
+}: {
+  farmFields: FarmField[];
+  fieldId: number | null;
+  fieldName: string;
+  onFieldChange: (fieldId: number | null, fieldName: string) => void;
+}) {
+  const hasFields = farmFields.length > 0;
+  const selectedInList = fieldId !== null || (hasFields && farmFields.some(f => f.name === fieldName));
+  const [showCustom, setShowCustom] = useState(!selectedInList && fieldName !== "");
+
+  if (!hasFields) {
+    return (
+      <Input
+        className={INPUT_CLS}
+        placeholder="e.g. Home Field, North Block"
+        value={fieldName}
+        onChange={e => onFieldChange(null, e.target.value)}
+      />
+    );
+  }
+
+  const selectValue = fieldId !== null ? String(fieldId)
+    : farmFields.find(f => f.name === fieldName) ? String(farmFields.find(f => f.name === fieldName)!.id)
+    : showCustom ? "__other__"
+    : fieldName !== "" ? "__other__"
+    : "";
+
+  function handleSelect(val: string) {
+    if (val === "__other__") {
+      setShowCustom(true);
+      onFieldChange(null, "");
+    } else if (val === "") {
+      setShowCustom(false);
+      onFieldChange(null, "");
+    } else {
+      const field = farmFields.find(f => f.id === parseInt(val));
+      if (field) {
+        setShowCustom(false);
+        onFieldChange(field.id, field.name);
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <select className={INPUT_CLS} value={selectValue} onChange={e => handleSelect(e.target.value)}>
+        <option value="">Select field…</option>
+        {farmFields.map(f => (
+          <option key={f.id} value={String(f.id)}>
+            {f.name}{f.areaHectares ? ` (${parseFloat(f.areaHectares).toFixed(1)} ha)` : ""}
+          </option>
+        ))}
+        <option value="__other__">Other / specify below</option>
+      </select>
+      {(showCustom || selectValue === "__other__") && (
+        <Input
+          className={INPUT_CLS}
+          placeholder="Field or area name"
+          value={fieldName}
+          onChange={e => onFieldChange(null, e.target.value)}
+          autoFocus
+        />
+      )}
+    </div>
+  );
 }
 
 // ─── Certification Tab ───────────────────────────────────────────────────────
@@ -151,7 +268,6 @@ function CertificationTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="max-w-2xl">
-      {/* Info banner */}
       <div className="mb-6 flex gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
         <Info className="w-4 h-4 mt-0.5 shrink-0" />
         <div>
@@ -211,7 +327,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>View Organic Certification</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{String(viewRecord.certifier ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium text-capitalize">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{String(viewRecord.certificateNumber ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Number</p><p className="font-medium">{String(viewRecord.operatorNumber ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
@@ -272,9 +388,9 @@ function CertificationTab({ farmId }: { farmId: number }) {
 
 // ─── Fields Tab ──────────────────────────────────────────────────────────────
 
-const EMPTY_FIELD = { fieldName: "", status: "conventional", conversionStartDate: "", certificationDate: "", certifierRef: "", parallelProduction: false, notes: "" };
+const EMPTY_FIELD = { fieldId: null as number | null, fieldName: "", status: "conventional", conversionStartDate: "", certificationDate: "", certifierRef: "", parallelProduction: false, notes: "" };
 
-function FieldsTab({ farmId }: { farmId: number }) {
+function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
@@ -288,6 +404,12 @@ function FieldsTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/organic/fields`).then(r => r.json()),
   });
   const records = data?.records ?? [];
+
+  const { data: fieldsData } = useQuery<{ records: FarmField[] }>({
+    queryKey: ["farm-fields-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_FIELD) => fetch(`/api/farms/${farmId}/organic/fields`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -306,7 +428,7 @@ function FieldsTab({ farmId }: { farmId: number }) {
 
   function openEdit(r: FieldStatus) {
     setEditing(r);
-    setForm({ fieldName: r.fieldName, status: r.status, conversionStartDate: r.conversionStartDate ?? "", certificationDate: r.certificationDate ?? "", certifierRef: r.certifierRef ?? "", parallelProduction: r.parallelProduction, notes: r.notes ?? "" });
+    setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName, status: r.status, conversionStartDate: r.conversionStartDate ?? "", certificationDate: r.certificationDate ?? "", certifierRef: r.certifierRef ?? "", parallelProduction: r.parallelProduction, notes: r.notes ?? "" });
     setFormOpen(true);
   }
 
@@ -325,10 +447,17 @@ function FieldsTab({ farmId }: { farmId: number }) {
   return (
     <>
       <div className="flex justify-between items-center mb-6">
-        <div className="flex gap-4 text-sm">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{certified.length} certified</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{converting.length} in conversion</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />{conventional.length} conventional</span>
+        <div className="flex items-center gap-4">
+          <div className="flex gap-4 text-sm">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{certified.length} certified</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{converting.length} in conversion</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />{conventional.length} conventional</span>
+          </div>
+          {records.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => printFieldStatusRegister(records, farmName)} className="gap-2">
+              <Printer className="w-4 h-4" />Print Register
+            </Button>
+          )}
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_FIELD); setFormOpen(true); }} className="gap-2"><Plus className="w-4 h-4" />Add Field</Button>
       </div>
@@ -341,7 +470,6 @@ function FieldsTab({ farmId }: { farmId: number }) {
         </Card>
       ) : (
         <div className="space-y-3">
-          {/* In-conversion fields with progress bars */}
           {converting.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-2">In Conversion</p>
@@ -358,16 +486,19 @@ function FieldsTab({ farmId }: { farmId: number }) {
                             <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-200">In Conversion</span>
                             {r.parallelProduction && <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">Parallel production</span>}
                           </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs text-foreground/60 mb-1">
-                              <span>Started: {fmt(r.conversionStartDate)}</span>
-                              <span className="font-medium text-amber-700">{pct}% · Expected cert: {expDate ?? "—"}</span>
+                          {r.conversionStartDate && (
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-foreground/60 mb-1">
+                                <span>Conversion started {fmt(r.conversionStartDate)}</span>
+                                <span>{pct}% complete{expDate ? ` · cert. eligible ${expDate}` : ""}</span>
+                              </div>
+                              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              </div>
                             </div>
-                            <div className="h-2 bg-amber-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
+                          )}
                           {r.certifierRef && <p className="text-xs text-foreground/50 mt-1">Ref: {r.certifierRef}</p>}
+                          {r.notes && <p className="text-xs text-foreground/50 mt-1">{r.notes}</p>}
                         </div>
                         <div className="flex gap-1 shrink-0">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
@@ -382,7 +513,6 @@ function FieldsTab({ farmId }: { farmId: number }) {
             </div>
           )}
 
-          {/* Certified fields */}
           {certified.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-2">Certified Organic</p>
@@ -393,23 +523,25 @@ function FieldsTab({ farmId }: { farmId: number }) {
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
                         <div>
-                          <p className="font-medium">{r.fieldName}</p>
-                          <p className="text-xs text-foreground/60">Certified: {fmt(r.certificationDate)}{r.certifierRef ? ` · Ref: ${r.certifierRef}` : ""}{r.parallelProduction ? " · Parallel production" : ""}</p>
+                          <span className="font-medium">{r.fieldName}</span>
+                          {r.certificationDate && <span className="text-sm text-foreground/60 ml-2">Since {fmt(r.certificationDate)}</span>}
+                          {r.certifierRef && <span className="text-xs text-foreground/40 ml-2">· {r.certifierRef}</span>}
+                          {r.parallelProduction && <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 ml-2">Parallel production</span>}
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
+                    {r.notes && <p className="text-xs text-foreground/50 mt-2 pl-8">{r.notes}</p>}
                   </Card>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Conventional fields */}
           {conventional.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-2">Conventional</p>
@@ -417,11 +549,12 @@ function FieldsTab({ farmId }: { farmId: number }) {
                 {conventional.map(r => (
                   <Card key={r.id} className="p-4">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-gray-200 shrink-0" />
-                        <p className="font-medium">{r.fieldName}{r.parallelProduction ? <span className="ml-2 text-xs text-blue-600">(parallel production)</span> : ""}</p>
+                      <div>
+                        <span className="font-medium">{r.fieldName}</span>
+                        <span className="text-xs ml-2 px-2 py-0.5 rounded-full border bg-gray-100 text-gray-600 border-gray-200">Conventional</span>
+                        {r.notes && <p className="text-xs text-foreground/50 mt-1">{r.notes}</p>}
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -438,16 +571,15 @@ function FieldsTab({ farmId }: { farmId: number }) {
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Organic Field Status</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>View Field Status</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field Name</p><p className="font-medium">{String(viewRecord.fieldName ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium text-capitalize">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field Name</p><p className="font-medium">{viewRecord.fieldName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start</p><p className="font-medium">{fmt(viewRecord.conversionStartDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certified From</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Reference</p><p className="font-medium">{viewRecord.certifierRef || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parallel Production</p><p className="font-medium">{viewRecord.parallelProduction ? "Yes" : "No"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start Date</p><p className="font-medium">{fmt(viewRecord.conversionStartDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Certification Date</p><p className="font-medium">{viewRecord.conversionStartDate ? expectedCertDate(viewRecord.conversionStartDate) : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Actual Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Reference</p><p className="font-medium">{String(viewRecord.certifierRef ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes || "—"}</p></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -457,43 +589,49 @@ function FieldsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      {/* Form dialog */}
       <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? "Edit Field" : "Add Field"}</DialogTitle><DialogDescription>Record the organic status of this field.</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Field" : "Add Field"}</DialogTitle>
+            <DialogDescription>Record the organic status of this field.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div><Label>Field Name *</Label><Input className={INPUT_CLS} required value={form.fieldName} onChange={e => setForm(f => ({ ...f, fieldName: e.target.value }))} /></div>
+            <div>
+              <Label>Field Name *</Label>
+              <FieldPicker
+                farmFields={farmFields}
+                fieldId={form.fieldId}
+                fieldName={form.fieldName}
+                onFieldChange={(id, name) => setForm(f => ({ ...f, fieldId: id, fieldName: name }))}
+              />
+            </div>
             <div><Label>Status *</Label>
-              <select className={INPUT_CLS} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              <select className={INPUT_CLS} required value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                 {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
               </select>
             </div>
             {form.status === "in-conversion" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Conversion Start Date</Label><Input type="date" className={INPUT_CLS} value={form.conversionStartDate} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
-                <div className="flex items-end pb-1">
-                  {form.conversionStartDate && <p className="text-sm text-amber-700 font-medium">Expected cert: {expectedCertDate(form.conversionStartDate)}</p>}
-                </div>
-              </div>
+              <div><Label>Conversion Start Date</Label><Input type="date" className={INPUT_CLS} value={form.conversionStartDate} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
             )}
             {form.status === "certified" && (
-              <div><Label>Certification Date</Label><Input type="date" className={INPUT_CLS} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Certified From</Label><Input type="date" className={INPUT_CLS} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
+                <div><Label>Certifier Reference</Label><Input className={INPUT_CLS} placeholder="e.g. SA-2024-F001" value={form.certifierRef} onChange={e => setForm(f => ({ ...f, certifierRef: e.target.value }))} /></div>
+              </div>
             )}
-            <div><Label>Certifier Reference</Label><Input className={INPUT_CLS} placeholder="e.g. SA-2024-12345" value={form.certifierRef} onChange={e => setForm(f => ({ ...f, certifierRef: e.target.value }))} /></div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="parallel" checked={form.parallelProduction} onChange={e => setForm(f => ({ ...f, parallelProduction: e.target.checked }))} className="rounded border-border" />
-              <Label htmlFor="parallel">Parallel production (this field runs alongside conventional land on the same holding)</Label>
+              <Label htmlFor="parallel">Parallel production (part-organic, part-conventional enterprise)</Label>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
-              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.fieldName}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save Field</Button>
+              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.fieldName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm */}
       <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Remove Field</DialogTitle><DialogDescription>Remove this field from the organic register? This cannot be undone.</DialogDescription></DialogHeader>
@@ -686,10 +824,10 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
 
 // ─── Restricted Inputs Tab ───────────────────────────────────────────────────
 
-const EMPTY_INPUT = { fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "" };
+const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "" };
 const INPUT_CATEGORIES = ["Fertiliser / Soil Amendment", "Crop Protection / Pesticide", "Growth Regulator", "Cleaning / Disinfectant", "Veterinary Treatment", "Other"];
 
-function RestrictedInputsTab({ farmId }: { farmId: number }) {
+function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
@@ -697,12 +835,25 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<RestrictedInput | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INPUT);
+  const [productCustom, setProductCustom] = useState(false);
 
   const { data, isLoading } = useQuery<{ records: RestrictedInput[] }>({
     queryKey: ["organic-restricted", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic/restricted-inputs`).then(r => r.json()),
   });
   const records = data?.records ?? [];
+
+  const { data: fieldsData } = useQuery<{ records: FarmField[] }>({
+    queryKey: ["farm-fields-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
+
+  const { data: sprayData } = useQuery<{ records: SprayProduct[] }>({
+    queryKey: ["spray-products-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const sprayProducts: SprayProduct[] = (sprayData?.records ?? []).map((p: any) => ({ id: p.id, productName: p.productName, category: p.category ?? null }));
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_INPUT) => fetch(`/api/farms/${farmId}/organic/restricted-inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -721,7 +872,16 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
 
   function openEdit(r: RestrictedInput) {
     setEditing(r);
-    setForm({ fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "" });
+    const productInList = sprayProducts.some(p => p.productName === r.productName);
+    setProductCustom(!productInList);
+    setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "" });
+    setFormOpen(true);
+  }
+
+  function openCreate() {
+    setEditing(null);
+    setProductCustom(false);
+    setForm(EMPTY_INPUT);
     setFormOpen(true);
   }
 
@@ -729,6 +889,32 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
     e.preventDefault();
     if (editing) { updateM.mutate({ id: editing.id, body: form }); }
     else { createM.mutate(form); }
+  }
+
+  const productSelectValue = sprayProducts.find(p => p.productName === form.productName)
+    ? form.productName
+    : productCustom ? "__other__"
+    : form.productName !== "" ? "__other__"
+    : "";
+
+  function handleProductSelect(val: string) {
+    if (val === "__other__") {
+      setProductCustom(true);
+      setForm(f => ({ ...f, productName: "" }));
+    } else if (val === "") {
+      setProductCustom(false);
+      setForm(f => ({ ...f, productName: "" }));
+    } else {
+      const product = sprayProducts.find(p => p.productName === val);
+      if (product) {
+        setProductCustom(false);
+        setForm(f => ({
+          ...f,
+          productName: product.productName,
+          productCategory: product.category ? mapSprayCategory(product.category) : f.productCategory,
+        }));
+      }
+    }
   }
 
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
@@ -739,8 +925,13 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
         <p>Restricted inputs are products not normally permitted under organic standards but used in exceptional circumstances with certifier approval or notification. Always consult your certifier before use.</p>
       </div>
-      <div className="flex justify-end mb-6">
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_INPUT); setFormOpen(true); }} className="gap-2"><Plus className="w-4 h-4" />Record Restricted Input</Button>
+      <div className="flex justify-between items-center mb-6">
+        {records.length > 0 ? (
+          <Button variant="outline" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
+            <Printer className="w-4 h-4" />Print Log
+          </Button>
+        ) : <div />}
+        <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Record Restricted Input</Button>
       </div>
 
       {records.length === 0 ? (
@@ -807,20 +998,54 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
 
       <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Record Restricted Input"}</DialogTitle><DialogDescription>Document the exceptional use of a restricted product on organic land.</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Record" : "Record Restricted Input"}</DialogTitle>
+            <DialogDescription>Document the exceptional use of a restricted product on organic land.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Product Name *</Label><Input className={INPUT_CLS} required value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
-              <div><Label>Category</Label>
-                <select className={INPUT_CLS} value={form.productCategory} onChange={e => setForm(f => ({ ...f, productCategory: e.target.value }))}>
-                  <option value="">Select…</option>
-                  {INPUT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
+            <div>
+              <Label>Product Name *</Label>
+              {sprayProducts.length > 0 ? (
+                <div className="space-y-1.5">
+                  <select className={INPUT_CLS} value={productSelectValue} onChange={e => handleProductSelect(e.target.value)}>
+                    <option value="">Select from spray products…</option>
+                    {sprayProducts.map(p => (
+                      <option key={p.id} value={p.productName}>{p.productName}</option>
+                    ))}
+                    <option value="__other__">Other / specify below</option>
+                  </select>
+                  {(productCustom || productSelectValue === "__other__") && (
+                    <Input
+                      className={INPUT_CLS}
+                      required
+                      placeholder="Product name"
+                      value={form.productName}
+                      onChange={e => setForm(f => ({ ...f, productName: e.target.value }))}
+                      autoFocus
+                    />
+                  )}
+                </div>
+              ) : (
+                <Input className={INPUT_CLS} required value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
+              )}
+            </div>
+            <div><Label>Category</Label>
+              <select className={INPUT_CLS} value={form.productCategory} onChange={e => setForm(f => ({ ...f, productCategory: e.target.value }))}>
+                <option value="">Select…</option>
+                {INPUT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date Applied *</Label><Input type="date" className={INPUT_CLS} required value={form.dateApplied} onChange={e => setForm(f => ({ ...f, dateApplied: e.target.value }))} /></div>
-              <div><Label>Field / Area</Label><Input className={INPUT_CLS} placeholder="Field name" value={form.fieldName} onChange={e => setForm(f => ({ ...f, fieldName: e.target.value }))} /></div>
+              <div>
+                <Label>Field / Area</Label>
+                <FieldPicker
+                  farmFields={farmFields}
+                  fieldId={form.fieldId}
+                  fieldName={form.fieldName}
+                  onFieldChange={(id, name) => setForm(f => ({ ...f, fieldId: id, fieldName: name }))}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Applied By</Label><Input className={INPUT_CLS} value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} /></div>
@@ -834,7 +1059,7 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
-              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.productName || !form.justification}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
+              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.productName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -853,47 +1078,63 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+function mapSprayCategory(cat: string): string {
+  const c = cat.toLowerCase();
+  if (c.includes("herbicide") || c.includes("fungicide") || c.includes("insecticide") || c.includes("pesticide")) return "Crop Protection / Pesticide";
+  if (c.includes("fertiliser") || c.includes("fertilizer") || c.includes("nutrient")) return "Fertiliser / Soil Amendment";
+  if (c.includes("growth")) return "Growth Regulator";
+  return "Other";
+}
 
-type OrgTab = "certification" | "fields" | "inspections" | "restricted-inputs";
+// ─── Page shell ──────────────────────────────────────────────────────────────
+
+const TABS = ["certification", "fields", "inspections", "restricted-inputs"] as const;
+type TabKey = typeof TABS[number];
+const TAB_LABELS: Record<TabKey, string> = {
+  certification: "Certification",
+  fields: "Field Status",
+  inspections: "Inspections",
+  "restricted-inputs": "Restricted Inputs",
+};
+const TAB_ICONS: Record<TabKey, React.ElementType> = {
+  certification: Leaf,
+  fields: BookOpen,
+  inspections: ShieldCheck,
+  "restricted-inputs": FlaskConical,
+};
 
 export default function OrganicPage() {
-  const { farmId } = useAppStore();
-  const [tab, setTab] = useState<OrgTab>("certification");
+  const { selectedFarmId, farms } = useAppStore();
+  const [activeTab, setActiveTab] = useState<TabKey>("certification");
 
-  const { data: farmData } = useQuery<{ record: { name: string } }>({
-    queryKey: ["farm-detail", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
-    enabled: !!farmId,
-  });
-  const farmName = farmData?.record?.name;
+  if (!selectedFarmId) return <Redirect to="/" />;
 
-  if (!farmId) return <Redirect to="/select" />;
+  const farm = farms.find(f => f.id === selectedFarmId);
+  const farmName = farm?.name ?? "Farm";
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-5xl mx-auto">
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center"><Leaf className="w-5 h-5 text-green-700" /></div>
-            <h1 className="text-2xl font-bold">Organic Compliance</h1>
-          </div>
-          <p className="text-foreground/60 text-sm ml-12">Complementary records alongside your Soil Association or OF&amp;G portal — certification details, field status, inspection visits, and restricted input log.</p>
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Leaf className="w-6 h-6 text-green-600" />Organic Compliance</h1>
+          <p className="text-sm text-foreground/60 mt-1">Complementary records alongside your certifier's portal — Soil Association, OF&G, BDOCA.</p>
         </div>
 
         <TabBar>
-          <TabButton active={tab === "certification"} onClick={() => setTab("certification")}><BookOpen className="w-4 h-4 mr-1.5" />Certification</TabButton>
-          <TabButton active={tab === "fields"} onClick={() => setTab("fields")}><Leaf className="w-4 h-4 mr-1.5" />Field Status</TabButton>
-          <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}><ShieldCheck className="w-4 h-4 mr-1.5" />Inspections</TabButton>
-          <TabButton active={tab === "restricted-inputs"} onClick={() => setTab("restricted-inputs")}><FlaskConical className="w-4 h-4 mr-1.5" />Restricted Inputs</TabButton>
+          {TABS.map(tab => {
+            const Icon = TAB_ICONS[tab];
+            return (
+              <TabButton key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+                <Icon className="w-4 h-4" />{TAB_LABELS[tab]}
+              </TabButton>
+            );
+          })}
         </TabBar>
 
-        <div className="mt-6">
-          {tab === "certification" && <CertificationTab farmId={farmId} />}
-          {tab === "fields" && <FieldsTab farmId={farmId} />}
-          {tab === "inspections" && <InspectionsTab farmId={farmId} farmName={farmName ?? "Farm"} />}
-          {tab === "restricted-inputs" && <RestrictedInputsTab farmId={farmId} />}
-        </div>
+        {activeTab === "certification" && <CertificationTab farmId={selectedFarmId} />}
+        {activeTab === "fields" && <FieldsTab farmId={selectedFarmId} farmName={farmName} />}
+        {activeTab === "inspections" && <InspectionsTab farmId={selectedFarmId} farmName={farmName} />}
+        {activeTab === "restricted-inputs" && <RestrictedInputsTab farmId={selectedFarmId} farmName={farmName} />}
       </div>
     </AppLayout>
   );
