@@ -308,6 +308,10 @@ const sections: Section[] = [
           "Restricted inputs log — document exceptional use of products not normally permitted under organic standards; records product name, category, field, date, applied by, full written justification, certifier approval reference, and a certifier-notified confirmation flag",
           "Certifier notification tracking — each restricted input record shows whether the certifier has been notified, with an amber badge until confirmed",
           "Restricted inputs warning banner — a prominent advisory notice reminds staff to consult their certifier before applying any restricted product",
+          "Mobile inspection recording — log organic certifier inspections directly from the mobile app in the field; capture certifier, inspection type, outcome, any non-conformances identified, and follow-up actions required; records are saved offline and sync to the dashboard automatically when connectivity is restored",
+          "Mobile input register — record approved organic inputs on the go; select the field from your field register, enter the product name, supplier, quantity, unit, and approval reference; conditional approval reference field appears automatically for restricted products; syncs offline",
+          "Organic Compliance hub (mobile) — a dedicated mobile overview screen shows your current certification status, next inspection countdown, and quick-action buttons to log a new inspection or add an input register entry without navigating through menus",
+          "Document attachment on inspections — attach a scanned copy of your certifier's inspection report or outcome letter directly to the inspection record from the dashboard, creating a complete documentary audit trail alongside the structured data",
         ],
       },
       {

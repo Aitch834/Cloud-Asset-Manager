@@ -28,7 +28,7 @@ const MODULES = [
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
   { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, individual animal linking, Bluetooth RFID scanning)" },
   { id: "biosecurity", label: "Biosecurity & Visitors" },
-  { id: "organic-compliance", label: "Organic Compliance" },
+  { id: "organic-compliance", label: "Organic Compliance (certification status, field conversion tracker, inspection log with document attachment, restricted inputs register & mobile offline recording)" },
   { id: "staff-training", label: "Staff & Training" },
   { id: "finance", label: "Finance & Business" },
   { id: "safety-risk-audits", label: "Safety, Risk & Audits" },

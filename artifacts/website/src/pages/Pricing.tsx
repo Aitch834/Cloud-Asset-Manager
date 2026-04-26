@@ -15,7 +15,7 @@ const MODULES = [
   { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules; link workshop jobs to Farm Services customers and raise invoices (labour + parts) with one click" },
   { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management, Vet Ledger (visit log & invoice reconciliation), BCMS one-click cattle submission (CTS Web Services), LIS one-click sheep/goat/deer submission (England CLA API), individual animal linking on movements with automatic status updates, incoming animal registration, and Bluetooth RFID ear tag scanning (mobile)" },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
-  { id: "organic-compliance", name: "Organic Compliance", price: 12, note: "Complementary records alongside Soil Association / OF&G portal — certification, field status, inspections & restricted inputs" },
+  { id: "organic-compliance", name: "Organic Compliance", price: 12, note: "Complementary records alongside Soil Association / OF&G portal — certification status, field conversion tracker, certifier inspection log with document attachment, restricted inputs register, and mobile offline inspection & input recording" },
   { id: "staff-training", name: "Staff & Training", price: 10 },
   { id: "safety-risk-audits", name: "Safety, Risk & Audits", price: 20, note: "Combines HS&R and Inspections & Audits" },
   { id: "environment-sustainability", name: "Environment & Sustainability", price: 16, note: "Combines Environmental Management and Carbon & Sustainability" },
