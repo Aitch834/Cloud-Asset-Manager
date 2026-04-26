@@ -39,6 +39,7 @@ const MODULES = [
   { key: "water-irrigation", name: "Water & Irrigation Management", description: "Water source register, abstraction log, irrigation events, water quality testing and infrastructure maintenance", monthlyPricePence: 1000 },
   { key: "fuel-energy", name: "Fuel & Energy Management", description: "Red diesel tank register, delivery log, usage recording linked to machinery and field operations, oil storage compliance inspections — HMRC-compliant records for rebated fuel", monthlyPricePence: 800 },
   { key: "feed-management", name: "Feed Management", description: "Feed delivery goods-received records with UFAS/FEMAS traceability, feed stock levels per species, medicated feed withdrawal tracking, and supplier approval number recording", monthlyPricePence: 800 },
+  { key: "organic-compliance", name: "Organic Compliance", description: "Certification records, field conversion status, inspector visits and restricted input log — complementary to Soil Association / OF&G portal", monthlyPricePence: 1200 },
 ];
 
 export async function seedDefaults() {
