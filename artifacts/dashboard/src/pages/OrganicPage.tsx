@@ -856,6 +856,141 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   );
 }
 
+// ─── Approved substance lookups (UK Organic Regulation Annex I & II) ─────────
+
+interface SubstanceOption {
+  substance: string;
+  autoType: string;
+}
+
+const ANNEX_I_INPUTS: SubstanceOption[] = [
+  { substance: "Farmyard Manure (FYM) — composted or well-rotted", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Composted Plant & Animal Material", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Green Manure / Cover Crop Residue", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Slurry (composted; restricted from non-organic units)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Straw / Crop Residues", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Dried Blood (Blood Meal)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Bone Meal / Steamed Bone Flour", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Hoof & Horn Meal", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Feather Meal", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Fish Meal / Fish Emulsion", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Seaweed Meal", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Calcified Seaweed (Lithothamnium)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Seaweed Extract (liquid)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Rock Phosphate (soft / reactive)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Basic Slag", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Potassium Sulphate (natural mineral extraction, low chloride)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Kieserite (Magnesium Sulphate, natural mineral)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Vinasse (potassium-rich molasses by-product)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Wood Ash (from untreated wood only)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Leonardite / Humic Acid Product", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Ground Limestone / Calcium Carbonate", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Dolomitic Limestone / Magnesium Limestone", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Gypsum (natural calcium sulphate)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Elemental Sulphur", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Borax / Boron Product", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Zinc Sulphate (trace element)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Manganese Sulphate (trace element)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Iron Chelate / Iron Sulphate (trace element)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Molybdenum Product (trace element)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Bentonite / Clay Minerals", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Peat (growing media only, not direct soil application)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Vermiculite (growing media)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Perlite (growing media)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Certified Organic Seed", autoType: "Seed Treatment" },
+  { substance: "Untreated Conventional Seed (derogation required)", autoType: "Seed Treatment" },
+  { substance: "Potassium Permanganate (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Calcium Hydroxide / Slaked Lime (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Hydrogen Peroxide (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Peracetic Acid (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Sodium Hypochlorite (disinfection of equipment only)", autoType: "Cleaning & Disinfection" },
+];
+
+const ANNEX_II_INPUTS: SubstanceOption[] = [
+  { substance: "Copper Hydroxide", autoType: "Crop Protection / Pesticide" },
+  { substance: "Copper Oxychloride", autoType: "Crop Protection / Pesticide" },
+  { substance: "Copper Sulphate / Bordeaux Mixture", autoType: "Crop Protection / Pesticide" },
+  { substance: "Cupric Oxide", autoType: "Crop Protection / Pesticide" },
+  { substance: "Pyrethrin (from Chrysanthemum cinerariaefolium)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Spinosad (restricted — certifier notification required)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Azadirachtin / Neem Extract", autoType: "Crop Protection / Pesticide" },
+  { substance: "Quassia (Quassia amara extract)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Bacillus thuringiensis (Bt)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Bacillus subtilis", autoType: "Crop Protection / Pesticide" },
+  { substance: "Beauveria bassiana", autoType: "Crop Protection / Pesticide" },
+  { substance: "Metarhizium anisopliae / brunneum", autoType: "Crop Protection / Pesticide" },
+  { substance: "Pythium oligandrum", autoType: "Crop Protection / Pesticide" },
+  { substance: "Phlebiopsis gigantea", autoType: "Crop Protection / Pesticide" },
+  { substance: "Trichoderma spp.", autoType: "Crop Protection / Pesticide" },
+  { substance: "Entomopathogenic Nematodes", autoType: "Crop Protection / Pesticide" },
+  { substance: "Iron Phosphate (slug pellets)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Kaolin (particle film)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Diatomaceous Earth / Kieselgur", autoType: "Crop Protection / Pesticide" },
+  { substance: "Potassium Bicarbonate", autoType: "Crop Protection / Pesticide" },
+  { substance: "Sulphur (wettable / dust)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Calcium Polysulphide / Lime Sulphur", autoType: "Crop Protection / Pesticide" },
+  { substance: "Calcium Hydroxide (fungicide application)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Soft Soap / Potassium Soap", autoType: "Crop Protection / Pesticide" },
+  { substance: "Rapeseed Oil / Plant Oil", autoType: "Crop Protection / Pesticide" },
+  { substance: "Paraffin Oil (mineral, restricted use)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Pheromones (mating disruption traps only)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Phytotherapeutic / Homeopathic Product", autoType: "Veterinary Treatment" },
+];
+
+function SubstancePicker({
+  options,
+  value,
+  onSelect,
+  placeholder,
+}: {
+  options: SubstanceOption[];
+  value: string;
+  onSelect: (substance: string, autoType: string) => void;
+  placeholder: string;
+}) {
+  const inList = options.some(o => o.substance === value);
+  const [showCustom, setShowCustom] = useState(!inList && value !== "");
+  const selectValue = inList ? value : (showCustom || value !== "") ? "__other__" : "";
+
+  function handleSelect(val: string) {
+    if (val === "__other__") {
+      setShowCustom(true);
+      onSelect("", "");
+    } else if (val === "") {
+      setShowCustom(false);
+      onSelect("", "");
+    } else {
+      const opt = options.find(o => o.substance === val);
+      if (opt) {
+        setShowCustom(false);
+        onSelect(opt.substance, opt.autoType);
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <select className={INPUT_CLS} value={selectValue} onChange={e => handleSelect(e.target.value)}>
+        <option value="">Select approved substance…</option>
+        {options.map(o => (
+          <option key={o.substance} value={o.substance}>{o.substance}</option>
+        ))}
+        <option value="__other__">Other / specify below</option>
+      </select>
+      {(showCustom || selectValue === "__other__") && (
+        <Input
+          className={INPUT_CLS}
+          required
+          placeholder={placeholder}
+          value={inList ? "" : value}
+          onChange={e => onSelect(e.target.value, "")}
+          autoFocus
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Restricted Inputs Tab ───────────────────────────────────────────────────
 
 const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "" };
@@ -1042,8 +1177,17 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>Product Name *</Label>
-              <Input className={INPUT_CLS} required placeholder="e.g. Cuprokylt, Pyrethrin, Rock Phosphate" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
+              <Label>Substance / Product Name *</Label>
+              <SubstancePicker
+                options={ANNEX_II_INPUTS}
+                value={form.productName}
+                onSelect={(substance, autoType) => setForm(f => ({
+                  ...f,
+                  productName: substance,
+                  productCategory: autoType || f.productCategory,
+                }))}
+                placeholder="e.g. Copper oxychloride, product trade name"
+              />
             </div>
             <div><Label>Category</Label>
               <select className={INPUT_CLS} value={form.productCategory} onChange={e => setForm(f => ({ ...f, productCategory: e.target.value }))}>
@@ -1300,8 +1444,17 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>Product Name *</Label>
-              <Input className={INPUT_CLS} required placeholder="e.g. Calcified Seaweed, Compost, Organic Seed" value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} />
+              <Label>Substance / Product Name *</Label>
+              <SubstancePicker
+                options={ANNEX_I_INPUTS}
+                value={form.productName}
+                onSelect={(substance, autoType) => setForm(f => ({
+                  ...f,
+                  productName: substance,
+                  inputType: autoType || f.inputType,
+                }))}
+                placeholder="e.g. Calcified seaweed, compost, product trade name"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Input Type</Label>
