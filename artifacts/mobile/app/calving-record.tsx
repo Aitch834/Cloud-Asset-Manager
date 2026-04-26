@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Input } from "@/components/ui/Input";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -218,11 +219,11 @@ export default function CalvingRecordScreen() {
 
         <Section title="Cow Details">
           <Text style={styles.label}>Cow Ear Tag *</Text>
-          <Input
-            placeholder="e.g. UK123456 78901"
+          <RFIDTagInput
             value={cowEarTag}
             onChangeText={setCowEarTag}
-            autoCapitalize="characters"
+            onTagScanned={setCowEarTag}
+            placeholder="e.g. UK123456 78901"
           />
           <Text style={styles.label}>Calving Date *</Text>
           <Input
@@ -255,11 +256,11 @@ export default function CalvingRecordScreen() {
           <Text style={styles.label}>Calf Sex</Text>
           <ChipRow options={CALF_SEX} value={calfSex} onSelect={setCalfSex} color="#7c3aed" />
           <Text style={styles.label}>Calf Ear Tag</Text>
-          <Input
-            placeholder="e.g. UK123456 11111"
+          <RFIDTagInput
             value={calfEarTag}
             onChangeText={setCalfEarTag}
-            autoCapitalize="characters"
+            onTagScanned={setCalfEarTag}
+            placeholder="e.g. UK123456 11111"
           />
           <Text style={styles.label}>Calf Disposition</Text>
           <Input placeholder="e.g. Retained, sold to dealer" value={calfDisposition} onChangeText={setCalfDisposition} />

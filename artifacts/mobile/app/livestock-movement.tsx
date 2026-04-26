@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -201,7 +202,7 @@ export default function LivestockMovementScreen() {
             keyboardType="number-pad"
             required
           />
-          <Input
+          <RFIDTagInput
             label={
               species === "Cattle"
                 ? "Ear Tag Numbers (required for BCMS)"
@@ -211,13 +212,18 @@ export default function LivestockMovementScreen() {
             }
             placeholder={
               species === "Cattle"
-                ? "e.g. UK123456 789012, UK123456 789013 — one per line or comma-separated"
+                ? "e.g. UK123456 789012, UK123456 789013"
                 : species === "Pigs"
                 ? "e.g. Herd mark tattooed — AB1234"
-                : "e.g. UK1234 56789, one per line or comma-separated"
+                : "e.g. UK1234 56789"
             }
             value={earTagNumbers}
             onChangeText={setEarTagNumbers}
+            onTagScanned={(tag) =>
+              setEarTagNumbers((prev) =>
+                prev.trim() ? `${prev.trim()}\n${tag}` : tag
+              )
+            }
             multiline
             numberOfLines={3}
           />

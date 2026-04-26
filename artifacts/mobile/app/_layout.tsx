@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { FarmProvider } from "@/lib/context/FarmContext";
+import { RFIDProvider } from "@/lib/context/RFIDContext";
 import { SyncProvider } from "@/lib/context/SyncContext";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import type { AuthState } from "@/lib/types";
@@ -89,6 +90,7 @@ function RootLayoutNav() {
         <Stack.Screen name="fuel-stock-check" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="fuel-tank-delivery" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="dispatch-plans" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="rfid-settings" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
@@ -120,9 +122,11 @@ export default function RootLayout() {
               <AuthProvider>
                 <FarmProvider>
                   <SyncProvider>
-                    <AuthGate>
-                      <RootLayoutNav />
-                    </AuthGate>
+                    <RFIDProvider>
+                      <AuthGate>
+                        <RootLayoutNav />
+                      </AuthGate>
+                    </RFIDProvider>
                   </SyncProvider>
                 </FarmProvider>
               </AuthProvider>

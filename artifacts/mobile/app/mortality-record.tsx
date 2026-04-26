@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -281,11 +282,11 @@ export default function MortalityRecordScreen() {
             onChangeText={setHerdName}
           />
           <Text style={styles.label}>Ear Tag / Tag Number</Text>
-          <Input
-            placeholder="e.g. UK123456 78901"
+          <RFIDTagInput
             value={tagNumber}
             onChangeText={setTagNumber}
-            autoCapitalize="characters"
+            onTagScanned={setTagNumber}
+            placeholder="e.g. UK123456 78901"
           />
           <Text style={styles.label}>Species *</Text>
           <SpeciesRow value={species} onSelect={setSpecies} options={speciesOptions} />

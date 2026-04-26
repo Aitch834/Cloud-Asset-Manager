@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { HerdPicker } from "@/components/ui/HerdPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
@@ -162,11 +163,12 @@ export default function MedicineRecordScreen() {
             error={herdsError}
             label="Herd / Flock *"
           />
-          <Input
+          <RFIDTagInput
             label="Individual Animal ID (optional)"
-            placeholder="e.g. ear tag, CPH number"
             value={animalId}
             onChangeText={setAnimalId}
+            onTagScanned={setAnimalId}
+            placeholder="e.g. ear tag, CPH number"
           />
 
           <View style={styles.sectionLabel}>

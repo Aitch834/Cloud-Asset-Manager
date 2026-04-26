@@ -135,6 +135,18 @@ export default function MoreScreen() {
           />
         </View>
 
+        <SectionHeader title="Equipment" />
+        <View style={styles.section}>
+          <ListItem
+            title="RFID Reader"
+            subtitle="Bluetooth ear tag scanning for cattle, sheep & goats"
+            icon="bluetooth"
+            iconColor="#2563eb"
+            iconBgColor="#dbeafe"
+            onPress={() => router.push("/rfid-settings")}
+          />
+        </View>
+
         <SectionHeader title="App" />
         <View style={styles.section}>
           <ListItem

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Input } from "@/components/ui/Input";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -131,10 +132,11 @@ function LambCard({
         color="#2563eb"
       />
       <Text style={styles.fieldLabel}>Ear Tag (optional)</Text>
-      <Input
-        placeholder="e.g. UK123456 0001"
+      <RFIDTagInput
         value={data.earTag}
         onChangeText={(t) => onChange({ earTag: t })}
+        onTagScanned={(t) => onChange({ earTag: t })}
+        placeholder="e.g. UK123456 0001"
       />
     </View>
   );
@@ -265,11 +267,11 @@ export default function LambingRecordScreen() {
 
         <Section title="Ewe Details">
           <Text style={styles.fieldLabel}>Ewe Ear Tag *</Text>
-          <Input
-            placeholder="e.g. UK123456 78901"
+          <RFIDTagInput
             value={eweEarTag}
             onChangeText={setEweEarTag}
-            autoCapitalize="characters"
+            onTagScanned={setEweEarTag}
+            placeholder="e.g. UK123456 78901"
           />
           <Text style={styles.fieldLabel}>Lambing Date *</Text>
           <Input
