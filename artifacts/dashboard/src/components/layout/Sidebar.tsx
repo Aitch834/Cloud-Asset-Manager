@@ -98,6 +98,7 @@ const complianceNav: NavItem[] = [
   { name: "Encampments", href: "/encampments", icon: AlertTriangle, moduleKeys: ["risk-waste"] },
   { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
+  { name: "Organic Compliance", href: "/organic", icon: Leaf, moduleKeys: ["organic-compliance"] },
 ];
 
 const biosecurityNav: NavItem[] = [
@@ -108,7 +109,6 @@ const biosecurityNav: NavItem[] = [
   { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },
   { name: "COSHH Assessments", href: "/coshh", icon: ShieldAlert, moduleKeys: ["biosecurity"] },
   { name: "Compliance & Plans", href: "/compliance", icon: FileText, moduleKeys: ["biosecurity"] },
-  { name: "Organic Compliance", href: "/organic", icon: Leaf, moduleKeys: ["organic-compliance"] },
 ];
 
 const livestockNav: NavItem[] = [
