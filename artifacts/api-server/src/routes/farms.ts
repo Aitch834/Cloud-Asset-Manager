@@ -249,6 +249,14 @@ import {
   organicInspectionTable,
   organicRestrictedInputTable,
   organicInputsTable,
+  organicLivestockConversionTable,
+  organicLivestockFeedTable,
+  organicLivestockOutdoorAccessTable,
+  organicLivestockTreatmentTable,
+  organicDairyHerdConversionTable,
+  organicDairyCollectionTable,
+  organicDairyFeedTable,
+  organicDairyTreatmentTable,
   feedContingencyPlansTable,
   feedRecallIncidentsTable,
   diseaseIncidentLogTable,
@@ -17682,6 +17690,230 @@ router.put("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requ
 router.delete("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   await db.delete(organicInputsTable).where(eq(organicInputsTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Livestock — Conversion ──────────────────────────────────────────
+router.get("/farms/:farmId/organic-livestock/conversion", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.farmId, farmId)).orderBy(desc(organicLivestockConversionTable.conversionStartDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-livestock/conversion", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { species, herdFlockName, numberOfAnimals, conversionStartDate, expectedCertDate, actualCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
+  const [record] = await db.insert(organicLivestockConversionTable).values({ farmId, species, herdFlockName, numberOfAnimals: numberOfAnimals ?? null, conversionStartDate, expectedCertDate: expectedCertDate ?? null, actualCertDate: actualCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { species, herdFlockName, numberOfAnimals, conversionStartDate, expectedCertDate, actualCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
+  await db.update(organicLivestockConversionTable).set({ species, herdFlockName, numberOfAnimals: numberOfAnimals ?? null, conversionStartDate, expectedCertDate: expectedCertDate ?? null, actualCertDate: actualCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicLivestockConversionTable.id, id));
+  const [record] = await db.select().from(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Livestock — Feed Records ────────────────────────────────────────
+router.get("/farms/:farmId/organic-livestock/feed", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.farmId, farmId)).orderBy(desc(organicLivestockFeedTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-livestock/feed", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { recordDate, species, herdFlockName, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
+  const [record] = await db.insert(organicLivestockFeedTable).values({ farmId, recordDate, species, herdFlockName: herdFlockName ?? null, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { recordDate, species, herdFlockName, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
+  await db.update(organicLivestockFeedTable).set({ recordDate, species, herdFlockName: herdFlockName ?? null, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).where(eq(organicLivestockFeedTable.id, id));
+  const [record] = await db.select().from(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Livestock — Outdoor Access / Stocking ───────────────────────────
+router.get("/farms/:farmId/organic-livestock/outdoor-access", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.farmId, farmId)).orderBy(desc(organicLivestockOutdoorAccessTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-livestock/outdoor-access", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { recordDate, species, herdFlockName, numberOfAnimals, pastureAreaHectares, stockingDensityPerHa, outdoorAccessHoursDay, housingStartDate, housingEndDate, housingJustification, complianceStatus, notes } = req.body;
+  const [record] = await db.insert(organicLivestockOutdoorAccessTable).values({ farmId, recordDate, species, herdFlockName: herdFlockName ?? null, numberOfAnimals: numberOfAnimals ?? null, pastureAreaHectares: pastureAreaHectares ?? null, stockingDensityPerHa: stockingDensityPerHa ?? null, outdoorAccessHoursDay: outdoorAccessHoursDay ?? null, housingStartDate: housingStartDate ?? null, housingEndDate: housingEndDate ?? null, housingJustification: housingJustification ?? null, complianceStatus: complianceStatus ?? "compliant", notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/outdoor-access/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { recordDate, species, herdFlockName, numberOfAnimals, pastureAreaHectares, stockingDensityPerHa, outdoorAccessHoursDay, housingStartDate, housingEndDate, housingJustification, complianceStatus, notes } = req.body;
+  await db.update(organicLivestockOutdoorAccessTable).set({ recordDate, species, herdFlockName: herdFlockName ?? null, numberOfAnimals: numberOfAnimals ?? null, pastureAreaHectares: pastureAreaHectares ?? null, stockingDensityPerHa: stockingDensityPerHa ?? null, outdoorAccessHoursDay: outdoorAccessHoursDay ?? null, housingStartDate: housingStartDate ?? null, housingEndDate: housingEndDate ?? null, housingJustification: housingJustification ?? null, complianceStatus: complianceStatus ?? "compliant", notes: notes ?? null }).where(eq(organicLivestockOutdoorAccessTable.id, id));
+  const [record] = await db.select().from(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/outdoor-access/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Livestock — Treatment Compliance ─────────────────────────────────
+router.get("/farms/:farmId/organic-livestock/treatments", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.farmId, farmId)).orderBy(desc(organicLivestockTreatmentTable.treatmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-livestock/treatments", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { treatmentDate, species, animalIds, numberOfAnimals, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardWithdrawalDays, doubledWithdrawalDays, withdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
+  const [record] = await db.insert(organicLivestockTreatmentTable).values({ farmId, treatmentDate, species, animalIds: animalIds ?? null, numberOfAnimals: numberOfAnimals ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardWithdrawalDays: standardWithdrawalDays ?? null, doubledWithdrawalDays: doubledWithdrawalDays ?? null, withdrawalEndDate: withdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { treatmentDate, species, animalIds, numberOfAnimals, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardWithdrawalDays, doubledWithdrawalDays, withdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
+  await db.update(organicLivestockTreatmentTable).set({ treatmentDate, species, animalIds: animalIds ?? null, numberOfAnimals: numberOfAnimals ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardWithdrawalDays: standardWithdrawalDays ?? null, doubledWithdrawalDays: doubledWithdrawalDays ?? null, withdrawalEndDate: withdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).where(eq(organicLivestockTreatmentTable.id, id));
+  const [record] = await db.select().from(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Dairy — Herd Conversion ─────────────────────────────────────────
+router.get("/farms/:farmId/organic-dairy/herd-conversion", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.farmId, farmId)).orderBy(desc(organicDairyHerdConversionTable.conversionStartDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-dairy/herd-conversion", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { herdName, numberOfCows, breed, conversionStartDate, expectedMilkCertDate, actualMilkCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
+  const [record] = await db.insert(organicDairyHerdConversionTable).values({ farmId, herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedMilkCertDate: expectedMilkCertDate ?? null, actualMilkCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-dairy/herd-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { herdName, numberOfCows, breed, conversionStartDate, expectedMilkCertDate, actualMilkCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
+  await db.update(organicDairyHerdConversionTable).set({ herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedMilkCertDate: expectedMilkCertDate ?? null, actualMilkCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicDairyHerdConversionTable.id, id));
+  const [record] = await db.select().from(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-dairy/herd-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Dairy — Milk Collections ────────────────────────────────────────
+router.get("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.farmId, farmId)).orderBy(desc(organicDairyCollectionTable.collectionDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { collectionDate, collectorName, vehicleRef, volumeLitres, fatPercentage, proteinPercentage, sccThousandsPerMl, tbc, isOrganicCertified, processorRef, collectionRef, deductionsPence, netValuePence, notes } = req.body;
+  const [record] = await db.insert(organicDairyCollectionTable).values({ farmId, collectionDate, collectorName: collectorName ?? null, vehicleRef: vehicleRef ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-dairy/collections/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { collectionDate, collectorName, vehicleRef, volumeLitres, fatPercentage, proteinPercentage, sccThousandsPerMl, tbc, isOrganicCertified, processorRef, collectionRef, deductionsPence, netValuePence, notes } = req.body;
+  await db.update(organicDairyCollectionTable).set({ collectionDate, collectorName: collectorName ?? null, vehicleRef: vehicleRef ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).where(eq(organicDairyCollectionTable.id, id));
+  const [record] = await db.select().from(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-dairy/collections/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Dairy — Feed & Nutrition ────────────────────────────────────────
+router.get("/farms/:farmId/organic-dairy/feed", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicDairyFeedTable).where(eq(organicDairyFeedTable.farmId, farmId)).orderBy(desc(organicDairyFeedTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-dairy/feed", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { recordDate, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, dryMatterKg, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
+  const [record] = await db.insert(organicDairyFeedTable).values({ farmId, recordDate, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, dryMatterKg: dryMatterKg ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-dairy/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { recordDate, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, dryMatterKg, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
+  await db.update(organicDairyFeedTable).set({ recordDate, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, dryMatterKg: dryMatterKg ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).where(eq(organicDairyFeedTable.id, id));
+  const [record] = await db.select().from(organicDairyFeedTable).where(eq(organicDairyFeedTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-dairy/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicDairyFeedTable).where(eq(organicDairyFeedTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Dairy — Treatment Compliance ────────────────────────────────────
+router.get("/farms/:farmId/organic-dairy/treatments", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.farmId, farmId)).orderBy(desc(organicDairyTreatmentTable.treatmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-dairy/treatments", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { treatmentDate, cowIds, numberOfCows, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardMilkWithdrawalDays, doubledMilkWithdrawalDays, standardMeatWithdrawalDays, doubledMeatWithdrawalDays, milkWithdrawalEndDate, meatWithdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
+  const [record] = await db.insert(organicDairyTreatmentTable).values({ farmId, treatmentDate, cowIds: cowIds ?? null, numberOfCows: numberOfCows ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardMilkWithdrawalDays: standardMilkWithdrawalDays ?? null, doubledMilkWithdrawalDays: doubledMilkWithdrawalDays ?? null, standardMeatWithdrawalDays: standardMeatWithdrawalDays ?? null, doubledMeatWithdrawalDays: doubledMeatWithdrawalDays ?? null, milkWithdrawalEndDate: milkWithdrawalEndDate ?? null, meatWithdrawalEndDate: meatWithdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-dairy/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { treatmentDate, cowIds, numberOfCows, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardMilkWithdrawalDays, doubledMilkWithdrawalDays, standardMeatWithdrawalDays, doubledMeatWithdrawalDays, milkWithdrawalEndDate, meatWithdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
+  await db.update(organicDairyTreatmentTable).set({ treatmentDate, cowIds: cowIds ?? null, numberOfCows: numberOfCows ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardMilkWithdrawalDays: standardMilkWithdrawalDays ?? null, doubledMilkWithdrawalDays: doubledMilkWithdrawalDays ?? null, standardMeatWithdrawalDays: standardMeatWithdrawalDays ?? null, doubledMeatWithdrawalDays: doubledMeatWithdrawalDays ?? null, milkWithdrawalEndDate: milkWithdrawalEndDate ?? null, meatWithdrawalEndDate: meatWithdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).where(eq(organicDairyTreatmentTable.id, id));
+  const [record] = await db.select().from(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-dairy/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.id, id));
   res.json({ ok: true });
 });
 

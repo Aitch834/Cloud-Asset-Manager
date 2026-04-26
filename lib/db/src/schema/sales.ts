@@ -42,6 +42,8 @@ export const grainSalesTable = pgTable("grain_sales", {
   // ─── Dispatch linkage (soft ref — no FK to avoid circular schema) ──────────
   // Set when this sale has a corresponding haulage dispatch record
   haulageRecordId: integer("haulage_record_id"),
+  isOrganicCertified: boolean("is_organic_certified").notNull().default(false),
+  organicCertRef: text("organic_cert_ref"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

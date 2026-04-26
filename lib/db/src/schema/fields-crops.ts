@@ -100,6 +100,8 @@ export const harvestRecordsTable = pgTable("harvest_records", {
   qualityGrade: text("quality_grade"),
   recordedBy: text("recorded_by"),
   notes: text("notes"),
+  isOrganicCertified: boolean("is_organic_certified").notNull().default(false),
+  organicCertRef: text("organic_cert_ref"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

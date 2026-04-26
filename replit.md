@@ -72,13 +72,33 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 ### Modules
 The platform supports 17 core compliance modules with monthly pricing, covering areas like Field & Crop Management, Sprays & Inputs, Soil Management, Livestock Management, Biosecurity, and Financial Records. A dedicated Dairy Management module provides detailed tracking.
 
-#### Organic Compliance Module
-The Organic Compliance module (key: `organic-compliance`) covers five tabs: Certification, Field Status, Inspections, Restricted Inputs, and Input Register. Both the Input Register and Restricted Inputs forms include:
+#### Organic Farming Section
+The sidebar contains a dedicated "Organic Farming" section with three modules:
+
+**Organic Compliance** (key: `organic-compliance`, £12/mo) — covers five tabs: Certification, Field Status, Inspections, Restricted Inputs, and Input Register. Both the Input Register and Restricted Inputs forms include:
 - **Substance picker** (SubstancePicker component) searching Annex I (permitted inputs) and Annex II (restricted plant protection products) from UK retained EC 889/2008.
 - **Supplier combobox** (SupplierCombobox component) — searches the farm's Trade Contacts list via `GET /api/farms/:farmId/suppliers`.
 - **Purchase Order lookup** — dropdown filtered by selected supplier via `GET /api/farms/:farmId/purchase-orders`, stores PO number as `poReference` text field.
 - **GRN / Delivery Note lookup** — dropdown filtered by selected PO via `GET /api/farms/:farmId/stock-deliveries`, stores GRN number as `grnReference` text field.
 - Schema: `organicInputsTable` and `organicRestrictedInputTable` in `lib/db/src/schema/organic.ts`.
+
+**Organic Livestock** (key: `organic-livestock`, £25/mo) — page at `/organic-livestock`, four tabs:
+- Conversion: tracks herds/flocks through organic conversion with status, certifier, and parallel production flag.
+- Feed Records: logs feed purchases per species with supplier approval numbers, organic %, PO/GRN references, and derogation tracking.
+- Outdoor Access / Stocking: records pasture area, stocking density, outdoor access hours/day, and housing period justifications.
+- Treatment Compliance: full veterinary treatment log with doubled withdrawal periods, certifier notification flag, and treatment-number counter.
+- Schema: `organicLivestockConversionTable`, `organicLivestockFeedTable`, `organicLivestockOutdoorAccessTable`, `organicLivestockTreatmentTable`.
+- API routes: `/api/farms/:farmId/organic-livestock/{conversion,feed,outdoor-access,treatments}`.
+
+**Organic Dairy** (key: `organic-dairy`, £20/mo) — page at `/organic-dairy`, four tabs:
+- Herd Conversion: tracks dairy herds through organic conversion with separate milk certification date.
+- Milk Collections: logs each tanker collection with volume, fat/protein/SCC/TBC quality data, organic certification status, and net value in pence.
+- Feed & Nutrition: feed records with dry-matter weight, organic percentage, and derogation references.
+- Treatment Compliance: veterinary treatments with separate milk and meat doubled withdrawal periods and dates.
+- Schema: `organicDairyHerdConversionTable`, `organicDairyCollectionTable`, `organicDairyFeedTable`, `organicDairyTreatmentTable`.
+- API routes: `/api/farms/:farmId/organic-dairy/{herd-conversion,collections,feed,treatments}`.
+
+**Harvest / Grain Sales organic flags** — `harvestRecordsTable` and `grainSalesTable` both have `isOrganicCertified` (boolean) and `organicCertRef` (text) columns added.
 
 ## External Dependencies
 

@@ -40,6 +40,8 @@ const MODULES = [
   { key: "fuel-energy", name: "Fuel & Energy Management", description: "Red diesel tank register, delivery log, usage recording linked to machinery and field operations, oil storage compliance inspections — HMRC-compliant records for rebated fuel", monthlyPricePence: 800 },
   { key: "feed-management", name: "Feed Management", description: "Feed delivery goods-received records with UFAS/FEMAS traceability, feed stock levels per species, medicated feed withdrawal tracking, and supplier approval number recording", monthlyPricePence: 800 },
   { key: "organic-compliance", name: "Organic Compliance", description: "Certification records, field conversion status, inspector visits and restricted input log — complementary to Soil Association / OF&G portal", monthlyPricePence: 1200 },
+  { key: "organic-livestock", name: "Organic Livestock", description: "Conversion period tracking, organic feed sourcing with ≥95% compliance monitoring, outdoor access and stocking records, and doubled withdrawal period management for organic livestock enterprises", monthlyPricePence: 2500 },
+  { key: "organic-dairy", name: "Organic Dairy", description: "Dairy herd conversion records, organic milk collection flagging with premium tracking, feed and nutrition compliance, and doubled milk and meat withdrawal period management for organic dairy herds", monthlyPricePence: 2000 },
 ];
 
 export async function seedDefaults() {

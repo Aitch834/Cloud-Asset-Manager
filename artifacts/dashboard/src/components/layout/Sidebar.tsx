@@ -98,7 +98,12 @@ const complianceNav: NavItem[] = [
   { name: "Encampments", href: "/encampments", icon: AlertTriangle, moduleKeys: ["risk-waste"] },
   { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
+];
+
+const organicFarmingNav: NavItem[] = [
   { name: "Organic Compliance", href: "/organic", icon: Leaf, moduleKeys: ["organic-compliance"] },
+  { name: "Organic Livestock", href: "/organic-livestock", icon: HeartPulse, moduleKeys: ["organic-livestock"] },
+  { name: "Organic Dairy", href: "/organic-dairy", icon: Milk, moduleKeys: ["organic-dairy"] },
 ];
 
 const biosecurityNav: NavItem[] = [
@@ -214,13 +219,14 @@ interface TrialInfo {
   endsAt: string | null;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav, trialInfo }: {
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredOrganicFarmingNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav, trialInfo }: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
   currentFarmRedTractorId?: string | null;
   filteredCoreNav: NavItem[];
   filteredComplianceNav: NavItem[];
+  filteredOrganicFarmingNav: NavItem[];
   filteredBiosecurityNav: NavItem[];
   filteredLivestockNav: NavItem[];
   filteredBiofuelNav: NavItem[];
@@ -288,6 +294,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
       <nav ref={navRef} className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
         <NavSection items={filteredCoreNav} onNavClick={onNavClick} />
         <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onNavClick} />
+        <NavSection title="Organic Farming" items={filteredOrganicFarmingNav} onNavClick={onNavClick} />
         <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
         <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onNavClick} />
         <NavSection title="Fuel & Energy" items={filteredBiofuelNav} onNavClick={onNavClick} />
@@ -436,6 +443,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole) : coreNav;
   const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole) : complianceNav;
+  const filteredOrganicFarmingNav = subscriptionsLoaded ? filterNavItems(organicFarmingNav, activeModuleKeys, farmSectors, userRole) : organicFarmingNav;
   const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole) : biosecurityNav;
   const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole) : livestockNav;
   const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors, userRole);
@@ -456,6 +464,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     currentFarmRedTractorId: currentFarm?.redTractorId ?? null,
     filteredCoreNav,
     filteredComplianceNav,
+    filteredOrganicFarmingNav,
     filteredBiosecurityNav,
     filteredLivestockNav,
     filteredBiofuelNav,
