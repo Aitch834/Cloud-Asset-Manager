@@ -10155,7 +10155,16 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </table>
 
 <h3>Status Indicators</h3>
-<p>Each conversion record in the table carries a colour-coded status badge: amber <em>In Conversion</em>, green <em>Certified</em>, red <em>Suspended</em>, or grey <em>Withdrawn</em>. Records linked to the Livestock Register show a green <strong>● Linked</strong> indicator confirming the organic flag is active across the platform.</p>`,
+<p>Each conversion record in the table carries a colour-coded status badge: amber <em>In Conversion</em>, green <em>Certified</em>, red <em>Suspended</em>, or grey <em>Withdrawn</em>. Records linked to the Livestock Register show a green <strong>● Linked</strong> indicator confirming the organic flag is active across the platform.</p>
+
+<h3>Week Ahead Planner — Certification Deadline Alerts</h3>
+<p>The <strong>Expected Certification Date</strong> on every <em>In Conversion</em> herd surfaces automatically in the <strong>Farm Planner → Week Ahead</strong> view. The event card shows the herd name and species, colour-coded by urgency:</p>
+<ul>
+<li><strong>Emerald</strong> — certification date is more than 14 days away</li>
+<li><strong>Amber</strong> — within 14 days</li>
+<li><strong>Red</strong> — overdue (past the expected date with status still In Conversion)</li>
+</ul>
+<p>Clicking the card navigates directly to Organic Livestock → Conversion so you can confirm the actual certification date with your certification body and update the status to <em>Certified</em>. No setup is required — the planner picks up the date as soon as the conversion record is saved.</p>`,
     },
     {
       id: 10061,
@@ -10179,6 +10188,19 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Certifier Notification</h3>
 <p>Organic livestock standards require that you notify your certification body when treatments approach or exceed permitted limits. The <strong>Certifier Notified</strong> column on each treatment row shows a green <em>Yes</em> or grey <em>No</em> badge. To update, open the medicine record and set the Certifier Notified flag and date. This updates the badge on the Treatment Compliance tab in real time.</p>
+
+<h3>Raise Task — Organic Withdrawal Follow-Up</h3>
+<p>On any standalone treatment row that has an <strong>Organic Withdrawal End Date</strong> set, a green clipboard button appears in the action column. Clicking it opens the <strong>Raise Task</strong> panel pre-filled with:</p>
+<ul>
+<li>Title: "Organic withdrawal ends: [product name] — due [date]"</li>
+<li>Description: instructions to verify the animal has cleared the organic (doubled) withdrawal before being sold as organic livestock</li>
+<li>Due date: the Organic Withdrawal End Date from the treatment record</li>
+</ul>
+<p>Assign the task to a named staff member and the system sends them an instant SMS. The task then appears on the Task Board and on the Week Ahead Planner on the due date. Medicine Register rows are read-only here; use the Raise Task button in the Medicine Register itself for those records.</p>
+
+<h3>Week Ahead Planner — Withdrawal Deadline Alerts</h3>
+<p>Organic withdrawal end dates from standalone treatment records also surface as emerald event cards in the <strong>Farm Planner → Week Ahead</strong> view, labelled "Organic Withdrawal Ends — [product]". Clicking the card navigates to Organic Livestock → Treatment Compliance so you can verify the withdrawal has passed before moving animals into organic sale.</p>
+<p>For Medicine Register treatments flagged as organic, the longer <em>organic</em> withdrawal end date (doubled withdrawal period) appears as a separate event card in the planner, distinct from the standard withdrawal card — ensuring both periods are visible when they differ.</p>
 
 <h3>What to Present at Inspection</h3>
 <p>Your certifier will typically ask to see a complete list of all veterinary treatments given to organic animals in the past 12 months, including the dates, products, dosages, and withdrawal periods applied. The Treatment Compliance tab shows exactly this information in a single view — combining auto-populated Medicine Register records with any standalone entries — ready to present on screen or export for submission.</p>`,
@@ -10215,7 +10237,16 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Collector / Tanker ID</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Haulier or tanker registration for traceability</td></tr>
 </tbody>
 </table>
-<p>Collection records can be filtered by date range and exported to CSV for submission to your certifier or milk buyer as part of annual organic audit evidence.</p>`,
+<p>Collection records can be filtered by date range and exported to CSV for submission to your certifier or milk buyer as part of annual organic audit evidence.</p>
+
+<h3>Week Ahead Planner — Milk Certification Deadline Alerts</h3>
+<p>The <strong>Expected Milk Certification Date</strong> on every <em>In Conversion</em> dairy herd surfaces automatically in the <strong>Farm Planner → Week Ahead</strong> view. The event card shows the herd name and is colour-coded by urgency:</p>
+<ul>
+<li><strong>Teal</strong> — certification date is more than 14 days away</li>
+<li><strong>Amber</strong> — within 14 days</li>
+<li><strong>Red</strong> — overdue (past the expected date with status still In Conversion)</li>
+</ul>
+<p>Clicking the card navigates directly to Organic Dairy → Herd Conversion. Once your certification body confirms the first organic milk collection, update the <strong>Actual Certification Date</strong> and change the status to <em>Certified</em> — this removes the event from the planner automatically.</p>`,
     },
     {
       id: 10063,
@@ -10243,7 +10274,23 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Setting Up Feed Delivery Organic Details</h3>
 <p>When recording a feed delivery in <strong>Feed Management</strong>, scroll to the bottom of the delivery form and check <strong>Organic Approved Feed</strong>. This expands the organic compliance fields. Enter the supplier approval number and organic percentage. If any non-organic ingredients are present, enter the derogation reference in the third field.</p>
-<p>Deliveries marked as organic are highlighted with a green <em>Organic Approved</em> badge in the delivery list, making them easy to identify during an audit. The same information flows automatically into the Organic Dairy Feed &amp; Nutrition tab — no separate entry needed.</p>`,
+<p>Deliveries marked as organic are highlighted with a green <em>Organic Approved</em> badge in the delivery list, making them easy to identify during an audit. The same information flows automatically into the Organic Dairy Feed &amp; Nutrition tab — no separate entry needed.</p>
+
+<h3>Raise Task — Milk &amp; Meat Withdrawal Follow-Up</h3>
+<p>On any standalone treatment row in the Treatment Compliance tab, two Raise Task buttons appear when withdrawal end dates are set:</p>
+<ul>
+<li><strong>Teal clipboard button</strong> — raises a task for the <em>Organic Milk Withdrawal End Date</em>, pre-filled with the product name, due date, and instructions to verify milk from the treated cow can now be marketed as organic</li>
+<li><strong>Amber clipboard button</strong> — raises a task for the <em>Organic Meat Withdrawal End Date</em>, pre-filled with instructions to confirm the doubled meat withdrawal has passed before the cow enters the food chain as organic beef</li>
+</ul>
+<p>Each task can be assigned to a named staff member with an SMS notification. Tasks appear on the Task Board and in the Week Ahead Planner on their respective due dates. Medicine Register rows (auto-populated in green) are read-only here — use the Raise Task button in the Medicine Register for those records.</p>
+
+<h3>Week Ahead Planner — Dairy Withdrawal Deadline Alerts</h3>
+<p>Both the <strong>Organic Milk Withdrawal End Date</strong> and <strong>Organic Meat Withdrawal End Date</strong> from standalone treatment records appear as separate teal event cards in the <strong>Farm Planner → Week Ahead</strong> view:</p>
+<ul>
+<li>"Organic Milk Withdrawal Ends — [product]" — links to Organic Dairy → Treatment Compliance</li>
+<li>"Organic Meat Withdrawal Ends — [product]" — links to Organic Dairy → Treatment Compliance</li>
+</ul>
+<p>For Medicine Register records flagged as organic, the organic withdrawal end date (doubled withdrawal period) appears as an additional emerald card, distinct from the standard withdrawal card for that treatment — so both periods remain visible in the planner at a glance.</p>`,
     },
   ];
 
