@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
-  Eye, Info, Package,
+  Eye, Info, Package, CheckCircle2, Clock,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 function fmt(val: string | null | undefined): string {
