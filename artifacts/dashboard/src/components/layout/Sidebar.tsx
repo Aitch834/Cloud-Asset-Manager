@@ -53,6 +53,7 @@ import {
   Layers,
   Stethoscope,
   Zap,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -136,6 +137,7 @@ const specialistNav: NavItem[] = [
   { name: "Pig Production", href: "/pig-production", icon: PiggyBank, moduleKeys: ["pig-production"] },
   { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
   { name: "Horticulture", href: "/horticulture", icon: TreePine, moduleKeys: ["horticulture"] },
+  { name: "Fresh Produce", href: "/fresh-produce", icon: ShoppingBag, moduleKeys: ["fresh-produce"] },
   { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },
   { name: "Water & Irrigation", href: "/water-irrigation", icon: Waves, moduleKeys: ["water-irrigation"] },

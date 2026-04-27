@@ -68,6 +68,7 @@ import WorkshopPage from "@/pages/WorkshopPage";
 import PigProductionPage from "@/pages/PigProductionPage";
 import PoultryProductionPage from "@/pages/PoultryProductionPage";
 import HorticulturePage from "@/pages/HorticulturePage";
+import FreshProducePage from "@/pages/FreshProducePage";
 import CarbonPage from "@/pages/CarbonPage";
 import DiversificationPage from "@/pages/DiversificationPage";
 import WaterIrrigationPage from "@/pages/WaterIrrigationPage";
@@ -348,6 +349,7 @@ function ProtectedContent() {
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/horticulture" component={HorticulturePage} />
+        <Route path="/fresh-produce" component={FreshProducePage} />
         <Route path="/carbon" component={CarbonPage} />
         <Route path="/diversification" component={DiversificationPage} />
         <Route path="/water-irrigation" component={WaterIrrigationPage} />
@@ -451,6 +453,7 @@ function DevBypassContent() {
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/horticulture" component={HorticulturePage} />
+        <Route path="/fresh-produce" component={FreshProducePage} />
         <Route path="/carbon" component={CarbonPage} />
         <Route path="/diversification" component={DiversificationPage} />
         <Route path="/water-irrigation" component={WaterIrrigationPage} />
