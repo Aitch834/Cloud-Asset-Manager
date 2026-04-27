@@ -187,35 +187,46 @@ const EMPTY_INPUT_FORM = {
 
 type SprayLookup = { id: number; applicationDate: string; productName: string; activeIngredient: string | null; reasonForApplication: string | null };
 type SyntheticEntry = { id: number; productName: string; activeIngredient: string | null; productType: string | null; applicationDate: string | null; notes: string | null };
+type LocalSynthEntry = { productName: string; activeIngredient: string; productType: string; applicationDate: string; notes: string; sprayApplicationId?: number };
 
-const EMPTY_SYNTH = { productName: "", activeIngredient: "", productType: "spray", applicationDate: "", notes: "" };
+const EMPTY_SYNTH: LocalSynthEntry = { productName: "", activeIngredient: "", productType: "spray", applicationDate: "", notes: "" };
 
-function SyntheticHistoryPanel({ farmId, blockStatusId }: { farmId: number; blockStatusId: number }) {
+function SyntheticHistoryPanel({
+  farmId, blockStatusId, localEntries, onLocalAdd, onLocalRemove,
+}: {
+  farmId: number;
+  blockStatusId?: number;
+  localEntries?: LocalSynthEntry[];
+  onLocalAdd?: (e: LocalSynthEntry) => void;
+  onLocalRemove?: (idx: number) => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"none" | "manual" | "import">("none");
-  const [manualForm, setManualForm] = useState({ ...EMPTY_SYNTH });
+  const isLocal = blockStatusId == null;
+  const [addMode, setAddMode] = useState<"none" | "manual" | "import">("none");
+  const [manualForm, setManualForm] = useState<LocalSynthEntry>({ ...EMPTY_SYNTH });
   const [selectedSprayId, setSelectedSprayId] = useState("");
 
-  const { data: entries = [] } = useQuery<SyntheticEntry[]>({
+  const { data: persistedEntries = [] } = useQuery<SyntheticEntry[]>({
     queryKey: ["synth-history", blockStatusId],
     queryFn: () => fetch(api(`farms/${farmId}/organic-fp-block-status/${blockStatusId}/synthetic-history`), { credentials: "include" }).then(r => r.json()),
+    enabled: !isLocal,
   });
 
   const { data: sprayOptions = [] } = useQuery<SprayLookup[]>({
     queryKey: ["spray-lookup", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/spray-applications-lookup`), { credentials: "include" }).then(r => r.json()),
-    enabled: mode === "import",
+    enabled: addMode === "import",
   });
 
-  const add = useMutation({
+  const addPersisted = useMutation({
     mutationFn: (body: Record<string, unknown>) => fetch(api(`farms/${farmId}/organic-fp-block-status/${blockStatusId}/synthetic-history`), {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }); setMode("none"); setManualForm({ ...EMPTY_SYNTH }); setSelectedSprayId(""); toast({ title: "Entry added" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }); setAddMode("none"); setManualForm({ ...EMPTY_SYNTH }); setSelectedSprayId(""); toast({ title: "Entry added" }); },
   });
 
-  const remove = useMutation({
+  const removePersisted = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-synthetic-history/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }),
   });
@@ -226,55 +237,99 @@ function SyntheticHistoryPanel({ farmId, blockStatusId }: { farmId: number; bloc
     return <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{t ?? "Other"}</span>;
   };
 
+  const handleAddEntry = () => {
+    if (!manualForm.productName) return;
+    if (isLocal) {
+      onLocalAdd?.({ ...manualForm });
+    } else {
+      addPersisted.mutate({ ...manualForm });
+      return;
+    }
+    setAddMode("none");
+    setManualForm({ ...EMPTY_SYNTH });
+  };
+
   const handleImport = () => {
     const spray = sprayOptions.find(s => String(s.id) === selectedSprayId);
     if (!spray) return;
-    add.mutate({
+    const entry: LocalSynthEntry = {
       productName: spray.productName,
       activeIngredient: spray.activeIngredient ?? "",
       productType: "spray",
       applicationDate: spray.applicationDate ? spray.applicationDate.slice(0, 10) : "",
       notes: spray.reasonForApplication ?? "",
       sprayApplicationId: spray.id,
-    });
+    };
+    if (isLocal) {
+      onLocalAdd?.(entry);
+      setAddMode("none");
+      setSelectedSprayId("");
+    } else {
+      addPersisted.mutate(entry as unknown as Record<string, unknown>);
+    }
   };
+
+  const displayEntries = isLocal
+    ? (localEntries ?? []).map((e, i) => ({ ...e, _localIdx: i }))
+    : persistedEntries;
+  const isEmpty = displayEntries.length === 0;
 
   return (
     <div className="col-span-2 border rounded-lg p-3 space-y-2 bg-muted/30">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1"><FlaskConical className="w-3 h-3" />Previous Synthetic Input History</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+          <FlaskConical className="w-3 h-3" />Previous Synthetic Input History
+        </p>
         <div className="flex gap-1">
-          <Button size="sm" variant={mode === "manual" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setMode(m => m === "manual" ? "none" : "manual")}>
-            <Plus className="w-3 h-3 mr-0.5" />Manual
+          <Button size="sm" variant={addMode === "manual" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setAddMode(m => m === "manual" ? "none" : "manual")}>
+            <Plus className="w-3 h-3 mr-0.5" />Manual Entry
           </Button>
-          <Button size="sm" variant={mode === "import" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setMode(m => m === "import" ? "none" : "import")}>
+          <Button size="sm" variant={addMode === "import" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setAddMode(m => m === "import" ? "none" : "import")}>
             Import from Spray Records
           </Button>
         </div>
       </div>
 
-      {(entries as SyntheticEntry[]).length === 0 && mode === "none" && (
+      {isEmpty && addMode === "none" && (
         <p className="text-xs text-muted-foreground italic text-center py-2">No synthetic input history recorded. Use the buttons above to add entries.</p>
       )}
 
-      {(entries as SyntheticEntry[]).map(e => (
-        <div key={e.id} className="flex items-start justify-between gap-2 bg-white rounded p-2 border text-xs">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-medium">{e.productName}</span>
-              {productTypeLabel(e.productType)}
-              {e.applicationDate && <span className="text-muted-foreground">{fmt(e.applicationDate)}</span>}
+      {isLocal
+        ? (localEntries ?? []).map((e, i) => (
+          <div key={i} className="flex items-start justify-between gap-2 bg-white rounded p-2 border text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium">{e.productName}</span>
+                {productTypeLabel(e.productType)}
+                {e.applicationDate && <span className="text-muted-foreground">{fmt(e.applicationDate)}</span>}
+              </div>
+              {e.activeIngredient && <p className="text-muted-foreground mt-0.5">Active ingredient: {e.activeIngredient}</p>}
+              {e.notes && <p className="text-muted-foreground mt-0.5 italic">{e.notes}</p>}
             </div>
-            {e.activeIngredient && <p className="text-muted-foreground mt-0.5">Active ingredient: {e.activeIngredient}</p>}
-            {e.notes && <p className="text-muted-foreground mt-0.5 italic">{e.notes}</p>}
+            <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => onLocalRemove?.(i)}>
+              <Trash2 className="w-3 h-3 text-red-400" />
+            </Button>
           </div>
-          <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => remove.mutate(e.id)}>
-            <Trash2 className="w-3 h-3 text-red-400" />
-          </Button>
-        </div>
-      ))}
+        ))
+        : persistedEntries.map(e => (
+          <div key={e.id} className="flex items-start justify-between gap-2 bg-white rounded p-2 border text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium">{e.productName}</span>
+                {productTypeLabel(e.productType)}
+                {e.applicationDate && <span className="text-muted-foreground">{fmt(e.applicationDate)}</span>}
+              </div>
+              {e.activeIngredient && <p className="text-muted-foreground mt-0.5">Active ingredient: {e.activeIngredient}</p>}
+              {e.notes && <p className="text-muted-foreground mt-0.5 italic">{e.notes}</p>}
+            </div>
+            <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => removePersisted.mutate(e.id)}>
+              <Trash2 className="w-3 h-3 text-red-400" />
+            </Button>
+          </div>
+        ))
+      }
 
-      {mode === "manual" && (
+      {addMode === "manual" && (
         <div className="border rounded p-2 space-y-2 bg-white">
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Product Name *</Label><Input className="h-7 text-xs" value={manualForm.productName} onChange={e => setManualForm(f => ({ ...f, productName: e.target.value }))} /></div>
@@ -291,15 +346,15 @@ function SyntheticHistoryPanel({ farmId, blockStatusId }: { farmId: number; bloc
             <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={manualForm.notes} onChange={e => setManualForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. reason for application" /></div>
           </div>
           <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setMode("none"); setManualForm({ ...EMPTY_SYNTH }); }}>Cancel</Button>
-            <Button size="sm" className="h-6 text-xs" disabled={!manualForm.productName || add.isPending} onClick={() => add.mutate({ ...manualForm })}>
-              {add.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add Entry"}
+            <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setAddMode("none"); setManualForm({ ...EMPTY_SYNTH }); }}>Cancel</Button>
+            <Button size="sm" className="h-6 text-xs" disabled={!manualForm.productName || addPersisted.isPending} onClick={handleAddEntry}>
+              {addPersisted.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add Entry"}
             </Button>
           </div>
         </div>
       )}
 
-      {mode === "import" && (
+      {addMode === "import" && (
         <div className="border rounded p-2 space-y-2 bg-white">
           <p className="text-xs text-muted-foreground">Select a spray application from your existing records to import as a synthetic input entry.</p>
           {sprayOptions.length === 0 ? (
@@ -315,9 +370,9 @@ function SyntheticHistoryPanel({ farmId, blockStatusId }: { farmId: number; bloc
                 ))}
               </select>
               <div className="flex gap-2 justify-end">
-                <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setMode("none"); setSelectedSprayId(""); }}>Cancel</Button>
-                <Button size="sm" className="h-6 text-xs" disabled={!selectedSprayId || add.isPending} onClick={handleImport}>
-                  {add.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Import"}
+                <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setAddMode("none"); setSelectedSprayId(""); }}>Cancel</Button>
+                <Button size="sm" className="h-6 text-xs" disabled={!selectedSprayId || addPersisted.isPending} onClick={handleImport}>
+                  {addPersisted.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Import"}
                 </Button>
               </div>
             </>
@@ -337,6 +392,7 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [pendingHistory, setPendingHistory] = useState<LocalSynthEntry[]>([]);
 
   const { data: blocks = [], isLoading } = useQuery({
     queryKey: ["ofp-block-status", farmId],
@@ -352,8 +408,20 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
     mutationFn: (b: Record<string, unknown>) => fetch(
       editing ? api(`farms/${farmId}/organic-fp-block-status/${editing.id}`) : api(`farms/${farmId}/organic-fp-block-status`),
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
-    ),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: "Saved" }); },
+    ).then(r => r.json()),
+    onSuccess: async (data) => {
+      if (!editing && pendingHistory.length > 0) {
+        await Promise.all(pendingHistory.map(entry =>
+          fetch(api(`farms/${farmId}/organic-fp-block-status/${data.id}/synthetic-history`), {
+            method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+            body: JSON.stringify(entry),
+          })
+        ));
+        qc.invalidateQueries({ queryKey: ["synth-history", data.id] });
+      }
+      qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] });
+      setOpen(false); setEditing(null); setForm({}); setPendingHistory([]); toast({ title: "Saved" });
+    },
   });
 
   const del = useMutation({
@@ -361,8 +429,11 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] }),
   });
 
+  const openAdd = () => { setEditing(null); setForm({ status: "in-conversion" }); setPendingHistory([]); setOpen(true); };
+
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);
+    setPendingHistory([]);
     setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
     setOpen(true);
   };
@@ -377,7 +448,7 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Block Conversion Status</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "in-conversion" }); setOpen(true); }}>
+        <Button size="sm" onClick={openAdd}>
           <Plus className="w-4 h-4 mr-1" />Add Block
         </Button>
       </div>
@@ -432,7 +503,7 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogContent style={{ maxWidth: "42rem", maxHeight: "90vh", overflowY: "auto" }}>
             <DialogHeader><DialogTitle>Block Conversion Details</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmtRaw(viewRecord.blockName)}</p></div>
@@ -442,18 +513,14 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fully Organic Date</p><p className="font-medium">{fmt(viewRecord.fullyOrganicDate as string)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Land Use Before</p><p className="font-medium">{fmtRaw(viewRecord.landUseBeforeConversion)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
-              {viewRecord.id && (
-                <div className="col-span-2">
-                  <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />
-                </div>
-              )}
+              {viewRecord.id && <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />}
             </div>
             <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setPendingHistory([]); } }}>
         <DialogContent style={{ maxWidth: "40rem", maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Block Status" : "Add Block Conversion Record"}</DialogTitle>
@@ -506,16 +573,18 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
             <div><Label>Fully Organic Date</Label><Input type="date" value={form.fullyOrganicDate ?? ""} onChange={e => setForm(f => ({ ...f, fullyOrganicDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Land Use Before Conversion</Label><Input value={form.landUseBeforeConversion ?? ""} onChange={e => setForm(f => ({ ...f, landUseBeforeConversion: e.target.value }))} placeholder="e.g. Conventional arable, intensive vegetable production" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-            {editing?.id ? (
-              <SyntheticHistoryPanel farmId={farmId} blockStatusId={editing.id as number} />
-            ) : (
-              <div className="col-span-2 border rounded-lg p-3 bg-muted/30">
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5"><FlaskConical className="w-3.5 h-3.5" /><span>Save this record first, then open it to edit to add previous synthetic input history.</span></p>
-              </div>
-            )}
+            {editing?.id
+              ? <SyntheticHistoryPanel farmId={farmId} blockStatusId={editing.id as number} />
+              : <SyntheticHistoryPanel
+                  farmId={farmId}
+                  localEntries={pendingHistory}
+                  onLocalAdd={e => setPendingHistory(h => [...h, e])}
+                  onLocalRemove={idx => setPendingHistory(h => h.filter((_, i) => i !== idx))}
+                />
+            }
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); setPendingHistory([]); }}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.blockName}>
               {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
