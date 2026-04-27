@@ -73,7 +73,7 @@ function animalShortLabel(a: Animal): string {
 }
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
-interface Herd { id: number; name: string; type: string; }
+interface Herd { id: number; name: string; type: string; isOrganicHerd?: boolean; organicCertBody?: string | null; organicCertNumber?: string | null; }
 interface Animal {
   id: number; earTagNumber: string | null; tagNumber: string | null;
   species: string; breed: string | null; herdId: number | null;
@@ -112,6 +112,11 @@ const EMPTY_FORM = {
   administrationRoute: "",
   administeredBy: "", administeredDate: new Date().toISOString().slice(0, 10),
   withdrawalPeriodDays: "", reason: "", vetName: "", notes: "",
+  // organic compliance — auto-populated when herd is organic
+  isOrganicTreatment: false,
+  doubledWithdrawalDays: "",
+  certifierNotified: false,
+  certifierNotifiedDate: "",
 };
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
@@ -704,6 +709,10 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       administeredBy: r.administeredBy ?? "", administeredDate: r.administeredDate?.slice(0, 10) ?? "",
       withdrawalPeriodDays: r.withdrawalPeriodDays ? String(r.withdrawalPeriodDays) : "",
       reason: r.reason ?? "", vetName: r.vetName ?? "", notes: r.notes ?? "",
+      isOrganicTreatment: (r as any).isOrganicTreatment ?? false,
+      doubledWithdrawalDays: (r as any).doubledWithdrawalDays ? String((r as any).doubledWithdrawalDays) : "",
+      certifierNotified: (r as any).certifierNotified ?? false,
+      certifierNotifiedDate: (r as any).certifierNotifiedDate ? new Date((r as any).certifierNotifiedDate).toISOString().slice(0, 10) : "",
     };
     setForm(newForm);
     // If editing a group record that already has tags, pre-validate them
@@ -734,6 +743,10 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       administeredDate: form.administeredDate ? new Date(form.administeredDate).toISOString() : null,
       withdrawalPeriodDays: wdDays, withdrawalEndDate: wdEnd,
       reason: form.reason || null, vetName: form.vetName || null, notes: form.notes || null,
+      isOrganicTreatment: form.isOrganicTreatment ?? false,
+      doubledWithdrawalDays: form.doubledWithdrawalDays ? Number(form.doubledWithdrawalDays) : null,
+      certifierNotified: form.certifierNotified ?? false,
+      certifierNotifiedDate: form.certifierNotified && form.certifierNotifiedDate ? new Date(form.certifierNotifiedDate).toISOString() : null,
     };
   }
 
@@ -769,6 +782,13 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const isSubmitting = createM.isPending || updateM.isPending;
   const previewWdEnd = form.withdrawalPeriodDays && form.administeredDate ? addDays(form.administeredDate, Number(form.withdrawalPeriodDays)) : null;
   const unmatchedCount = tagValidations.filter(v => !v.animal).length;
+
+  // Detect if the selected herd is marked as organic — drives auto-fill of doubled withdrawal
+  const selectedHerd = form.herdId ? herds.find(h => h.id === Number(form.herdId)) : null;
+  const isOrganicHerdSelected = selectedHerd?.isOrganicHerd ?? false;
+
+  // Auto-fill doubled withdrawal (× 2) whenever standard withdrawal or organic status changes
+  const previewDoubledWdEnd = form.doubledWithdrawalDays && form.administeredDate ? addDays(form.administeredDate, Number(form.doubledWithdrawalDays)) : null;
 
   return (
     <>
@@ -1211,6 +1231,72 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                 <Input placeholder="Any additional information..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
+
+              {/* ── Organic compliance ── shown when organic herd selected or isOrganicTreatment is already set */}
+              {(isOrganicHerdSelected || form.isOrganicTreatment) && (
+                <div className="col-span-full rounded-xl border-2 border-green-400 bg-green-50 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-800 bg-green-100 border border-green-300 rounded-full px-2.5 py-1">
+                      🌿 Organic Treatment Compliance
+                    </span>
+                    {selectedHerd?.organicCertBody && (
+                      <span className="text-xs text-green-700">{selectedHerd.organicCertBody}{selectedHerd.organicCertNumber ? ` · ${selectedHerd.organicCertNumber}` : ""}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-green-800">UK organic standards require withdrawal periods to be <strong>doubled</strong> for organic animals. Complete the fields below to generate a compliant organic treatment record.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-green-800 mb-1 block">Doubled Withdrawal Period (days)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Standard × 2"
+                        value={form.doubledWithdrawalDays}
+                        onChange={e => setForm(f => ({ ...f, doubledWithdrawalDays: e.target.value, isOrganicTreatment: true }))}
+                        className="border-green-300 focus:border-green-500"
+                      />
+                      {form.withdrawalPeriodDays && !form.doubledWithdrawalDays && (
+                        <button
+                          type="button"
+                          className="mt-1 text-xs text-green-700 underline"
+                          onClick={() => setForm(f => ({ ...f, doubledWithdrawalDays: String(Number(form.withdrawalPeriodDays) * 2), isOrganicTreatment: true }))}
+                        >
+                          Auto-fill: {Number(form.withdrawalPeriodDays) * 2} days (standard × 2)
+                        </button>
+                      )}
+                      {previewDoubledWdEnd && (
+                        <p className="text-xs text-green-700 mt-1 font-medium">Organic withdrawal ends: {formatDate(previewDoubledWdEnd)}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-green-800 mb-1 block">Certifier Notified?</label>
+                      <div className="flex items-center gap-3 h-12">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.certifierNotified}
+                            onChange={e => setForm(f => ({ ...f, certifierNotified: e.target.checked, isOrganicTreatment: true }))}
+                            className="w-4 h-4 accent-green-600"
+                          />
+                          <span className="text-sm text-green-800">Certifier informed</span>
+                        </label>
+                      </div>
+                    </div>
+                    {form.certifierNotified && (
+                      <div>
+                        <label className="text-sm font-medium text-green-800 mb-1 block">Date Notified</label>
+                        <Input
+                          type="date"
+                          value={form.certifierNotifiedDate}
+                          onChange={e => setForm(f => ({ ...f, certifierNotifiedDate: e.target.value }))}
+                          className="border-green-300"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-green-700 italic">This treatment will be automatically logged in the Organic Treatment Compliance register for this herd.</p>
+                </div>
+              )}
             </div>
 
             {/* Unmatched tag warning inline */}

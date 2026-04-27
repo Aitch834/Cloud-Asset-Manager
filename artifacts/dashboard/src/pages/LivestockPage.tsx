@@ -267,7 +267,7 @@ const EMPTY_STRAW = {
   notes: "",
 };
 
-const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", registrationDocumentUrl: "", registrationDocumentName: "", notes: "" };
+const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", registrationDocumentUrl: "", registrationDocumentName: "", notes: "", isOrganicHerd: false, organicCertBody: "", organicCertNumber: "", organicConversionStartDate: "" };
 const EMPTY_PLAN = {
   planYear: new Date().getFullYear(),
   vetName: "",
@@ -696,6 +696,10 @@ function HerdsSection({ farmId }: { farmId: number }) {
       name: h.name ?? "", type: h.type ?? "", breed: h.breed ?? "", herdNumber: h.herdNumber ?? "",
       registrationDocumentUrl: h.registrationDocumentUrl ?? "", registrationDocumentName: h.registrationDocumentName ?? "",
       notes: h.notes ?? "",
+      isOrganicHerd: (h as any).isOrganicHerd ?? false,
+      organicCertBody: (h as any).organicCertBody ?? "",
+      organicCertNumber: (h as any).organicCertNumber ?? "",
+      organicConversionStartDate: (h as any).organicConversionStartDate ? new Date((h as any).organicConversionStartDate).toISOString().slice(0, 10) : "",
     });
     setShowForm(true);
   }
@@ -811,6 +815,54 @@ function HerdsSection({ farmId }: { farmId: number }) {
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                   <Input placeholder="Any additional notes" value={formData.notes} onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+
+                {/* ─── Organic Certification ───────────────────────────────── */}
+                <div className="md:col-span-2 pt-1">
+                  <div className={`rounded-xl border-2 p-4 transition-colors ${(formData as any).isOrganicHerd ? "border-green-400 bg-green-50" : "border-dashed border-border"}`}>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(formData as any).isOrganicHerd ?? false}
+                        onChange={e => setFormData(f => ({ ...f, isOrganicHerd: e.target.checked }))}
+                        className="w-5 h-5 rounded accent-green-600"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Organic Certified / In Conversion Herd</p>
+                        <p className="text-xs text-muted-foreground">Enables organic compliance tracking, doubled withdrawal periods, and certifier notifications across all modules.</p>
+                      </div>
+                    </label>
+                    {(formData as any).isOrganicHerd && (
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm font-medium text-foreground/70 mb-1 block">Certifying Body</label>
+                          <select
+                            className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                            value={(formData as any).organicCertBody ?? ""}
+                            onChange={e => setFormData(f => ({ ...f, organicCertBody: e.target.value }))}
+                          >
+                            <option value="">Select certifier...</option>
+                            <option value="Soil Association">Soil Association</option>
+                            <option value="OF&G">OF&G (Organic Farmers &amp; Growers)</option>
+                            <option value="Organic Food Federation">Organic Food Federation (OFF)</option>
+                            <option value="Biodynamic Association">Biodynamic Association</option>
+                            <option value="SOPA">SOPA (Scottish Organic Producers Association)</option>
+                            <option value="QWFC">Quality Welsh Food Certification (QWFC)</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground/70 mb-1 block">Certification / Licence Number</label>
+                          <Input placeholder="e.g. SA-CERT-12345" value={(formData as any).organicCertNumber ?? ""} onChange={e => setFormData(f => ({ ...f, organicCertNumber: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground/70 mb-1 block">Conversion Start Date</label>
+                          <Input type="date" value={(formData as any).organicConversionStartDate ?? ""} onChange={e => setFormData(f => ({ ...f, organicConversionStartDate: e.target.value }))} />
+                          <p className="text-xs text-muted-foreground mt-1">The date this herd/flock entered organic conversion. Used to enforce the 12-month minimum conversion period.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-3 justify-end pt-2 border-t border-border">

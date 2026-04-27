@@ -239,6 +239,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     qualityGrade: "",
     recordedBy: "",
     notes: "",
+    isOrganicCertified: false,
+    organicCertRef: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
   const formOpen = addOpen || !!editRecord;
@@ -257,6 +259,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
       qualityGrade: r.qualityGrade || "",
       recordedBy: r.recordedBy || "",
       notes: r.notes || "",
+      isOrganicCertified: r.isOrganicCertified ?? false,
+      organicCertRef: r.organicCertRef ?? "",
     });
   }
   function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
@@ -552,6 +556,34 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
             <div>
               <Label>Notes</Label>
               <Textarea placeholder="Conditions on day, issues encountered, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+
+            {/* ─── Organic Certification ─────────────────────────────────── */}
+            <div className={`rounded-xl border-2 p-3 transition-colors ${form.isOrganicCertified ? "border-green-400 bg-green-50" : "border-dashed border-border"}`}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isOrganicCertified ?? false}
+                  onChange={e => setForm((f: any) => ({ ...f, isOrganicCertified: e.target.checked }))}
+                  className="w-4 h-4 accent-green-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Organic Certified Harvest</p>
+                  <p className="text-xs text-muted-foreground">Mark this yield as organic — required for Red Tractor organic produce traceability.</p>
+                </div>
+              </label>
+              {form.isOrganicCertified && (
+                <div className="mt-3">
+                  <Label>Organic Certification Reference</Label>
+                  <Input
+                    placeholder="e.g. SA-CERT-12345 or OF&G operator number"
+                    value={form.organicCertRef}
+                    onChange={e => setForm((f: any) => ({ ...f, organicCertRef: e.target.value }))}
+                    className="mt-1 border-green-300 focus:border-green-500"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Your certifier's reference number for this organic crop — links this harvest to your organic certification record.</p>
+                </div>
+              )}
             </div>
           </div>
           {editRecord && farmId && (

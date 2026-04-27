@@ -1,6 +1,8 @@
 import { pgTable, text, serial, integer, timestamp, boolean, date, numeric } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
+import { herdFlockRegisterTable, livestockMedicineRecordsTable } from "./livestock";
+import { feedDeliveriesTable } from "./feed-management";
 
 export const organicCertificationTable = pgTable("organic_certification", {
   id: serial("id").primaryKey(),
@@ -92,6 +94,8 @@ export const organicInputsTable = pgTable("organic_inputs", {
 export const organicLivestockConversionTable = pgTable("organic_livestock_conversion", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module link ─────────────────────────────────────────────────────
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id), // links to herd_flock_register
   species: text("species").notNull(),
   herdFlockName: text("herd_flock_name").notNull(),
   numberOfAnimals: integer("number_of_animals"),
@@ -110,6 +114,9 @@ export const organicLivestockConversionTable = pgTable("organic_livestock_conver
 export const organicLivestockFeedTable = pgTable("organic_livestock_feed", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module links ────────────────────────────────────────────────────
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  feedDeliveryId: integer("feed_delivery_id").references(() => feedDeliveriesTable.id), // links to feed_deliveries
   recordDate: date("record_date").notNull(),
   species: text("species").notNull(),
   herdFlockName: text("herd_flock_name"),
@@ -131,6 +138,9 @@ export const organicLivestockFeedTable = pgTable("organic_livestock_feed", {
 export const organicLivestockOutdoorAccessTable = pgTable("organic_livestock_outdoor_access", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module links ────────────────────────────────────────────────────
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id), // links to fields register
   recordDate: date("record_date").notNull(),
   species: text("species").notNull(),
   herdFlockName: text("herd_flock_name"),
@@ -149,6 +159,10 @@ export const organicLivestockOutdoorAccessTable = pgTable("organic_livestock_out
 export const organicLivestockTreatmentTable = pgTable("organic_livestock_treatment", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module links ────────────────────────────────────────────────────
+  // When linked, this record mirrors a medicine register entry for organic compliance
+  medicineRecordId: integer("medicine_record_id").references(() => livestockMedicineRecordsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
   treatmentDate: date("treatment_date").notNull(),
   species: text("species").notNull(),
   animalIds: text("animal_ids"),
@@ -175,6 +189,8 @@ export const organicLivestockTreatmentTable = pgTable("organic_livestock_treatme
 export const organicDairyHerdConversionTable = pgTable("organic_dairy_herd_conversion", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module link ─────────────────────────────────────────────────────
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id), // links to herd_flock_register
   herdName: text("herd_name").notNull(),
   breed: text("breed"),
   numberOfCows: integer("number_of_cows"),
@@ -214,6 +230,9 @@ export const organicDairyCollectionTable = pgTable("organic_dairy_collection", {
 export const organicDairyFeedTable = pgTable("organic_dairy_feed", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module links ────────────────────────────────────────────────────
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  feedDeliveryId: integer("feed_delivery_id").references(() => feedDeliveriesTable.id), // links to feed_deliveries
   recordDate: date("record_date").notNull(),
   feedType: text("feed_type").notNull(),
   feedProductName: text("feed_product_name").notNull(),
@@ -234,6 +253,10 @@ export const organicDairyFeedTable = pgTable("organic_dairy_feed", {
 export const organicDairyTreatmentTable = pgTable("organic_dairy_treatment", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  // ─── Core module links ────────────────────────────────────────────────────
+  // When linked, this record mirrors a medicine register entry for organic compliance
+  medicineRecordId: integer("medicine_record_id").references(() => livestockMedicineRecordsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
   treatmentDate: date("treatment_date").notNull(),
   cowIds: text("cow_ids"),
   numberOfCows: integer("number_of_cows"),

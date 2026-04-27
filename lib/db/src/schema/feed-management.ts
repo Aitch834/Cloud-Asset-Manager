@@ -29,6 +29,11 @@ export const feedDeliveriesTable = pgTable("feed_deliveries", {
   speciesIntended: text("species_intended"),
   receivedBy: text("received_by"),
   notes: text("notes"),
+  // ─── Organic feed compliance ──────────────────────────────────────────────
+  isOrganicApproved: boolean("is_organic_approved").notNull().default(false),
+  organicSupplierApprovalNumber: text("organic_supplier_approval_number"), // certifier-issued supplier number
+  organicPercentage: numeric("organic_percentage", { precision: 5, scale: 2 }), // % of organic ingredients
+  nonOrganicIngredientDerogation: text("non_organic_ingredient_derogation"), // reason if < 100% organic allowed
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

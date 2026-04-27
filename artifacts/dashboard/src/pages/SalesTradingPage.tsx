@@ -97,6 +97,8 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
     deliveryDate: "", deliveryLocation: "", haulierName: "", vehicleReg: "",
     weighbridgeTicket: "", invoiceNumber: "", paymentDate: "", cropYear: "", field: "", storeBin: "",
     storeBinId: null as number | null, notes: "",
+    isOrganicCertified: false as boolean,
+    organicCertRef: "",
   };
   const [form, setForm] = useState<any>(empty);
 
@@ -146,6 +148,8 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
       saleDate: r.saleDate ? r.saleDate.slice(0, 10) : "",
       deliveryDate: r.deliveryDate ? r.deliveryDate.slice(0, 10) : "",
       paymentDate: r.paymentDate ? r.paymentDate.slice(0, 10) : "",
+      isOrganicCertified: r.isOrganicCertified ?? false,
+      organicCertRef: r.organicCertRef ?? "",
     });
     setOpen(true);
   };
@@ -383,6 +387,36 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
               <div style={{ gridColumn: "1/-1" }}>
                 <Label>Notes</Label>
                 <Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
+              </div>
+
+              {/* ─── Organic Certification ─────────────────────────────────── */}
+              <div style={{ gridColumn: "1/-1" }}>
+                <div style={{ borderRadius: 12, border: form.isOrganicCertified ? "2px solid #4ade80" : "2px dashed #e5e7eb", background: form.isOrganicCertified ? "#f0fdf4" : "transparent", padding: 12, transition: "all 0.15s" }}>
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.isOrganicCertified ?? false}
+                      onChange={e => setForm((f: any) => ({ ...f, isOrganicCertified: e.target.checked }))}
+                      style={{ width: 16, height: 16, marginTop: 2, accentColor: "#16a34a" }}
+                    />
+                    <div>
+                      <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111827", margin: 0 }}>Organic Certified Sale</p>
+                      <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "2px 0 0" }}>Mark this grain sale as organic produce — required for Red Tractor organic traceability and certifier reporting.</p>
+                    </div>
+                  </label>
+                  {form.isOrganicCertified && (
+                    <div style={{ marginTop: 10 }}>
+                      <Label>Organic Certification Reference</Label>
+                      <Input
+                        placeholder="e.g. SA-CERT-12345 or certifier contract reference"
+                        value={form.organicCertRef ?? ""}
+                        onChange={e => setForm((f: any) => ({ ...f, organicCertRef: e.target.value }))}
+                        style={{ marginTop: 4, borderColor: "#86efac" }}
+                      />
+                      <p style={{ fontSize: "0.7rem", color: "#6b7280", marginTop: 4 }}>Your certifier's reference — links this sale to your organic certification record and provides the buyer with an audit trail.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <DialogFooter style={{ marginTop: 16 }}>

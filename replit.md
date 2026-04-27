@@ -83,22 +83,28 @@ The sidebar contains a dedicated "Organic Farming" section with three modules:
 - Schema: `organicInputsTable` and `organicRestrictedInputTable` in `lib/db/src/schema/organic.ts`.
 
 **Organic Livestock** (key: `organic-livestock`, £25/mo) — page at `/organic-livestock`, four tabs:
-- Conversion: tracks herds/flocks through organic conversion with status, certifier, and parallel production flag.
+- Conversion: tracks herds/flocks through organic conversion. **Linked to core Livestock Register**: herd selector auto-populates species/name from `herd_flock_register`; on save, sets `isOrganicHerd=true` on the linked herd (propagates organic status to Medicine, Movement, Feed modules). Shows banner of already-organic herds.
 - Feed Records: logs feed purchases per species with supplier approval numbers, organic %, PO/GRN references, and derogation tracking.
 - Outdoor Access / Stocking: records pasture area, stocking density, outdoor access hours/day, and housing period justifications.
-- Treatment Compliance: full veterinary treatment log with doubled withdrawal periods, certifier notification flag, and treatment-number counter.
+- Treatment Compliance: **dual-source view** — medicine records with `isOrganicTreatment=true` from the core Medicine Register appear automatically in green rows at the top (read-only, no double-entry). Standalone organic treatment records appear below. Shows organic withdrawal end dates (doubled period).
 - Schema: `organicLivestockConversionTable`, `organicLivestockFeedTable`, `organicLivestockOutdoorAccessTable`, `organicLivestockTreatmentTable`.
 - API routes: `/api/farms/:farmId/organic-livestock/{conversion,feed,outdoor-access,treatments}`.
 
 **Organic Dairy** (key: `organic-dairy`, £20/mo) — page at `/organic-dairy`, four tabs:
-- Herd Conversion: tracks dairy herds through organic conversion with separate milk certification date.
+- Herd Conversion: **linked to core Livestock Register** — same herd-linkage pattern as Organic Livestock; marks selected herd as organic on save with certifier/cert-number propagated.
 - Milk Collections: logs each tanker collection with volume, fat/protein/SCC/TBC quality data, organic certification status, and net value in pence.
 - Feed & Nutrition: feed records with dry-matter weight, organic percentage, and derogation references.
-- Treatment Compliance: veterinary treatments with separate milk and meat doubled withdrawal periods and dates.
+- Treatment Compliance: **dual-source view** — same medicine register integration as Organic Livestock. Dairy columns track both organic milk and meat withdrawal end dates.
 - Schema: `organicDairyHerdConversionTable`, `organicDairyCollectionTable`, `organicDairyFeedTable`, `organicDairyTreatmentTable`.
 - API routes: `/api/farms/:farmId/organic-dairy/{herd-conversion,collections,feed,treatments}`.
 
-**Harvest / Grain Sales organic flags** — `harvestRecordsTable` and `grainSalesTable` both have `isOrganicCertified` (boolean) and `organicCertRef` (text) columns added.
+**Cross-module organic integration (no double-entry):**
+- `herd_flock_register`: `isOrganicHerd`, `organicCertBody`, `organicCertNumber`, `organicConversionStartDate` — set automatically when linking a herd from Organic Livestock/Dairy modules.
+- `livestock_medicine_records`: `isOrganicTreatment`, `doubledWithdrawalDays`, `organicWithdrawalEndDate`, `certifierNotified`, `certifierNotifiedDate`, `maxTreatmentsReached` — organic vet records surface in Organic Livestock + Dairy treatment tabs automatically.
+- `feed_deliveries`: `isOrganicApproved`, `organicSupplierApprovalNumber`, `organicPercentage`, `nonOrganicIngredientDerogation` — organic fields in Feed Management delivery dialog; organic badge shown in delivery card list.
+- `livestock_movements`: `isOrganicMovement`, `organicCertRef`, `organicWithdrawalsClear`, `organicStatusConfirmedBy`.
+- `harvestRecordsTable` + `grainSalesTable`: `isOrganicCertified` + `organicCertRef` — shown in Harvest Records and Sales & Trading pages.
+- `organic.ts` tables: FK columns `herdId`, `feedDeliveryId`, `medicineRecordId`, `fieldId` link organic module records to core register entries.
 
 ## External Dependencies
 

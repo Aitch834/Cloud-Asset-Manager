@@ -270,6 +270,10 @@ export default function FeedManagementPage() {
       speciesIntended: String(d.speciesIntended ?? ""),
       receivedBy: String(d.receivedBy ?? ""),
       notes: String(d.notes ?? ""),
+      isOrganicApproved: d.isOrganicApproved ? "true" : "false",
+      organicSupplierApprovalNumber: String(d.organicSupplierApprovalNumber ?? ""),
+      organicPercentage: String(d.organicPercentage ?? ""),
+      nonOrganicIngredientDerogation: String(d.nonOrganicIngredientDerogation ?? ""),
     });
     setShowDeliveryDialog(true);
   }
@@ -720,6 +724,9 @@ export default function FeedManagementPage() {
                       {!!d.medicatedFeed && !!d.withdrawalPeriodDays && (
                         <span className="text-red-600 font-medium col-span-2">Withdrawal period: {String(d.withdrawalPeriodDays)} days</span>
                       )}
+                      {!!d.isOrganicApproved && (
+                        <span className="text-green-700 font-medium col-span-2">🌿 Organic Approved{d.organicPercentage ? ` — ${String(d.organicPercentage)}% organic` : ""}</span>
+                      )}
                     </div>
                     {!!d.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(d.notes)}</p>}
                     {!!d.medicationDetails && <p className="text-xs text-red-700 mt-1 font-medium">Medication: {String(d.medicationDetails)}</p>}
@@ -847,6 +854,28 @@ export default function FeedManagementPage() {
             )}
             <div><Label>Received by</Label><Input value={deliveryForm.receivedBy ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, receivedBy: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea value={deliveryForm.notes ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            {/* Organic compliance section */}
+            <div className="col-span-full border-t pt-3 mt-1">
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  id="isOrganicApproved"
+                  checked={deliveryForm.isOrganicApproved === "true"}
+                  onChange={e => setDeliveryForm(f => ({ ...f, isOrganicApproved: e.target.checked ? "true" : "false" }))}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="isOrganicApproved" className="text-sm font-medium text-green-800 cursor-pointer">
+                  🌿 Organic Approved Feed
+                </label>
+              </div>
+              {deliveryForm.isOrganicApproved === "true" && (
+                <div className="grid grid-cols-2 gap-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div><Label>Supplier Organic Approval No.</Label><Input value={deliveryForm.organicSupplierApprovalNumber ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, organicSupplierApprovalNumber: e.target.value }))} placeholder="e.g. SA-ORG-1234" /></div>
+                  <div><Label>Organic % of Feed</Label><Input type="number" min="0" max="100" value={deliveryForm.organicPercentage ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, organicPercentage: e.target.value }))} placeholder="e.g. 95" /></div>
+                  <div className="col-span-2"><Label>Non-Organic Ingredient Derogation</Label><Input value={deliveryForm.nonOrganicIngredientDerogation ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, nonOrganicIngredientDerogation: e.target.value }))} placeholder="Certifier derogation ref / reason if &lt;100% organic" /></div>
+                </div>
+              )}
+            </div>
           </div>
           {editDelivery && farmId && (
             <RecordAttachments farmId={farmId} recordType="feed_delivery" recordId={editDelivery.id} />
@@ -856,7 +885,13 @@ export default function FeedManagementPage() {
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
               if (!deliveryForm.deliveryDate || !deliveryForm.quantityKg || !deliveryForm.supplierName) { toast({ title: "Date, supplier and quantity required", variant: "destructive" }); return; }
               const costPence = deliveryForm.costPence ? Math.round(parseFloat(deliveryForm.costPence) * 100) : undefined;
-              const data: Record<string, unknown> = { ...deliveryForm, costPence, medicatedFeed: deliveryForm.medicatedFeed === "true" };
+              const data: Record<string, unknown> = {
+                ...deliveryForm,
+                costPence,
+                medicatedFeed: deliveryForm.medicatedFeed === "true",
+                isOrganicApproved: deliveryForm.isOrganicApproved === "true",
+                organicPercentage: deliveryForm.organicPercentage ? Number(deliveryForm.organicPercentage) : undefined,
+              };
               if (!data.supplierId) delete data.supplierId;
               if (!data.femasNumberOnNote) delete data.femasNumberOnNote;
               if (!data.bestBeforeDate) delete data.bestBeforeDate;

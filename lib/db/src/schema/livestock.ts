@@ -13,6 +13,12 @@ export const herdFlockRegisterTable = pgTable("herd_flock_register", {
   registrationDocumentName: text("registration_document_name"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  // ─── Organic certification ────────────────────────────────────────────────
+  isOrganicHerd: boolean("is_organic_herd").notNull().default(false),
+  organicConversionId: integer("organic_conversion_id"),   // FK to organic_livestock_conversion.id
+  organicCertBody: text("organic_cert_body"),               // e.g. "Soil Association", "OF&G"
+  organicCertNumber: text("organic_cert_number"),
+  organicConversionStartDate: timestamp("organic_conversion_start_date", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -92,6 +98,12 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   movementDocumentUrl: text("movement_document_url"),
   checklistCompletedBy: text("checklist_completed_by"),
   checklistCompletedAt: timestamp("checklist_completed_at", { withTimezone: true }),
+  // ─── Organic traceability ─────────────────────────────────────────────────
+  // Populated automatically when any animal in the movement belongs to an organic herd
+  isOrganicMovement: boolean("is_organic_movement").notNull().default(false),
+  organicCertRef: text("organic_cert_ref"),               // certifier reference for this consignment
+  organicWithdrawalsClear: boolean("organic_withdrawals_clear"), // all organic doubled-withdrawal periods cleared
+  organicStatusConfirmedBy: text("organic_status_confirmed_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -137,6 +149,14 @@ export const livestockMedicineRecordsTable = pgTable("livestock_medicine_records
   source: text("source").default("manual"),           // 'manual' | 'vet_ledger' | 'disease_incident'
   vetVisitMedicineId: integer("vet_visit_medicine_id"), // FK to vet_visit_medicines.id (when source='vet_ledger')
   diseaseIncidentId: integer("disease_incident_id"),    // FK to disease_incident_log (when source='disease_incident')
+  // ─── Organic compliance ───────────────────────────────────────────────────
+  // Populated automatically when the treated herd is flagged isOrganicHerd=true
+  isOrganicTreatment: boolean("is_organic_treatment").notNull().default(false),
+  doubledWithdrawalDays: integer("doubled_withdrawal_days"),       // withdrawal_period_days × 2 (organic requirement)
+  organicWithdrawalEndDate: timestamp("organic_withdrawal_end_date", { withTimezone: true }),
+  certifierNotified: boolean("certifier_notified").notNull().default(false),
+  certifierNotifiedDate: timestamp("certifier_notified_date", { withTimezone: true }),
+  maxTreatmentsReached: boolean("max_treatments_reached").notNull().default(false), // flag if 3-treatment limit hit in conversion
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

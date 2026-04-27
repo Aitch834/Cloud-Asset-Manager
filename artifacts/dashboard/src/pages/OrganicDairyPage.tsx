@@ -127,12 +127,14 @@ type DairyTreatmentRecord = {
   notes: string | null;
 };
 
+type CoreHerd = { id: number; name: string; type: string; herdNumber: string | null; isOrganicHerd?: boolean };
+
 function HerdConversionTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HerdConversionRecord | null>(null);
-  const [form, setForm] = useState<Partial<HerdConversionRecord>>({});
+  const [form, setForm] = useState<Partial<HerdConversionRecord> & { herdId?: number | null }>({});
 
   const { data } = useQuery<{ records: HerdConversionRecord[] }>({
     queryKey: ["organic-dairy-herd-conversion", farmId],
@@ -140,23 +142,46 @@ function HerdConversionTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  // Fetch core herd register for linking
+  const { data: herdsData } = useQuery<{ records: CoreHerd[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const coreHerds: CoreHerd[] = herdsData?.records ?? [];
+
   const records = data?.records ?? [];
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const url = editing
         ? `/api/farms/${farmId}/organic-dairy/herd-conversion/${editing.id}`
         : `/api/farms/${farmId}/organic-dairy/herd-conversion`;
-      return fetch(url, {
+      const res = await fetch(url, {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      // If a herd is linked, mark it organic in the core livestock register
+      if (form.herdId) {
+        await fetch(`/api/farms/${farmId}/herds/${form.herdId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isOrganicHerd: true,
+            organicCertBody: form.certifier ?? undefined,
+            organicCertNumber: form.certificationRef ?? undefined,
+            organicConversionStartDate: form.conversionStartDate ? new Date(form.conversionStartDate).toISOString() : undefined,
+          }),
+        });
+      }
+      return res;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organic-dairy-herd-conversion", farmId] });
+      qc.invalidateQueries({ queryKey: ["herds", farmId] });
       setOpen(false);
-      toast({ title: editing ? "Record updated" : "Record added" });
+      toast({ title: editing ? "Record updated" : "Record added — herd marked as organic in the Livestock Register" });
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
@@ -173,14 +198,23 @@ function HerdConversionTab({ farmId }: { farmId: number }) {
 
   function openNew() {
     setEditing(null);
-    setForm({ status: "in-conversion", parallelProduction: false });
+    setForm({ status: "in-conversion", parallelProduction: false, herdId: null });
     setOpen(true);
   }
 
   function openEdit(r: HerdConversionRecord) {
     setEditing(r);
-    setForm({ ...r });
+    setForm({ ...r, herdId: (r as any).herdId ?? null });
     setOpen(true);
+  }
+
+  function onHerdSelect(herdId: string) {
+    const herd = coreHerds.find(h => String(h.id) === herdId);
+    if (herd) {
+      setForm(p => ({ ...p, herdId: herd.id, herdName: herd.name }));
+    } else {
+      setForm(p => ({ ...p, herdId: null }));
+    }
   }
 
   const f = (k: keyof HerdConversionRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -188,6 +222,15 @@ function HerdConversionTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      {/* Organic herds banner */}
+      {coreHerds.filter(h => h.isOrganicHerd).length > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <span className="font-semibold">🌿 {coreHerds.filter(h => h.isOrganicHerd).length} herd{coreHerds.filter(h => h.isOrganicHerd).length !== 1 ? "s" : ""} in your Livestock Register marked as organic:</span>
+          {coreHerds.filter(h => h.isOrganicHerd).map(h => (
+            <span key={h.id} className="inline-flex items-center gap-1 bg-green-100 border border-green-300 rounded-full px-2 py-0.5 text-xs font-medium">{h.name}</span>
+          ))}
+        </div>
+      )}
       <div className="flex justify-end">
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Herd
@@ -210,13 +253,16 @@ function HerdConversionTab({ farmId }: { farmId: number }) {
           {records.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                No herd conversion records yet
+                No herd conversion records yet. Link a herd from your Livestock Register to get started.
               </TableCell>
             </TableRow>
           )}
           {records.map((r) => (
             <TableRow key={r.id}>
-              <TableCell>{r.herdName}</TableCell>
+              <TableCell>
+                {r.herdName}
+                {(r as any).herdId && <span className="ml-1.5 text-xs text-green-600 font-medium">● Linked</span>}
+              </TableCell>
               <TableCell>{r.breed ?? "—"}</TableCell>
               <TableCell>{r.numberOfCows ?? "—"}</TableCell>
               <TableCell>{fmt(r.conversionStartDate)}</TableCell>
@@ -244,6 +290,29 @@ function HerdConversionTab({ farmId }: { farmId: number }) {
             <DialogTitle>{editing ? "Edit" : "Add"} Herd Conversion Record</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
+            {/* Link to core herd register */}
+            <div className="col-span-2 space-y-1">
+              <Label>Link to Livestock Register Herd</Label>
+              <Select
+                value={form.herdId ? String(form.herdId) : "__none__"}
+                onValueChange={v => onHerdSelect(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select registered herd…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Enter manually —</SelectItem>
+                  {coreHerds.map(h => (
+                    <SelectItem key={h.id} value={String(h.id)}>
+                      {h.name} ({h.type}){h.isOrganicHerd ? " 🌿" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.herdId ? (
+                <p className="text-xs text-green-700 mt-1">✓ Saving will mark this herd as organic in the Livestock Register — enabling organic compliance across Medicines and Feed modules.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">Linking to a registered herd flags it as organic across all modules — no double entry.</p>
+              )}
+            </div>
             <div className="col-span-2 space-y-1">
               <Label>Herd Name *</Label>
               <Input value={form.herdName ?? ""} onChange={f("herdName")} placeholder="e.g. Main Dairy Herd" />
@@ -724,6 +793,14 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  // Pull organic-flagged records from the core Medicine Register — no double-entry needed
+  const { data: medData } = useQuery<{ records: any[] }>({
+    queryKey: ["medicine-records", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const medicineOrganicRecords = (medData?.records ?? []).filter((r: any) => r.isOrganicTreatment);
+
   const records = data?.records ?? [];
 
   const save = useMutation({
@@ -772,40 +849,68 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      {/* Integration banner */}
+      {medicineOrganicRecords.length > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <span>🌿</span>
+          <span><strong>{medicineOrganicRecords.length} treatment{medicineOrganicRecords.length !== 1 ? "s" : ""}</strong> auto-populated from the Medicine Register. No double entry needed.</span>
+        </div>
+      )}
       <div className="flex justify-end">
         <Button onClick={openNew} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> Add Treatment
+          <Plus className="h-4 w-4 mr-1" /> Add Standalone Treatment
         </Button>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Date</TableHead>
+            <TableHead>Source</TableHead>
             <TableHead>Product</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Cows</TableHead>
-            <TableHead>Tx No.</TableHead>
-            <TableHead>Milk WD End</TableHead>
-            <TableHead>Meat WD End</TableHead>
+            <TableHead>Std W/D</TableHead>
+            <TableHead>Organic Milk W/D End</TableHead>
+            <TableHead>Organic Meat W/D End</TableHead>
             <TableHead>Certifier Notified</TableHead>
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.length === 0 && (
+          {/* Medicine register rows (integrated, read-only) */}
+          {medicineOrganicRecords.map((r: any) => (
+            <TableRow key={`med-${r.id}`} className="bg-green-50/50">
+              <TableCell>{fmt(r.administeredDate)}</TableCell>
+              <TableCell>
+                <span className="text-xs font-medium text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-0.5">Medicine Register</span>
+              </TableCell>
+              <TableCell className="font-medium">{r.medicineName}</TableCell>
+              <TableCell>{r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays}d` : "—"}</TableCell>
+              <TableCell>
+                {r.organicWithdrawalEndDate ? (
+                  <span className="text-green-700 font-medium text-sm">{fmt(r.organicWithdrawalEndDate)} ({r.doubledWithdrawalDays}d)</span>
+                ) : <span className="text-muted-foreground">—</span>}
+              </TableCell>
+              <TableCell><span className="text-muted-foreground text-xs">See Med. Register</span></TableCell>
+              <TableCell>
+                <Badge className={r.certifierNotified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}>
+                  {r.certifierNotified ? "Yes" : "No"}
+                </Badge>
+              </TableCell>
+              <TableCell><span className="text-xs text-muted-foreground italic">Edit in Medicines</span></TableCell>
+            </TableRow>
+          ))}
+          {records.length === 0 && medicineOrganicRecords.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                No treatment records yet
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                No treatment records yet. When you record a vet treatment for an organic herd in the Medicine Register, it will appear here automatically.
               </TableCell>
             </TableRow>
           )}
           {records.map((r) => (
             <TableRow key={r.id}>
               <TableCell>{fmt(r.treatmentDate)}</TableCell>
+              <TableCell><span className="text-xs text-muted-foreground">Standalone</span></TableCell>
               <TableCell>{r.productName}</TableCell>
-              <TableCell>{r.productCategory ?? "—"}</TableCell>
-              <TableCell>{r.numberOfCows ?? "—"}</TableCell>
-              <TableCell>{r.treatmentNumber}</TableCell>
+              <TableCell>{(r as any).standardWithdrawalDays ? `${(r as any).standardWithdrawalDays}d` : "—"}</TableCell>
               <TableCell>{fmt(r.milkWithdrawalEndDate)}</TableCell>
               <TableCell>{fmt(r.meatWithdrawalEndDate)}</TableCell>
               <TableCell>
