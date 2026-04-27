@@ -11990,6 +11990,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     serviceAgreementRows,
     expectedLambingRows,
     expectedFarrowingRows,
+    organicLivestockCertRows,
+    organicLivestockWdRows,
+    organicDairyCertRows,
+    organicDairyMilkWdRows,
+    organicDairyMeatWdRows,
+    medOrgWdRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -12236,6 +12242,36 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: pigFarrowingRecordsTable.id, sowEarTag: pigFarrowingRecordsTable.sowEarTag, expectedFarrowingDate: pigFarrowingRecordsTable.expectedFarrowingDate, farrowingDate: pigFarrowingRecordsTable.farrowingDate, parityNumber: pigFarrowingRecordsTable.parityNumber })
       .from(pigFarrowingRecordsTable)
       .where(and(eq(pigFarrowingRecordsTable.farmId, farmId), isNotNull(pigFarrowingRecordsTable.expectedFarrowingDate), isNull(pigFarrowingRecordsTable.farrowingDate), gte(pigFarrowingRecordsTable.expectedFarrowingDate, overdueStart.toISOString().split("T")[0]), lt(pigFarrowingRecordsTable.expectedFarrowingDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Livestock: expected certification date (in-conversion herds) ──
+    db.select({ id: organicLivestockConversionTable.id, herdFlockName: organicLivestockConversionTable.herdFlockName, species: organicLivestockConversionTable.species, expectedCertDate: organicLivestockConversionTable.expectedCertDate, status: organicLivestockConversionTable.status })
+      .from(organicLivestockConversionTable)
+      .where(and(eq(organicLivestockConversionTable.farmId, farmId), isNotNull(organicLivestockConversionTable.expectedCertDate), eq(organicLivestockConversionTable.status, "in-conversion"), gte(organicLivestockConversionTable.expectedCertDate, overdueStart.toISOString().split("T")[0]), lt(organicLivestockConversionTable.expectedCertDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Livestock: standalone treatment withdrawal end dates ──
+    db.select({ id: organicLivestockTreatmentTable.id, productName: organicLivestockTreatmentTable.productName, species: organicLivestockTreatmentTable.species, withdrawalEndDate: organicLivestockTreatmentTable.withdrawalEndDate })
+      .from(organicLivestockTreatmentTable)
+      .where(and(eq(organicLivestockTreatmentTable.farmId, farmId), isNotNull(organicLivestockTreatmentTable.withdrawalEndDate), gte(organicLivestockTreatmentTable.withdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(organicLivestockTreatmentTable.withdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Dairy: expected milk certification date (in-conversion herds) ──
+    db.select({ id: organicDairyHerdConversionTable.id, herdName: organicDairyHerdConversionTable.herdName, expectedCertDate: organicDairyHerdConversionTable.expectedCertDate, status: organicDairyHerdConversionTable.status })
+      .from(organicDairyHerdConversionTable)
+      .where(and(eq(organicDairyHerdConversionTable.farmId, farmId), isNotNull(organicDairyHerdConversionTable.expectedCertDate), eq(organicDairyHerdConversionTable.status, "in-conversion"), gte(organicDairyHerdConversionTable.expectedCertDate, overdueStart.toISOString().split("T")[0]), lt(organicDairyHerdConversionTable.expectedCertDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Dairy: standalone treatment milk withdrawal end dates ──
+    db.select({ id: organicDairyTreatmentTable.id, productName: organicDairyTreatmentTable.productName, milkWithdrawalEndDate: organicDairyTreatmentTable.milkWithdrawalEndDate })
+      .from(organicDairyTreatmentTable)
+      .where(and(eq(organicDairyTreatmentTable.farmId, farmId), isNotNull(organicDairyTreatmentTable.milkWithdrawalEndDate), gte(organicDairyTreatmentTable.milkWithdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(organicDairyTreatmentTable.milkWithdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Dairy: standalone treatment meat withdrawal end dates ──
+    db.select({ id: organicDairyTreatmentTable.id, productName: organicDairyTreatmentTable.productName, meatWithdrawalEndDate: organicDairyTreatmentTable.meatWithdrawalEndDate })
+      .from(organicDairyTreatmentTable)
+      .where(and(eq(organicDairyTreatmentTable.farmId, farmId), isNotNull(organicDairyTreatmentTable.meatWithdrawalEndDate), gte(organicDairyTreatmentTable.meatWithdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(organicDairyTreatmentTable.meatWithdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Medicine Register: organic treatment — organic (doubled) withdrawal end date ──
+    db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, organicWithdrawalEndDate: livestockMedicineRecordsTable.organicWithdrawalEndDate })
+      .from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -12558,6 +12594,105 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Pig Production",
       href: `/pig-production?tab=farrowing&open=${r.id}`,
       colour: daysUntil < 0 ? "red" : daysUntil <= 2 ? "amber" : "blue",
+    });
+  }
+
+  // ── Organic Livestock: expected certification date ──
+  for (const r of organicLivestockCertRows) {
+    if (!r.expectedCertDate) continue;
+    const dueDate = new Date(r.expectedCertDate + "T00:00:00Z").toISOString();
+    const daysUntil = Math.round((new Date(r.expectedCertDate + "T00:00:00Z").getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    const overdueLabel = daysUntil < 0 ? " — Overdue" : daysUntil === 0 ? " — Due today" : "";
+    tasks.push({
+      id: `org-livestock-cert-${r.id}`,
+      type: "organic_livestock_cert_due",
+      title: `Organic Certification Due — ${r.herdFlockName || r.species}${overdueLabel}`,
+      description: `The organic conversion period for ${r.herdFlockName || r.species} ends on ${r.expectedCertDate}. Contact your certification body to confirm certification and update the status in Organic Livestock → Conversion.`,
+      dueDate,
+      module: "Organic Livestock",
+      href: "/organic-livestock",
+      colour: daysUntil < 0 ? "red" : daysUntil <= 14 ? "amber" : "emerald",
+    });
+  }
+
+  // ── Organic Livestock: standalone treatment organic withdrawal end dates ──
+  for (const r of organicLivestockWdRows) {
+    if (!r.withdrawalEndDate) continue;
+    const dueDate = new Date(r.withdrawalEndDate + "T00:00:00Z").toISOString();
+    tasks.push({
+      id: `org-livestock-wd-${r.id}`,
+      type: "organic_livestock_withdrawal",
+      title: `Organic Withdrawal Ends — ${r.productName}`,
+      description: `The organic (doubled) withdrawal period for '${r.productName}'${r.species ? ` on ${r.species}` : ""} ends on this date. Animals may then be cleared for organic sale. Verify in Organic Livestock → Treatment Compliance.`,
+      dueDate,
+      module: "Organic Livestock",
+      href: "/organic-livestock?tab=treatments",
+      colour: "emerald",
+    });
+  }
+
+  // ── Organic Dairy: expected milk certification date ──
+  for (const r of organicDairyCertRows) {
+    if (!r.expectedCertDate) continue;
+    const dueDate = new Date(r.expectedCertDate + "T00:00:00Z").toISOString();
+    const daysUntil = Math.round((new Date(r.expectedCertDate + "T00:00:00Z").getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    const overdueLabel = daysUntil < 0 ? " — Overdue" : daysUntil === 0 ? " — Due today" : "";
+    tasks.push({
+      id: `org-dairy-cert-${r.id}`,
+      type: "organic_dairy_cert_due",
+      title: `Organic Milk Certification Due — ${r.herdName}${overdueLabel}`,
+      description: `The organic conversion period for the dairy herd '${r.herdName}' reaches its expected milk certification date on ${r.expectedCertDate}. Contact your certification body to confirm organic milk sales can begin and update the Actual Certification Date in Organic Dairy → Herd Conversion.`,
+      dueDate,
+      module: "Organic Dairy",
+      href: "/organic-dairy",
+      colour: daysUntil < 0 ? "red" : daysUntil <= 14 ? "amber" : "teal",
+    });
+  }
+
+  // ── Organic Dairy: standalone treatment milk withdrawal end dates ──
+  for (const r of organicDairyMilkWdRows) {
+    if (!r.milkWithdrawalEndDate) continue;
+    const dueDate = new Date(r.milkWithdrawalEndDate + "T00:00:00Z").toISOString();
+    tasks.push({
+      id: `org-dairy-milk-wd-${r.id}`,
+      type: "organic_dairy_milk_withdrawal",
+      title: `Organic Milk Withdrawal Ends — ${r.productName}`,
+      description: `The organic milk withdrawal period (doubled) for '${r.productName}' ends on this date. Milk from treated cows may then be collected and sold as organic. Verify in Organic Dairy → Treatment Compliance.`,
+      dueDate,
+      module: "Organic Dairy",
+      href: "/organic-dairy?tab=treatments",
+      colour: "teal",
+    });
+  }
+
+  // ── Organic Dairy: standalone treatment meat withdrawal end dates ──
+  for (const r of organicDairyMeatWdRows) {
+    if (!r.meatWithdrawalEndDate) continue;
+    const dueDate = new Date(r.meatWithdrawalEndDate + "T00:00:00Z").toISOString();
+    tasks.push({
+      id: `org-dairy-meat-wd-${r.id}`,
+      type: "organic_dairy_meat_withdrawal",
+      title: `Organic Meat Withdrawal Ends — ${r.productName}`,
+      description: `The organic meat withdrawal period (doubled) for '${r.productName}' ends on this date. Cows may then enter the food chain as organic beef. Verify in Organic Dairy → Treatment Compliance.`,
+      dueDate,
+      module: "Organic Dairy",
+      href: "/organic-dairy?tab=treatments",
+      colour: "teal",
+    });
+  }
+
+  // ── Medicine Register: organic withdrawal end date (doubled, separate from standard withdrawal) ──
+  for (const r of medOrgWdRows) {
+    if (!r.organicWithdrawalEndDate) continue;
+    tasks.push({
+      id: `med-org-wd-${r.id}`,
+      type: "organic_medicine_withdrawal",
+      title: `Organic Withdrawal Ends — ${r.medicineName}`,
+      description: `The organic (doubled) withdrawal period for '${r.medicineName}' ends on this date — longer than the standard withdrawal. Animals must not be sold as organic or milk used for organic processing until after this date.`,
+      dueDate: toISO(r.organicWithdrawalEndDate)!,
+      module: "Livestock",
+      href: `/medicine?open=${r.id}`,
+      colour: "emerald",
     });
   }
 

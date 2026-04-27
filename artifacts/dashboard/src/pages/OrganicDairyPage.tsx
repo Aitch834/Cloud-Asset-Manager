@@ -31,8 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
@@ -786,6 +787,8 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DairyTreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyTreatmentRecord>>({});
+  const [raiseTaskMilkRecord, setRaiseTaskMilkRecord] = useState<DairyTreatmentRecord | null>(null);
+  const [raiseTaskMeatRecord, setRaiseTaskMeatRecord] = useState<DairyTreatmentRecord | null>(null);
 
   const { data } = useQuery<{ records: DairyTreatmentRecord[] }>({
     queryKey: ["organic-dairy-treatments", farmId],
@@ -920,6 +923,16 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
+                  {r.milkWithdrawalEndDate && (
+                    <Button variant="ghost" size="icon" title="Raise task for milk withdrawal end" onClick={() => setRaiseTaskMilkRecord(r)}>
+                      <ClipboardList className="h-4 w-4 text-teal-600" />
+                    </Button>
+                  )}
+                  {r.meatWithdrawalEndDate && (
+                    <Button variant="ghost" size="icon" title="Raise task for meat withdrawal end" onClick={() => setRaiseTaskMeatRecord(r)}>
+                      <ClipboardList className="h-4 w-4 text-amber-600" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -932,6 +945,32 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
           ))}
         </TableBody>
       </Table>
+
+      {raiseTaskMilkRecord && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskMilkRecord}
+          onClose={() => setRaiseTaskMilkRecord(null)}
+          defaultTitle={`Organic milk withdrawal ends: ${raiseTaskMilkRecord.productName} — due ${raiseTaskMilkRecord.milkWithdrawalEndDate ? new Date(raiseTaskMilkRecord.milkWithdrawalEndDate + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "TBC"}`}
+          defaultDescription={`Verify the organic milk withdrawal period (doubled) for '${raiseTaskMilkRecord.productName}' has ended before collecting milk from treated cows for organic sale.`}
+          defaultDueDate={raiseTaskMilkRecord.milkWithdrawalEndDate ?? ""}
+          taskType="organic_dairy_milk_withdrawal"
+          module="Organic Dairy"
+        />
+      )}
+
+      {raiseTaskMeatRecord && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskMeatRecord}
+          onClose={() => setRaiseTaskMeatRecord(null)}
+          defaultTitle={`Organic meat withdrawal ends: ${raiseTaskMeatRecord.productName} — due ${raiseTaskMeatRecord.meatWithdrawalEndDate ? new Date(raiseTaskMeatRecord.meatWithdrawalEndDate + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "TBC"}`}
+          defaultDescription={`Verify the organic meat withdrawal period (doubled) for '${raiseTaskMeatRecord.productName}' has ended before sending treated cows to slaughter as organic beef.`}
+          defaultDueDate={raiseTaskMeatRecord.meatWithdrawalEndDate ?? ""}
+          taskType="organic_dairy_meat_withdrawal"
+          module="Organic Dairy"
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

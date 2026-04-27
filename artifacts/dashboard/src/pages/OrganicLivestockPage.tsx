@@ -31,8 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
@@ -794,6 +795,7 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<TreatmentRecord>>({});
+  const [raiseTaskRecord, setRaiseTaskRecord] = useState<TreatmentRecord | null>(null);
 
   const { data } = useQuery<{ records: TreatmentRecord[] }>({
     queryKey: ["organic-livestock-treatments", farmId],
@@ -935,6 +937,11 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
+                  {r.withdrawalEndDate && (
+                    <Button variant="ghost" size="icon" title="Raise task for withdrawal end" onClick={() => setRaiseTaskRecord(r)}>
+                      <ClipboardList className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -947,6 +954,19 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
           ))}
         </TableBody>
       </Table>
+
+      {raiseTaskRecord && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskRecord}
+          onClose={() => setRaiseTaskRecord(null)}
+          defaultTitle={`Organic withdrawal ends: ${raiseTaskRecord.productName} — due ${raiseTaskRecord.withdrawalEndDate ? new Date(raiseTaskRecord.withdrawalEndDate + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "TBC"}`}
+          defaultDescription={`Verify animals treated with '${raiseTaskRecord.productName}' have completed their organic (doubled) withdrawal period before being sold as organic livestock.`}
+          defaultDueDate={raiseTaskRecord.withdrawalEndDate ?? ""}
+          taskType="organic_livestock_withdrawal"
+          module="Organic Livestock"
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
