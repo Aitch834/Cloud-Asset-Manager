@@ -174,6 +174,7 @@ import {
   horticultureWaterTestsTable,
   horticultureHarvestRecordsTable,
   horticulturePackhouseRecordsTable,
+  freshProduceIntakeTable,
   allergenManagementRecordsTable,
   carbonAuditsTable,
   carbonEmissionsRecordsTable,
@@ -14462,46 +14463,72 @@ router.delete("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, re
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+// Fresh Produce — Pre-Cooling / Intake
+router.get("/farms/:farmId/fresh-produce-intake", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(freshProduceIntakeTable).where(eq(freshProduceIntakeTable.farmId, farmId)).orderBy(desc(freshProduceIntakeTable.intakeDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/fresh-produce-intake", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(freshProduceIntakeTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(freshProduceIntakeTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(freshProduceIntakeTable).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Fresh Produce — Packhouse (module key updated from horticulture to fresh-produce)
+router.get("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(horticulturePackhouseRecordsTable).where(eq(horticulturePackhouseRecordsTable.farmId, farmId)).orderBy(desc(horticulturePackhouseRecordsTable.packingDate));
   res.json(rows);
 });
-router.post("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const [row] = await db.insert(horticulturePackhouseRecordsTable).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
-router.put("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticulturePackhouseRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
-router.delete("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticulturePackhouseRecordsTable).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+// Fresh Produce — Allergen Management (module key updated from horticulture to fresh-produce)
+router.get("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(allergenManagementRecordsTable).where(eq(allergenManagementRecordsTable.farmId, farmId)).orderBy(desc(allergenManagementRecordsTable.reviewDate));
   res.json(rows);
 });
-router.post("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const [row] = await db.insert(allergenManagementRecordsTable).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
-router.put("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(allergenManagementRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
-router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(allergenManagementRecordsTable).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId)));

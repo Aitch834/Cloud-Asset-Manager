@@ -78,9 +78,35 @@ export const horticultureHarvestRecordsTable = pgTable("horticulture_harvest_rec
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const freshProduceIntakeTable = pgTable("fresh_produce_intake", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  harvestRecordId: integer("harvest_record_id").references(() => horticultureHarvestRecordsTable.id),
+  intakeDate: date("intake_date").notNull(),
+  harvestBatchRef: text("harvest_batch_ref").notNull(),
+  productName: text("product_name").notNull(),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
+  conditionOnArrival: text("condition_on_arrival"),
+  intakeTemperatureC: numeric("intake_temperature_c", { precision: 5, scale: 1 }),
+  targetStorageTemperatureC: numeric("target_storage_temperature_c", { precision: 5, scale: 1 }),
+  preCoolingStartTime: text("pre_cooling_start_time"),
+  preCoolingEndTime: text("pre_cooling_end_time"),
+  achievedTemperatureC: numeric("achieved_temperature_c", { precision: 5, scale: 1 }),
+  storageLocation: text("storage_location"),
+  receivedBy: text("received_by"),
+  foreignBodyCheck: boolean("foreign_body_check").default(false),
+  pestDamageCheck: boolean("pest_damage_check").default(false),
+  accepted: boolean("accepted").default(true),
+  rejectionReason: text("rejection_reason"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const horticulturePackhouseRecordsTable = pgTable("horticulture_packhouse_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  harvestRecordId: integer("harvest_record_id").references(() => horticultureHarvestRecordsTable.id),
+  intakeRecordId: integer("intake_record_id").references(() => freshProduceIntakeTable.id),
   harvestBatchRef: text("harvest_batch_ref").notNull(),
   packingDate: date("packing_date").notNull(),
   productName: text("product_name").notNull(),
