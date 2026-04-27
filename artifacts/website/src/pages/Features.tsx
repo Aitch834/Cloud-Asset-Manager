@@ -5,7 +5,7 @@ import {
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
-  Warehouse, Wrench,
+  Warehouse, Wrench, HeartPulse, Milk,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -312,6 +312,44 @@ const sections: Section[] = [
           "Mobile input register — record approved organic inputs on the go; select the field from your field register, enter the product name, supplier, quantity, unit, and approval reference; conditional approval reference field appears automatically for restricted products; syncs offline",
           "Organic Compliance hub (mobile) — a dedicated mobile overview screen shows your current certification status, next inspection countdown, and quick-action buttons to log a new inspection or add an input register entry without navigating through menus",
           "Document attachment on inspections — attach a scanned copy of your certifier's inspection report or outcome letter directly to the inspection record from the dashboard, creating a complete documentary audit trail alongside the structured data",
+        ],
+      },
+      {
+        title: "Organic Livestock",
+        icon: HeartPulse,
+        color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+        badge: "module",
+        features: [
+          "Herd register linkage — link any herd or flock from your core Livestock Register to the Organic Livestock module; saving the link automatically marks the herd as organic across Medicine Records, Feed Management, and Livestock Movements — one action, no double-entry",
+          "Organic herds banner — a persistent green banner on the Conversion tab lists every herd currently flagged as organic in the Livestock Register, giving you an at-a-glance view of your organic enterprise",
+          "Conversion record — capture conversion start date, expected and actual certification date, certifier (Soil Association, OF&G, Organic Farmers & Growers), certification reference, parallel production flag, and status (In Conversion / Certified / Suspended / Withdrawn)",
+          "Linked badge — each conversion record shows a green ● Linked indicator confirming the organic flag is active in the Livestock Register and propagated across all connected modules",
+          "Treatment compliance (no double-entry) — veterinary medicine records flagged as Organic Treatment in the Medicine Register appear automatically at the top of the Treatment Compliance tab in read-only green rows; no re-entry required",
+          "Doubled withdrawal period — when a medicine is flagged as an organic treatment, BDE Farm Trac doubles the standard withdrawal period automatically and calculates the Organic Withdrawal End Date",
+          "Treatment-number counter — tracks the number of organic treatments given to each animal or herd within the certification period; flags when the permitted limit is approached",
+          "Certifier notification tracking — each treatment row shows whether the certifier has been notified (required when treatments approach the limit); update via the Medicine Register and the badge updates in real time",
+          "Standalone treatment records — log historical organic treatment records that pre-date your BDE Farm Trac subscription without altering the Medicine Register",
+          "Organic feed delivery records — feed deliveries marked as Organic Approved in Feed Management (supplier approval number, organic %, derogation reference) flow automatically into the Feed Records tab — no separate data entry",
+          "Outdoor access & stocking density log — record grazing events, rotational access dates, outdoor space per animal, and stocking density against organic standard thresholds",
+          "Print-ready treatment register — a formatted A4 summary of all organic treatments (auto-populated and standalone) with doubled withdrawal dates, suitable for certifier inspection",
+        ],
+      },
+      {
+        title: "Organic Dairy",
+        icon: Milk,
+        color: "bg-teal-50 text-teal-700 border-teal-100",
+        badge: "module",
+        features: [
+          "Herd conversion with herd register linkage — link dairy herds from the Livestock Register; saving marks the herd as organic across Medicine Records, Feed Management, and Movements",
+          "Dairy-specific certification dates — separate fields for Expected Milk Certification Date (when organic milk can first be sold) and Actual Certification Date (confirmed by certifier); distinct from general livestock conversion dates",
+          "Milk collection records — log every tanker uplift with collection date, volume (litres), fat %, protein %, somatic cell count (SCC), total bacterial count (TBC), organic certified flag, organic certificate reference from the milk buyer, net value (£), and collector / tanker ID",
+          "Organic milk traceability — filter collections by date range and export to CSV for certifier audit evidence or milk buyer reconciliation",
+          "Treatment compliance (no double-entry) — medicine records flagged as Organic Treatment in the Medicine Register appear automatically in green read-only rows; no re-entry across systems",
+          "Dual organic withdrawal tracking — dairy organic treatments carry two separate doubled withdrawal periods: Organic Milk Withdrawal End Date (doubled milk WP) and Organic Meat Withdrawal End Date (doubled meat WP); both displayed on every treatment row alongside the standard period for reference",
+          "Certifier notification flag — tracks certifier notification status per treatment row; updates from the Medicine Register propagate in real time",
+          "Organic feed & nutrition records — deliveries marked Organic Approved in Feed Management (supplier approval number, organic %, derogation reference) surface automatically in the Feed & Nutrition tab — one entry, visible in both modules",
+          "Non-organic ingredient derogation tracking — where feed organic % falls below the required 95% threshold, record the certifier derogation reference and justification for inspection evidence",
+          "Linked badge and organic herd banner — same herd-register linkage indicators as Organic Livestock, confirming organic status is active and consistent across all modules",
         ],
       },
       {

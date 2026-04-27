@@ -10123,6 +10123,128 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Conversion History Export</h3>
 <p>Use <strong>Export CSV</strong> on the Conversion Tracker page to produce a full history of all conversion units — active, completed, and abandoned — including start dates, end dates, land type, and notes. This report is suitable for submission to your certification body as part of a farm system description or annual update.</p>`,
     },
+    {
+      id: 10060,
+      title: "Organic Livestock — Herd Register Linkage & Conversion",
+      category: "Organic Livestock",
+      content: `<h2>Organic Livestock — Herd Register Linkage &amp; Conversion</h2>
+<p>The Organic Livestock module is a dedicated compliance hub for organic and converting livestock enterprises. It eliminates double-entry by linking directly to your core Livestock Register, Medicine Register, and Feed Management module — records you already keep become organic compliance evidence automatically.</p>
+
+<h3>Linking a Herd to the Livestock Register</h3>
+<p>Navigate to <strong>Organic Livestock → Conversion</strong> and click <strong>Add Herd / Flock</strong>. At the top of the form you will see a <em>Link to Livestock Register Herd / Flock</em> dropdown. Select the herd you are converting — BDE Farm Trac will auto-populate the species and herd name from your existing Livestock Register entry.</p>
+<p>When you save the record, the system automatically marks that herd as <strong>Organic</strong> in the Livestock Register. This single action propagates the organic flag across all connected modules:</p>
+<ul>
+<li><strong>Medicine Register</strong> — treatments for the linked herd now offer an "Organic Treatment" toggle which doubles the withdrawal period and records certifier notification status</li>
+<li><strong>Feed Management</strong> — feed deliveries can be marked as Organic Approved with supplier approval number, organic percentage, and derogation reference</li>
+<li><strong>Livestock Movements</strong> — movements for organic herds carry an organic status flag and allow you to confirm withdrawals are clear before dispatch</li>
+</ul>
+<p>A green banner at the top of the Conversion tab shows all herds currently marked organic across your Livestock Register — confirming which units are flagged for compliance across the platform.</p>
+
+<h3>Conversion Record Fields</h3>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Field</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Notes</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Species / Herd Name</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Auto-populated from the linked herd, or enter manually</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Conversion Start Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The date organic management practices formally began</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Expected Certification Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Calculated from start date — typically 12 months for livestock</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certifier</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">e.g. Soil Association, OF&G, Organic Farmers &amp; Growers</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certification Ref</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Certificate number — propagated back to the Livestock Register on save</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Parallel Production</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Flag if organic and non-organic herds of the same species coexist on the holding</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">In Conversion / Certified / Suspended / Withdrawn</td></tr>
+</tbody>
+</table>
+
+<h3>Status Indicators</h3>
+<p>Each conversion record in the table carries a colour-coded status badge: amber <em>In Conversion</em>, green <em>Certified</em>, red <em>Suspended</em>, or grey <em>Withdrawn</em>. Records linked to the Livestock Register show a green <strong>● Linked</strong> indicator confirming the organic flag is active across the platform.</p>`,
+    },
+    {
+      id: 10061,
+      title: "Organic Livestock — Treatment Compliance (No Double Entry)",
+      category: "Organic Livestock",
+      content: `<h2>Organic Livestock — Treatment Compliance</h2>
+<p>Under UK organic livestock standards (EC 889/2008 as retained in UK law), veterinary treatments must be recorded with doubled withdrawal periods, a treatment-number counter, and — in many cases — certifier notification. BDE Farm Trac eliminates the need to enter treatment data twice.</p>
+
+<h3>Automatic Population from the Medicine Register</h3>
+<p>When a veterinary medicine is recorded in the <strong>Medicine Register</strong> for an organic herd, tick the <strong>Organic Treatment</strong> toggle on the medicine record. BDE Farm Trac will:</p>
+<ul>
+<li>Calculate the <strong>doubled withdrawal period</strong> automatically (standard withdrawal period × 2, minimum 48 hours)</li>
+<li>Set the <strong>Organic Withdrawal End Date</strong> based on the treatment date and doubled period</li>
+<li>Record the treatment number in sequence for that animal or herd</li>
+<li>Flag a <strong>Certifier Notified</strong> checkbox — required when the maximum permitted treatment count is approached or exceeded</li>
+</ul>
+<p>The record then appears automatically at the top of the <strong>Organic Livestock → Treatment Compliance</strong> tab in a green <em>Medicine Register</em> row — no re-entry required. The green row is read-only; all edits are made from the Medicine Register to maintain a single source of truth.</p>
+
+<h3>Standalone Treatment Records</h3>
+<p>If you need to log an organic treatment that was not recorded in the Medicine Register (for example, a historical record before you began using BDE Farm Trac), click <strong>Add Standalone Treatment</strong>. These records appear below the auto-populated rows and can be edited or deleted independently.</p>
+
+<h3>Certifier Notification</h3>
+<p>Organic livestock standards require that you notify your certification body when treatments approach or exceed permitted limits. The <strong>Certifier Notified</strong> column on each treatment row shows a green <em>Yes</em> or grey <em>No</em> badge. To update, open the medicine record and set the Certifier Notified flag and date. This updates the badge on the Treatment Compliance tab in real time.</p>
+
+<h3>What to Present at Inspection</h3>
+<p>Your certifier will typically ask to see a complete list of all veterinary treatments given to organic animals in the past 12 months, including the dates, products, dosages, and withdrawal periods applied. The Treatment Compliance tab shows exactly this information in a single view — combining auto-populated Medicine Register records with any standalone entries — ready to present on screen or export for submission.</p>`,
+    },
+    {
+      id: 10062,
+      title: "Organic Dairy — Herd Conversion & Milk Collection Records",
+      category: "Organic Dairy",
+      content: `<h2>Organic Dairy — Herd Conversion &amp; Milk Collection Records</h2>
+<p>The Organic Dairy module provides dedicated compliance records for organic dairy enterprises. It links to the core Livestock Register for herd management and to the Medicine Register for treatment compliance — eliminating double-entry and ensuring organic status is consistent across the platform.</p>
+
+<h3>Herd Conversion</h3>
+<p>Go to <strong>Organic Dairy → Herd Conversion</strong> and click <strong>Add Herd</strong>. Select your dairy herd from the <em>Link to Livestock Register Herd</em> dropdown. Saving the record marks the herd as organic in the Livestock Register, activating organic compliance fields in Medicines, Feed, and Movements for that herd.</p>
+<p>Dairy-specific conversion fields include:</p>
+<ul>
+<li><strong>Expected Milk Certification Date</strong> — the date from which organic milk can first be sold as organic (typically one year after conversion start for dairy herds)</li>
+<li><strong>Actual Certification Date</strong> — confirmed by your certification body on first organic milk collection</li>
+<li><strong>Breed</strong> and <strong>Number of Cows</strong> — for certifier records</li>
+<li><strong>Parallel Production</strong> — if organic and conventional dairy herds operate on the same holding</li>
+</ul>
+<p>Herds linked to the Livestock Register display a <strong>● Linked</strong> indicator. A banner at the top of the tab lists all herds currently flagged as organic in the Livestock Register.</p>
+
+<h3>Milk Collection Records</h3>
+<p>The <strong>Milk Collections</strong> tab logs every tanker collection from the dairy. Each record captures:</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Field</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Purpose</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Collection Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Date of tanker uplift</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Volume (litres)</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Litres uplifted — used for yield tracking</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Fat % / Protein % / SCC / TBC</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Milk quality data from the tanker or milk recording</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Organic Certified</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Whether this collection was uplifted as organic milk</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Organic Cert Ref</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Collection sheet or certificate reference from the milk buyer</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Net Value (£)</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Payment received for the collection</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Collector / Tanker ID</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Haulier or tanker registration for traceability</td></tr>
+</tbody>
+</table>
+<p>Collection records can be filtered by date range and exported to CSV for submission to your certifier or milk buyer as part of annual organic audit evidence.</p>`,
+    },
+    {
+      id: 10063,
+      title: "Organic Dairy — Treatment Compliance & Organic Feed Records",
+      category: "Organic Dairy",
+      content: `<h2>Organic Dairy — Treatment Compliance &amp; Organic Feed Records</h2>
+
+<h3>Treatment Compliance (No Double Entry)</h3>
+<p>The <strong>Treatment Compliance</strong> tab in Organic Dairy works identically to Organic Livestock — veterinary medicine records flagged as "Organic Treatment" in the Medicine Register appear automatically at the top of the tab in green rows, with no re-entry required.</p>
+<p>Dairy-specific treatment compliance tracks two separate doubled withdrawal periods:</p>
+<ul>
+<li><strong>Organic Milk Withdrawal End Date</strong> — doubled standard milk withdrawal period; milk must not be marketed as organic until this date passes</li>
+<li><strong>Organic Meat Withdrawal End Date</strong> — doubled standard meat withdrawal period; cow must not enter the food chain as organic beef until this date passes</li>
+</ul>
+<p>Both dates are displayed on each row in the Treatment Compliance table, alongside the standard (non-doubled) withdrawal period for reference. The <em>Certifier Notified</em> flag shows whether your certification body has been informed — a requirement under organic standards when treatments approach the permitted limit.</p>
+
+<h3>Feed &amp; Nutrition Records</h3>
+<p>The <strong>Feed &amp; Nutrition</strong> tab logs feed purchases and usage for organic dairy herds. Organic feed deliveries recorded in the core <strong>Feed Management</strong> module are surfaced here automatically when the delivery is marked as <em>Organic Approved</em>.</p>
+<p>Key fields for organic dairy feed compliance:</p>
+<ul>
+<li><strong>Supplier Organic Approval Number</strong> — the certifier-issued approval number for the feed supplier (e.g. SA-ORG-1234)</li>
+<li><strong>Organic Percentage</strong> — the proportion of the feed that is certified organic; under UK retained organic rules, at least 95% of feed dry matter must be certified organic</li>
+<li><strong>Non-Organic Ingredient Derogation</strong> — if the organic % falls below 95%, record the certifier derogation reference and justification here; this is required evidence if queried during a certification body inspection</li>
+</ul>
+
+<h3>Setting Up Feed Delivery Organic Details</h3>
+<p>When recording a feed delivery in <strong>Feed Management</strong>, scroll to the bottom of the delivery form and check <strong>Organic Approved Feed</strong>. This expands the organic compliance fields. Enter the supplier approval number and organic percentage. If any non-organic ingredients are present, enter the derogation reference in the third field.</p>
+<p>Deliveries marked as organic are highlighted with a green <em>Organic Approved</em> badge in the delivery list, making them easy to identify during an audit. The same information flows automatically into the Organic Dairy Feed &amp; Nutrition tab — no separate entry needed.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
