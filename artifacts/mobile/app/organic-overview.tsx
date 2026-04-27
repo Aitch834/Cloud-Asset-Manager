@@ -213,22 +213,46 @@ export default function OrganicOverviewScreen() {
             )}
 
             <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionRow}>
+            <View style={styles.actionGrid}>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}
                 onPress={() => router.push("/organic-inspection")}
               >
                 <Feather name="shield" size={22} color="#16a34a" />
                 <Text style={[styles.actionLabel, { color: "#16a34a" }]}>Record Inspection</Text>
-                <Text style={styles.actionSub}>Log a certifier inspection visit</Text>
+                <Text style={styles.actionSub}>Log a certifier visit</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}
                 onPress={() => router.push("/organic-input")}
               >
                 <Feather name="package" size={22} color="#2563eb" />
-                <Text style={[styles.actionLabel, { color: "#2563eb" }]}>Log Organic Input</Text>
-                <Text style={styles.actionSub}>Add to input register</Text>
+                <Text style={[styles.actionLabel, { color: "#2563eb" }]}>Log Livestock Input</Text>
+                <Text style={styles.actionSub}>Feeds &amp; amendments</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#a7f3d0" }]}
+                onPress={() => router.push("/organic-fp-input")}
+              >
+                <Feather name="layers" size={22} color="#059669" />
+                <Text style={[styles.actionLabel, { color: "#059669" }]}>Log FP Input</Text>
+                <Text style={styles.actionSub}>Fresh produce blocks</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}
+                onPress={() => router.push("/organic-outdoor-access")}
+              >
+                <Feather name="sun" size={22} color="#d97706" />
+                <Text style={[styles.actionLabel, { color: "#d97706" }]}>Outdoor Access</Text>
+                <Text style={styles.actionSub}>Log livestock access</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" }]}
+                onPress={() => router.push("/organic-treatment")}
+              >
+                <Feather name="thermometer" size={22} color="#7c3aed" />
+                <Text style={[styles.actionLabel, { color: "#7c3aed" }]}>Record Treatment</Text>
+                <Text style={styles.actionSub}>Medicines &amp; therapies</Text>
               </Pressable>
             </View>
 
@@ -330,10 +354,10 @@ const styles = StyleSheet.create({
   inspDate: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center", marginBottom: 2 },
   emptySubtext: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, textAlign: "center" },
-  actionRow: { flexDirection: "row", gap: spacing.md },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   actionBtn: {
-    flex: 1, padding: spacing.md, borderRadius: radius.lg, alignItems: "center",
-    borderWidth: 1, gap: spacing.xs,
+    flexBasis: "47%", flexGrow: 1, padding: spacing.md, borderRadius: radius.lg,
+    alignItems: "center", borderWidth: 1, gap: spacing.xs,
   },
   actionLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, textAlign: "center" },
   actionSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },

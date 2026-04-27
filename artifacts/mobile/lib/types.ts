@@ -1787,3 +1787,52 @@ export interface OrganicInput {
   createdAt: string;
   synced: boolean;
 }
+
+export interface OrganicFpInput {
+  id: string;
+  farmId: string;
+  blockName: string;
+  productName: string;
+  inputType: string;
+  approvalStatus: string;
+  supplier: string;
+  dateOfUse: string;
+  quantityAmount: string;
+  quantityUnit: string;
+  cropYear: string;
+  certifierApprovalRef: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface OrganicOutdoorAccess {
+  id: string;
+  farmId: string;
+  animalGroup: string;
+  date: string;
+  accessProvided: boolean;
+  durationHours: string;
+  restrictionReason: string;
+  paddockArea: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface OrganicTreatment {
+  id: string;
+  farmId: string;
+  animalGroup: string;
+  animalIdentifiers: string;
+  dateOfTreatment: string;
+  medicineProduct: string;
+  dosage: string;
+  routeOfAdmin: string;
+  withdrawalPeriodDays: string;
+  certifierNotified: boolean;
+  batchNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}

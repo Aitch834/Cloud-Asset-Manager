@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
-  Eye, Info, Package, CheckCircle2, Clock,
+  Eye, Info, Package, CheckCircle2, Clock, Printer,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -385,7 +385,125 @@ function SyntheticHistoryPanel({
 
 // ─── Block Status Tab ────────────────────────────────────────────────────────
 
-function BlockStatusTab({ farmId }: { farmId: number }) {
+// ─── Print helpers ────────────────────────────────────────────────────────────
+
+const FP_PRINT_CSS = `
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #15803d; padding-bottom: 8px; margin-bottom: 14px; }
+  .hdr-l .title { font-size: 15px; font-weight: bold; color: #15803d; }
+  .hdr-l .farm { font-size: 12px; color: #374151; margin-top: 2px; }
+  .hdr-r { font-size: 10px; color: #6b7280; text-align: right; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 5px 7px; text-align: left; font-size: 10px; font-weight: bold; color: #15803d; }
+  td { border: 1px solid #e5e7eb; padding: 5px 7px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 12px; font-size: 9px; font-weight: bold; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-yellow { background: #fef9c3; color: #854d0e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-gray { background: #f3f4f6; color: #374151; }
+  @media print { @page { size: A4 landscape; margin: 1.5cm; } }
+`;
+
+function fpOpenPrint(html: string) {
+  const w = window.open("", "_blank", "width=1100,height=780");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.addEventListener("afterprint", () => w.close());
+  setTimeout(() => w.print(), 400);
+}
+
+function printFpBlockStatusRegister(blocks: Record<string, unknown>[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const rows = blocks.map(b => `
+    <tr>
+      <td>${String(b.blockName ?? "—")}</td>
+      <td>${String(b.blockReference ?? "—")}</td>
+      <td>${String(b.areaHectares ?? "—")}</td>
+      <td><span class="badge ${b.status === 'fully-organic' ? 'badge-green' : b.status === 'in-conversion' ? 'badge-yellow' : 'badge-gray'}">${String(b.status ?? "—").replace(/-/g, ' ')}</span></td>
+      <td>${b.conversionStartDate ? new Date(b.conversionStartDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${b.fullyOrganicDate ? new Date(b.fullyOrganicDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${String(b.certifyingBody ?? "—")}</td>
+      <td>${String(b.certificationRef ?? "—")}</td>
+      <td>${String(b.crop ?? "—")}</td>
+      <td>${String(b.notes ?? "—")}</td>
+    </tr>`).join("");
+  fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Block Status Register — ${farmName}</title><style>${FP_PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Block Conversion Status Register</div><div class="farm">${farmName}</div></div>
+    <div class="hdr-r"><b>Block Status</b><br>${blocks.length} block${blocks.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+    <table><thead><tr><th>Block Name</th><th>Block Ref</th><th>Area (ha)</th><th>Status</th><th>Conv. Start</th><th>Fully Organic Date</th><th>Certifier</th><th>Cert Ref</th><th>Crop</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+}
+
+function printFpInputLog(rows: Record<string, unknown>[], farmName: string, yearLabel: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td>${r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${String(r.cropYear ?? "—")}</td>
+      <td>${String(r.inputName ?? "—")}</td>
+      <td>${String(r.inputType ?? "—")}</td>
+      <td><span class="badge ${r.approvalStatus === 'permitted' ? 'badge-green' : r.approvalStatus === 'restricted' ? 'badge-yellow' : 'badge-red'}">${String(r.approvalStatus ?? "—")}</span></td>
+      <td>${String(r.supplier ?? "—")}</td>
+      <td>${r.quantityApplied ? String(r.quantityApplied) + ' ' + String(r.quantityUnit ?? "") : "—"}</td>
+      <td>${String(r.purposeOfUse ?? "—")}</td>
+      <td>${String(r.appliedBy ?? "—")}</td>
+      <td>${String(r.certifierApprovalRef ?? "—")}</td>
+      <td>${String(r.poReference ?? "—")}</td>
+      <td>${String(r.grnReference ?? "—")}</td>
+    </tr>`).join("");
+  fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Input Log — ${farmName} — ${yearLabel}</title><style>${FP_PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Approved Input Log · ${yearLabel}</div><div class="farm">${farmName}</div></div>
+    <div class="hdr-r"><b>Input Log</b><br>${rows.length} record${rows.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+    <table><thead><tr><th>Date</th><th>Crop Year</th><th>Input / Product</th><th>Type</th><th>Approval</th><th>Supplier</th><th>Qty Applied</th><th>Purpose</th><th>Applied By</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table></body></html>`);
+}
+
+function printFpCertificates(certs: Record<string, unknown>[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const rows = certs.map(c => `
+    <tr>
+      <td>${String(c.certifyingBody ?? "—")}</td>
+      <td>${String(c.certificateNumber ?? "—")}</td>
+      <td>${String(c.status ?? "—")}</td>
+      <td>${c.issueDate ? new Date(c.issueDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${c.expiryDate ? new Date(c.expiryDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${c.annualRenewalDue ? new Date(c.annualRenewalDue as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${String(c.scopeDescription ?? "—")}</td>
+      <td>${String(c.notes ?? "—")}</td>
+    </tr>`).join("");
+  fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Certificates — ${farmName}</title><style>${FP_PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Certificates Register</div><div class="farm">${farmName}</div></div>
+    <div class="hdr-r"><b>Certificates</b><br>${certs.length} record${certs.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+    <table><thead><tr><th>Certifying Body</th><th>Certificate No.</th><th>Status</th><th>Issue Date</th><th>Expiry Date</th><th>Annual Renewal Due</th><th>Scope</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+}
+
+function printFpBuyerDeclarations(decls: Record<string, unknown>[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const rows = decls.map(d => `
+    <tr>
+      <td>${d.declarationDate ? new Date(d.declarationDate as string).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${String(d.buyerName ?? "—")}</td>
+      <td>${String(d.buyerAddress ?? "—")}</td>
+      <td>${String(d.productDescription ?? "—")}</td>
+      <td>${String(d.quantityKg ?? "—")}</td>
+      <td>${String(d.certifyingBody ?? "—")}</td>
+      <td>${String(d.certificateNumber ?? "—")}</td>
+      <td>${String(d.declaredBy ?? "—")}</td>
+      <td>${String(d.notes ?? "—")}</td>
+    </tr>`).join("");
+  fpOpenPrint(`<!DOCTYPE html><html><head><title>Buyer Declarations — ${farmName}</title><style>${FP_PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Buyer Organic Declarations</div><div class="farm">${farmName}</div></div>
+    <div class="hdr-r"><b>Buyer Declarations</b><br>${decls.length} record${decls.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+    <table><thead><tr><th>Date</th><th>Buyer Name</th><th>Address</th><th>Product</th><th>Qty (kg)</th><th>Certifying Body</th><th>Cert Number</th><th>Declared By</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+}
+
+// ─── Block Status Tab ─────────────────────────────────────────────────────────
+
+function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -444,10 +562,17 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
     return <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{status}</span>;
   };
 
+  const blockRows = blocks as Record<string, unknown>[];
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Block Conversion Status</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Block Conversion Status</h3>
+          <Button variant="outline" size="sm" onClick={() => printFpBlockStatusRegister(blockRows, farmName)} disabled={blockRows.length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Register
+          </Button>
+        </div>
         <Button size="sm" onClick={openAdd}>
           <Plus className="w-4 h-4 mr-1" />Add Block
         </Button>
@@ -597,7 +722,7 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
 
 // ─── Input Log Tab ───────────────────────────────────────────────────────────
 
-function InputLogTab({ farmId }: { farmId: number }) {
+function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -695,9 +820,14 @@ function InputLogTab({ farmId }: { farmId: number }) {
             </div>
           )}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ ...EMPTY_INPUT_FORM }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1" />Add Input
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => printFpInputLog(rows, farmName, yearFilter === "all" ? "All Years" : String(yearFilter))} disabled={rows.length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Input Log
+          </Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ ...EMPTY_INPUT_FORM }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" />Add Input
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -942,7 +1072,7 @@ function InputLogTab({ farmId }: { farmId: number }) {
 
 // ─── Certificates Tab ────────────────────────────────────────────────────────
 
-function CertificatesTab({ farmId }: { farmId: number }) {
+function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -977,7 +1107,12 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Organic Certificates</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Organic Certificates</h3>
+          <Button variant="outline" size="sm" onClick={() => printFpCertificates(certs as Record<string, unknown>[], farmName)} disabled={(certs as Record<string, unknown>[]).length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print List
+          </Button>
+        </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" />Add Certificate
         </Button>
@@ -1098,7 +1233,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
 
 // ─── Buyer Declarations Tab ──────────────────────────────────────────────────
 
-function BuyerDeclarationsTab({ farmId }: { farmId: number }) {
+function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1133,7 +1268,12 @@ function BuyerDeclarationsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Buyer Organic Declarations</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Buyer Organic Declarations</h3>
+          <Button variant="outline" size="sm" onClick={() => printFpBuyerDeclarations(decls as Record<string, unknown>[], farmName)} disabled={(decls as Record<string, unknown>[]).length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Log
+          </Button>
+        </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" />Add Declaration
         </Button>
@@ -1249,6 +1389,13 @@ export default function OrganicFreshProducePage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<TabKey>("block-status");
 
+  const { data: farmData } = useQuery<{ name: string }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.name ?? "Farm";
+
   if (!farmId) return null;
 
   return (
@@ -1271,10 +1418,10 @@ export default function OrganicFreshProducePage() {
         </TabBar>
 
         <Card className="p-5">
-          {tab === "block-status" && <BlockStatusTab farmId={farmId} />}
-          {tab === "input-log" && <InputLogTab farmId={farmId} />}
-          {tab === "certificates" && <CertificatesTab farmId={farmId} />}
-          {tab === "buyer-declarations" && <BuyerDeclarationsTab farmId={farmId} />}
+          {tab === "block-status" && <BlockStatusTab farmId={farmId} farmName={farmName} />}
+          {tab === "input-log" && <InputLogTab farmId={farmId} farmName={farmName} />}
+          {tab === "certificates" && <CertificatesTab farmId={farmId} farmName={farmName} />}
+          {tab === "buyer-declarations" && <BuyerDeclarationsTab farmId={farmId} farmName={farmName} />}
         </Card>
       </div>
     </AppLayout>
