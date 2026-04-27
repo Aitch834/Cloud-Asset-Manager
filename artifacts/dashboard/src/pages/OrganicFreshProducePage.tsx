@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -746,6 +747,47 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
     queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: suppliersData } = useQuery<{ records?: { id: number; name: string }[] }>({
+    queryKey: ["suppliers-lookup", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const supplierNames: string[] = useMemo(
+    () => (suppliersData?.records ?? []).map((s) => s.name).filter(Boolean),
+    [suppliersData],
+  );
+
+  const { data: membersData } = useQuery<{ members?: { firstName: string; lastName: string }[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/members`), { credentials: "include" }).then(r => r.json()),
+  });
+  const staffNames: string[] = useMemo(
+    () => (membersData?.members ?? []).map((m) => `${m.firstName} ${m.lastName}`.trim()).filter(Boolean),
+    [membersData],
+  );
+
+  const allRows: Record<string, unknown>[] = useMemo(
+    () => (Array.isArray(logs) ? logs : (logs as { records?: unknown[] }).records ?? []) as Record<string, unknown>[],
+    [logs],
+  );
+
+  const poSuggestions: string[] = useMemo(() => {
+    if (!form.supplier) return [];
+    return [...new Set(
+      allRows
+        .filter(r => r.supplier === form.supplier && r.poReference)
+        .map(r => String(r.poReference))
+    )];
+  }, [allRows, form.supplier]);
+
+  const grnSuggestions: string[] = useMemo(() => {
+    if (!form.supplier) return [];
+    return [...new Set(
+      allRows
+        .filter(r => r.supplier === form.supplier && r.grnReference)
+        .map(r => String(r.grnReference))
+    )];
+  }, [allRows, form.supplier]);
+
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(
       editing ? api(`farms/${farmId}/organic-fp-input-log/${editing.id}`) : api(`farms/${farmId}/organic-fp-input-log`),
@@ -787,7 +829,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
     setOpen(true);
   }
 
-  const rows = logs as Record<string, unknown>[];
+  const rows = allRows;
   const blocks = growerBlocks as { id: number; blockName: string }[];
   const blockName = (id: unknown) => blocks.find(b => String(b.id) === String(id))?.blockName ?? "—";
 
@@ -987,18 +1029,54 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
             </div>
 
             {/* Supplier / PO / GRN */}
+            <datalist id="input-supplier-list">
+              {supplierNames.map(n => <option key={n} value={n} />)}
+            </datalist>
+            <datalist id="input-po-list">
+              {poSuggestions.map(p => <option key={p} value={p} />)}
+            </datalist>
+            <datalist id="input-grn-list">
+              {grnSuggestions.map(g => <option key={g} value={g} />)}
+            </datalist>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Supplier</Label>
-                <Input value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} placeholder="Supplier name" />
+                <Input
+                  list="input-supplier-list"
+                  value={form.supplier}
+                  onChange={e => setForm(f => ({ ...f, supplier: e.target.value, poReference: "", grnReference: "" }))}
+                  placeholder={supplierNames.length > 0 ? "Search or type supplier…" : "Supplier name"}
+                />
+                {supplierNames.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Add suppliers in the Suppliers module to enable the lookup.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Purchase Order Ref</Label>
-                <Input value={form.poReference} onChange={e => setForm(f => ({ ...f, poReference: e.target.value }))} placeholder="PO number" />
+                <Input
+                  list="input-po-list"
+                  value={form.poReference}
+                  onChange={e => setForm(f => ({ ...f, poReference: e.target.value }))}
+                  placeholder={form.supplier && poSuggestions.length > 0 ? "Pick or type PO…" : "PO number"}
+                  disabled={false}
+                />
+                {form.supplier && poSuggestions.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1">{poSuggestions.length} PO ref{poSuggestions.length !== 1 ? "s" : ""} on file for this supplier</p>
+                )}
               </div>
               <div>
                 <Label>GRN / Delivery Note</Label>
-                <Input value={form.grnReference} onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))} placeholder="GRN number" />
+                <Input
+                  list="input-grn-list"
+                  value={form.grnReference}
+                  onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))}
+                  placeholder={form.supplier && grnSuggestions.length > 0 ? "Pick or type GRN…" : "GRN number"}
+                />
+                {form.supplier && grnSuggestions.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1">{grnSuggestions.length} GRN ref{grnSuggestions.length !== 1 ? "s" : ""} on file for this supplier</p>
+                )}
               </div>
             </div>
 
@@ -1045,7 +1123,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
               </div>
               <div>
                 <Label>Applied By</Label>
-                <Input value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} />
+                <StaffSelect value={form.appliedBy} onChange={v => setForm(f => ({ ...f, appliedBy: v }))} staffNames={staffNames} />
               </div>
             </div>
 
