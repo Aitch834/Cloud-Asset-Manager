@@ -5,7 +5,6 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Redirect } from "wouter";
 import {
   Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
   Calendar, Leaf, ShieldCheck, FlaskConical, BookOpen, Clock,
@@ -701,12 +700,8 @@ const TABS = [
 type TabKey = typeof TABS[number]["key"];
 
 export default function OrganicFreshProducePage() {
-  const { farmId, activeModuleKeys } = useAppStore();
+  const { farmId } = useAppStore();
   const [tab, setTab] = useState<TabKey>("block-status");
-
-  if (!activeModuleKeys.includes("organic-fresh-produce")) {
-    return <Redirect to="/" />;
-  }
 
   if (!farmId) return null;
 
