@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -6,16 +6,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
-  Calendar, Leaf, ShieldCheck, FlaskConical, BookOpen, Clock,
-  Eye, FileText,
+  Plus, Loader2, Pencil, Trash2, AlertTriangle,
+  Leaf, ShieldCheck, FlaskConical, FileText,
+  Eye, Info, Package,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 function fmt(val: string | null | undefined): string {
@@ -44,6 +42,145 @@ function conversionProgress(startDate: string | null | undefined): number {
 }
 
 const api = (path: string) => `/api/${path}`;
+
+function yearRange(): number[] {
+  const cur = new Date().getFullYear();
+  return Array.from({ length: 8 }, (_, i) => cur - 2 + i);
+}
+
+// ─── Approved substances (Annex I fertilisers + Annex II crop protection) ────
+
+interface SubstanceOption { substance: string; autoType: string; }
+
+const ANNEX_INPUTS: SubstanceOption[] = [
+  { substance: "Farmyard Manure (FYM) — composted or well-rotted", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Composted Plant & Animal Material", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Green Manure / Cover Crop Residue", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Slurry (composted; restricted from non-organic units)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Dried Blood (Blood Meal)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Bone Meal / Steamed Bone Flour", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Fish Meal / Fish Emulsion", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Seaweed Meal", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Calcified Seaweed (Lithothamnium)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Seaweed Extract (liquid)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Rock Phosphate (soft / reactive)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Potassium Sulphate (natural mineral extraction, low chloride)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Kieserite (Magnesium Sulphate, natural mineral)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Wood Ash (from untreated wood only)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Ground Limestone / Calcium Carbonate", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Dolomitic Limestone / Magnesium Limestone", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Gypsum (natural calcium sulphate)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Elemental Sulphur", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Peat (growing media only)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Vermiculite (growing media)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Perlite (growing media)", autoType: "Fertiliser / Soil Amendment" },
+  { substance: "Copper Hydroxide", autoType: "Crop Protection / Pesticide" },
+  { substance: "Copper Oxychloride", autoType: "Crop Protection / Pesticide" },
+  { substance: "Copper Sulphate / Bordeaux Mixture", autoType: "Crop Protection / Pesticide" },
+  { substance: "Pyrethrin (from Chrysanthemum cinerariaefolium)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Spinosad (restricted — certifier notification required)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Azadirachtin / Neem Extract", autoType: "Crop Protection / Pesticide" },
+  { substance: "Bacillus thuringiensis (Bt)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Bacillus subtilis", autoType: "Crop Protection / Pesticide" },
+  { substance: "Beauveria bassiana", autoType: "Crop Protection / Pesticide" },
+  { substance: "Entomopathogenic Nematodes", autoType: "Crop Protection / Pesticide" },
+  { substance: "Iron Phosphate (slug pellets)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Kaolin (particle film)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Diatomaceous Earth / Kieselgur", autoType: "Crop Protection / Pesticide" },
+  { substance: "Potassium Bicarbonate", autoType: "Crop Protection / Pesticide" },
+  { substance: "Sulphur (wettable / dust)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Soft Soap / Potassium Soap", autoType: "Crop Protection / Pesticide" },
+  { substance: "Rapeseed Oil / Plant Oil", autoType: "Crop Protection / Pesticide" },
+  { substance: "Pheromones (mating disruption traps only)", autoType: "Crop Protection / Pesticide" },
+  { substance: "Certified Organic Seed", autoType: "Seed Treatment" },
+  { substance: "Untreated Conventional Seed (derogation required)", autoType: "Seed Treatment" },
+  { substance: "Potassium Permanganate (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Hydrogen Peroxide (disinfection)", autoType: "Cleaning & Disinfection" },
+  { substance: "Sodium Hypochlorite (disinfection of equipment only)", autoType: "Cleaning & Disinfection" },
+];
+
+const INPUT_TYPES = [
+  "Fertiliser / Soil Amendment",
+  "Crop Protection / Pesticide",
+  "Biological Control",
+  "Seed Treatment",
+  "Cleaning & Disinfection",
+  "Water Treatment",
+  "Other",
+];
+
+const QUANTITY_UNITS = ["kg", "kg/ha", "l", "l/ha", "t", "g", "g/ha", "units"];
+
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  permitted: "Permitted",
+  restricted: "Restricted (notify certifier)",
+  derogation: "Derogation Required",
+};
+
+const APPROVAL_STATUS_COLORS: Record<string, string> = {
+  permitted: "bg-green-50 text-green-700 border-green-300",
+  restricted: "bg-amber-50 text-amber-700 border-amber-300",
+  derogation: "bg-red-50 text-red-700 border-red-300",
+};
+
+function SubstancePicker({ value, onSelect }: { value: string; onSelect: (substance: string, autoType: string) => void }) {
+  const inList = ANNEX_INPUTS.some(o => o.substance === value);
+  const [showCustom, setShowCustom] = useState(!inList && value !== "");
+  const selectValue = inList ? value : (showCustom || value !== "") ? "__other__" : "";
+
+  function handleSelect(val: string) {
+    if (val === "__other__") { setShowCustom(true); onSelect("", ""); }
+    else if (val === "") { setShowCustom(false); onSelect("", ""); }
+    else {
+      const opt = ANNEX_INPUTS.find(o => o.substance === val);
+      if (opt) { setShowCustom(false); onSelect(opt.substance, opt.autoType); }
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <select
+        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+        value={selectValue}
+        onChange={e => handleSelect(e.target.value)}
+      >
+        <option value="">Select approved substance…</option>
+        {ANNEX_INPUTS.map(o => (
+          <option key={o.substance} value={o.substance}>{o.substance}</option>
+        ))}
+        <option value="__other__">Other / specify below</option>
+      </select>
+      {(showCustom || selectValue === "__other__") && (
+        <Input
+          required
+          placeholder="Enter product / substance name"
+          value={inList ? "" : value}
+          onChange={e => onSelect(e.target.value, "")}
+          autoFocus
+        />
+      )}
+    </div>
+  );
+}
+
+const EMPTY_INPUT_FORM = {
+  applicationDate: new Date().toISOString().slice(0, 10),
+  cropYear: new Date().getFullYear(),
+  blockId: "" as string,
+  inputName: "",
+  inputType: "",
+  approvalStatus: "permitted",
+  certifierApprovalRef: "",
+  approvedByBody: "",
+  supplier: "",
+  poReference: "",
+  grnReference: "",
+  quantityApplied: "",
+  quantityUnit: "kg",
+  purposeOfUse: "",
+  appliedBy: "",
+  notes: "",
+};
 
 // ─── Block Status Tab ────────────────────────────────────────────────────────
 
@@ -236,11 +373,17 @@ function InputLogTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const [form, setForm] = useState({ ...EMPTY_INPUT_FORM });
+  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
 
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ["ofp-input-log", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/organic-fp-input-log`), { credentials: "include" }).then(r => r.json()),
+    queryKey: ["ofp-input-log", farmId, yearFilter],
+    queryFn: () => {
+      const url = yearFilter === "all"
+        ? api(`farms/${farmId}/organic-fp-input-log`)
+        : api(`farms/${farmId}/organic-fp-input-log?cropYear=${yearFilter}`);
+      return fetch(url, { credentials: "include" }).then(r => r.json());
+    },
   });
 
   const { data: growerBlocks = [] } = useQuery({
@@ -253,139 +396,312 @@ function InputLogTab({ farmId }: { farmId: number }) {
       editing ? api(`farms/${farmId}/organic-fp-input-log/${editing.id}`) : api(`farms/${farmId}/organic-fp-input-log`),
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: "Saved" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] });
+      setOpen(false); setEditing(null); setForm({ ...EMPTY_INPUT_FORM });
+      toast({ title: "Input saved" });
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-input-log/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] }); toast({ title: "Input deleted" }); },
   });
 
-  const openEdit = (r: Record<string, unknown>) => {
+  function openEdit(r: Record<string, unknown>) {
     setEditing(r);
-    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean])));
+    setForm({
+      applicationDate: (r.applicationDate as string)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+      cropYear: r.cropYear != null ? Number(r.cropYear) : new Date().getFullYear(),
+      blockId: r.blockId != null ? String(r.blockId) : "",
+      inputName: (r.inputName as string) ?? "",
+      inputType: (r.inputType as string) ?? "",
+      approvalStatus: (r.approvalStatus as string) ?? "permitted",
+      certifierApprovalRef: (r.certifierApprovalRef as string) ?? "",
+      approvedByBody: (r.approvedByBody as string) ?? "",
+      supplier: (r.supplier as string) ?? "",
+      poReference: (r.poReference as string) ?? "",
+      grnReference: (r.grnReference as string) ?? "",
+      quantityApplied: r.quantityApplied != null ? String(r.quantityApplied) : "",
+      quantityUnit: (r.quantityUnit as string) ?? "kg",
+      purposeOfUse: (r.purposeOfUse as string) ?? "",
+      appliedBy: (r.appliedBy as string) ?? "",
+      notes: (r.notes as string) ?? "",
+    });
     setOpen(true);
-  };
+  }
+
+  const rows = logs as Record<string, unknown>[];
+  const blocks = growerBlocks as { id: number; blockName: string }[];
+  const blockName = (id: unknown) => blocks.find(b => String(b.id) === String(id))?.blockName ?? "—";
+
+  const permitted = useMemo(() => rows.filter(r => r.approvalStatus === "permitted" || (!r.approvalStatus && r.isApproved)).length, [rows]);
+  const restricted = useMemo(() => rows.filter(r => r.approvalStatus === "restricted").length, [rows]);
+  const derogation = useMemo(() => rows.filter(r => r.approvalStatus === "derogation").length, [rows]);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Organic Input Log</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ isApproved: true }); setOpen(true); }}>
+      <div className="rounded-md border bg-green-50 border-green-200 px-4 py-3 text-sm text-green-800 flex gap-2">
+        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+        <span>Record every input applied to organic blocks — fertilisers, crop protection, seed treatments, and cleaning products. This is your evidence register for annual certification inspection.</span>
+      </div>
+
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+            value={yearFilter}
+            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+          >
+            <option value="all">All years</option>
+            {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {rows.length > 0 && (
+            <div className="flex gap-3 text-xs pl-1">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{permitted} permitted</span>
+              {restricted > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{restricted} restricted</span>}
+              {derogation > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{derogation} derogation</span>}
+            </div>
+          )}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ ...EMPTY_INPUT_FORM }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" />Add Input
         </Button>
       </div>
 
-      <div className="rounded-md border bg-amber-50 border-amber-200 px-4 py-3 text-sm text-amber-800 flex gap-2">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Only approved organic inputs may be applied. Log all inputs — including water, permitted treatments, and biological controls.</span>
-      </div>
-
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (logs as Record<string, unknown>[]).length === 0 ? (
-        <p className="text-sm text-muted-foreground italic py-6 text-center">No input records yet.</p>
+      {isLoading ? (
+        <Loader2 className="animate-spin w-5 h-5" />
+      ) : rows.length === 0 ? (
+        <div className="py-10 text-center space-y-2">
+          <Package className="w-8 h-8 mx-auto text-muted-foreground opacity-40" />
+          <p className="text-sm text-muted-foreground italic">No input records{yearFilter !== "all" ? ` for ${yearFilter}` : ""} yet.</p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Date</th>
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Input</th>
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Type</th>
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Block</th>
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Approved?</th>
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Qty</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {(logs as Record<string, unknown>[]).map((row, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 pr-4">{fmt(row.applicationDate as string)}</td>
-                  <td className="py-2 pr-4 font-medium">{fmtRaw(row.inputName)}</td>
-                  <td className="py-2 pr-4">{fmtRaw(row.inputType)}</td>
-                  <td className="py-2 pr-4">{fmtRaw((growerBlocks as { id: unknown; blockName: string }[]).find(b => String(b.id) === String(row.blockId))?.blockName)}</td>
-                  <td className="py-2 pr-4">
-                    {row.isApproved
-                      ? <span className="text-xs text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Yes</span>
-                      : <span className="text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />No</span>}
-                  </td>
-                  <td className="py-2 pr-4">{fmtRaw(row.quantityApplied)} {fmtRaw(row.quantityUnit)}</td>
-                  <td className="py-2 text-right space-x-1 whitespace-nowrap">
-                    <Button size="icon" variant="ghost" onClick={() => setViewRecord(row)}><Eye className="w-3.5 h-3.5" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => del.mutate(row.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {rows.map((row, i) => {
+            const status = (row.approvalStatus as string) ?? (row.isApproved ? "permitted" : "restricted");
+            const statusColor = APPROVAL_STATUS_COLORS[status] ?? APPROVAL_STATUS_COLORS.permitted;
+            return (
+              <div key={i} className="rounded-md border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Package className="w-4 h-4 text-green-600 shrink-0" />
+                      <span className="font-semibold text-sm">{fmtRaw(row.inputName)}</span>
+                      {row.inputType && <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{fmtRaw(row.inputType)}</span>}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor}`}>
+                        {APPROVAL_STATUS_LABELS[status] ?? status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                      {row.applicationDate && <span>{fmt(row.applicationDate as string)}</span>}
+                      {row.blockId && <span>Block: {blockName(row.blockId)}</span>}
+                      {row.supplier && <span>Supplier: {fmtRaw(row.supplier)}</span>}
+                      {row.quantityApplied && <span>Qty: {fmtRaw(row.quantityApplied)}{row.quantityUnit ? ` ${fmtRaw(row.quantityUnit)}` : ""}</span>}
+                      {row.approvedByBody && <span>Certifier: {fmtRaw(row.approvedByBody)}</span>}
+                    </div>
+                    {(row.poReference || row.grnReference) && (
+                      <div className="text-xs text-muted-foreground flex gap-3 mt-0.5">
+                        {row.poReference && <span>PO: {fmtRaw(row.poReference)}</span>}
+                        {row.grnReference && <span>GRN: {fmtRaw(row.grnReference)}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewRecord(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => del.mutate(row.id as number)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* View Dialog */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader><DialogTitle>Input Log Entry</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmt(viewRecord.applicationDate as string)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Input Name</p><p className="font-medium">{fmtRaw(viewRecord.inputName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product / Substance</p><p className="font-medium">{fmtRaw(viewRecord.inputName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Input Type</p><p className="font-medium">{fmtRaw(viewRecord.inputType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Status</p>
+                <p className="font-medium">{APPROVAL_STATUS_LABELS[(viewRecord.approvalStatus as string)] ?? fmtRaw(viewRecord.approvalStatus)}</p>
+              </div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved by Body</p><p className="font-medium">{fmtRaw(viewRecord.approvedByBody)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved Input?</p><p className="font-medium">{viewRecord.isApproved ? "Yes" : "No — PROHIBITED"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p><p className="font-medium">{fmtRaw(viewRecord.quantityApplied)} {fmtRaw(viewRecord.quantityUnit)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purpose</p><p className="font-medium">{fmtRaw(viewRecord.purposeOfUse)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{fmtRaw(viewRecord.supplier)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{fmtRaw(viewRecord.poReference)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{fmtRaw(viewRecord.grnReference)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Application Date</p><p className="font-medium">{fmt(viewRecord.applicationDate as string)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Year</p><p className="font-medium">{fmtRaw(viewRecord.cropYear)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Growing Block</p><p className="font-medium">{blockName(viewRecord.blockId)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p>
+                <p className="font-medium">{viewRecord.quantityApplied ? `${fmtRaw(viewRecord.quantityApplied)} ${fmtRaw(viewRecord.quantityUnit)}` : "—"}</p>
+              </div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purpose of Use</p><p className="font-medium">{fmtRaw(viewRecord.purposeOfUse)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Applied By</p><p className="font-medium">{fmtRaw(viewRecord.appliedBy)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
+        <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Input Record" : "Log Organic Input"}</DialogTitle>
+            <DialogDescription>Record an input applied to organic blocks — this forms your evidence register for annual inspection.</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Application Date *</Label><Input type="date" value={(form.applicationDate as string) ?? ""} onChange={e => setForm(f => ({ ...f, applicationDate: e.target.value }))} /></div>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+
+            {/* Substance */}
             <div>
-              <Label>Growing Block</Label>
-              <Select value={(form.blockId as string) ?? ""} onValueChange={v => setForm(f => ({ ...f, blockId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select block" /></SelectTrigger>
-                <SelectContent>{(growerBlocks as { id: number; blockName: string }[]).map(b => <SelectItem key={b.id} value={String(b.id)}>{b.blockName}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>Product / Substance Name *</Label>
+              <SubstancePicker
+                value={form.inputName}
+                onSelect={(substance, autoType) => setForm(f => ({ ...f, inputName: substance, inputType: autoType || f.inputType }))}
+              />
             </div>
-            <div><Label>Input Name *</Label><Input value={(form.inputName as string) ?? ""} onChange={e => setForm(f => ({ ...f, inputName: e.target.value }))} placeholder="e.g. Copper sulphate" /></div>
+
+            {/* Type + Block */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Input Type</Label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.inputType}
+                  onChange={e => setForm(f => ({ ...f, inputType: e.target.value }))}
+                >
+                  <option value="">Select…</option>
+                  {INPUT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Growing Block</Label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.blockId}
+                  onChange={e => setForm(f => ({ ...f, blockId: e.target.value }))}
+                >
+                  <option value="">— None —</option>
+                  {blocks.map(b => <option key={b.id} value={String(b.id)}>{b.blockName}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Approval status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Approval Status *</Label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.approvalStatus}
+                  onChange={e => setForm(f => ({ ...f, approvalStatus: e.target.value }))}
+                >
+                  <option value="permitted">Permitted</option>
+                  <option value="restricted">Restricted (notify certifier)</option>
+                  <option value="derogation">Derogation Required</option>
+                </select>
+              </div>
+              {(form.approvalStatus === "restricted" || form.approvalStatus === "derogation") && (
+                <div>
+                  <Label>Certifier Approval Ref</Label>
+                  <Input value={form.certifierApprovalRef} onChange={e => setForm(f => ({ ...f, certifierApprovalRef: e.target.value }))} placeholder="Reference number" />
+                </div>
+              )}
+              {form.approvalStatus === "permitted" && (
+                <div>
+                  <Label>Approved by Certifying Body</Label>
+                  <Input value={form.approvedByBody} onChange={e => setForm(f => ({ ...f, approvedByBody: e.target.value }))} placeholder="e.g. Soil Association, OF&G" />
+                </div>
+              )}
+            </div>
+
+            {/* Supplier / PO / GRN */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Supplier</Label>
+                <Input value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} placeholder="Supplier name" />
+              </div>
+              <div>
+                <Label>Purchase Order Ref</Label>
+                <Input value={form.poReference} onChange={e => setForm(f => ({ ...f, poReference: e.target.value }))} placeholder="PO number" />
+              </div>
+              <div>
+                <Label>GRN / Delivery Note</Label>
+                <Input value={form.grnReference} onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))} placeholder="GRN number" />
+              </div>
+            </div>
+
+            {/* Date / Year / Quantity */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Application Date *</Label>
+                <Input type="date" value={form.applicationDate} onChange={e => setForm(f => ({ ...f, applicationDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Crop Year</Label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.cropYear}
+                  onChange={e => setForm(f => ({ ...f, cropYear: parseInt(e.target.value) }))}
+                >
+                  {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Quantity Applied</Label>
+                <Input type="number" value={form.quantityApplied} onChange={e => setForm(f => ({ ...f, quantityApplied: e.target.value }))} placeholder="Amount" />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.quantityUnit}
+                  onChange={e => setForm(f => ({ ...f, quantityUnit: e.target.value }))}
+                >
+                  {QUANTITY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Purpose / Applied By */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Purpose of Use</Label>
+                <Input value={form.purposeOfUse} onChange={e => setForm(f => ({ ...f, purposeOfUse: e.target.value }))} placeholder="e.g. Slug control, foliar feed" />
+              </div>
+              <div>
+                <Label>Applied By</Label>
+                <Input value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} />
+              </div>
+            </div>
+
             <div>
-              <Label>Input Type</Label>
-              <Select value={(form.inputType as string) ?? ""} onValueChange={v => setForm(f => ({ ...f, inputType: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fertiliser">Fertiliser</SelectItem>
-                  <SelectItem value="Pesticide / Fungicide">Pesticide / Fungicide</SelectItem>
-                  <SelectItem value="Biological control">Biological Control</SelectItem>
-                  <SelectItem value="Seed treatment">Seed Treatment</SelectItem>
-                  <SelectItem value="Water treatment">Water Treatment</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
-            <div><Label>Approved By Body</Label><Input value={(form.approvedByBody as string) ?? ""} onChange={e => setForm(f => ({ ...f, approvedByBody: e.target.value }))} placeholder="e.g. Soil Association" /></div>
-            <div className="flex items-center gap-2 pt-5">
-              <Checkbox id="isApproved" checked={form.isApproved === true || form.isApproved === "true"} onCheckedChange={v => setForm(f => ({ ...f, isApproved: !!v }))} />
-              <Label htmlFor="isApproved">Approved organic input</Label>
-            </div>
-            <div><Label>Quantity Applied</Label><Input value={(form.quantityApplied as string) ?? ""} onChange={e => setForm(f => ({ ...f, quantityApplied: e.target.value }))} type="number" /></div>
-            <div><Label>Unit</Label><Input value={(form.quantityUnit as string) ?? ""} onChange={e => setForm(f => ({ ...f, quantityUnit: e.target.value }))} placeholder="e.g. kg/ha, l/ha" /></div>
-            <div><Label>Purpose of Use</Label><Input value={(form.purposeOfUse as string) ?? ""} onChange={e => setForm(f => ({ ...f, purposeOfUse: e.target.value }))} /></div>
-            <div><Label>Applied By</Label><Input value={(form.appliedBy as string) ?? ""} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={(form.notes as string) ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.applicationDate || !form.inputName}>
-              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button
+              onClick={() => save.mutate(form as unknown as Record<string, unknown>)}
+              disabled={save.isPending || !form.applicationDate || !form.inputName.trim()}
+            >
+              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Save
             </Button>
           </DialogFooter>
         </DialogContent>

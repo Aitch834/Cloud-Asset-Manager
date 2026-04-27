@@ -14596,7 +14596,10 @@ router.delete("/farms/:farmId/organic-fp-block-status/:id", requireAuth, require
 
 router.get("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(organicFreshProduceInputLogTable).where(eq(organicFreshProduceInputLogTable.farmId, farmId)).orderBy(desc(organicFreshProduceInputLogTable.applicationDate));
+  const cropYear = req.query.cropYear ? parseInt(req.query.cropYear as string) : null;
+  const conditions = [eq(organicFreshProduceInputLogTable.farmId, farmId)];
+  if (cropYear) conditions.push(eq(organicFreshProduceInputLogTable.cropYear, cropYear));
+  const rows = await db.select().from(organicFreshProduceInputLogTable).where(and(...conditions)).orderBy(desc(organicFreshProduceInputLogTable.applicationDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
