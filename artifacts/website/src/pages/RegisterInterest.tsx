@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 
 const FARM_TYPES = [
   "Arable / Combinable Crops",
-  "Horticulture",
+  "Fresh Produce / Horticulture",
   "Dairy",
   "Beef",
   "Sheep",
@@ -38,7 +38,7 @@ const MODULES = [
   { id: "equipment-workshop", label: "Equipment, Workshop & Fuel" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "water-irrigation", label: "Water & Irrigation Management" },
-  { id: "horticulture", label: "Horticulture & Fresh Produce" },
+  { id: "fresh-produce", label: "Fresh Produce" },
   { id: "pig-production", label: "Pig Production" },
   { id: "poultry-production", label: "Poultry Production" },
   { id: "crop-trials", label: "Crop Trials" },

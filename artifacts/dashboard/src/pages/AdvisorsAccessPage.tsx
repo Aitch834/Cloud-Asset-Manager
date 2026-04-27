@@ -67,7 +67,7 @@ const ALL_MODULES = [
   { key: "environmental", label: "Environmental Records" },
   { key: "pig-production", label: "Pig Production" },
   { key: "poultry-production", label: "Poultry Production" },
-  { key: "horticulture", label: "Horticulture & Fresh Produce" },
+  { key: "fresh-produce", label: "Fresh Produce" },
   { key: "carbon-sustainability", label: "Carbon & Sustainability" },
   { key: "farm-diversification", label: "Farm Diversification" },
   { key: "water-irrigation", label: "Water & Irrigation Management" },

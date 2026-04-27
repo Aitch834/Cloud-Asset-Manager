@@ -28,7 +28,7 @@ const MODULES = [
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
   { id: "pig-production", name: "Pig Production", price: 25 },
   { id: "poultry-production", name: "Poultry Production", price: 25 },
-  { id: "horticulture", name: "Horticulture & Fresh Produce", price: 20 },
+  { id: "fresh-produce", name: "Fresh Produce", price: 25, note: "Growing blocks, crop records, water quality testing, harvest records, pre-cooling & intake, packhouse & despatch, allergen management and cold chain compliance" },
   { id: "farm-diversification", name: "Farm Diversification", price: 15, note: "Farm Shop management, equine & livery health records, shooting & game logs, food hygiene inspections (FHRS), accommodation bookings and diversification income tracking" },
   { id: "grain-crop-storage", name: "Grain & Crop Storage", price: 18, note: "Storage location register, stock movements (intake/dispatch/transfer/drying loss), merchant storage charges, and record drill-down linking to haulage, sales and harvest records" },
   { id: "farm-services-contracting", name: "Farm Services & Contracting", price: 15, note: "Farm-as-service-provider: contracting jobs, equipment hire, customer directory, revenue summary, insurance cross-reference, and workshop job invoicing — raise billable invoices for repairs or maintenance done for other farms directly from the Workshop module" },
