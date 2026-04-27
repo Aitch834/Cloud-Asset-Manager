@@ -178,6 +178,7 @@ import {
   freshProduceIntakeTable,
   allergenManagementRecordsTable,
   organicFreshProduceBlockStatusTable,
+  organicFpBlockSyntheticHistoryTable,
   organicFreshProduceInputLogTable,
   organicFreshProduceCertificatesTable,
   organicFreshProduceBuyerDeclarationsTable,
@@ -14592,6 +14593,43 @@ router.delete("/farms/:farmId/organic-fp-block-status/:id", requireAuth, require
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceBlockStatusTable).where(and(eq(organicFreshProduceBlockStatusTable.id, id), eq(organicFreshProduceBlockStatusTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp-block-status/:blockStatusId/synthetic-history", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const blockStatusId = parseInt(req.params.blockStatusId); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const rows = await db.select().from(organicFpBlockSyntheticHistoryTable).where(and(eq(organicFpBlockSyntheticHistoryTable.farmId, farmId), eq(organicFpBlockSyntheticHistoryTable.blockStatusId, blockStatusId))).orderBy(desc(organicFpBlockSyntheticHistoryTable.applicationDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/organic-fp-block-status/:blockStatusId/synthetic-history", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const blockStatusId = parseInt(req.params.blockStatusId); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.insert(organicFpBlockSyntheticHistoryTable).values({ ...req.body, farmId, blockStatusId }).returning();
+  res.status(201).json(row);
+});
+
+router.delete("/farms/:farmId/organic-fp-synthetic-history/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFpBlockSyntheticHistoryTable).where(and(eq(organicFpBlockSyntheticHistoryTable.id, id), eq(organicFpBlockSyntheticHistoryTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/spray-applications-lookup", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select({
+    id: sprayApplicationsTable.id,
+    applicationDate: sprayApplicationsTable.applicationDate,
+    productName: sprayProductsTable.productName,
+    activeIngredient: sprayProductsTable.activeIngredient,
+    reasonForApplication: sprayApplicationsTable.reasonForApplication,
+  }).from(sprayApplicationsTable)
+    .innerJoin(sprayProductsTable, eq(sprayApplicationsTable.productId, sprayProductsTable.id))
+    .where(eq(sprayApplicationsTable.farmId, farmId))
+    .orderBy(desc(sprayApplicationsTable.applicationDate))
+    .limit(200);
+  res.json(rows);
 });
 
 router.get("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {

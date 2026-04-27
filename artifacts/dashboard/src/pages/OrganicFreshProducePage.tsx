@@ -183,6 +183,151 @@ const EMPTY_INPUT_FORM = {
   notes: "",
 };
 
+// ─── Synthetic History Panel ──────────────────────────────────────────────────
+
+type SprayLookup = { id: number; applicationDate: string; productName: string; activeIngredient: string | null; reasonForApplication: string | null };
+type SyntheticEntry = { id: number; productName: string; activeIngredient: string | null; productType: string | null; applicationDate: string | null; notes: string | null };
+
+const EMPTY_SYNTH = { productName: "", activeIngredient: "", productType: "spray", applicationDate: "", notes: "" };
+
+function SyntheticHistoryPanel({ farmId, blockStatusId }: { farmId: number; blockStatusId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [mode, setMode] = useState<"none" | "manual" | "import">("none");
+  const [manualForm, setManualForm] = useState({ ...EMPTY_SYNTH });
+  const [selectedSprayId, setSelectedSprayId] = useState("");
+
+  const { data: entries = [] } = useQuery<SyntheticEntry[]>({
+    queryKey: ["synth-history", blockStatusId],
+    queryFn: () => fetch(api(`farms/${farmId}/organic-fp-block-status/${blockStatusId}/synthetic-history`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: sprayOptions = [] } = useQuery<SprayLookup[]>({
+    queryKey: ["spray-lookup", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/spray-applications-lookup`), { credentials: "include" }).then(r => r.json()),
+    enabled: mode === "import",
+  });
+
+  const add = useMutation({
+    mutationFn: (body: Record<string, unknown>) => fetch(api(`farms/${farmId}/organic-fp-block-status/${blockStatusId}/synthetic-history`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }); setMode("none"); setManualForm({ ...EMPTY_SYNTH }); setSelectedSprayId(""); toast({ title: "Entry added" }); },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-synthetic-history/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }),
+  });
+
+  const productTypeLabel = (t: string | null) => {
+    if (t === "spray") return <span className="text-xs px-1.5 py-0.5 rounded bg-red-50 text-red-700">Spray</span>;
+    if (t === "fertiliser") return <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">Fertiliser</span>;
+    return <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{t ?? "Other"}</span>;
+  };
+
+  const handleImport = () => {
+    const spray = sprayOptions.find(s => String(s.id) === selectedSprayId);
+    if (!spray) return;
+    add.mutate({
+      productName: spray.productName,
+      activeIngredient: spray.activeIngredient ?? "",
+      productType: "spray",
+      applicationDate: spray.applicationDate ? spray.applicationDate.slice(0, 10) : "",
+      notes: spray.reasonForApplication ?? "",
+      sprayApplicationId: spray.id,
+    });
+  };
+
+  return (
+    <div className="col-span-2 border rounded-lg p-3 space-y-2 bg-muted/30">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1"><FlaskConical className="w-3 h-3" />Previous Synthetic Input History</p>
+        <div className="flex gap-1">
+          <Button size="sm" variant={mode === "manual" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setMode(m => m === "manual" ? "none" : "manual")}>
+            <Plus className="w-3 h-3 mr-0.5" />Manual
+          </Button>
+          <Button size="sm" variant={mode === "import" ? "secondary" : "outline"} className="h-6 text-xs px-2" onClick={() => setMode(m => m === "import" ? "none" : "import")}>
+            Import from Spray Records
+          </Button>
+        </div>
+      </div>
+
+      {(entries as SyntheticEntry[]).length === 0 && mode === "none" && (
+        <p className="text-xs text-muted-foreground italic text-center py-2">No synthetic input history recorded. Use the buttons above to add entries.</p>
+      )}
+
+      {(entries as SyntheticEntry[]).map(e => (
+        <div key={e.id} className="flex items-start justify-between gap-2 bg-white rounded p-2 border text-xs">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-medium">{e.productName}</span>
+              {productTypeLabel(e.productType)}
+              {e.applicationDate && <span className="text-muted-foreground">{fmt(e.applicationDate)}</span>}
+            </div>
+            {e.activeIngredient && <p className="text-muted-foreground mt-0.5">Active ingredient: {e.activeIngredient}</p>}
+            {e.notes && <p className="text-muted-foreground mt-0.5 italic">{e.notes}</p>}
+          </div>
+          <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => remove.mutate(e.id)}>
+            <Trash2 className="w-3 h-3 text-red-400" />
+          </Button>
+        </div>
+      ))}
+
+      {mode === "manual" && (
+        <div className="border rounded p-2 space-y-2 bg-white">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">Product Name *</Label><Input className="h-7 text-xs" value={manualForm.productName} onChange={e => setManualForm(f => ({ ...f, productName: e.target.value }))} /></div>
+            <div>
+              <Label className="text-xs">Type</Label>
+              <select className="w-full h-7 text-xs border rounded px-1" value={manualForm.productType} onChange={e => setManualForm(f => ({ ...f, productType: e.target.value }))}>
+                <option value="spray">Spray / Pesticide</option>
+                <option value="fertiliser">Fertiliser</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div><Label className="text-xs">Active Ingredient</Label><Input className="h-7 text-xs" value={manualForm.activeIngredient} onChange={e => setManualForm(f => ({ ...f, activeIngredient: e.target.value }))} /></div>
+            <div><Label className="text-xs">Application Date</Label><Input type="date" className="h-7 text-xs" value={manualForm.applicationDate} onChange={e => setManualForm(f => ({ ...f, applicationDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={manualForm.notes} onChange={e => setManualForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. reason for application" /></div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setMode("none"); setManualForm({ ...EMPTY_SYNTH }); }}>Cancel</Button>
+            <Button size="sm" className="h-6 text-xs" disabled={!manualForm.productName || add.isPending} onClick={() => add.mutate({ ...manualForm })}>
+              {add.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add Entry"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === "import" && (
+        <div className="border rounded p-2 space-y-2 bg-white">
+          <p className="text-xs text-muted-foreground">Select a spray application from your existing records to import as a synthetic input entry.</p>
+          {sprayOptions.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground">No spray records found for this farm.</p>
+          ) : (
+            <>
+              <select className="w-full border rounded px-2 py-1 text-xs" value={selectedSprayId} onChange={e => setSelectedSprayId(e.target.value)}>
+                <option value="">Select a spray record…</option>
+                {sprayOptions.map(s => (
+                  <option key={s.id} value={String(s.id)}>
+                    {fmt(s.applicationDate)} — {s.productName}{s.activeIngredient ? ` (${s.activeIngredient})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setMode("none"); setSelectedSprayId(""); }}>Cancel</Button>
+                <Button size="sm" className="h-6 text-xs" disabled={!selectedSprayId || add.isPending} onClick={handleImport}>
+                  {add.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Import"}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Block Status Tab ────────────────────────────────────────────────────────
 
 function BlockStatusTab({ farmId }: { farmId: number }) {
@@ -296,8 +441,12 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start</p><p className="font-medium">{fmt(viewRecord.conversionStartDate as string)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fully Organic Date</p><p className="font-medium">{fmt(viewRecord.fullyOrganicDate as string)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Land Use Before</p><p className="font-medium">{fmtRaw(viewRecord.landUseBeforeConversion)}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Previous Synthetic Inputs</p><p className="font-medium">{fmtRaw(viewRecord.previousSyntheticInputs)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+              {viewRecord.id && (
+                <div className="col-span-2">
+                  <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />
+                </div>
+              )}
             </div>
             <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -305,7 +454,7 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
+        <DialogContent style={{ maxWidth: "40rem", maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Block Status" : "Add Block Conversion Record"}</DialogTitle>
             <DialogDescription>Track the organic conversion status of a growing block.</DialogDescription>
@@ -316,12 +465,17 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
               <Input value={form.blockName ?? ""} onChange={e => setForm(f => ({ ...f, blockName: e.target.value }))} />
             </div>
             <div>
-              <Label>Link to Growing Block</Label>
+              <div className="flex items-center gap-1 mb-1">
+                <Label>Link to Growing Block</Label>
+                <span title="Optionally link this record to a named growing block already set up in your system. Selecting one auto-fills the block name and enables cross-referencing with spray records, harvests, and input logs." className="cursor-help">
+                  <Info className="w-3 h-3 text-muted-foreground" />
+                </span>
+              </div>
               <Select value={form.blockId ?? ""} onValueChange={v => {
                 const bl = (growerBlocks as { id: number; blockName: string }[]).find(b => String(b.id) === v);
                 setForm(f => ({ ...f, blockId: v, blockName: f.blockName || (bl?.blockName ?? "") }));
               }}>
-                <SelectTrigger><SelectValue placeholder="Optional link" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Optional — auto-fills name" /></SelectTrigger>
                 <SelectContent>{(growerBlocks as { id: number; blockName: string }[]).map(b => <SelectItem key={b.id} value={String(b.id)}>{b.blockName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -350,9 +504,15 @@ function BlockStatusTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Conversion Start Date</Label><Input type="date" value={form.conversionStartDate ?? ""} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
             <div><Label>Fully Organic Date</Label><Input type="date" value={form.fullyOrganicDate ?? ""} onChange={e => setForm(f => ({ ...f, fullyOrganicDate: e.target.value }))} /></div>
-            <div><Label>Land Use Before Conversion</Label><Input value={form.landUseBeforeConversion ?? ""} onChange={e => setForm(f => ({ ...f, landUseBeforeConversion: e.target.value }))} placeholder="e.g. Conventional arable" /></div>
-            <div><Label>Previous Synthetic Inputs</Label><Input value={form.previousSyntheticInputs ?? ""} onChange={e => setForm(f => ({ ...f, previousSyntheticInputs: e.target.value }))} placeholder="e.g. NPK fertiliser, herbicides" /></div>
+            <div className="col-span-2"><Label>Land Use Before Conversion</Label><Input value={form.landUseBeforeConversion ?? ""} onChange={e => setForm(f => ({ ...f, landUseBeforeConversion: e.target.value }))} placeholder="e.g. Conventional arable, intensive vegetable production" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            {editing?.id ? (
+              <SyntheticHistoryPanel farmId={farmId} blockStatusId={editing.id as number} />
+            ) : (
+              <div className="col-span-2 border rounded-lg p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5"><FlaskConical className="w-3.5 h-3.5" /><span>Save this record first, then open it to edit to add previous synthetic input history.</span></p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

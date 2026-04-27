@@ -218,3 +218,16 @@ export const organicFreshProduceBuyerDeclarationsTable = pgTable("organic_fresh_
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const organicFpBlockSyntheticHistoryTable = pgTable("organic_fp_block_synthetic_history", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockStatusId: integer("block_status_id").notNull().references(() => organicFreshProduceBlockStatusTable.id, { onDelete: "cascade" }),
+  productName: text("product_name").notNull(),
+  activeIngredient: text("active_ingredient"),
+  productType: text("product_type"),
+  applicationDate: date("application_date"),
+  notes: text("notes"),
+  sprayApplicationId: integer("spray_application_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
