@@ -241,6 +241,7 @@ function StockingDensityPanel({ floorAreaM2, capacity, species, productionSystem
 }
 
 function HousesTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: houses, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-houses", "poultry-houses");
   const lengthM = parseFloat(String(form.lengthM ?? "")) || null;
   const widthM = parseFloat(String(form.widthM ?? "")) || null;
@@ -260,7 +261,31 @@ function HousesTab({ farmId }: { farmId: number }) {
         { key: "approvedCapacity", label: "Capacity (birds)" },
         { key: "floorArea", label: "Floor Area", fmt: r => (r.lengthM && r.widthM) ? `${(Number(r.lengthM) * Number(r.widthM)).toFixed(0)} m²` : "—" },
         { key: "density", label: "Density (birds/m²)", fmt: r => (r.lengthM && r.widthM && r.approvedCapacity) ? (Number(r.approvedCapacity) / (Number(r.lengthM) * Number(r.widthM))).toFixed(1) : "—" },
-      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Poultry House — {String(viewRecord.houseName ?? "—")}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House Name</p><p className="font-medium">{String(viewRecord.houseName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved Capacity (birds)</p><p className="font-medium">{String(viewRecord.approvedCapacity ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewRecord.species ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House Type</p><p className="font-medium">{String(viewRecord.houseType ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{String(viewRecord.productionSystem ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Length (m)</p><p className="font-medium">{viewRecord.lengthM ? `${viewRecord.lengthM} m` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Width (m)</p><p className="font-medium">{viewRecord.widthM ? `${viewRecord.widthM} m` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Floor Area</p><p className="font-medium">{(viewRecord.lengthM && viewRecord.widthM) ? `${(Number(viewRecord.lengthM) * Number(viewRecord.widthM)).toFixed(0)} m²` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stocking Density</p><p className="font-medium">{(viewRecord.lengthM && viewRecord.widthM && viewRecord.approvedCapacity) ? `${(Number(viewRecord.approvedCapacity) / (Number(viewRecord.lengthM) * Number(viewRecord.widthM))).toFixed(1)} birds/m²` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ventilation Type</p><p className="font-medium">{String(viewRecord.ventilationType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water System</p><p className="font-medium">{String(viewRecord.waterSystem ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
@@ -320,6 +345,7 @@ function HousesTab({ farmId }: { farmId: number }) {
 }
 
 function FlocksTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks = (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
@@ -350,7 +376,30 @@ function FlocksTab({ farmId }: { farmId: number }) {
         { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) },
         { key: "placementCount", label: "Placed" },
         { key: "status", label: "Status" },
-      ]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      ]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Flock — {String(viewRecord.flockNumber ?? "—")}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock Number</p><p className="font-medium">{String(viewRecord.flockNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House</p><p className="font-medium">{String(viewRecord.houseName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewRecord.species ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{String(viewRecord.productionSystem ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Placement Date</p><p className="font-medium">{fmtDate(viewRecord.placementDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Placement Count (birds)</p><p className="font-medium">{String(viewRecord.placementCount ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Breed / Strain</p><p className="font-medium">{String(viewRecord.breed ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hatchery Name</p><p className="font-medium">{String(viewRecord.hatcheryName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hatchery Approval No.</p><p className="font-medium">{String(viewRecord.hatcheryApprovalNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium capitalize">{String(viewRecord.status ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Flock Record</DialogTitle></DialogHeader>
@@ -435,6 +484,7 @@ function fmtFlock(r: Record<string, unknown>): string {
 }
 
 function MortalityTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
 
@@ -508,7 +558,28 @@ function MortalityTab({ farmId }: { farmId: number }) {
         { key: "runningTotalMortality", label: "Running Total" },
         { key: "mortalityPercentage", label: "Mortality %", fmt: r => r.mortalityPercentage ? `${Number(r.mortalityPercentage).toFixed(2)}%` : "—" },
         { key: "mainCause", label: "Main Cause" },
-      ]} rows={recordsList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} />}
+      ]} rows={recordsList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "38rem" }}>
+            <DialogHeader><DialogTitle>Daily Mortality — {fmtDate(viewRecord.recordDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.recordDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock</p><p className="font-medium">{fmtFlock(viewRecord)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Deaths</p><p className="font-medium">{String(viewRecord.mortalityCount ?? "0")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Culled</p><p className="font-medium">{String(viewRecord.culledCount ?? "0")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Running Total Mortality</p><p className="font-medium">{String(viewRecord.runningTotalMortality ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality %</p><p className="font-medium">{viewRecord.mortalityPercentage ? `${Number(viewRecord.mortalityPercentage).toFixed(2)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Main Cause</p><p className="font-medium">{String(viewRecord.mainCause ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Daily Mortality</DialogTitle></DialogHeader>
@@ -1030,6 +1101,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
 }
 
 function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
   const envList = (records ?? []) as Record<string, unknown>[];
@@ -1089,7 +1161,31 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
         { key: "humidity", label: "Humidity %" },
         { key: "ammoniaPpm", label: "Ammonia ppm" },
         { key: "stockingDensity", label: "kg/m²" },
-      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Environmental Log — {fmtDate(viewRecord.logDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.logDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p><p className="font-medium">{String(viewRecord.logTime ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock</p><p className="font-medium">{fmtFlock(viewRecord)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Min Temperature (°C)</p><p className="font-medium">{viewRecord.temperatureMin != null ? `${viewRecord.temperatureMin} °C` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Max Temperature (°C)</p><p className="font-medium">{viewRecord.temperatureMax != null ? `${viewRecord.temperatureMax} °C` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Humidity (%)</p><p className="font-medium">{viewRecord.humidity != null ? `${viewRecord.humidity}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">CO₂ (ppm)</p><p className="font-medium">{viewRecord.co2Ppm != null ? String(viewRecord.co2Ppm) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ammonia (ppm)</p><p className="font-medium">{viewRecord.ammoniaPpm != null ? String(viewRecord.ammoniaPpm) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stocking Density (kg/m²)</p><p className="font-medium">{viewRecord.stockingDensity != null ? String(viewRecord.stockingDensity) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lighting Hours</p><p className="font-medium">{viewRecord.lightingHours != null ? String(viewRecord.lightingHours) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alarm Activated</p><p className="font-medium">{viewRecord.alarmActivated ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alarm Details</p><p className="font-medium">{String(viewRecord.alarmDetails ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Environmental Log</DialogTitle></DialogHeader>
@@ -1357,6 +1453,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
 }
 
 function ThinningRecordsTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
   const tList = (records ?? []) as Record<string, unknown>[];
@@ -1409,7 +1506,34 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
         ]}
         rows={records as Record<string, unknown>[]}
         onDelete={r => del.mutate(r.id as number)}
+        onView={setViewRecord}
       />}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Thinning Record — {fmtDate(viewRecord.thinningDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Thinning Date</p><p className="font-medium">{fmtDate(viewRecord.thinningDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock</p><p className="font-medium">{fmtFlock(viewRecord)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Thinning Number</p><p className="font-medium">{["", "1st thinning", "2nd thinning", "3rd thinning", "Final depletion"][Number(viewRecord.thinningNumber)] ?? String(viewRecord.thinningNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birds Removed</p><p className="font-medium">{String(viewRecord.birdsRemoved ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">DOAs at Loading</p><p className="font-medium">{String(viewRecord.doasAtLoading ?? "0")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Live Weight (kg)</p><p className="font-medium">{viewRecord.targetLiveWeightKg != null ? `${viewRecord.targetLiveWeightKg} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Average Live Weight (kg)</p><p className="font-medium">{viewRecord.averageLiveWeightKg != null ? `${viewRecord.averageLiveWeightKg} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Destination Abattoir</p><p className="font-medium">{String(viewRecord.destinationAbattoir ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Catching Contractor</p><p className="font-medium">{String(viewRecord.catchingContractorName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Catching Start Time</p><p className="font-medium">{String(viewRecord.catchingStartTime ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Catching End Time</p><p className="font-medium">{String(viewRecord.catchingEndTime ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Transport Vehicle Reg</p><p className="font-medium">{String(viewRecord.transportVehicleReg ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Catching Conditions</p><p className="font-medium">{String(viewRecord.catchingConditions ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Thinning Record</DialogTitle></DialogHeader>
