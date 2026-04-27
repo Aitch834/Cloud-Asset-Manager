@@ -26,6 +26,9 @@ import { kvGet } from "@/lib/database";
 import { generateId, getList, appendToList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary } from "@/lib/types";
 
+type RecordingMode = "field" | "block";
+interface GrowingBlock { id: number; blockName: string; blockCode?: string | null; }
+
 function calculateAreaHectares(points: { latitude: number; longitude: number }[]): number {
   if (points.length < 3) return 0;
   const R = 6371000;
@@ -83,6 +86,9 @@ export default function MapScreen() {
   const [syncing, setSyncing] = useState(false);
   const [showNvzLayer, setShowNvzLayer] = useState(false);
   const [nvzTileUrl, setNvzTileUrl] = useState<string | undefined>(undefined);
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>("field");
+  const [availableBlocks, setAvailableBlocks] = useState<GrowingBlock[]>([]);
+  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
 
   const loadFields = useCallback(async () => {
     const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
@@ -90,9 +96,23 @@ export default function MapScreen() {
     setLoading(false);
   }, [currentFarm?.id]);
 
+  const loadBlocks = useCallback(async () => {
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!apiDomain || !currentFarm?.id) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/horticulture-blocks`, { headers });
+      if (res.ok) {
+        const rows = await res.json() as GrowingBlock[];
+        setAvailableBlocks(rows);
+      }
+    } catch { }
+  }, [currentFarm?.id]);
+
   useEffect(() => {
     loadFields();
-  }, [loadFields]);
+    loadBlocks();
+  }, [loadFields, loadBlocks]);
 
   useEffect(() => {
     const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -140,12 +160,16 @@ export default function MapScreen() {
 
   const finishRecording = () => {
     if (recordedPoints.length < 3) {
-      Alert.alert("Not Enough Points", "You need at least 3 GPS points to define a field boundary.");
+      Alert.alert("Not Enough Points", "You need at least 3 GPS points to define a boundary.");
       return;
     }
     const area = calculateAreaHectares(recordedPoints);
     setCalculatedArea(area);
-    setFieldNameInput("");
+    if (recordingMode === "block") {
+      setSelectedBlockId(availableBlocks[0]?.id ?? null);
+    } else {
+      setFieldNameInput("");
+    }
     setNameModalVisible(true);
   };
 
@@ -188,6 +212,43 @@ export default function MapScreen() {
             body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
           });
         }
+      } catch {
+      } finally {
+        setSyncing(false);
+      }
+    }
+  };
+
+  const saveBlock = async (blockId: number) => {
+    const area = calculateAreaHectares(recordedPoints);
+    const block = availableBlocks.find(b => b.id === blockId);
+    if (!block) return;
+    const entry = {
+      id: generateId(),
+      farmId: currentFarm?.id || "",
+      blockId,
+      blockName: block.blockName,
+      coordinates: recordedPoints,
+      areaHectares: area > 0 ? area.toFixed(4) : "",
+      createdAt: new Date().toISOString(),
+      synced: false,
+    };
+    await appendToList(STORAGE_KEYS.BLOCK_BOUNDARIES, entry);
+    setIsRecording(false);
+    setRecordedPoints([]);
+    setNameModalVisible(false);
+
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (apiDomain && currentFarm?.id) {
+      setSyncing(true);
+      try {
+        const headers = await getAuthHeaders();
+        const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+        await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/horticulture-blocks/${blockId}/boundary`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
+        });
       } catch {
       } finally {
         setSyncing(false);
@@ -247,7 +308,7 @@ export default function MapScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Field Mapping</Text>
+        <Text style={styles.title}>Farm Mapping</Text>
         <Text style={styles.subtitle}>{currentFarm?.name}</Text>
       </View>
 
@@ -276,7 +337,7 @@ export default function MapScreen() {
             <View style={styles.recordingHeader}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingText}>
-                Recording \u00B7 {recordedPoints.length} point{recordedPoints.length === 1 ? "" : "s"}
+                {recordingMode === "block" ? "Block" : "Field"} Recording · {recordedPoints.length} point{recordedPoints.length === 1 ? "" : "s"}
               </Text>
             </View>
           </View>
@@ -284,6 +345,22 @@ export default function MapScreen() {
       </View>
 
       <View style={styles.actionBar}>
+        {!isRecording && (
+          <View style={styles.modeToggle}>
+            <Pressable
+              style={[styles.modeButton, recordingMode === "field" && styles.modeButtonActive]}
+              onPress={() => setRecordingMode("field")}
+            >
+              <Text style={[styles.modeButtonText, recordingMode === "field" && styles.modeButtonTextActive]}>Field</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeButton, recordingMode === "block" && styles.modeButtonActive]}
+              onPress={() => { setRecordingMode("block"); loadBlocks(); }}
+            >
+              <Text style={[styles.modeButtonText, recordingMode === "block" && styles.modeButtonTextActive]}>Block</Text>
+            </Pressable>
+          </View>
+        )}
         {isRecording ? (
           <View style={styles.recordingActions}>
             <Button
@@ -307,13 +384,18 @@ export default function MapScreen() {
         ) : (
           <>
             <Button
-              title="Record Field Boundary"
+              title={recordingMode === "block" ? "Record Block Boundary" : "Record Field Boundary"}
               icon="plus-circle"
               onPress={startRecording}
               fullWidth
-              disabled={!location}
+              disabled={!location || (recordingMode === "block" && availableBlocks.length === 0)}
             />
-            {fields.length > 0 && (
+            {recordingMode === "block" && availableBlocks.length === 0 && (
+              <Text style={[styles.fieldCount, { color: colors.textSecondary }]}>
+                Add blocks in Fresh Produce → Blocks first
+              </Text>
+            )}
+            {recordingMode === "field" && fields.length > 0 && (
               <Text style={styles.fieldCount}>
                 {fields.length} field{fields.length === 1 ? "" : "s"} mapped
               </Text>
@@ -330,7 +412,9 @@ export default function MapScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { paddingBottom: insets.bottom + spacing.lg }]}>
-            <Text style={styles.modalTitle}>Name This Field</Text>
+            <Text style={styles.modalTitle}>
+              {recordingMode === "block" ? "Select Growing Block" : "Name This Field"}
+            </Text>
             {calculatedArea > 0 && (
               <View style={styles.areaChip}>
                 <Feather name="map" size={14} color={colors.primary} />
@@ -339,31 +423,58 @@ export default function MapScreen() {
                 </Text>
               </View>
             )}
-            <TextInput
-              style={styles.modalInput}
-              value={fieldNameInput}
-              onChangeText={setFieldNameInput}
-              placeholder="e.g. Top Field, 20 Acre"
-              placeholderTextColor={colors.textTertiary}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                onPress={() => setNameModalVisible(false)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                title="Save Field"
-                icon="check"
-                onPress={() => {
-                  const name = fieldNameInput.trim() || `Field ${fields.length + 1}`;
-                  saveField(name);
-                }}
-                style={{ flex: 1 }}
-              />
-            </View>
+
+            {recordingMode === "block" ? (
+              <>
+                <Text style={styles.blockPickerLabel}>Choose which growing block this boundary belongs to:</Text>
+                <View style={styles.blockPickerList}>
+                  {availableBlocks.map(b => (
+                    <Pressable
+                      key={b.id}
+                      style={[styles.blockPickerItem, selectedBlockId === b.id && styles.blockPickerItemActive]}
+                      onPress={() => setSelectedBlockId(b.id)}
+                    >
+                      <Text style={[styles.blockPickerItemText, selectedBlockId === b.id && styles.blockPickerItemTextActive]}>
+                        {b.blockName}{b.blockCode ? ` (${b.blockCode})` : ""}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.modalActions}>
+                  <Button title="Cancel" variant="outline" onPress={() => setNameModalVisible(false)} style={{ flex: 1 }} />
+                  <Button
+                    title="Save Boundary"
+                    icon="check"
+                    onPress={() => { if (selectedBlockId) saveBlock(selectedBlockId); }}
+                    style={{ flex: 1 }}
+                    disabled={!selectedBlockId}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.modalInput}
+                  value={fieldNameInput}
+                  onChangeText={setFieldNameInput}
+                  placeholder="e.g. Top Field, 20 Acre"
+                  placeholderTextColor={colors.textTertiary}
+                  autoFocus
+                />
+                <View style={styles.modalActions}>
+                  <Button title="Cancel" variant="outline" onPress={() => setNameModalVisible(false)} style={{ flex: 1 }} />
+                  <Button
+                    title="Save Field"
+                    icon="check"
+                    onPress={() => {
+                      const name = fieldNameInput.trim() || `Field ${fields.length + 1}`;
+                      saveField(name);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -543,5 +654,61 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  modeToggle: {
+    flexDirection: "row",
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+    overflow: "hidden",
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  modeButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  modeButtonText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  modeButtonTextActive: {
+    color: "#fff",
+  },
+  blockPickerLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  blockPickerList: {
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  blockPickerItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  blockPickerItemActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "15",
+  },
+  blockPickerItemText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  blockPickerItemTextActive: {
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
   },
 });

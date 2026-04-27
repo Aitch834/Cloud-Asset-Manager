@@ -114,6 +114,7 @@ export const STORAGE_KEYS = {
   CROP_EVENTS: "bde_crop_events",
   SOIL_SAMPLES: "bde_soil_samples",
   FIELD_BOUNDARIES: "bde_field_boundaries",
+  BLOCK_BOUNDARIES: "bde_block_boundaries",
   COMPLIANCE_FORMS: "bde_compliance_forms",
   PHOTOS: "bde_photos",
   PENDING_SYNC: "bde_pending_sync",

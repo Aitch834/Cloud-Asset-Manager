@@ -81,6 +81,7 @@ import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
 import OrganicDairyPage from "@/pages/OrganicDairyPage";
+import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
 const CompliancePage = React.lazy(() => import("@/pages/CompliancePage"));
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
@@ -360,6 +361,7 @@ function ProtectedContent() {
         <Route path="/organic" component={OrganicPage} />
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
+        <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route component={NotFound} />
       </Switch>
@@ -464,6 +466,7 @@ function DevBypassContent() {
         <Route path="/organic" component={OrganicPage} />
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
+        <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route component={NotFound} />
       </Switch>

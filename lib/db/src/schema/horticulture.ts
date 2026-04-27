@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
 
@@ -136,6 +136,79 @@ export const allergenManagementRecordsTable = pgTable("allergen_management_recor
   staffTrainingDate: date("staff_training_date"),
   labellingVerified: boolean("labelling_verified").default(false),
   nextReviewDate: date("next_review_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Block Boundaries ──────────────────────────────────────────────────────
+export const horticultureBlockBoundariesTable = pgTable("horticulture_block_boundaries", {
+  id: serial("id").primaryKey(),
+  blockId: integer("block_id").notNull().references(() => horticultureBlocksTable.id, { onDelete: "cascade" }),
+  polygonPoints: jsonb("polygon_points").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  capturedBy: text("captured_by"),
+});
+
+// ─── Organic Fresh Produce ─────────────────────────────────────────────────
+export const organicFreshProduceBlockStatusTable = pgTable("organic_fresh_produce_block_status", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => horticultureBlocksTable.id),
+  blockName: text("block_name").notNull(),
+  certifyingBody: text("certifying_body"),
+  conversionStartDate: date("conversion_start_date"),
+  fullyOrganicDate: date("fully_organic_date"),
+  status: text("status").notNull().default("in-conversion"),
+  landUseBeforeConversion: text("land_use_before_conversion"),
+  previousSyntheticInputs: text("previous_synthetic_inputs"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organicFreshProduceInputLogTable = pgTable("organic_fresh_produce_input_log", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => horticultureBlocksTable.id),
+  applicationDate: date("application_date").notNull(),
+  inputName: text("input_name").notNull(),
+  inputType: text("input_type"),
+  approvedByBody: text("approved_by_body"),
+  isApproved: boolean("is_approved").default(true),
+  quantityApplied: numeric("quantity_applied", { precision: 10, scale: 3 }),
+  quantityUnit: text("quantity_unit"),
+  purposeOfUse: text("purpose_of_use"),
+  appliedBy: text("applied_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organicFreshProduceCertificatesTable = pgTable("organic_fresh_produce_certificates", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  certifyingBody: text("certifying_body").notNull(),
+  certificateNumber: text("certificate_number").notNull(),
+  issueDate: date("issue_date").notNull(),
+  expiryDate: date("expiry_date"),
+  scope: text("scope"),
+  productsIncluded: text("products_included"),
+  annualRenewalDue: date("annual_renewal_due"),
+  status: text("status").notNull().default("active"),
+  documentRef: text("document_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organicFreshProduceBuyerDeclarationsTable = pgTable("organic_fresh_produce_buyer_declarations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  declarationDate: date("declaration_date").notNull(),
+  buyerName: text("buyer_name").notNull(),
+  buyerAddress: text("buyer_address"),
+  productDescription: text("product_description").notNull(),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
+  certifyingBody: text("certifying_body"),
+  certificateNumber: text("certificate_number"),
+  declaredBy: text("declared_by"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

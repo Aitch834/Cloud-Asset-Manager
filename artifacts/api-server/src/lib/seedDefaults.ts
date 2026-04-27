@@ -42,6 +42,7 @@ const MODULES = [
   { key: "organic-compliance", name: "Organic Compliance", description: "Certification records, field conversion status, inspector visits and restricted input log — complementary to Soil Association / OF&G portal", monthlyPricePence: 1200 },
   { key: "organic-livestock", name: "Organic Livestock", description: "Conversion period tracking, organic feed sourcing with ≥95% compliance monitoring, outdoor access and stocking records, and doubled withdrawal period management for organic livestock enterprises", monthlyPricePence: 2500 },
   { key: "organic-dairy", name: "Organic Dairy", description: "Dairy herd conversion records, organic milk collection flagging with premium tracking, feed and nutrition compliance, and doubled milk and meat withdrawal period management for organic dairy herds", monthlyPricePence: 2000 },
+  { key: "organic-fresh-produce", name: "Organic Fresh Produce", description: "Growing block conversion status, organic input log with prohibited-substance checks, Soil Association / OF&G certification records, and buyer organic declarations for fresh produce operations", monthlyPricePence: 2000 },
 ];
 
 export async function seedDefaults() {

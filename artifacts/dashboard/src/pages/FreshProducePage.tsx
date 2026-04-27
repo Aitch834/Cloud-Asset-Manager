@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer } from "lucide-react";
+import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,47 +74,168 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
 
 // ── BLOCKS ─────────────────────────────────────────────────────────────────
 
+function suggestBlockCode(blocks: Record<string, unknown>[]): string {
+  const existing = new Set((blocks as { blockCode?: string }[]).map(b => (b.blockCode ?? "").toUpperCase()));
+  for (let i = 1; i <= 999; i++) {
+    const candidate = `BLOCK-${String(i).padStart(3, "0")}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return "";
+}
+
 function BlocksTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [mapBlock, setMapBlock] = useState<{ id: number; name: string } | null>(null);
+
   const { data: blocks = [], isLoading } = useQuery({ queryKey: ["horti-blocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/horticulture-blocks/${editing.id}`) : api(`farms/${farmId}/horticulture-blocks`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+
+  useEffect(() => {
+    if (open && !editing) {
+      setForm(f => ({ ...f, blockCode: f.blockCode || suggestBlockCode(blocks as Record<string, unknown>[]) }));
+    }
+  }, [open, editing, blocks]);
+
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => {
+      const code = (b.blockCode as string ?? "").trim().toUpperCase();
+      const duplicate = (blocks as { id: unknown; blockCode?: string }[]).some(
+        bl => bl.blockCode?.toUpperCase() === code && String(bl.id) !== String(editing?.id)
+      );
+      if (code && duplicate) {
+        setCodeError(`Block code "${code}" is already in use. Please choose a unique code.`);
+        return Promise.reject(new Error("duplicate"));
+      }
+      setCodeError(null);
+      return fetch(editing ? api(`farms/${farmId}/horticulture-blocks/${editing.id}`) : api(`farms/${farmId}/horticulture-blocks`), {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...b, blockCode: code || null }),
+      });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setOpen(false); setForm({}); setEditing(null); setCodeError(null); },
+  });
+
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-blocks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }) });
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r); setCodeError(null); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Growing Blocks / Field Sections</h3><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Block</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "blockName", label: "Block Name" }, { key: "blockCode", label: "Code" }, { key: "areaHa", label: "Area (ha)" }, { key: "soilType", label: "Soil Type" }, { key: "irrigationSystem", label: "Irrigation" }, { key: "waterSource", label: "Water Source" }]} rows={blocks as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Growing Blocks / Field Sections</h3>
+        <Button size="sm" onClick={() => { setEditing(null); setCodeError(null); setForm({}); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1" />Add Block
+        </Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Block Name</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Code</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Area (ha)</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Soil Type</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Irrigation</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Water Source</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {(blocks as Record<string, unknown>[]).length === 0 && (
+                <tr><td colSpan={7} className="py-6 text-center text-sm text-muted-foreground italic">No blocks yet. Add one using the button above.</td></tr>
+              )}
+              {(blocks as Record<string, unknown>[]).map((row, i) => (
+                <tr key={i} className="border-b last:border-0">
+                  <td className="py-2 pr-4">{fmt(row.blockName)}</td>
+                  <td className="py-2 pr-4 font-mono text-xs">{fmt(row.blockCode)}</td>
+                  <td className="py-2 pr-4">{fmt(row.areaHa)}</td>
+                  <td className="py-2 pr-4">{fmt(row.soilType)}</td>
+                  <td className="py-2 pr-4">{fmt(row.irrigationSystem)}</td>
+                  <td className="py-2 pr-4">{fmt(row.waterSource)}</td>
+                  <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                    <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                    <Button size="icon" variant="ghost" title="Draw boundary on map" onClick={() => setMapBlock({ id: row.id as number, name: String(row.blockName) })}><Map className="w-3.5 h-3.5 text-blue-600" /></Button>
+                    <Button size="icon" variant="ghost" title="Edit" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="icon" variant="ghost" title="Delete" onClick={() => del.mutate(row.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader><DialogTitle>View Block</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmt(viewRecord.blockName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Code</p><p className="font-medium">{fmt(viewRecord.blockCode)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Code</p><p className="font-mono text-sm">{fmt(viewRecord.blockCode)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area (ha)</p><p className="font-medium">{fmt(viewRecord.areaHa)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Soil Type</p><p className="font-medium">{fmt(viewRecord.soilType)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Irrigation System</p><p className="font-medium">{fmt(viewRecord.irrigationSystem)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water Source</p><p className="font-medium">{fmt(viewRecord.waterSource)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMapBlock({ id: viewRecord.id as number, name: String(viewRecord.blockName) })}><Map className="w-4 h-4 mr-1" />Draw Boundary</Button>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setCodeError(null); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Block" : "Add Growing Block"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Block" : "Add Growing Block"}</DialogTitle>
+          </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            {[["blockName", "Block Name *"], ["blockCode", "Block Code"], ["areaHa", "Area (ha)"], ["soilType", "Soil Type"], ["irrigationSystem", "Irrigation System"], ["waterSource", "Water Source"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
+            <div><Label>Block Name *</Label><Input value={form.blockName ?? ""} onChange={e => setForm(f => ({ ...f, blockName: e.target.value }))} /></div>
+            <div>
+              <Label>Block Code</Label>
+              <Input
+                value={form.blockCode ?? ""}
+                onChange={e => { setCodeError(null); setForm(f => ({ ...f, blockCode: e.target.value })); }}
+                placeholder="e.g. BLOCK-001"
+                className={codeError ? "border-red-500" : ""}
+              />
+              {codeError && <p className="text-xs text-red-600 mt-1">{codeError}</p>}
+              {!editing && <p className="text-xs text-muted-foreground mt-1">Auto-suggested — you can change this to match your farm plan.</p>}
+            </div>
+            <div><Label>Area (ha)</Label><Input value={form.areaHa ?? ""} onChange={e => setForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="Will update when boundary is drawn" /></div>
+            <div><Label>Soil Type</Label><Input value={form.soilType ?? ""} onChange={e => setForm(f => ({ ...f, soilType: e.target.value }))} /></div>
+            <div><Label>Irrigation System</Label><Input value={form.irrigationSystem ?? ""} onChange={e => setForm(f => ({ ...f, irrigationSystem: e.target.value }))} /></div>
+            <div><Label>Water Source</Label><Input value={form.waterSource ?? ""} onChange={e => setForm(f => ({ ...f, waterSource: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setCodeError(null); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.blockName}>
+              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {mapBlock && (
+        <BlockBoundaryMapDialog
+          blockId={mapBlock.id}
+          blockName={mapBlock.name}
+          open={!!mapBlock}
+          onClose={() => setMapBlock(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setMapBlock(null); }}
+        />
+      )}
     </div>
   );
 }

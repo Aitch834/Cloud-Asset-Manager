@@ -170,12 +170,17 @@ import {
   poultryBroilerWelfareTable,
   poultryThinningRecordsTable,
   horticultureBlocksTable,
+  horticultureBlockBoundariesTable,
   horticultureCropsTable,
   horticultureWaterTestsTable,
   horticultureHarvestRecordsTable,
   horticulturePackhouseRecordsTable,
   freshProduceIntakeTable,
   allergenManagementRecordsTable,
+  organicFreshProduceBlockStatusTable,
+  organicFreshProduceInputLogTable,
+  organicFreshProduceCertificatesTable,
+  organicFreshProduceBuyerDeclarationsTable,
   carbonAuditsTable,
   carbonEmissionsRecordsTable,
   carbonSequestrationTable,
@@ -14394,6 +14399,34 @@ router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTena
   res.json({ success: true });
 });
 
+// ─── Block Boundaries ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/horticulture-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const blockId = parseInt(req.params.blockId, 10);
+  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
+  const [block] = await db.select({ id: horticultureBlocksTable.id }).from(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, blockId), eq(horticultureBlocksTable.farmId, farmId)));
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+  const [boundary] = await db.select().from(horticultureBlockBoundariesTable).where(eq(horticultureBlockBoundariesTable.blockId, blockId)).orderBy(desc(horticultureBlockBoundariesTable.capturedAt)).limit(1);
+  res.json({ boundary: boundary ?? null });
+});
+
+router.post("/farms/:farmId/horticulture-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const blockId = parseInt(req.params.blockId, 10);
+  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
+  const [block] = await db.select({ id: horticultureBlocksTable.id }).from(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, blockId), eq(horticultureBlocksTable.farmId, farmId)));
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+  const { polygonPoints, capturedBy, areaHectares } = req.body as { polygonPoints: unknown; capturedBy?: string; areaHectares?: number };
+  if (!polygonPoints || !Array.isArray(polygonPoints) || polygonPoints.length < 3) {
+    res.status(400).json({ error: "polygonPoints must be an array of at least 3 points" }); return;
+  }
+  const [boundary] = await db.insert(horticultureBlockBoundariesTable).values({ blockId, polygonPoints, capturedBy: capturedBy ?? null }).returning();
+  if (areaHectares != null && !isNaN(areaHectares)) {
+    await db.update(horticultureBlocksTable).set({ areaHa: String(areaHectares) }).where(eq(horticultureBlocksTable.id, blockId));
+  }
+  res.status(201).json({ boundary });
+});
+
 router.get("/farms/:farmId/horticulture-crops", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(horticultureCropsTable).where(eq(horticultureCropsTable.farmId, farmId)).orderBy(horticultureCropsTable.cropName);
@@ -14532,6 +14565,101 @@ router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(allergenManagementRecordsTable).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// ORGANIC FRESH PRODUCE
+// ============================================================
+router.get("/farms/:farmId/organic-fp-block-status", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(organicFreshProduceBlockStatusTable).where(eq(organicFreshProduceBlockStatusTable.farmId, farmId)).orderBy(organicFreshProduceBlockStatusTable.blockName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-fp-block-status", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(organicFreshProduceBlockStatusTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/organic-fp-block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(organicFreshProduceBlockStatusTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceBlockStatusTable.id, id), eq(organicFreshProduceBlockStatusTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/organic-fp-block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFreshProduceBlockStatusTable).where(and(eq(organicFreshProduceBlockStatusTable.id, id), eq(organicFreshProduceBlockStatusTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(organicFreshProduceInputLogTable).where(eq(organicFreshProduceInputLogTable.farmId, farmId)).orderBy(desc(organicFreshProduceInputLogTable.applicationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(organicFreshProduceInputLogTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/organic-fp-input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(organicFreshProduceInputLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceInputLogTable.id, id), eq(organicFreshProduceInputLogTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/organic-fp-input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFreshProduceInputLogTable).where(and(eq(organicFreshProduceInputLogTable.id, id), eq(organicFreshProduceInputLogTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp-certificates", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(organicFreshProduceCertificatesTable).where(eq(organicFreshProduceCertificatesTable.farmId, farmId)).orderBy(desc(organicFreshProduceCertificatesTable.issueDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-fp-certificates", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(organicFreshProduceCertificatesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/organic-fp-certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(organicFreshProduceCertificatesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceCertificatesTable.id, id), eq(organicFreshProduceCertificatesTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/organic-fp-certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFreshProduceCertificatesTable).where(and(eq(organicFreshProduceCertificatesTable.id, id), eq(organicFreshProduceCertificatesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp-buyer-declarations", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(organicFreshProduceBuyerDeclarationsTable).where(eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId)).orderBy(desc(organicFreshProduceBuyerDeclarationsTable.declarationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-fp-buyer-declarations", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(organicFreshProduceBuyerDeclarationsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/organic-fp-buyer-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(organicFreshProduceBuyerDeclarationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceBuyerDeclarationsTable.id, id), eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/organic-fp-buyer-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFreshProduceBuyerDeclarationsTable).where(and(eq(organicFreshProduceBuyerDeclarationsTable.id, id), eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
