@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -1179,6 +1179,71 @@ router.post("/admin/seed-demo-data", requireAuth, async (req: Request, res: Resp
     console.error("[SEED] Failed:", err);
     res.status(500).json({ error: "Seed failed", details: String(err) });
   }
+});
+
+// ─── Help Centre Management ───────────────────────────────────────────────────
+
+router.get("/admin/help-articles", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const articles = await db.select().from(helpArticlesTable).orderBy(helpArticlesTable.sortOrder, helpArticlesTable.id);
+  res.json({ articles });
+});
+
+router.post("/admin/help-articles", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { title, slug, category, content, excerpt, published, sortOrder } = req.body as Record<string, unknown>;
+  if (!title || !slug || !category) { res.status(400).json({ error: "title, slug and category are required" }); return; }
+  const [article] = await db.insert(helpArticlesTable).values({
+    title: String(title),
+    slug: String(slug),
+    category: String(category),
+    content: content ? String(content) : "",
+    excerpt: excerpt ? String(excerpt) : null,
+    published: published === true || published === "true",
+    sortOrder: sortOrder != null ? Number(sortOrder) : 0,
+    updatedAt: new Date(),
+  }).returning();
+  res.json({ article });
+});
+
+router.put("/admin/help-articles/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { title, slug, category, content, excerpt, published, sortOrder } = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (title !== undefined) updates.title = String(title);
+  if (slug !== undefined) updates.slug = String(slug);
+  if (category !== undefined) updates.category = String(category);
+  if (content !== undefined) updates.content = String(content);
+  if (excerpt !== undefined) updates.excerpt = excerpt ? String(excerpt) : null;
+  if (published !== undefined) updates.published = published === true || published === "true";
+  if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder);
+  const [article] = await db.update(helpArticlesTable).set(updates).where(eq(helpArticlesTable.id, id)).returning();
+  if (!article) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ article });
+});
+
+router.delete("/admin/help-articles/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(helpArticlesTable).where(eq(helpArticlesTable.id, id));
+  res.json({ success: true });
+});
+
+router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { DEFAULT_HELP_ARTICLES } = await import("../lib/defaultHelpArticles");
+  let inserted = 0;
+  for (const a of DEFAULT_HELP_ARTICLES) {
+    const existing = await db.select({ id: helpArticlesTable.id }).from(helpArticlesTable).where(eq(helpArticlesTable.slug, a.slug)).limit(1);
+    if (existing.length === 0) {
+      await db.insert(helpArticlesTable).values({ ...a, updatedAt: new Date() });
+      inserted++;
+    }
+  }
+  res.json({ success: true, inserted, skipped: DEFAULT_HELP_ARTICLES.length - inserted });
 });
 
 export default router;

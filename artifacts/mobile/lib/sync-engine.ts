@@ -222,8 +222,8 @@ async function uploadSyncItem(item: {
     return;
   }
 
-  const data = JSON.parse(item.data_json);
-  const endpoint = getSyncEndpoint(item.record_type, data.farmId, data);
+  const data = JSON.parse(item.data_json) as Record<string, unknown>;
+  const endpoint = getSyncEndpoint(item.record_type, data.farmId as string, data);
   if (!endpoint) {
     await simulateUpload();
     return;
@@ -240,16 +240,54 @@ async function uploadSyncItem(item: {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  const mappedData = remapForApi(item.record_type, data);
   const baseUrl = `https://${apiDomain}/api`;
   const response = await fetch(`${baseUrl}${endpoint}`, {
     method: "POST",
     headers,
-    body: item.data_json,
+    body: JSON.stringify(mappedData),
   });
 
   if (!response.ok) {
     throw new Error(`Server responded with ${response.status}`);
   }
+}
+
+function remapForApi(recordType: string, data: Record<string, unknown>): Record<string, unknown> {
+  if (recordType === "bde_organic_fp_inputs") {
+    return {
+      ...data,
+      inputName: data.productName,
+      applicationDate: data.dateOfUse,
+      quantityApplied: data.quantityAmount,
+    };
+  }
+  if (recordType === "bde_organic_outdoor_access") {
+    return {
+      ...data,
+      species: data.animalGroup,
+      recordDate: data.date,
+      complianceStatus: data.accessProvided ? "compliant" : "non-compliant",
+      outdoorAccessHoursDay: data.durationHours ?? null,
+      housingJustification: data.restrictionReason ?? null,
+      notes: [data.paddockArea ? `Paddock/area: ${data.paddockArea}` : null, data.notes ? String(data.notes) : null].filter(Boolean).join(". ") || null,
+    };
+  }
+  if (recordType === "bde_organic_treatments") {
+    const wdDays = data.withdrawalPeriodDays ? parseInt(String(data.withdrawalPeriodDays), 10) : null;
+    return {
+      ...data,
+      species: data.animalGroup,
+      animalIds: data.animalIdentifiers ?? null,
+      treatmentDate: data.dateOfTreatment,
+      productName: data.medicineProduct,
+      doseAmount: data.dosage ?? null,
+      routeOfAdministration: data.routeOfAdmin ?? null,
+      standardWithdrawalDays: Number.isNaN(wdDays) ? null : wdDays,
+      notes: [data.batchNumber ? `Batch: ${data.batchNumber}` : null, data.notes ? String(data.notes) : null].filter(Boolean).join(". ") || null,
+    };
+  }
+  return data;
 }
 
 function getSyncEndpoint(recordType: string, farmId: string, data?: Record<string, unknown>): string | null {
@@ -331,6 +369,9 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_seed_drilling_records: `/farms/${farmId}/seed-drilling`,
     bde_haulage_confirmations: `/farms/${farmId}/haulage-mobile`,
     bde_third_party_grain_intakes: `/farms/${farmId}/grain-intakes`,
+    bde_organic_fp_inputs: `/farms/${farmId}/organic-fp-input-log`,
+    bde_organic_outdoor_access: `/farms/${farmId}/organic-livestock/outdoor-access`,
+    bde_organic_treatments: `/farms/${farmId}/organic-livestock/treatments`,
   };
   return typeMap[recordType] || null;
 }

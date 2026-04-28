@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db } from "@workspace/db";
+import { db, helpArticlesTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
@@ -6366,7 +6366,27 @@ router.patch("/farms/:farmId/grants/:recordId/document", requireAuth, requireTen
 });
 
 // ─── Help Articles ─────────────────────────────────
-router.get("/help/articles", async (_req: Request, res: Response): Promise<void> => {
+router.get("/help/articles", async (req: Request, res: Response): Promise<void> => {
+  // DB-first: if published articles exist, serve those instead of the hardcoded list
+  try {
+    const dbRows = await db.select({
+      id: helpArticlesTable.id,
+      title: helpArticlesTable.title,
+      category: helpArticlesTable.category,
+      content: helpArticlesTable.content,
+    }).from(helpArticlesTable)
+      .where(eq(helpArticlesTable.published, true))
+      .orderBy(helpArticlesTable.sortOrder, helpArticlesTable.id);
+    if (dbRows.length > 0) {
+      const { search, category } = req.query;
+      let filtered: typeof dbRows = dbRows;
+      if (search) { const s = (search as string).toLowerCase(); filtered = filtered.filter(a => a.title.toLowerCase().includes(s) || a.content.toLowerCase().includes(s)); }
+      if (category) { filtered = filtered.filter(a => a.category === category); }
+      res.json({ records: filtered });
+      return;
+    }
+  } catch {}
+
   const articles = [
     {
       id: 1,
@@ -10301,7 +10321,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     },
   ];
 
-  const { search, category } = _req.query;
+  const { search, category } = req.query;
   let filtered = articles;
   if (search) {
     const s = (search as string).toLowerCase();
