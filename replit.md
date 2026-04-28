@@ -73,7 +73,7 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 The platform supports 17 core compliance modules with monthly pricing, covering areas like Field & Crop Management, Sprays & Inputs, Soil Management, Livestock Management, Biosecurity, and Financial Records. A dedicated Dairy Management module provides detailed tracking.
 
 #### Organic Farming Section
-The sidebar contains a dedicated "Organic Farming" section with three modules:
+The sidebar contains a dedicated "Organic Farming" section with four modules:
 
 **Organic Compliance** (key: `organic-compliance`, £12/mo) — covers five tabs: Certification, Field Status, Inspections, Restricted Inputs, and Input Register. Both the Input Register and Restricted Inputs forms include:
 - **Substance picker** (SubstancePicker component) searching Annex I (permitted inputs) and Annex II (restricted plant protection products) from UK retained EC 889/2008.
@@ -82,21 +82,37 @@ The sidebar contains a dedicated "Organic Farming" section with three modules:
 - **GRN / Delivery Note lookup** — dropdown filtered by selected PO via `GET /api/farms/:farmId/stock-deliveries`, stores GRN number as `grnReference` text field.
 - Schema: `organicInputsTable` and `organicRestrictedInputTable` in `lib/db/src/schema/organic.ts`.
 
-**Organic Livestock** (key: `organic-livestock`, £25/mo) — page at `/organic-livestock`, four tabs:
-- Conversion: tracks herds/flocks through organic conversion. **Linked to core Livestock Register**: herd selector auto-populates species/name from `herd_flock_register`; on save, sets `isOrganicHerd=true` on the linked herd (propagates organic status to Medicine, Movement, Feed modules). Shows banner of already-organic herds.
+**Organic Livestock** (key: `organic-livestock`, £25/mo) — page at `/organic-livestock` (`OrganicLivestockPage.tsx`), four tabs:
+- Conversion: tracks herds/flocks through organic conversion. **Linked to core Livestock Register**: herd selector auto-populates species/name from `herd_flock_register`; on save, sets `isOrganicHerd=true` on the linked herd. Shows banner of already-organic herds.
 - Feed Records: logs feed purchases per species with supplier approval numbers, organic %, PO/GRN references, and derogation tracking.
 - Outdoor Access / Stocking: records pasture area, stocking density, outdoor access hours/day, and housing period justifications.
-- Treatment Compliance: **dual-source view** — medicine records with `isOrganicTreatment=true` from the core Medicine Register appear automatically in green rows at the top (read-only, no double-entry). Standalone organic treatment records appear below. Shows organic withdrawal end dates (doubled period).
+- Treatment Compliance: **dual-source view** — medicine records with `isOrganicTreatment=true` surface automatically (read-only); standalone organic treatment records appear below. Shows doubled withdrawal end dates.
+- All tabs use **view-before-edit** dialogs (Eye → view → Edit button opens form).
+- **Print report** buttons on all four tabs produce printable compliance summaries with farm name header and current date.
 - Schema: `organicLivestockConversionTable`, `organicLivestockFeedTable`, `organicLivestockOutdoorAccessTable`, `organicLivestockTreatmentTable`.
 - API routes: `/api/farms/:farmId/organic-livestock/{conversion,feed,outdoor-access,treatments}`.
 
-**Organic Dairy** (key: `organic-dairy`, £20/mo) — page at `/organic-dairy`, four tabs:
+**Organic Dairy** (key: `organic-dairy`, £20/mo) — page at `/organic-dairy` (`OrganicDairyPage.tsx`), four tabs:
 - Herd Conversion: **linked to core Livestock Register** — same herd-linkage pattern as Organic Livestock; marks selected herd as organic on save with certifier/cert-number propagated.
 - Milk Collections: logs each tanker collection with volume, fat/protein/SCC/TBC quality data, organic certification status, and net value in pence.
 - Feed & Nutrition: feed records with dry-matter weight, organic percentage, and derogation references.
 - Treatment Compliance: **dual-source view** — same medicine register integration as Organic Livestock. Dairy columns track both organic milk and meat withdrawal end dates.
+- All tabs use **view-before-edit** dialogs. **Print report** buttons on all four tabs.
 - Schema: `organicDairyHerdConversionTable`, `organicDairyCollectionTable`, `organicDairyFeedTable`, `organicDairyTreatmentTable`.
 - API routes: `/api/farms/:farmId/organic-dairy/{herd-conversion,collections,feed,treatments}`.
+
+**Organic Fresh Produce** (key: `organic-fresh-produce`, £18/mo) — page at `/organic-fresh-produce` (`OrganicFreshProducePage.tsx`), four tabs:
+- Block Status Register: tracks organic conversion status of growing blocks (in-conversion / fully-organic / non-organic). Links to `horticultureBlocksTable` via `blockId`. Shows conversion progress bar, days remaining, certifying body. **View-before-edit** dialogs; if the block has a parent field (fieldId), the view dialog shows field name, reference, NVZ badge, and Organic badge. **Print report** button.
+- Input Log: logs organic-approved inputs applied per block. Supplier lookup via datalist from `/api/farms/:farmId/suppliers` (graceful 403 fallback). PO Ref and GRN Ref get supplier-filtered suggestions from existing records. Applied By uses `StaffSelect` component (from `/api/farms/:farmId/members`). **View-before-edit** dialogs; **Print report** button.
+- Certificates: stores organic certification records per certifying body. **View-before-edit** dialogs; **Print report** button.
+- Buyer Declarations: logs buyer declaration forms issued per buyer. **View-before-edit** dialogs; **Print report** button.
+- Schema: `horticultureBlockStatusTable`, `horticultureInputLogTable`, `organicCertificateTable`, `buyerDeclarationTable` in `lib/db/src/schema/horticulture.ts`.
+- API routes: `/api/farms/:farmId/organic/{block-status,input-log,certificates,buyer-declarations}`.
+
+**Growing Blocks (Fresh Produce)** — non-organic page at `/fresh-produce` (`FreshProducePage.tsx`). The Blocks tab manages `horticultureBlocksTable`:
+- `fieldId` (optional FK → `fieldsTable`) — allows blocks to be linked to a parent farm field on mixed farms. Added via schema migration. GET endpoint LEFT JOINs fieldsTable to return `fieldName`, `fieldReference`, `fieldIsNvz`, `fieldIsOrganic`.
+- Block table shows Parent Field column. View dialog shows a parent field panel with NVZ/Organic badges when linked. Add/edit form has an optional Parent Field picker dropdown populated from `/api/farms/:farmId/fields`.
+- Schema: `lib/db/src/schema/horticulture.ts`; `fieldsTable` in `lib/db/src/schema/fields-crops.ts`.
 
 **Cross-module organic integration (no double-entry):**
 - `herd_flock_register`: `isOrganicHerd`, `organicCertBody`, `organicCertNumber`, `organicConversionStartDate` — set automatically when linking a herd from Organic Livestock/Dairy modules.
@@ -105,6 +121,15 @@ The sidebar contains a dedicated "Organic Farming" section with three modules:
 - `livestock_movements`: `isOrganicMovement`, `organicCertRef`, `organicWithdrawalsClear`, `organicStatusConfirmedBy`.
 - `harvestRecordsTable` + `grainSalesTable`: `isOrganicCertified` + `organicCertRef` — shown in Harvest Records and Sales & Trading pages.
 - `organic.ts` tables: FK columns `herdId`, `feedDeliveryId`, `medicineRecordId`, `fieldId` link organic module records to core register entries.
+
+#### Mobile App — Organic Screens
+The Expo mobile app (`artifacts/mobile`) includes organic data-entry screens accessible from the Organic Overview quick-actions grid:
+- `organic-fp-input.tsx` — Fresh Produce input log entry (product, quantity, unit, block, purpose, date).
+- `organic-outdoor-access.tsx` — Outdoor access recording (species, date, hours, pasture area, stocking density, weather, compliance notes).
+- `organic-treatment.tsx` — Organic treatment recording (species, animal ID, product, dose, route, vet name, withdrawal dates, certifier notification).
+- Types: `OrganicFpInput`, `OrganicOutdoorAccess`, `OrganicTreatment` in `artifacts/mobile/lib/types.ts`.
+- Storage keys: `ORGANIC_FP_INPUTS`, `ORGANIC_OUTDOOR_ACCESS`, `ORGANIC_TREATMENTS` in `artifacts/mobile/lib/storage.ts`.
+- Quick Actions grid on `organic-overview.tsx` is a 2×2 layout linking to all four organic entry screens.
 
 ## External Dependencies
 
