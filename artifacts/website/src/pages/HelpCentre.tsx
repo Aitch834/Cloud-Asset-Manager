@@ -48,6 +48,42 @@ const FAQ: FaqCategory[] = [
     ],
   },
   {
+    title: "Organic Livestock",
+    icon: Sprout,
+    color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    items: [
+      { q: "How does herd register linkage work in Organic Livestock?", a: "In the Conversion tab, select an existing herd or flock from your core Livestock Register. When you save the record, BDE Farm Trac automatically sets the isOrganicHerd flag on that herd — propagating organic status to Medicine Records (doubled withdrawal periods), Feed Management (organic approved flag), and Livestock Movements (organic movement flag). You do not need to update each module separately." },
+      { q: "How are organic treatment records populated without double-entry?", a: "Any medicine record in your Livestock Medicine Register that is flagged as an Organic Treatment automatically appears in read-only green rows at the top of the Treatment Compliance tab. You do not re-enter these records. Standalone organic treatments (recorded directly in the Organic Livestock module) appear below. Both sources are included in the print-ready treatment register." },
+      { q: "How is the doubled withdrawal period calculated?", a: "For treatments flagged as organic, BDE Farm Trac doubles the standard withdrawal period specified on the medicine record and calculates the Organic Withdrawal End Date from the last treatment date. This doubled date is displayed on every treatment row. A Raise Task button lets you assign a withdrawal-end verification task to a staff member with the date pre-filled." },
+      { q: "Can I record outdoor access periods and stocking density?", a: "Yes. The Outdoor Access / Stocking tab records each grazing period with species, start and end dates, outdoor space per animal (m²), stocking density, pasture area used, and any housing justification for restricted periods. This gives certifiers the evidence they need to verify compliance with outdoor access requirements under EC 889/2008 or UK retained equivalents." },
+      { q: "Can I print treatment and feed records for my certifier?", a: "Yes. Each of the four tabs (Conversion Register, Feed Log, Outdoor Access Log, Treatments Register) has a Print Report button that generates a formatted A4 printout with your farm name, current date, and the complete record set for that tab. These are designed to be handed to a certifier or attached to an inspection file without further formatting." },
+    ],
+  },
+  {
+    title: "Organic Dairy",
+    icon: Sprout,
+    color: "bg-teal-50 text-teal-700 border-teal-100",
+    items: [
+      { q: "What is the milk certification date and how does it differ from the conversion date?", a: "Organic Dairy tracks two distinct dates for each herd: the Expected Milk Certification Date (when organic milk is anticipated to be accepted by your milk buyer, based on conversion progress) and the Actual Milk Certification Date (confirmed in writing by your certifier or buyer). These are separate from the general Fully Organic Date used in the Livestock conversion register. Both surface as separate event cards in the Week Ahead Planner." },
+      { q: "How do milk collection records work?", a: "The Milk Collections tab logs every tanker uplift with collection date, volume in litres, fat %, protein %, somatic cell count (SCC), total bacterial count (TBC), an organic certified flag, the milk buyer's organic certificate reference, net value in pence, and collector or tanker ID. Records are filterable by date range and exportable to CSV for certifier audit evidence or reconciliation with your milk buyer's statements." },
+      { q: "How does the dual withdrawal period work for dairy cattle?", a: "Dairy organic treatments carry two separate doubled withdrawal periods: one for organic milk and one for organic meat. Both end dates are displayed on every treatment row alongside the standard period. Two separate Raise Task buttons — one teal (milk) and one amber (meat) — let you assign an end-of-withdrawal check to a named staff member with the correct date pre-filled and an SMS notification sent on save." },
+      { q: "How do organic feed records appear without double-entry?", a: "Feed deliveries recorded in Feed Management that are flagged as Organic Approved (with supplier approval number, organic %, and any derogation reference) appear automatically in the Feed & Nutrition tab of the Organic Dairy module. One entry, visible in both modules, with no re-keying required." },
+      { q: "Can I print dairy organic compliance records?", a: "Yes. Each of the four tabs (Herd Conversion, Milk Collections, Feed & Nutrition, Treatments) has a Print Report button generating a formatted A4 printout ready for certifier or auditor review." },
+    ],
+  },
+  {
+    title: "Organic Fresh Produce",
+    icon: Sprout,
+    color: "bg-lime-50 text-lime-700 border-lime-100",
+    items: [
+      { q: "How does the Block Conversion Status Register work?", a: "The Block Status tab tracks the organic conversion status of each growing block — in-conversion, fully organic, or non-organic. For in-conversion blocks, a visual progress bar shows how far through the statutory conversion period the block is, with a days-remaining countdown to the expected fully-organic date. Each record stores the certifying body, conversion start date, pre-conversion land use, and synthetic history notes. You can print a formatted Block Status Register for certifier inspection from the Print Report button on the tab." },
+      { q: "Can I link a growing block to a farm field?", a: "Yes. When adding or editing a growing block in the Fresh Produce module, an optional Parent Field picker lets you link the block to any registered farm field. The block then inherits the field's NVZ designation and organic status, which are displayed as badges on the block's detail view. This is designed for mixed farms where horticulture blocks sit within broader field boundaries already registered in Field & Crop Management." },
+      { q: "How do I record organic inputs applied to a block?", a: "The Input Log tab lets you log each approved input with the product name, date applied, quantity, unit, and purpose. You can link the input to a supplier from your Trade Contacts list and optionally attach a Purchase Order reference and GRN / Delivery Note reference for full audit traceability. The Applied By field uses a staff lookup from your farm team register. A Print Report button generates a formatted A4 input log for certifier presentation." },
+      { q: "What are buyer declarations and how do I record them?", a: "Buyer declarations are written assurances issued to buyers confirming the organic status of the produce being sold. The Buyer Declarations tab records each declaration with buyer name, issue date, product, quantity, certifying body reference, and declaration status. Records use the view-before-edit pattern — clicking a row opens a read-only view dialog, and an Edit button within that dialog opens the edit form — ensuring records are reviewed carefully before any changes are made." },
+      { q: "Can I log organic fresh produce inputs from the mobile app?", a: "Yes. The mobile app Organic Overview screen has a Quick Actions grid with buttons for Fresh Produce Input (log an input applied to a block with product, quantity, unit, and purpose), Outdoor Access Recording (date, hours, area, stocking density, and weather conditions), and Organic Treatment (medicine product, dose, route, withdrawal dates, and certifier notification). All three screens save data locally and sync to the dashboard when connectivity is restored." },
+    ],
+  },
+  {
     title: "Biosecurity",
     icon: ShieldCheck,
     color: "bg-red-50 text-red-600 border-red-100",

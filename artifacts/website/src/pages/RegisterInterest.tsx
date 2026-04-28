@@ -31,6 +31,7 @@ const MODULES = [
   { id: "organic-compliance", label: "Organic Compliance (certification status, field conversion tracker, inspection log with document attachment, restricted inputs register & mobile offline recording)" },
   { id: "organic-livestock", label: "Organic Livestock (herd register linkage, treatment compliance from Medicine Register with doubled withdrawal periods, certifier notification, outdoor access / stocking density logs)" },
   { id: "organic-dairy", label: "Organic Dairy (herd conversion with milk certification date, milk collection records, treatment compliance with organic milk & meat withdrawal tracking, organic feed records)" },
+  { id: "organic-fresh-produce", label: "Organic Fresh Produce (block conversion status register, organic input log with supplier/PO/GRN/applied-by tracking, certificates register, buyer declarations, print-ready compliance reports)" },
   { id: "staff-training", label: "Staff & Training" },
   { id: "finance", label: "Finance & Business" },
   { id: "safety-risk-audits", label: "Safety, Risk & Audits" },
