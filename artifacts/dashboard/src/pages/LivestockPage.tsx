@@ -5773,9 +5773,571 @@ function LambingSection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── TB Test Register ──────────────────────────────────────────────────────────
+
+interface TbTest { id: number; farmId: number; testDate: string; readingDate: string | null; testType: string; species: string; herdFlockRef: string | null; animalsTested: number | null; reactors: number; inconclusives: number; outcome: string; aphaOfficer: string | null; aphaCaseRef: string | null; movementRestriction: boolean; restrictionLiftedDate: string | null; nextTestDueDate: string | null; testingVet: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+
+const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, animalsTested: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, notes: null };
+
+function TbTestsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/tb-tests`;
+  const { data, isLoading } = useQuery<{ records: TbTest[] }>({ queryKey: ["tb-tests", farmId], queryFn: () => fetch(base).then(r => r.json()) });
+  const records = data?.records ?? [];
+
+  const [viewItem, setViewItem] = useState<TbTest | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<TbTest | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_TB>({ ...EMPTY_TB });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_TB) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setShowForm(false); setForm({ ...EMPTY_TB }); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_TB & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setShowForm(false); setEditing(null); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setDeleteId(null); } });
+
+  function openEdit(r: TbTest) { setEditing(r); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, animalsTested: r.animalsTested, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+
+  function printReport() {
+    const rows = records.map(r => `<tr><td>${formatDate(r.testDate)}</td><td>${r.testType.replace(/-/g," ")}</td><td>${r.species}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.animalsTested ?? "—"}</td><td>${r.reactors}</td><td>${r.inconclusives}</td><td>${r.outcome.toUpperCase()}</td><td>${r.movementRestriction ? "YES" : "No"}</td><td>${formatDate(r.nextTestDueDate)}</td></tr>`).join("");
+    printProReport({ title: "TB Test Register", subtitle: `${records.length} test records`, tableHtml: `<table><thead><tr><th>Test Date</th><th>Test Type</th><th>Species</th><th>Herd/Flock</th><th>Tested</th><th>Reactors</th><th>Inconc.</th><th>Outcome</th><th>Restriction</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
+  }
+
+  const OUTCOME_COLOURS: Record<string, string> = { clear: "bg-green-50 text-green-700", "restricted": "bg-red-50 text-red-700", "breakdown": "bg-red-100 text-red-800", "inconclusive": "bg-amber-50 text-amber-700" };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-gray-900">TB Test Register</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Official bovine tuberculosis test records as required under TB (England) Order 2021 and Red Tractor standards.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_TB }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Log TB Test</Button>
+        </div>
+      </div>
+
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>Red Tractor Requirement:</strong> All bovine TB test results must be recorded with test date, reading date, number tested, reactors, inconclusives and outcome. Movement restrictions must be noted where applicable.
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No TB tests recorded</p><p className="text-sm text-muted-foreground">Log your first bovine TB test result to start your register.</p></CardContent></Card>
+        : <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50"><tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Test Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Species</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Herd/Flock</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tested</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Reactors</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Outcome</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Next Due</th>
+                <th className="px-4 py-3" />
+              </tr></thead>
+              <tbody className="divide-y">
+                {records.map(r => (
+                  <tr key={r.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{formatDate(r.testDate)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 capitalize">{r.testType.replace(/-/g," ")}</td>
+                    <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{r.herdFlockRef ?? "—"}</td>
+                    <td className="px-4 py-3 text-right">{r.animalsTested ?? "—"}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{r.reactors > 0 ? <span className="text-red-600">{r.reactors}</span> : r.reactors}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex text-xs font-semibold rounded-full px-2 py-0.5 ${OUTCOME_COLOURS[r.outcome] ?? "bg-gray-100 text-gray-700"}`}>{r.outcome.toUpperCase()}</span>{r.movementRestriction && <span className="ml-1 text-xs text-red-600 font-semibold">⚠ Restricted</span>}</td>
+                    <td className="px-4 py-3 text-xs">{formatDate(r.nextTestDueDate)}</td>
+                    <td className="px-4 py-3"><div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setViewItem(r)} title="View"><Eye className="h-3 w-3 text-blue-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>TB Test — {formatDate(viewItem.testDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.testType.replace(/-/g," ")}</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Date</p><p className="font-medium">{formatDate(viewItem.testDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{formatDate(viewItem.readingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium capitalize">{viewItem.testType.replace(/-/g," ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium capitalize">{viewItem.species}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock Ref</p><p className="font-medium">{viewItem.herdFlockRef ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animals Tested</p><p className="font-medium">{viewItem.animalsTested ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reactors</p><p className="font-semibold text-red-600">{viewItem.reactors}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inconclusives</p><p className="font-medium">{viewItem.inconclusives}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-semibold uppercase">{viewItem.outcome}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Movement Restriction</p><p className={viewItem.movementRestriction ? "font-semibold text-red-600" : ""}>{viewItem.movementRestriction ? "YES — Restricted" : "No"}</p></div>
+              {viewItem.restrictionLiftedDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Restriction Lifted</p><p className="font-medium">{formatDate(viewItem.restrictionLiftedDate)}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Test Due</p><p className="font-medium">{formatDate(viewItem.nextTestDueDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Testing Vet</p><p className="font-medium">{viewItem.testingVet ?? "—"}</p></div>
+              {viewItem.aphaOfficer && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Officer</p><p className="font-medium">{viewItem.aphaOfficer}</p></div>}
+              {viewItem.aphaCaseRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Case Ref</p><p className="font-medium font-mono">{viewItem.aphaCaseRef}</p></div>}
+              {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
+              {viewItem.documentName && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Document</p><a href={viewItem.documentUrl ?? "#"} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.documentName}</a></div>}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editing ? "Edit TB Test Record" : "Log TB Test"}</DialogTitle><DialogDescription>Record bovine TB test results as required by APHA and Red Tractor standards.</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => setF("testDate", e.target.value)} /></div>
+              <div><Label>Reading Date</Label><Input type="date" value={form.readingDate ?? ""} onChange={e => setF("readingDate", e.target.value || null)} /></div>
+              <div><Label>Test Type *</Label>
+                <Select value={form.testType} onValueChange={v => setF("testType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="routine-skin">Routine Skin Test</SelectItem>
+                    <SelectItem value="short-interval">Short Interval Test (SIT)</SelectItem>
+                    <SelectItem value="check-test">Check Test</SelectItem>
+                    <SelectItem value="gamma-interferon">Gamma Interferon Blood Test</SelectItem>
+                    <SelectItem value="pre-movement">Pre-movement Test (PMT)</SelectItem>
+                    <SelectItem value="post-movement">Post-movement Test</SelectItem>
+                    <SelectItem value="new-herd">New Herd Test</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Species *</Label>
+                <Select value={form.species} onValueChange={v => setF("species", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cattle">Cattle</SelectItem>
+                    <SelectItem value="deer">Deer</SelectItem>
+                    <SelectItem value="camelids">Camelids / Llamas</SelectItem>
+                    <SelectItem value="goats">Goats</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Herd / Flock Reference</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="CPH / herd name" /></div>
+              <div><Label>Animals Tested</Label><Input type="number" min={0} value={form.animalsTested ?? ""} onChange={e => setF("animalsTested", e.target.value ? Number(e.target.value) : null)} /></div>
+              <div><Label>Reactors</Label><Input type="number" min={0} value={form.reactors} onChange={e => setF("reactors", Number(e.target.value))} /></div>
+              <div><Label>Inconclusives</Label><Input type="number" min={0} value={form.inconclusives} onChange={e => setF("inconclusives", Number(e.target.value))} /></div>
+              <div className="col-span-2"><Label>Outcome *</Label>
+                <Select value={form.outcome} onValueChange={v => setF("outcome", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="clear">Clear — All animals negative</SelectItem>
+                    <SelectItem value="inconclusive">Inconclusive — Some reactors inconclusive</SelectItem>
+                    <SelectItem value="restricted">Restricted — Movement restriction imposed</SelectItem>
+                    <SelectItem value="breakdown">Breakdown — TB confirmed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 flex items-center gap-2">
+                <input type="checkbox" id="tbRestriction" checked={form.movementRestriction} onChange={e => setF("movementRestriction", e.target.checked)} className="h-4 w-4" />
+                <Label htmlFor="tbRestriction">Movement restriction currently in place</Label>
+              </div>
+              {form.movementRestriction && <div><Label>Restriction Lifted Date</Label><Input type="date" value={form.restrictionLiftedDate ?? ""} onChange={e => setF("restrictionLiftedDate", e.target.value || null)} /></div>}
+              <div><Label>Next Test Due Date</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => setF("nextTestDueDate", e.target.value || null)} /></div>
+              <div><Label>Testing Vet</Label><Input value={form.testingVet ?? ""} onChange={e => setF("testingVet", e.target.value || null)} placeholder="Veterinary surgeon name" /></div>
+              <div><Label>APHA Officer</Label><Input value={form.aphaOfficer ?? ""} onChange={e => setF("aphaOfficer", e.target.value || null)} /></div>
+              <div><Label>APHA Case Reference</Label><Input value={form.aphaCaseRef ?? ""} onChange={e => setF("aphaCaseRef", e.target.value || null)} className="font-mono" /></div>
+              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} placeholder="e.g. APHA TB2 Form" /></div>
+              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.testDate || !form.outcome || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editing ? "Update" : "Log TB Test"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && <ConfirmDialog open title="Delete TB Test Record?" message="This record will be permanently removed from your TB register." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+    </>
+  );
+}
+
+// ─── Welfare Outcome Assessment ────────────────────────────────────────────────
+
+interface WelfareOutcomeRecord { id: number; farmId: number; assessmentDate: string; assessorName: string; assessorRole: string | null; species: string; herdFlockRef: string | null; sampleSize: number | null; lamenessScore: string | null; bodyConditionScore: string | null; dungScore: string | null; skinLesionScore: string | null; nasalDischargeScore: string | null; eyeDischargeScore: string | null; mortalityRate: string | null; calvingLambingScore: string | null; overallOutcome: string; correctiveActions: string | null; targetDate: string | null; nextAssessmentDue: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+
+const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = { assessmentDate: "", assessorName: "", assessorRole: null, species: "cattle", herdFlockRef: null, sampleSize: null, lamenessScore: null, bodyConditionScore: null, dungScore: null, skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null, mortalityRate: null, calvingLambingScore: null, overallOutcome: "acceptable", correctiveActions: null, targetDate: null, nextAssessmentDue: null, documentUrl: null, documentName: null, notes: null };
+
+function WelfareOutcomeSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/welfare-outcome-assessments`;
+  const { data, isLoading } = useQuery<{ records: WelfareOutcomeRecord[] }>({ queryKey: ["welfare-outcomes", farmId], queryFn: () => fetch(base).then(r => r.json()) });
+  const records = data?.records ?? [];
+
+  const [viewItem, setViewItem] = useState<WelfareOutcomeRecord | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<WelfareOutcomeRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_WOA>({ ...EMPTY_WOA });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setDeleteId(null); } });
+
+  function openEdit(r: WelfareOutcomeRecord) { setEditing(r); setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+
+  function printReport() {
+    const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.bodyConditionScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
+    printProReport({ title: "Welfare Outcome Assessment Register", subtitle: `${records.length} assessments on record`, tableHtml: `<table><thead><tr><th>Date</th><th>Species</th><th>Assessor</th><th>Herd/Flock</th><th>Sample</th><th>Lameness</th><th>BCS</th><th>Outcome</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
+  }
+
+  const OUTCOME_COL: Record<string, string> = { good: "bg-green-50 text-green-700", acceptable: "bg-blue-50 text-blue-700", "needs-improvement": "bg-amber-50 text-amber-700", poor: "bg-red-50 text-red-700" };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-gray-900">Welfare Outcome Assessments</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Animal welfare outcome measures (WOA) as required by Red Tractor Beef & Lamb, Dairy, and Cross Compliance standards.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_WOA }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Record Assessment</Button>
+        </div>
+      </div>
+
+      <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
+        <strong>Red Tractor WOA:</strong> Assessments should be completed at least twice per year for beef & dairy cattle. Record outcome measures (lameness, BCS, dung, skin lesions) and any corrective actions taken.
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No welfare assessments recorded</p><p className="text-sm text-muted-foreground">Record your first welfare outcome assessment to satisfy Red Tractor requirements.</p></CardContent></Card>
+        : <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50"><tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Species</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Assessor</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Herd/Flock</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sample</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Lameness</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Outcome</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Next Due</th>
+                <th className="px-4 py-3" />
+              </tr></thead>
+              <tbody className="divide-y">
+                {records.map(r => (
+                  <tr key={r.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{formatDate(r.assessmentDate)}</td>
+                    <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
+                    <td className="px-4 py-3 text-xs">{r.assessorName}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{r.herdFlockRef ?? "—"}</td>
+                    <td className="px-4 py-3 text-right text-xs">{r.sampleSize ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs">{r.lamenessScore ?? "—"}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex text-xs font-semibold rounded-full px-2 py-0.5 ${OUTCOME_COL[r.overallOutcome] ?? "bg-gray-100 text-gray-700"}`}>{r.overallOutcome.replace(/-/g," ").toUpperCase()}</span></td>
+                    <td className="px-4 py-3 text-xs">{formatDate(r.nextAssessmentDue)}</td>
+                    <td className="px-4 py-3"><div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setViewItem(r)} title="View"><Eye className="h-3 w-3 text-blue-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>WOA — {formatDate(viewItem.assessmentDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.assessorName}</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{formatDate(viewItem.assessmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium capitalize">{viewItem.species}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor</p><p className="font-medium">{viewItem.assessorName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor Role</p><p className="font-medium">{viewItem.assessorRole ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock</p><p className="font-medium">{viewItem.herdFlockRef ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sample Size</p><p className="font-medium">{viewItem.sampleSize ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness Score</p><p className="font-medium">{viewItem.lamenessScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Body Condition Score</p><p className="font-medium">{viewItem.bodyConditionScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dung Score</p><p className="font-medium">{viewItem.dungScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Skin Lesion Score</p><p className="font-medium">{viewItem.skinLesionScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Nasal Discharge</p><p className="font-medium">{viewItem.nasalDischargeScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Eye Discharge</p><p className="font-medium">{viewItem.eyeDischargeScore ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality Rate</p><p className="font-medium">{viewItem.mortalityRate ? `${viewItem.mortalityRate}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calving/Lambing Score</p><p className="font-medium">{viewItem.calvingLambingScore ?? "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Outcome</p><p className="font-semibold">{viewItem.overallOutcome.replace(/-/g," ").toUpperCase()}</p></div>
+              {viewItem.correctiveActions && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Actions</p><p className="whitespace-pre-line">{viewItem.correctiveActions}</p></div>}
+              {viewItem.targetDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Date</p><p className="font-medium">{formatDate(viewItem.targetDate)}</p></div>}
+              {viewItem.nextAssessmentDue && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Assessment Due</p><p className="font-medium">{formatDate(viewItem.nextAssessmentDue)}</p></div>}
+              {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editing ? "Edit Welfare Assessment" : "Record Welfare Outcome Assessment"}</DialogTitle><DialogDescription>Complete welfare outcome measures as required by Red Tractor and cross compliance.</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setF("assessmentDate", e.target.value)} /></div>
+              <div><Label>Assessor Name *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Vet / farm manager" /></div>
+              <div><Label>Assessor Role</Label><Input value={form.assessorRole ?? ""} onChange={e => setF("assessorRole", e.target.value || null)} placeholder="e.g. Farm vet, assurance assessor" /></div>
+              <div><Label>Species *</Label>
+                <Select value={form.species} onValueChange={v => setF("species", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cattle">Cattle (Dairy)</SelectItem>
+                    <SelectItem value="beef-cattle">Cattle (Beef)</SelectItem>
+                    <SelectItem value="sheep">Sheep</SelectItem>
+                    <SelectItem value="pigs">Pigs</SelectItem>
+                    <SelectItem value="poultry">Poultry</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Herd / Flock Ref</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} /></div>
+              <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} /></div>
+              <div><Label>Lameness Score (%)</Label><Input value={form.lamenessScore ?? ""} onChange={e => setF("lamenessScore", e.target.value || null)} placeholder="e.g. 4.2" /></div>
+              <div><Label>Body Condition Score</Label><Input value={form.bodyConditionScore ?? ""} onChange={e => setF("bodyConditionScore", e.target.value || null)} placeholder="e.g. 2.5/5" /></div>
+              <div><Label>Dung Score</Label><Input value={form.dungScore ?? ""} onChange={e => setF("dungScore", e.target.value || null)} placeholder="e.g. 2/5" /></div>
+              <div><Label>Skin Lesion Score (%)</Label><Input value={form.skinLesionScore ?? ""} onChange={e => setF("skinLesionScore", e.target.value || null)} /></div>
+              <div><Label>Nasal Discharge (%)</Label><Input value={form.nasalDischargeScore ?? ""} onChange={e => setF("nasalDischargeScore", e.target.value || null)} /></div>
+              <div><Label>Eye Discharge (%)</Label><Input value={form.eyeDischargeScore ?? ""} onChange={e => setF("eyeDischargeScore", e.target.value || null)} /></div>
+              <div><Label>Mortality Rate (%)</Label><Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} /></div>
+              <div><Label>Calving / Lambing Score</Label><Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} /></div>
+              <div className="col-span-2"><Label>Overall Outcome *</Label>
+                <Select value={form.overallOutcome} onValueChange={v => setF("overallOutcome", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="good">Good — All measures within target</SelectItem>
+                    <SelectItem value="acceptable">Acceptable — Minor areas for attention</SelectItem>
+                    <SelectItem value="needs-improvement">Needs Improvement — Action plan required</SelectItem>
+                    <SelectItem value="poor">Poor — Urgent action required</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2"><Label>Corrective Actions</Label><Textarea value={form.correctiveActions ?? ""} onChange={e => setF("correctiveActions", e.target.value || null)} rows={2} placeholder="Actions to address any welfare concerns identified" /></div>
+              <div><Label>Target Completion Date</Label><Input type="date" value={form.targetDate ?? ""} onChange={e => setF("targetDate", e.target.value || null)} /></div>
+              <div><Label>Next Assessment Due</Label><Input type="date" value={form.nextAssessmentDue ?? ""} onChange={e => setF("nextAssessmentDue", e.target.value || null)} /></div>
+              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} /></div>
+              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.assessmentDate || !form.assessorName || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editing ? "Update" : "Save Assessment"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && <ConfirmDialog open title="Delete Assessment?" message="This welfare outcome assessment will be permanently deleted." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+    </>
+  );
+}
+
+// ─── Sheep Dipping Records ─────────────────────────────────────────────────────
+
+interface SheepDippingRecord { id: number; farmId: number; dipDate: string; productName: string; mappNumber: string | null; activeIngredient: string | null; dipType: string; dipConcentrationPct: string | null; volumeOfDipLitres: string | null; sheepCount: number; herdFlockRef: string | null; operatorName: string; operatorCertNumber: string | null; operatorCertExpiry: string | null; bathFillDate: string | null; daysSinceLastUse: number | null; topUpVolumeAdded: string | null; disposalMethod: string | null; disposalQuantityLitres: string | null; disposalDate: string | null; disposalContractorName: string | null; disposalWasteTransferNoteRef: string | null; withdrawalPeriodDays: number | null; withdrawalClearDate: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+
+const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, documentUrl: null, documentName: null, notes: null };
+
+function SheepDippingSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/sheep-dipping-records`;
+  const { data, isLoading } = useQuery<{ records: SheepDippingRecord[] }>({ queryKey: ["sheep-dipping", farmId], queryFn: () => fetch(base).then(r => r.json()) });
+  const records = data?.records ?? [];
+
+  const [viewItem, setViewItem] = useState<SheepDippingRecord | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<SheepDippingRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_DIP>({ ...EMPTY_DIP });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setForm({ ...EMPTY_DIP }); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setDeleteId(null); } });
+
+  function openEdit(r: SheepDippingRecord) { setEditing(r); setForm({ dipDate: r.dipDate, productName: r.productName, mappNumber: r.mappNumber ?? null, activeIngredient: r.activeIngredient ?? null, dipType: r.dipType, dipConcentrationPct: r.dipConcentrationPct ?? null, volumeOfDipLitres: r.volumeOfDipLitres ?? null, sheepCount: r.sheepCount, herdFlockRef: r.herdFlockRef ?? null, operatorName: r.operatorName, operatorCertNumber: r.operatorCertNumber ?? null, operatorCertExpiry: r.operatorCertExpiry ?? null, bathFillDate: r.bathFillDate ?? null, daysSinceLastUse: r.daysSinceLastUse, topUpVolumeAdded: r.topUpVolumeAdded ?? null, disposalMethod: r.disposalMethod ?? null, disposalQuantityLitres: r.disposalQuantityLitres ?? null, disposalDate: r.disposalDate ?? null, disposalContractorName: r.disposalContractorName ?? null, disposalWasteTransferNoteRef: r.disposalWasteTransferNoteRef ?? null, withdrawalPeriodDays: r.withdrawalPeriodDays, withdrawalClearDate: r.withdrawalClearDate ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+
+  function printReport() {
+    const rows = records.map(r => `<tr><td>${formatDate(r.dipDate)}</td><td>${r.productName}</td><td>${r.dipType}</td><td>${r.sheepCount}</td><td>${r.operatorName}</td><td>${r.operatorCertNumber ?? "—"}</td><td>${r.disposalMethod ?? "—"}</td><td>${r.withdrawalPeriodDays != null ? r.withdrawalPeriodDays + " days" : "—"}</td><td>${formatDate(r.withdrawalClearDate)}</td></tr>`).join("");
+    printProReport({ title: "Sheep Dipping Register", subtitle: `${records.length} dipping records`, tableHtml: `<table><thead><tr><th>Dip Date</th><th>Product</th><th>Type</th><th>Sheep Count</th><th>Operator</th><th>Cert No.</th><th>Disposal</th><th>W/drawal</th><th>Clear Date</th></tr></thead><tbody>${rows}</tbody></table>` });
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-gray-900">Sheep Dipping Records</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Organophosphate and synthetic pyrethroid dipping records as required by the Control of Pesticides Regulations and Red Tractor Sheep Assurance Scheme.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_DIP }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Log Dipping</Button>
+        </div>
+      </div>
+
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <strong>Regulatory requirement:</strong> Operator must hold a Certificate of Competence in Safe Use of Pesticides (PA6AW or equivalent). All dip waste must be disposed of by a licensed contractor with a Waste Transfer Note. Withdrawal periods must be observed for slaughter and wool.
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No dipping records logged</p><p className="text-sm text-muted-foreground">Log your sheep dipping treatments to maintain compliance with pesticide regulations.</p></CardContent></Card>
+        : <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50"><tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dip Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Product</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sheep</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Operator</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Disposal</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">W/drawal Clear</th>
+                <th className="px-4 py-3" />
+              </tr></thead>
+              <tbody className="divide-y">
+                {records.map(r => (
+                  <tr key={r.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{formatDate(r.dipDate)}</td>
+                    <td className="px-4 py-3"><div className="font-medium text-gray-900 text-xs">{r.productName}</div>{r.mappNumber && <div className="text-xs text-muted-foreground">MAPP: {r.mappNumber}</div>}</td>
+                    <td className="px-4 py-3 text-xs capitalize">{r.dipType}</td>
+                    <td className="px-4 py-3 text-right">{r.sheepCount}</td>
+                    <td className="px-4 py-3 text-xs">{r.operatorName}</td>
+                    <td className="px-4 py-3 text-xs">{r.disposalMethod ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs">{formatDate(r.withdrawalClearDate)}</td>
+                    <td className="px-4 py-3"><div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setViewItem(r)} title="View"><Eye className="h-3 w-3 text-blue-500" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Sheep Dipping — {formatDate(viewItem.dipDate)}</DialogTitle><DialogDescription>{viewItem.productName} · {viewItem.sheepCount} sheep</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dip Date</p><p className="font-medium">{formatDate(viewItem.dipDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product (MAPP)</p><p className="font-medium">{viewItem.productName}{viewItem.mappNumber && ` (${viewItem.mappNumber})`}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{viewItem.activeIngredient ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dip Type</p><p className="font-medium capitalize">{viewItem.dipType}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Concentration</p><p className="font-medium">{viewItem.dipConcentrationPct ? `${viewItem.dipConcentrationPct}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume of Dip (L)</p><p className="font-medium">{viewItem.volumeOfDipLitres ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sheep Dipped</p><p className="font-medium">{viewItem.sheepCount}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock Ref</p><p className="font-medium">{viewItem.herdFlockRef ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator</p><p className="font-medium">{viewItem.operatorName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cert. Number</p><p className="font-medium font-mono">{viewItem.operatorCertNumber ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cert. Expiry</p><p className="font-medium">{formatDate(viewItem.operatorCertExpiry)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bath Fill Date</p><p className="font-medium">{formatDate(viewItem.bathFillDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Days Since Last Use</p><p className="font-medium">{viewItem.daysSinceLastUse ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Top-Up Added (L)</p><p className="font-medium">{viewItem.topUpVolumeAdded ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Method</p><p className="font-medium">{viewItem.disposalMethod ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Qty (L)</p><p className="font-medium">{viewItem.disposalQuantityLitres ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Date</p><p className="font-medium">{formatDate(viewItem.disposalDate)}</p></div>
+              {viewItem.disposalContractorName && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Contractor</p><p className="font-medium">{viewItem.disposalContractorName}</p></div>}
+              {viewItem.disposalWasteTransferNoteRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">WTN Reference</p><p className="font-medium font-mono">{viewItem.disposalWasteTransferNoteRef}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Period</p><p className="font-medium">{viewItem.withdrawalPeriodDays != null ? `${viewItem.withdrawalPeriodDays} days` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Clear Date</p><p className="font-medium">{formatDate(viewItem.withdrawalClearDate)}</p></div>
+              {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editing ? "Edit Dipping Record" : "Log Sheep Dipping"}</DialogTitle><DialogDescription>Complete all fields required under Control of Pesticides Regulations and Red Tractor SAS.</DialogDescription></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div><Label>Dipping Date *</Label><Input type="date" value={form.dipDate ?? ""} onChange={e => setF("dipDate", e.target.value)} /></div>
+              <div><Label>Product Name (MAPP) *</Label><Input value={form.productName ?? ""} onChange={e => setF("productName", e.target.value)} placeholder="e.g. Ridect Pour-On" /></div>
+              <div><Label>MAPP Number</Label><Input value={form.mappNumber ?? ""} onChange={e => setF("mappNumber", e.target.value || null)} className="font-mono" /></div>
+              <div><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={e => setF("activeIngredient", e.target.value || null)} /></div>
+              <div><Label>Dip Type</Label>
+                <Select value={form.dipType} onValueChange={v => setF("dipType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plunge">Plunge Dip</SelectItem>
+                    <SelectItem value="shower">Shower / Race Dip</SelectItem>
+                    <SelectItem value="pour-on">Pour-On</SelectItem>
+                    <SelectItem value="spray">Hand Spray</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Concentration (%)</Label><Input value={form.dipConcentrationPct ?? ""} onChange={e => setF("dipConcentrationPct", e.target.value || null)} /></div>
+              <div><Label>Volume of Dip (litres)</Label><Input type="number" min={0} value={form.volumeOfDipLitres ?? ""} onChange={e => setF("volumeOfDipLitres", e.target.value || null)} /></div>
+              <div><Label>Sheep Count *</Label><Input type="number" min={1} value={form.sheepCount || ""} onChange={e => setF("sheepCount", Number(e.target.value))} /></div>
+              <div><Label>Herd / Flock Ref</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} /></div>
+              <div><Label>Operator Name *</Label><Input value={form.operatorName ?? ""} onChange={e => setF("operatorName", e.target.value)} /></div>
+              <div><Label>Cert. of Competence No.</Label><Input value={form.operatorCertNumber ?? ""} onChange={e => setF("operatorCertNumber", e.target.value || null)} className="font-mono" placeholder="PA6AW / equivalent" /></div>
+              <div><Label>Cert. Expiry</Label><Input type="date" value={form.operatorCertExpiry ?? ""} onChange={e => setF("operatorCertExpiry", e.target.value || null)} /></div>
+              <div><Label>Bath Fill Date</Label><Input type="date" value={form.bathFillDate ?? ""} onChange={e => setF("bathFillDate", e.target.value || null)} /></div>
+              <div><Label>Days Since Last Use</Label><Input type="number" min={0} value={form.daysSinceLastUse ?? ""} onChange={e => setF("daysSinceLastUse", e.target.value ? Number(e.target.value) : null)} /></div>
+              <div><Label>Top-Up Volume Added (L)</Label><Input value={form.topUpVolumeAdded ?? ""} onChange={e => setF("topUpVolumeAdded", e.target.value || null)} /></div>
+              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Dip Waste Disposal</p></div>
+              <div><Label>Disposal Method</Label>
+                <Select value={form.disposalMethod ?? ""} onValueChange={v => setF("disposalMethod", v || null)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="licensed-contractor">Licensed Contractor Collection</SelectItem>
+                    <SelectItem value="approved-disposal-site">Approved Disposal Site</SelectItem>
+                    <SelectItem value="treatment-plant">Treatment Plant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Disposal Quantity (L)</Label><Input type="number" min={0} value={form.disposalQuantityLitres ?? ""} onChange={e => setF("disposalQuantityLitres", e.target.value || null)} /></div>
+              <div><Label>Disposal Date</Label><Input type="date" value={form.disposalDate ?? ""} onChange={e => setF("disposalDate", e.target.value || null)} /></div>
+              <div><Label>Disposal Contractor</Label><Input value={form.disposalContractorName ?? ""} onChange={e => setF("disposalContractorName", e.target.value || null)} /></div>
+              <div className="col-span-2"><Label>Waste Transfer Note Ref</Label><Input value={form.disposalWasteTransferNoteRef ?? ""} onChange={e => setF("disposalWasteTransferNoteRef", e.target.value || null)} className="font-mono" /></div>
+              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Withdrawal Period</p></div>
+              <div><Label>Withdrawal Period (days)</Label><Input type="number" min={0} value={form.withdrawalPeriodDays ?? ""} onChange={e => setF("withdrawalPeriodDays", e.target.value ? Number(e.target.value) : null)} /></div>
+              <div><Label>Withdrawal Clear Date</Label><Input type="date" value={form.withdrawalClearDate ?? ""} onChange={e => setF("withdrawalClearDate", e.target.value || null)} /></div>
+              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} /></div>
+              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.dipDate || !form.productName || !form.operatorName || !form.sheepCount || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editing ? "Update" : "Save Dipping Record"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && <ConfirmDialog open title="Delete Dipping Record?" message="This sheep dipping record will be permanently deleted." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+    </>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing"]; return valid.includes(t) ? t : "herds"; });
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping"]; return valid.includes(t) ? t : "herds"; });
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -5814,6 +6376,15 @@ export default function LivestockPage() {
         <TabButton active={tab === "lambing"} onClick={() => setTab("lambing")}>
           <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Lambing Records</span>
         </TabButton>
+        <TabButton active={tab === "tb-tests"} onClick={() => setTab("tb-tests")}>
+          <span className="flex items-center gap-1"><ClipboardCheck className="h-3.5 w-3.5" /> TB Tests</span>
+        </TabButton>
+        <TabButton active={tab === "welfare-outcomes"} onClick={() => setTab("welfare-outcomes")}>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Welfare Outcomes</span>
+        </TabButton>
+        <TabButton active={tab === "sheep-dipping"} onClick={() => setTab("sheep-dipping")}>
+          <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" /> Sheep Dipping</span>
+        </TabButton>
       </TabBar>
       <ErrorBoundary key={tab}>
         {tab === "herds" && <HerdsSection farmId={farmId} />}
@@ -5828,6 +6399,9 @@ export default function LivestockPage() {
         {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
         {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
         {tab === "lambing" && <LambingSection farmId={farmId} />}
+        {tab === "tb-tests" && <TbTestsSection farmId={farmId} />}
+        {tab === "welfare-outcomes" && <WelfareOutcomeSection farmId={farmId} />}
+        {tab === "sheep-dipping" && <SheepDippingSection farmId={farmId} />}
       </ErrorBoundary>
     </AppLayout>
   );

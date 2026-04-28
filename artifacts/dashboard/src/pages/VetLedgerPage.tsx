@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Stethoscope, Plus, Edit2, Trash2, Eye, Receipt,
   CheckCircle2, Clock, AlertCircle, X, ExternalLink,
-  ChevronRight, Package, ClipboardList,
+  ChevronRight, Package, ClipboardList, FlaskConical, Printer, TriangleAlert,
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -148,8 +148,9 @@ export default function VetLedgerPage() {
   const queryClient = useQueryClient();
   const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["vet-visits", farmId] }); queryClient.invalidateQueries({ queryKey: ["vet-invoices", farmId] }); };
 
-  type VetTab = "visits" | "invoices";
+  type VetTab = "visits" | "invoices" | "amrm";
   const [tab, setTab] = useState<VetTab>("visits");
+  const [amrmYear, setAmrmYear] = useState<number>(new Date().getFullYear());
   const [search, setSearch] = useState("");
   const [raiseTaskVisit, setRaiseTaskVisit] = useState<Record<string, unknown> | null>(null);
 
@@ -194,13 +195,14 @@ export default function VetLedgerPage() {
   const knownVets: string[] = [...new Set([...visits.map(v => String(v.vetName ?? "")), ...invoices.map(i => String(i.vetName ?? ""))].filter(Boolean))];
   const knownPractices: string[] = [...new Set([...visits.map(v => String(v.vetPractice ?? "")), ...invoices.map(i => String(i.vetPractice ?? ""))].filter(Boolean))];
 
-  // Medicine register — for autocomplete on vet visit medicine entries
+  // Medicine register — for autocomplete on vet visit medicine entries + AMRM aggregation
+  type MedRecord = { id: number; medicineName: string; administeredDate?: string; dosage?: string; treatedAnimalCount?: number | null; source?: string; reason?: string };
   const medicineNamesQ = useQuery({
     queryKey: ["medicine-names-lookup", farmId],
     queryFn: async () => {
       const res = await fetch(`/api/farms/${farmId}/medicine-records`);
       if (!res.ok) return { records: [] };
-      return res.json() as Promise<{ records: { medicineName: string; source?: string }[] }>;
+      return res.json() as Promise<{ records: MedRecord[] }>;
     },
     enabled: !!farmId,
   });
@@ -210,6 +212,76 @@ export default function VetLedgerPage() {
       .map(r => r.medicineName)
       .filter(Boolean)
   )];
+
+  // ── AMRM Antibiotic Classification ─────────────────────────────────────────
+  const AMRM_CLASSES: { label: string; hpCia?: boolean; keywords: string[] }[] = [
+    { label: "Penicillins", keywords: ["penicillin", "amoxicillin", "ampicillin", "cloxacillin", "co-amoxiclav", "synulox", "amoxibactin", "amoxil", "clamoxyl", "ampiclox", "penstrep", "duphapen", "shotapen"] },
+    { label: "Tetracyclines", keywords: ["oxytetracycline", "doxycycline", "chlortetracycline", "terramycin", "engemycin", "duphacycline", "oxytetrin", "tetracycline"] },
+    { label: "Macrolides", keywords: ["erythromycin", "tylosin", "tylan", "tilmicosin", "micotil", "tulathromycin", "draxxin", "gamithromycin", "zactran", "tildipirosin", "zuprevo"] },
+    { label: "Fluoroquinolones", hpCia: true, keywords: ["enrofloxacin", "baytril", "marbofloxacin", "marbocyl", "danofloxacin", "advocin", "floxacin"] },
+    { label: "Cephalosporins (3rd/4th gen)", hpCia: true, keywords: ["ceftiofur", "excenel", "cefquinome", "cobactan"] },
+    { label: "Cephalosporins (1st/2nd gen)", keywords: ["cephalexin", "cephalosporin", "cefalexin", "cefuroxime", "cephaject", "cephalosporin", "cephaguard", "cefalonium", "pathozone"] },
+    { label: "Sulphonamides / Trimethoprim", keywords: ["sulpha", "sulfa", "trimethoprim", "tribrissen", "borgal", "sulfadiazine", "sulfadimidine", "norodine"] },
+    { label: "Aminoglycosides", keywords: ["streptomycin", "gentamicin", "genta", "apramycin", "apralan", "neomycin", "spectinomycin"] },
+    { label: "Lincosamides", keywords: ["lincomycin", "pirlimycin", "ubrolexin", "lincospectin"] },
+    { label: "Polymyxins", hpCia: true, keywords: ["colistin"] },
+  ];
+  function classifyAntibiotic(name: string): { label: string; hpCia: boolean } | null {
+    const lower = name.toLowerCase();
+    for (const cls of AMRM_CLASSES) {
+      if (cls.keywords.some(k => lower.includes(k))) return { label: cls.label, hpCia: !!cls.hpCia };
+    }
+    return null;
+  }
+  const allMedRecords = medicineNamesQ.data?.records ?? [];
+  const amrmRecords = allMedRecords.filter(r => {
+    if (!r.administeredDate) return false;
+    const yr = new Date(r.administeredDate).getFullYear();
+    return yr === amrmYear && classifyAntibiotic(r.medicineName) !== null;
+  });
+  type AmrmGroup = { label: string; hpCia: boolean; count: number; medicines: string[] };
+  const amrmGroups = amrmRecords.reduce<Record<string, AmrmGroup>>((acc, r) => {
+    const cls = classifyAntibiotic(r.medicineName)!;
+    if (!acc[cls.label]) acc[cls.label] = { label: cls.label, hpCia: cls.hpCia, count: 0, medicines: [] };
+    acc[cls.label].count++;
+    if (!acc[cls.label].medicines.includes(r.medicineName)) acc[cls.label].medicines.push(r.medicineName);
+    return acc;
+  }, {});
+  const amrmGroupList = Object.values(amrmGroups).sort((a, b) => b.count - a.count);
+  const hasHpCia = amrmGroupList.some(g => g.hpCia && g.count > 0);
+  const totalAntibioticCourses = amrmRecords.length;
+
+  const farmProfile = useAppStore(s => s.farmProfile);
+  function printAmrmReport() {
+    const lines = amrmGroupList.map(g => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${g.label}${g.hpCia ? ' <span style="background:#fef3c7;color:#92400e;font-size:0.7rem;padding:1px 4px;border-radius:4px;font-weight:700;">HP-CIA</span>' : ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${g.count}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:0.8rem;color:#6b7280;">${g.medicines.join(", ")}</td>
+      </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>AMRM Antibiotic Usage Report ${amrmYear}</title>
+<style>body{font-family:Arial,sans-serif;margin:32px;color:#111;}h1{font-size:1.3rem;margin-bottom:4px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th{background:#f3f4f6;padding:8px 12px;text-align:left;font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #d1d5db;}td{vertical-align:top;}.footer{margin-top:32px;font-size:0.8rem;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:12px;}</style>
+</head><body>
+<h1>Antibiotic Usage Report (AMRM)</h1>
+<p style="margin:0;font-size:0.9rem;color:#6b7280;">Farm: <strong>${farmProfile?.farmName ?? ""}</strong> &nbsp;|&nbsp; CPH: <strong>${farmProfile?.cphNumber ?? "—"}</strong> &nbsp;|&nbsp; SBI: <strong>${farmProfile?.sbi ?? "—"}</strong></p>
+<p style="margin:4px 0;font-size:0.9rem;color:#6b7280;">Reporting Year: <strong>${amrmYear}</strong> &nbsp;|&nbsp; Generated: <strong>${new Date().toLocaleDateString("en-GB")}</strong></p>
+${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 12px;border-radius:6px;font-size:0.85rem;margin-top:12px;"><strong>⚠ HP-CIA use recorded.</strong> Highest Priority Critically Important Antibiotics were administered in this period. Ensure veterinary prescriptions and sensitivity testing documentation are on file.</p>' : ""}
+<table>
+<thead><tr><th>Antibiotic Class</th><th style="text-align:center;">Courses</th><th>Products Used</th></tr></thead>
+<tbody>${lines}</tbody>
+<tfoot><tr><td style="padding:8px 12px;font-weight:700;">Total Antibiotic Courses</td><td style="padding:8px 12px;text-align:center;font-weight:700;">${totalAntibioticCourses}</td><td></td></tr></tfoot>
+</table>
+<div class="footer">
+<p>Vet Sign-Off: _____________________________ Date: ___________</p>
+<p>This report is generated from livestock medicine records held in BDE Farm Trac. Antibiotic classification is based on medicine name pattern matching. Please verify with your vet or AHDB guidance if any classification is uncertain.</p>
+</div>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  }
 
   // Individual animals — for per-animal medicine linkage
   const animalsQ = useQuery({
@@ -413,13 +485,20 @@ export default function VetLedgerPage() {
             <p className="text-xs text-gray-500">Visit records and invoice reconciliation</p>
           </div>
         </div>
-        <Button
-          className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm"
-          onClick={() => tab === "visits" ? openVisitEdit() : openInvoiceEdit()}
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          {tab === "visits" ? "Log Visit" : "Add Invoice"}
-        </Button>
+        {tab !== "amrm" && (
+          <Button
+            className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm"
+            onClick={() => tab === "visits" ? openVisitEdit() : openInvoiceEdit()}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            {tab === "visits" ? "Log Visit" : "Add Invoice"}
+          </Button>
+        )}
+        {tab === "amrm" && (
+          <Button className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm" onClick={printAmrmReport}>
+            <Printer className="w-3.5 h-3.5 mr-1" /> Print AMRM Report
+          </Button>
+        )}
       </div>
 
       {/* Summary bar */}
@@ -442,23 +521,39 @@ export default function VetLedgerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-4">
-        {(["visits", "invoices"] as VetTab[]).map(t => (
+        {(["visits", "invoices", "amrm"] as VetTab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-green-800 text-green-900" : "border-transparent text-gray-500 hover:text-gray-800"}`}
           >
-            {t === "visits" ? `Vet Visits (${visits.length})` : `Invoices (${invoices.length})`}
+            {t === "visits" ? `Vet Visits (${visits.length})` : t === "invoices" ? `Invoices (${invoices.length})` : "AMRM Report"}
           </button>
         ))}
-        <div className="ml-auto mb-1">
-          <Input
-            placeholder={tab === "visits" ? "Search visits…" : "Search invoices…"}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="h-8 text-sm w-52"
-          />
-        </div>
+        {tab !== "amrm" && (
+          <div className="ml-auto mb-1">
+            <Input
+              placeholder={tab === "visits" ? "Search visits…" : "Search invoices…"}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="h-8 text-sm w-52"
+            />
+          </div>
+        )}
+        {tab === "amrm" && (
+          <div className="ml-auto mb-1 flex items-center gap-2">
+            <span className="text-xs text-gray-500">Year:</span>
+            <select
+              value={amrmYear}
+              onChange={e => setAmrmYear(Number(e.target.value))}
+              className="h-8 text-sm border border-gray-300 rounded-md px-2 bg-white"
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── VISITS TAB ───────────────────────────────────── */}
@@ -565,6 +660,82 @@ export default function VetLedgerPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── AMRM REPORT TAB ──────────────────────────────── */}
+      {tab === "amrm" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-blue-900 mb-1">Antibiotic Monitoring &amp; Responsible Use (AMRM)</h3>
+            <p className="text-xs text-blue-700">This report aggregates your existing Medicine Records by antibiotic class for the selected year. Antibiotics are classified automatically from medicine names — review and verify with your vet if needed. Click <strong>Print AMRM Report</strong> above to generate the printable annual summary for your assurance scheme or vet sign-off.</p>
+          </div>
+
+          {medicineNamesQ.isLoading && <p className="text-sm text-gray-500">Loading medicine records…</p>}
+
+          {!medicineNamesQ.isLoading && amrmGroupList.length === 0 && (
+            <div className="text-center py-12 border border-dashed border-gray-200 rounded-xl">
+              <FlaskConical className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No recognised antibiotic records found for {amrmYear}</p>
+              <p className="text-xs text-gray-400 mt-1">Records appear here automatically once medicines are logged in the Medicine Register with antibiotic product names.</p>
+            </div>
+          )}
+
+          {hasHpCia && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl p-3">
+              <TriangleAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">HP-CIA Use Recorded</p>
+                <p className="text-xs text-amber-700">Highest Priority Critically Important Antibiotics (Fluoroquinolones, 3rd/4th gen Cephalosporins, or Polymyxins) were administered in {amrmYear}. Ensure veterinary prescriptions and, where required, sensitivity testing results are on file.</p>
+              </div>
+            </div>
+          )}
+
+          {amrmGroupList.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500 w-56">Antibiotic Class</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500 w-24">Courses</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Products Used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {amrmGroupList.map(g => (
+                    <tr key={g.label} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-gray-900">{g.label}</span>
+                        {g.hpCia && (
+                          <span className="ml-2 text-xs bg-amber-100 text-amber-800 border border-amber-300 rounded px-1.5 py-0.5 font-semibold">HP-CIA</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center font-bold text-gray-900">{g.count}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{g.medicines.join(", ")}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 border-t-2 border-gray-300">
+                    <td className="px-4 py-2.5 font-bold text-gray-900 text-sm">Total Antibiotic Courses</td>
+                    <td className="px-4 py-2.5 text-center font-bold text-gray-900 text-base">{totalAntibioticCourses}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 italic">All medicine records in {amrmYear} where antibiotic class was detected</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {allMedRecords.filter(r => r.administeredDate && new Date(r.administeredDate).getFullYear() === amrmYear && classifyAntibiotic(r.medicineName) === null).length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-gray-600 mb-1">Other Medicines ({amrmYear}) — not classified as antibiotics</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                {[...new Set(allMedRecords.filter(r => r.administeredDate && new Date(r.administeredDate).getFullYear() === amrmYear && classifyAntibiotic(r.medicineName) === null).map(r => r.medicineName))].join(", ")}
+              </p>
+            </div>
+          )}
+
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-500">
+            <strong>Note:</strong> This report uses keyword matching from medicine names recorded in your Medicine Register. If a product is not classified correctly, please verify with your vet or AHDB guidance. The total course count is based on the number of individual medicine administration records, not the quantity of antibiotic administered.
+          </div>
         </div>
       )}
 

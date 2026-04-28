@@ -274,6 +274,11 @@ import {
   equipmentHireBookingsTable,
   equipmentHireConditionLogsTable,
   equipmentHireFuelIssuesTable,
+  tbTestsTable,
+  welfareOutcomeAssessmentsTable,
+  ppeIssueRecordsTable,
+  contractorsTable,
+  sheepDippingRecordsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -10319,6 +10324,211 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 <p>For Medicine Register records flagged as organic, the organic withdrawal end date (doubled withdrawal period) appears as an additional emerald card, distinct from the standard withdrawal card for that treatment — so both periods remain visible in the planner at a glance.</p>`,
     },
+    {
+      id: 10064,
+      title: "TB Test Register — Recording Bovine Tuberculosis Tests",
+      category: "Livestock",
+      content: `<h2>TB Test Register — Recording Bovine Tuberculosis Tests</h2>
+
+<p>Under APHA rules, cattle keepers must keep a record of every bovine tuberculosis (bTB) test carried out on their holding. Red Tractor also requires evidence of test compliance for cattle herds. BDE Farm Trac provides a dedicated TB Test Register under <strong>Livestock → TB Tests</strong>.</p>
+
+<h3>What Must Be Recorded</h3>
+<p>For each TB test you must capture:</p>
+<ul>
+<li><strong>Test Date</strong> — date the tuberculin was injected (day 0)</li>
+<li><strong>Read Date</strong> — date the skin reaction was measured (day 3 — 72 hours ± 6 hours from injection)</li>
+<li><strong>Vet Name</strong> — the name of the Official Veterinarian (OV) or Approved Tuberculin Tester (ATT) who carried out the test</li>
+<li><strong>Test Type</strong> — Routine (the scheduled APHA interval test), Pre-Movement, Post-Movement, or Short Interval Test (SIT)</li>
+<li><strong>Animals Tested</strong> — number of cattle included in the test</li>
+<li><strong>Result</strong> — Pass (clear), Fail (reactors identified), or Inconclusive</li>
+<li><strong>Breakdown Reference</strong> — if the herd is under restriction, record the APHA breakdown reference number here</li>
+<li><strong>Restriction Status</strong> — whether the herd is currently under a movement restriction as a result of this or a previous test</li>
+<li><strong>Notes</strong> — any additional information, including identities of inconclusive reactors retained for re-testing</li>
+</ul>
+
+<h3>Adding a TB Test Record</h3>
+<p>Navigate to <strong>Livestock → TB Tests</strong> and click <strong>Add TB Test</strong>. Complete all required fields. The system will flag if the read date is more than 78 hours from the test date, which would normally invalidate the test result. Once saved, the record appears in the register in reverse chronological order.</p>
+
+<h3>Viewing and Editing Records</h3>
+<p>Click the eye icon on any row to open the read-only detail view. From there, click <strong>Edit</strong> to modify the record. Correcting a test result (for example after confirmatory re-testing) is done through the same edit flow — the original entry is updated in place.</p>
+
+<h3>Printing a TB Test Report</h3>
+<p>From the view dialog, click <strong>Print Report</strong> to generate a formatted PDF of the individual test record. This is suitable for submission to APHA, your vet, or an inspector. The farm name, CPH number, and test details are all included automatically from your farm profile.</p>
+
+<h3>APHA Frequency Requirements</h3>
+<p>TB testing frequency in Great Britain is determined by your APHA-designated testing interval — typically annual or 4-yearly depending on your local TB incidence area. The register does not currently auto-calculate your next due date, so you should record your next scheduled test date in the Farm Planner to ensure it does not slip.</p>`,
+    },
+    {
+      id: 10065,
+      title: "AMRM — Antibiotic Usage Monitoring and Responsible Use Records",
+      category: "Livestock",
+      content: `<h2>AMRM — Antibiotic Usage Monitoring and Responsible Use Records</h2>
+
+<p>Red Tractor requires cattle and sheep producers to participate in antibiotic stewardship by monitoring and reporting antibiotic usage. The UK Veterinary Medicines Directorate (VMD) and AHDB operate the AMRM (Antibiotic Monitoring and Responsible Management) programme. BDE Farm Trac supports this by aggregating your existing Medicine Records into an annual usage summary.</p>
+
+<h3>Where the Data Comes From</h3>
+<p>Your antibiotic usage report is generated automatically from medicine records already entered in <strong>Livestock → Medicine Register</strong>. No separate data entry is needed — if you record medicines consistently in the Medicine Register, your AMRM report is always up to date.</p>
+
+<h3>How to View Your AMRM Report</h3>
+<p>Navigate to <strong>Livestock → AMRM Report</strong>. The report groups all antibiotic treatments in the selected year by antibiotic class (e.g. Penicillins, Tetracyclines, Macrolides, Fluoroquinolones, Cephalosporins — including Highest Priority Critically Important Antibiotics). For each class you will see the number of courses, total quantity used in mg, and the estimated milligrams per Population Correction Unit (mg/PCU) where a PCU calculation is available.</p>
+
+<h3>Highest Priority Critically Important Antibiotics (HP-CIAs)</h3>
+<p>The World Health Organisation classifies certain antibiotic classes as Critically Important for human medicine — in particular Fluoroquinolones and 3rd/4th generation Cephalosporins. Red Tractor requires that use of HP-CIAs is only with veterinary prescription and justified by sensitivity testing. If any HP-CIA usage is recorded in the period, the AMRM report highlights this in amber so you can confirm the relevant vet prescription is on file.</p>
+
+<h3>Vet Sign-Off</h3>
+<p>Under AMRM best practice, your vet should review the annual antibiotic usage report and countersign it as part of your Veterinary Health Plan review. Use the document attachment field to upload your vet's signed copy or the completed AMRM vet sign-off form provided by your assurance scheme.</p>
+
+<h3>Printing the Report</h3>
+<p>Click <strong>Print AMRM Report</strong> to generate a formatted annual summary suitable for your assurance body or vet. The report includes your farm name, CPH, SBI, reporting year, usage by antibiotic class, and the document reference for any attached vet sign-off.</p>`,
+    },
+    {
+      id: 10066,
+      title: "Welfare Outcome Assessments (WOA) — Recording Farm Animal Welfare",
+      category: "Livestock",
+      content: `<h2>Welfare Outcome Assessments (WOA) — Recording Farm Animal Welfare</h2>
+
+<p>Welfare Outcome Assessments are a structured method of evaluating animal welfare on farm using observable, animal-based measures rather than input-based measures (e.g. housing specifications). They are a core requirement under Red Tractor Beef & Lamb and Red Tractor Dairy standards and are expected to be carried out at regular intervals and documented.</p>
+
+<h3>What is a WOA?</h3>
+<p>A WOA involves observing a sample of animals in a group and scoring them across a range of outcome indicators. Common indicators include body condition score, lameness prevalence, cleanliness, evidence of injury, and mortality rate. The assessor scores each indicator and determines whether action is required.</p>
+
+<h3>Adding a WOA Record</h3>
+<p>Navigate to <strong>Livestock → Welfare Outcomes</strong> and click <strong>Add Assessment</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Assessment Date</strong> — date the assessment was carried out</li>
+<li><strong>Assessor</strong> — name of the person completing the assessment (farmer, vet, or assurance body assessor)</li>
+<li><strong>Species &amp; Group</strong> — which herd or flock was assessed; link to a registered herd where possible</li>
+<li><strong>Indicator Scores</strong> — complete each welfare indicator with the observed score or percentage</li>
+<li><strong>Overall Outcome</strong> — Good / Satisfactory / Action Required</li>
+<li><strong>Action Required</strong> — if the outcome is Satisfactory or Action Required, document the corrective actions taken or planned; this is the key evidence Red Tractor inspectors will review</li>
+<li><strong>Follow-Up Date</strong> — when will the remedial actions be verified?</li>
+<li><strong>Notes</strong> — any additional observations</li>
+</ul>
+
+<h3>Viewing Records and Printing</h3>
+<p>Click the eye icon on any row to open the read-only detail view. From there, click <strong>Print Report</strong> to generate a formatted welfare assessment record suitable for an assurance inspection or vet review. Click <strong>Edit</strong> to update the record — for example to mark actions as completed after the follow-up date.</p>
+
+<h3>Frequency</h3>
+<p>Red Tractor does not prescribe a fixed interval for WOAs, but inspectors will expect to see evidence of regular monitoring. Carrying out assessments quarterly and after any significant management change (e.g. housing turnout, group mixing, dietary change) is considered best practice.</p>`,
+    },
+    {
+      id: 10067,
+      title: "PPE Issue Register — Tracking Personal Protective Equipment",
+      category: "Staff & Training",
+      content: `<h2>PPE Issue Register — Tracking Personal Protective Equipment</h2>
+
+<p>Under the Personal Protective Equipment at Work Regulations 1992 (as amended 2022), employers must provide suitable PPE free of charge to employees and keep a record of what has been issued. The PPE Issue Register in BDE Farm Trac provides a simple, auditable log of all PPE issued to staff on your farm.</p>
+
+<h3>Why Keep a PPE Register?</h3>
+<p>Red Tractor H&amp;S and labour standards require evidence that appropriate PPE has been provided to workers. During an inspection, auditors will check that PPE is available, correctly specified for the task, and that staff have received it. A signed issue register is the standard evidence for this check.</p>
+
+<h3>Adding a PPE Issue Record</h3>
+<p>Navigate to <strong>Staff &amp; Training → PPE Register</strong> and click <strong>Add PPE Issue</strong>. Complete the following:</p>
+<ul>
+<li><strong>Staff Member</strong> — the employee receiving the PPE; select from your registered staff list</li>
+<li><strong>PPE Item</strong> — description of the item (e.g. "Safety Boots — Steel Toe Cap EN ISO 20345", "Hi-Vis Vest EN ISO 20471 Class 2")</li>
+<li><strong>PPE Category</strong> — head, eye, hearing, respiratory, hand, foot, body, or fall protection</li>
+<li><strong>Issue Date</strong> — date the item was provided to the employee</li>
+<li><strong>Size / Specification</strong> — relevant sizing or EN standard reference</li>
+<li><strong>Condition</strong> — New, Good, Serviceable, or Replace Soon</li>
+<li><strong>Staff Acknowledgement</strong> — tick to confirm the staff member has acknowledged receipt</li>
+<li><strong>Notes</strong> — any additional notes, such as replacement reason or supplier reference</li>
+</ul>
+
+<h3>Viewing and Printing</h3>
+<p>Click the eye icon on any row to open the read-only record. Click <strong>Print Report</strong> to generate a printable issue record, which can be signed by the staff member as a formal acknowledgement. Click <strong>Edit</strong> to update condition or add replacement notes when PPE is renewed.</p>
+
+<h3>PPE Renewal Reminders</h3>
+<p>Items marked as <em>Replace Soon</em> are highlighted in the register. You can raise a manual task from the Farm Planner to prompt PPE renewal before the item fails its next inspection.</p>`,
+    },
+    {
+      id: 10068,
+      title: "Contractor H&S File — Managing Contractor Health & Safety Records",
+      category: "Health, Safety & Risk",
+      content: `<h2>Contractor H&S File — Managing Contractor Health &amp; Safety Records</h2>
+
+<p>Under the Construction (Design and Management) Regulations 2015 and the Health &amp; Safety at Work etc. Act 1974, farm occupiers who engage contractors have a duty to ensure contractors are competent and that suitable health and safety information is exchanged before work starts. Red Tractor H&amp;S standards also require a documented contractor control procedure. The BDE Farm Trac Contractor H&amp;S File provides a dedicated register for managing this.</p>
+
+<h3>What to Record for Each Contractor</h3>
+<p>Navigate to <strong>Health, Safety &amp; Risk → Contractors H&amp;S File</strong> and click <strong>Add Contractor</strong>. Record the following for each contractor:</p>
+<ul>
+<li><strong>Company Name &amp; Contact Details</strong> — trading name, primary contact, phone, and email</li>
+<li><strong>Type of Work</strong> — description of the activities the contractor carries out on your farm</li>
+<li><strong>Public Liability Insurance (PLI)</strong> — policy number, insurer, indemnity limit, and expiry date; the system will alert you 30 days before expiry</li>
+<li><strong>Employer's Liability Insurance</strong> — required if the contractor employs workers; expiry date tracked as above</li>
+<li><strong>RAMS Received</strong> — tick to confirm you have received and reviewed the contractor's Risk Assessment and Method Statement for the work being carried out</li>
+<li><strong>RAMS Review Date</strong> — date you reviewed and accepted the RAMS document</li>
+<li><strong>Induction Completed</strong> — tick to confirm the contractor has received your farm induction (site rules, emergency procedures, first aid location)</li>
+<li><strong>Induction Date</strong> — date the induction was given</li>
+<li><strong>Notes</strong> — any additional H&amp;S information, previous incidents, or specific conditions of engagement</li>
+</ul>
+
+<h3>Insurance Expiry Alerts</h3>
+<p>When PLI or Employer's Liability Insurance is within 30 days of expiry, the contractor row is flagged in the register. An alert also appears on your compliance dashboard, prompting you to chase the contractor for updated insurance documentation before allowing them back on site.</p>
+
+<h3>Printing a Contractor Record</h3>
+<p>Click the eye icon on any contractor row to open the read-only record, then click <strong>Print Report</strong>. The printed output lists all H&amp;S details and can be filed in your physical contractor folder or shared with your assurance body during an inspection.</p>`,
+    },
+    {
+      id: 10069,
+      title: "Sheep Dipping Records — Organophosphate and Pour-On Dipping Compliance",
+      category: "Livestock",
+      content: `<h2>Sheep Dipping Records — Organophosphate and Pour-On Dipping Compliance</h2>
+
+<p>Sheep dipping for ectoparasite control (scab, lice, blowfly) is tightly regulated in the UK. Under the Control of Pesticides Regulations 1986 and Control of Substances Hazardous to Health (COSHH) Regulations 2002, operators must hold appropriate certificates, follow label instructions, and keep records of every dipping event. Red Tractor Beef &amp; Lamb standards also require these records to be available for inspection.</p>
+
+<h3>What Must Be Recorded</h3>
+<p>Navigate to <strong>Livestock → Sheep Dipping</strong> and click <strong>Add Dipping Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Dipping Date</strong> — date the dipping was carried out</li>
+<li><strong>Product Name &amp; MAPP Number</strong> — the approved pesticide product used (must appear on the MAPP register); organophosphate products require an OP certificate (PA6AW)</li>
+<li><strong>Operator</strong> — name of the person who operated the dip or applied the pour-on; select from your staff register</li>
+<li><strong>Operator Certificate</strong> — for organophosphate dips, the PA6AW certificate number and expiry date; the system will warn if the operator's certificate cannot be found in the staff register</li>
+<li><strong>Number of Animals</strong> — count of sheep dipped or treated</li>
+<li><strong>Dip Type</strong> — Plunge Dip, Shower Dip, Pour-On, or Injection (for systemic treatments)</li>
+<li><strong>Bath Concentration</strong> — active ingredient concentration in the dip bath at start of session (for plunge dips)</li>
+<li><strong>Bath Disposal Method</strong> — how the spent dip was disposed of; disposal must comply with Environment Agency permits; common methods are licensed contractor collection or on-farm storage with Environment Agency consent</li>
+<li><strong>Withholding Period End Date</strong> — calculated automatically from the product label withdrawal period; animals must not be sold for human consumption before this date</li>
+<li><strong>Sheep Scab Notification</strong> — if dipping was carried out following a confirmed scab outbreak, record the APHA notification reference</li>
+<li><strong>Notes</strong> — any additional information, including batch numbers or weather conditions</li>
+</ul>
+
+<h3>Viewing and Printing Records</h3>
+<p>Click the eye icon on any dipping record to open the read-only view. Click <strong>Print Report</strong> to generate a formatted record for COSHH file, vet reference, or Red Tractor inspection. Click <strong>Edit</strong> to update withdrawal period dates or add post-dipping observations.</p>
+
+<h3>Link to COSHH Records</h3>
+<p>Organophosphate sheep dips and many pour-on products are COSHH-regulated substances. Ensure the dipping product also appears in your COSHH register (Health, Safety &amp; Risk → COSHH) with health surveillance requirements recorded — particularly for OP dips, where regular cholinesterase blood testing of operators is required under HSE guidance.</p>`,
+    },
+    {
+      id: 10070,
+      title: "ATA Number — Animal Transporter Authorisation on Livestock Movements",
+      category: "Livestock",
+      content: `<h2>ATA Number — Animal Transporter Authorisation on Livestock Movements</h2>
+
+<p>Under EC Regulation 1/2005 on the protection of animals during transport (retained in UK law), all commercial transporters of livestock must hold a valid Animal Transporter Authorisation (ATA). Long-journey transporters (over 8 hours) require a Type 2 ATA, while shorter journeys require at least a Type 1. From 1 May 2021, ATAs are issued and managed by APHA (Animal and Plant Health Agency) in England, Wales, and Scotland, and DAERA in Northern Ireland.</p>
+
+<h3>When Does an ATA Apply?</h3>
+<p>An ATA is required when livestock are transported <strong>commercially</strong> — i.e. where money or other consideration changes hands for the transport. This includes:</p>
+<ul>
+<li>Hauliers and livestock haulage contractors moving your animals</li>
+<li>Livestock dealers transporting animals they have purchased</li>
+<li>Abattoir collection vehicles</li>
+</ul>
+<p>Farmers transporting their own animals in their own vehicle, without payment, are exempt from the ATA requirement — but must still comply with general welfare in transport rules.</p>
+
+<h3>Recording the ATA Number on a Movement</h3>
+<p>When logging a livestock movement in <strong>Livestock → Movements → Add Movement</strong>, scroll to the <strong>Transporter Details</strong> section. Enter the haulier's details in the Transporter / Haulier field, then enter:</p>
+<ul>
+<li><strong>Transporter ATA Number</strong> — the APHA-issued reference, typically in the format UK/ATA/XXXXXXX</li>
+<li><strong>ATA Expiry Date</strong> — the date the authorisation expires; you should verify this is current before allowing the transporter to load</li>
+</ul>
+
+<h3>Verifying an ATA</h3>
+<p>ATA status can be verified on the APHA website. Red Tractor auditors may ask to see evidence that you checked the ATA was valid at the time of transport. Recording the ATA number and expiry date in the movement record provides this audit trail without additional paperwork.</p>
+
+<h3>Red Tractor Requirement</h3>
+<p>Red Tractor Beef &amp; Lamb and Dairy standards require you to check that commercial transporters hold a valid ATA before loading animals. Recording the ATA number in each relevant movement record demonstrates this check has been carried out — satisfying the standard without the need for a separate log.</p>`,
+    },
   ];
 
   const { search, category } = req.query;
@@ -19835,6 +20045,292 @@ router.get("/farms/:farmId/equipment-hire-summary", requireAuth, requireTenant, 
     byMachine: Object.values(byMachine),
     byCustomer: Object.values(byCustomer),
   });
+});
+
+// ─── TB Test Register ─────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(tbTestsTable).where(eq(tbTestsTable.farmId, farmId)).orderBy(desc(tbTestsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.testDate || !b.testType || !b.species || !b.outcome) { res.status(400).json({ error: "testDate, testType, species and outcome are required" }); return; }
+  const [record] = await db.insert(tbTestsTable).values({
+    farmId,
+    testDate: String(b.testDate),
+    readingDate: b.readingDate ? String(b.readingDate) : null,
+    testType: String(b.testType),
+    species: String(b.species),
+    herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null,
+    animalsTested: b.animalsTested != null ? Number(b.animalsTested) : null,
+    reactors: b.reactors != null ? Number(b.reactors) : 0,
+    inconclusives: b.inconclusives != null ? Number(b.inconclusives) : 0,
+    outcome: String(b.outcome),
+    aphaOfficer: b.aphaOfficer ? String(b.aphaOfficer) : null,
+    aphaCaseRef: b.aphaCaseRef ? String(b.aphaCaseRef) : null,
+    movementRestriction: b.movementRestriction === true || b.movementRestriction === "true",
+    restrictionLiftedDate: b.restrictionLiftedDate ? String(b.restrictionLiftedDate) : null,
+    nextTestDueDate: b.nextTestDueDate ? String(b.nextTestDueDate) : null,
+    testingVet: b.testingVet ? String(b.testingVet) : null,
+    documentUrl: b.documentUrl ? String(b.documentUrl) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["testDate","readingDate","testType","species","herdFlockRef","animalsTested","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.movementRestriction !== undefined) updates.movementRestriction = b.movementRestriction === true || b.movementRestriction === "true";
+  const [record] = await db.update(tbTestsTable).set(updates).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(tbTestsTable).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Welfare Outcome Assessments (WOA) ────────────────────────────────────────
+
+router.get("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(welfareOutcomeAssessmentsTable).where(eq(welfareOutcomeAssessmentsTable.farmId, farmId)).orderBy(desc(welfareOutcomeAssessmentsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.assessmentDate || !b.assessorName || !b.species || !b.overallOutcome) { res.status(400).json({ error: "assessmentDate, assessorName, species and overallOutcome are required" }); return; }
+  const [record] = await db.insert(welfareOutcomeAssessmentsTable).values({
+    farmId,
+    assessmentDate: String(b.assessmentDate),
+    assessorName: String(b.assessorName),
+    assessorRole: b.assessorRole ? String(b.assessorRole) : null,
+    species: String(b.species),
+    herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null,
+    sampleSize: b.sampleSize != null ? Number(b.sampleSize) : null,
+    lamenessScore: b.lamenessScore ? String(b.lamenessScore) : null,
+    bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null,
+    dungScore: b.dungScore ? String(b.dungScore) : null,
+    skinLesionScore: b.skinLesionScore ? String(b.skinLesionScore) : null,
+    nasalDischargeScore: b.nasalDischargeScore ? String(b.nasalDischargeScore) : null,
+    eyeDischargeScore: b.eyeDischargeScore ? String(b.eyeDischargeScore) : null,
+    mortalityRate: b.mortalityRate ? String(b.mortalityRate) : null,
+    calvingLambingScore: b.calvingLambingScore ? String(b.calvingLambingScore) : null,
+    overallOutcome: String(b.overallOutcome),
+    correctiveActions: b.correctiveActions ? String(b.correctiveActions) : null,
+    targetDate: b.targetDate ? String(b.targetDate) : null,
+    nextAssessmentDue: b.nextAssessmentDue ? String(b.nextAssessmentDue) : null,
+    documentUrl: b.documentUrl ? String(b.documentUrl) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["assessmentDate","assessorName","assessorRole","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [record] = await db.update(welfareOutcomeAssessmentsTable).set(updates).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(welfareOutcomeAssessmentsTable).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── PPE Issue Records ────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(ppeIssueRecordsTable).where(eq(ppeIssueRecordsTable.farmId, farmId)).orderBy(desc(ppeIssueRecordsTable.dateIssued));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.staffName || !b.ppeType || !b.dateIssued) { res.status(400).json({ error: "staffName, ppeType and dateIssued are required" }); return; }
+  const [record] = await db.insert(ppeIssueRecordsTable).values({
+    farmId,
+    staffName: String(b.staffName),
+    staffUserId: b.staffUserId ? String(b.staffUserId) : null,
+    ppeType: String(b.ppeType),
+    description: b.description ? String(b.description) : null,
+    size: b.size ? String(b.size) : null,
+    supplier: b.supplier ? String(b.supplier) : null,
+    dateIssued: String(b.dateIssued),
+    conditionCheckDate: b.conditionCheckDate ? String(b.conditionCheckDate) : null,
+    conditionAtCheck: b.conditionAtCheck ? String(b.conditionAtCheck) : null,
+    replacedDate: b.replacedDate ? String(b.replacedDate) : null,
+    replacedReason: b.replacedReason ? String(b.replacedReason) : null,
+    notes: b.notes ? String(b.notes) : null,
+    isActive: b.isActive !== false,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["staffName","staffUserId","ppeType","description","size","supplier","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [record] = await db.update(ppeIssueRecordsTable).set(updates).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(ppeIssueRecordsTable).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Contractors H&S File ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/contractors", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const showInactive = req.query.showInactive === "true";
+  const rows = await db.select().from(contractorsTable).where(
+    showInactive ? eq(contractorsTable.farmId, farmId) : and(eq(contractorsTable.farmId, farmId), eq(contractorsTable.isActive, true))
+  ).orderBy(asc(contractorsTable.companyName));
+  res.json({ contractors: rows });
+});
+
+router.post("/farms/:farmId/contractors", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.companyName || !b.tradeType) { res.status(400).json({ error: "companyName and tradeType are required" }); return; }
+  const [contractor] = await db.insert(contractorsTable).values({
+    farmId,
+    companyName: String(b.companyName),
+    contactName: b.contactName ? String(b.contactName) : null,
+    tradeType: String(b.tradeType),
+    phone: b.phone ? String(b.phone) : null,
+    email: b.email ? String(b.email) : null,
+    pliNumber: b.pliNumber ? String(b.pliNumber) : null,
+    pliInsurer: b.pliInsurer ? String(b.pliInsurer) : null,
+    pliCoverAmountGbp: b.pliCoverAmountGbp ? String(b.pliCoverAmountGbp) : null,
+    pliExpiryDate: b.pliExpiryDate ? String(b.pliExpiryDate) : null,
+    pliDocumentUrl: b.pliDocumentUrl ? String(b.pliDocumentUrl) : null,
+    pliDocumentName: b.pliDocumentName ? String(b.pliDocumentName) : null,
+    ramsReceived: b.ramsReceived === true || b.ramsReceived === "true",
+    ramsReceivedDate: b.ramsReceivedDate ? String(b.ramsReceivedDate) : null,
+    ramsReviewedBy: b.ramsReviewedBy ? String(b.ramsReviewedBy) : null,
+    ramsDocumentUrl: b.ramsDocumentUrl ? String(b.ramsDocumentUrl) : null,
+    ramsDocumentName: b.ramsDocumentName ? String(b.ramsDocumentName) : null,
+    lastOnSiteDate: b.lastOnSiteDate ? String(b.lastOnSiteDate) : null,
+    notes: b.notes ? String(b.notes) : null,
+    isActive: b.isActive !== false,
+  }).returning();
+  res.json({ contractor });
+});
+
+router.put("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["companyName","contactName","tradeType","phone","email","pliNumber","pliInsurer","pliCoverAmountGbp","pliExpiryDate","pliDocumentUrl","pliDocumentName","ramsReceived","ramsReceivedDate","ramsReviewedBy","ramsDocumentUrl","ramsDocumentName","lastOnSiteDate","notes","isActive"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.ramsReceived !== undefined) updates.ramsReceived = b.ramsReceived === true || b.ramsReceived === "true";
+  const [contractor] = await db.update(contractorsTable).set(updates).where(and(eq(contractorsTable.id, id), eq(contractorsTable.farmId, farmId))).returning();
+  if (!contractor) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ contractor });
+});
+
+router.delete("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.update(contractorsTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(contractorsTable.id, id), eq(contractorsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Sheep Dipping Records ────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(sheepDippingRecordsTable).where(eq(sheepDippingRecordsTable.farmId, farmId)).orderBy(desc(sheepDippingRecordsTable.dipDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.dipDate || !b.productName || !b.sheepCount || !b.operatorName) { res.status(400).json({ error: "dipDate, productName, sheepCount and operatorName are required" }); return; }
+  const [record] = await db.insert(sheepDippingRecordsTable).values({
+    farmId,
+    dipDate: String(b.dipDate),
+    productName: String(b.productName),
+    mappNumber: b.mappNumber ? String(b.mappNumber) : null,
+    activeIngredient: b.activeIngredient ? String(b.activeIngredient) : null,
+    dipType: b.dipType ? String(b.dipType) : "plunge",
+    dipConcentrationPct: b.dipConcentrationPct != null ? String(b.dipConcentrationPct) : null,
+    volumeOfDipLitres: b.volumeOfDipLitres != null ? String(b.volumeOfDipLitres) : null,
+    sheepCount: Number(b.sheepCount),
+    herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null,
+    operatorName: String(b.operatorName),
+    operatorCertNumber: b.operatorCertNumber ? String(b.operatorCertNumber) : null,
+    operatorCertExpiry: b.operatorCertExpiry ? String(b.operatorCertExpiry) : null,
+    bathFillDate: b.bathFillDate ? String(b.bathFillDate) : null,
+    daysSinceLastUse: b.daysSinceLastUse != null ? Number(b.daysSinceLastUse) : null,
+    topUpVolumeAdded: b.topUpVolumeAdded != null ? String(b.topUpVolumeAdded) : null,
+    disposalMethod: b.disposalMethod ? String(b.disposalMethod) : null,
+    disposalQuantityLitres: b.disposalQuantityLitres != null ? String(b.disposalQuantityLitres) : null,
+    disposalDate: b.disposalDate ? String(b.disposalDate) : null,
+    disposalContractorName: b.disposalContractorName ? String(b.disposalContractorName) : null,
+    disposalWasteTransferNoteRef: b.disposalWasteTransferNoteRef ? String(b.disposalWasteTransferNoteRef) : null,
+    withdrawalPeriodDays: b.withdrawalPeriodDays != null ? Number(b.withdrawalPeriodDays) : null,
+    withdrawalClearDate: b.withdrawalClearDate ? String(b.withdrawalClearDate) : null,
+    documentUrl: b.documentUrl ? String(b.documentUrl) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["dipDate","productName","mappNumber","activeIngredient","dipType","dipConcentrationPct","volumeOfDipLitres","sheepCount","herdFlockRef","operatorName","operatorCertNumber","operatorCertExpiry","bathFillDate","daysSinceLastUse","topUpVolumeAdded","disposalMethod","disposalQuantityLitres","disposalDate","disposalContractorName","disposalWasteTransferNoteRef","withdrawalPeriodDays","withdrawalClearDate","documentUrl","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [record] = await db.update(sheepDippingRecordsTable).set(updates).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(sheepDippingRecordsTable).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 export default router;

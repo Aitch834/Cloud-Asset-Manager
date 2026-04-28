@@ -104,6 +104,10 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   organicCertRef: text("organic_cert_ref"),               // certifier reference for this consignment
   organicWithdrawalsClear: boolean("organic_withdrawals_clear"), // all organic doubled-withdrawal periods cleared
   organicStatusConfirmedBy: text("organic_status_confirmed_by"),
+  // ─── Animal Transporter Authorisation (ATA) ───────────────────────────────
+  // APHA-issued ATA number for the transporter company (different from ATC/driver cert)
+  ataNumber: text("ata_number"),                          // ATA reference e.g. "UK/ATA/1234567"
+  ataExpiryDate: text("ata_expiry_date"),                 // stored as text date YYYY-MM-DD
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

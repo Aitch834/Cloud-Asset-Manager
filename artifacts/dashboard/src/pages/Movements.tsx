@@ -38,6 +38,8 @@ interface Movement {
   species: string | null;
   earTagNumbers: string | null;
   transporterDetails: string | null;
+  ataNumber: string | null;
+  ataExpiryDate: string | null;
   reason: string | null;
   notes: string | null;
   createdAt: string;
@@ -954,6 +956,8 @@ const EMPTY_FORM = {
   legalNotificationSubmitted: false,
   legalNotificationDate: "",
   transporterDetails: "",
+  ataNumber: "",
+  ataExpiryDate: "",
   reason: "",
   notes: "",
 };
@@ -1247,6 +1251,8 @@ export default function Movements() {
       legalNotificationSubmitted: r.legalNotificationSubmitted ?? false,
       legalNotificationDate: r.legalNotificationDate ? r.legalNotificationDate.slice(0, 10) : "",
       transporterDetails: r.transporterDetails ?? "",
+      ataNumber: r.ataNumber ?? "",
+      ataExpiryDate: r.ataExpiryDate ? r.ataExpiryDate.slice(0, 10) : "",
       reason: r.reason ?? "",
       notes: r.notes ?? "",
     });
@@ -1555,6 +1561,7 @@ export default function Movements() {
                   )}
                   <F label="BCMS / APHA Notified" value={r.legalNotificationSubmitted ? `Yes${r.legalNotificationDate ? ` — ${fmt(r.legalNotificationDate)}` : ""}` : "⚠ Not yet notified"} />
                   {r.transporterDetails && <F label="Transporter" value={r.transporterDetails} />}
+                  {r.ataNumber && <F label="Transporter ATA No." value={r.ataNumber + (r.ataExpiryDate ? ` (expires ${fmt(r.ataExpiryDate)})` : "")} />}
                   {r.reason && <F label="Reason" value={r.reason} />}
                   {r.notes && <F label="Notes" value={r.notes} />}
                   {/* Haulage cross-link */}
@@ -1869,6 +1876,14 @@ export default function Movements() {
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Transporter / Haulier Details</label>
                   <Input placeholder="Name, vehicle reg, contact" value={formData.transporterDetails} onChange={(e) => setField("transporterDetails", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Transporter ATA Number <span className="text-xs text-muted-foreground font-normal">(Animal Transporter Authorisation)</span></label>
+                  <Input placeholder="e.g. UK/ATA/1234567" value={formData.ataNumber} onChange={(e) => setField("ataNumber", e.target.value)} className="font-mono" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">ATA Expiry Date</label>
+                  <Input type="date" value={formData.ataExpiryDate} onChange={(e) => setField("ataExpiryDate", e.target.value)} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Reason</label>

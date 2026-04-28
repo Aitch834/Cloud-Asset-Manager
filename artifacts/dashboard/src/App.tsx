@@ -55,6 +55,7 @@ import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
 import InspectionViewPage from "@/pages/InspectionViewPage";
 import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
+import ContractorsPage from "@/pages/ContractorsPage";
 const FlyTippingPage = React.lazy(() => import("@/pages/FlyTippingPage"));
 import EncampmentPage from "@/pages/EncampmentPage";
 import AccidentBookPage from "@/pages/AccidentBookPage";
@@ -306,6 +307,7 @@ function ProtectedContent() {
         <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
         <Route path="/encampments" component={EncampmentPage} />
         <Route path="/accident-book" component={AccidentBookPage} />
+        <Route path="/contractors" component={ContractorsPage} />
         <Route path="/visitors" component={VisitorsPage} />
         <Route path="/pest-control" component={PestControlPage} />
         <Route path="/cleaning" component={CleaningPage} />
@@ -411,6 +413,7 @@ function DevBypassContent() {
         <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
         <Route path="/encampments" component={EncampmentPage} />
         <Route path="/accident-book" component={AccidentBookPage} />
+        <Route path="/contractors" component={ContractorsPage} />
         <Route path="/visitors" component={VisitorsPage} />
         <Route path="/pest-control" component={PestControlPage} />
         <Route path="/cleaning" component={CleaningPage} />

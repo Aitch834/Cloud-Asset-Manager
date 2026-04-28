@@ -131,6 +131,42 @@ The Expo mobile app (`artifacts/mobile`) includes organic data-entry screens acc
 - Storage keys: `ORGANIC_FP_INPUTS`, `ORGANIC_OUTDOOR_ACCESS`, `ORGANIC_TREATMENTS` in `artifacts/mobile/lib/storage.ts`.
 - Quick Actions grid on `organic-overview.tsx` is a 2×2 layout linking to all four organic entry screens.
 
+## P1/P2 Compliance Gap Features (implemented April 2026)
+
+The following features were added to close identified Red Tractor / APHA compliance record-keeping gaps:
+
+### New DB Tables (`lib/db/src/schema/compliance-gaps.ts`)
+- `bde_tb_tests` — bovine TB test register (APHA-required)
+- `bde_welfare_outcome_assessments` — WOA records (Red Tractor Beef & Lamb, Dairy)
+- `bde_ppe_issue_records` — PPE issue register (PPE at Work Regs 1992)
+- `bde_contractors` — contractor H&S file (PLI, RAMS, induction — CDM 2015)
+- `bde_sheep_dipping_records` — sheep dipping/pour-on records (COSHH, MAPP compliance)
+
+### Schema Changes
+- `livestock_movements` table: added `ata_number` and `ata_expiry_date` columns for Animal Transporter Authorisation tracking
+
+### New API Routes (`artifacts/api-server/src/routes/farms.ts`)
+Full CRUD routes (GET/POST/PUT/DELETE) for each of the 5 new tables under the pattern `/api/farms/:farmId/[resource]` gated on `requireModuleByKey`.
+
+### Dashboard Features
+- **Livestock → TB Tests tab** — view-before-edit, print TB test report
+- **Livestock → Welfare Outcomes tab** — WOA records with corrective action tracking and print report
+- **Livestock → Sheep Dipping tab** — COSHH-compliant dipping records with print report
+- **Staff & Training → PPE Register tab** — PPE issue log with staff acknowledgement tracking and print
+- **Contractors H&S File page** (`/contractors`) — standalone page for contractor PLI/RAMS/induction records; sidebar nav item under H&S section
+- **Vet Ledger → AMRM Report tab** — antibiotic usage report aggregated from medicine records; keyword-based classification into 10 antibiotic classes with HP-CIA (Fluoroquinolones, 3rd/4th gen Cephalosporins, Polymyxins) flagging; year picker; printable annual summary with vet sign-off block
+- **Movements form** — added ATA Number and ATA Expiry Date fields for commercial transporter tracking
+
+### Help Centre Articles (7 new, IDs 10064–10070)
+TB Tests, AMRM, WOA, PPE Register, Contractor H&S, Sheep Dipping, ATA Number
+
+### Website Updates
+- `Features.tsx` — 5 new bullet points in Livestock section (TB Test Register, WOA, Sheep Dipping, AMRM, ATA); 1 in Staff & Training (PPE Issue Register); 1 in Safety, Risk & Audits (Contractor H&S File)
+- `Pricing.tsx` — updated notes for livestock-management, staff-training, safety-risk-audits modules
+
+### Seed Data
+- `seedDefaults.ts` — updated module descriptions for `livestock-management`, `staff-training`, `risk-waste` modules
+
 ## External Dependencies
 
 - **Monorepo Tool:** pnpm workspaces

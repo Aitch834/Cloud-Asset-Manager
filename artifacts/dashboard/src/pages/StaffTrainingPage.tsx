@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { printProReport } from "@/lib/print-report";
 import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
@@ -21,7 +23,7 @@ import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics";
+type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics" | "ppe";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1524,6 +1526,190 @@ function CoursesTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── PPE Issue Register ────────────────────────────────────────────────────────
+
+interface PpeRecord { id: number; farmId: number; staffName: string; staffUserId: string | null; ppeType: string; description: string | null; size: string | null; supplier: string | null; dateIssued: string; conditionCheckDate: string | null; conditionAtCheck: string | null; replacedDate: string | null; replacedReason: string | null; notes: string | null; isActive: boolean; }
+
+const EMPTY_PPE: Omit<PpeRecord, "id" | "farmId"> = { staffName: "", staffUserId: null, ppeType: "safety-boots", description: null, size: null, supplier: null, dateIssued: "", conditionCheckDate: null, conditionAtCheck: null, replacedDate: null, replacedReason: null, notes: null, isActive: true };
+
+const PPE_TYPES: Record<string, string> = { "safety-boots": "Safety Boots", "safety-helmet": "Safety Helmet", "hi-vis-vest": "Hi-Vis Vest", "gloves": "Gloves (Chemical/General)", "safety-glasses": "Safety Glasses / Goggles", "ear-protection": "Ear Protection", "dust-mask": "Dust Mask / Respirator", "face-shield": "Face Shield", "waterproof-suit": "Waterproof / Chemical Suit", "chainsaw-ppe": "Chainsaw PPE (chaps, gloves, helmet)", "apron": "Apron", "other": "Other" };
+
+function PpeRegisterTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/ppe-issue-records`;
+  const { data, isLoading } = useQuery<{ records: PpeRecord[] }>({ queryKey: ["ppe-records", farmId], queryFn: () => fetch(base).then(r => r.json()) });
+  const records = data?.records ?? [];
+
+  const [viewItem, setViewItem] = useState<PpeRecord | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<PpeRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_PPE>({ ...EMPTY_PPE });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_PPE) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setShowForm(false); setForm({ ...EMPTY_PPE }); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_PPE & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setShowForm(false); setEditing(null); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setDeleteId(null); } });
+
+  function openEdit(r: PpeRecord) { setEditing(r); setForm({ staffName: r.staffName, staffUserId: r.staffUserId ?? null, ppeType: r.ppeType, description: r.description ?? null, size: r.size ?? null, supplier: r.supplier ?? null, dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? null, conditionAtCheck: r.conditionAtCheck ?? null, replacedDate: r.replacedDate ?? null, replacedReason: r.replacedReason ?? null, notes: r.notes ?? null, isActive: r.isActive }); setShowForm(true); }
+
+  const filtered = records.filter(r => !search || r.staffName.toLowerCase().includes(search.toLowerCase()) || (PPE_TYPES[r.ppeType] ?? r.ppeType).toLowerCase().includes(search.toLowerCase()));
+
+  function printReport() {
+    const rows = filtered.map(r => `<tr><td>${r.staffName}</td><td>${PPE_TYPES[r.ppeType] ?? r.ppeType}</td><td>${r.description ?? "—"}</td><td>${r.size ?? "—"}</td><td>${fmt(r.dateIssued)}</td><td>${fmt(r.conditionCheckDate)}</td><td>${r.conditionAtCheck ?? "—"}</td><td>${r.isActive ? "Active" : "Replaced"}</td></tr>`).join("");
+    printProReport({ title: "PPE Issue Register", subtitle: `${filtered.length} items recorded`, tableHtml: `<table><thead><tr><th>Staff Member</th><th>PPE Type</th><th>Description</th><th>Size</th><th>Date Issued</th><th>Last Check</th><th>Condition</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` });
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ fontWeight: 700, color: "#111827", margin: 0 }}>PPE Issue Register</h3>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: 4 }}>Record all personal protective equipment issued to staff. Required under Red Tractor and Health & Safety at Work Act 1974 / PPE at Work Regulations 2022.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="outline" size="sm" onClick={printReport}><Printer size={14} style={{ marginRight: 4 }} />Print Register</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_PPE }); setShowForm(true); }}><Plus size={14} style={{ marginRight: 4 }} />Issue PPE</Button>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 12, padding: "10px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, fontSize: "0.875rem", color: "#1e40af" }}>
+        <strong>Legal requirement:</strong> Employers must provide PPE free of charge, maintain a record of issue, and inspect condition regularly. The PPE at Work Regulations 2022 now require a documented risk assessment and individualised records.
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by staff name or PPE type…" style={{ maxWidth: 320 }} />
+      </div>
+
+      {isLoading ? <div style={{ display: "flex", justifyContent: "center", padding: 48 }}><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+        : filtered.length === 0 ? <Card><CardContent style={{ padding: "48px 0", textAlign: "center" }}><AlertTriangle size={36} style={{ margin: "0 auto 12px", color: "#9ca3af" }} /><p style={{ fontWeight: 600, color: "#374151" }}>No PPE records{search ? " matching search" : ""}</p><p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Issue PPE to staff and record it here to maintain your register.</p></CardContent></Card>
+        : <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead style={{ background: "#f9fafb" }}><tr>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Staff Member</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>PPE Type</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Size</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Date Issued</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Last Check</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Condition</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#6b7280", fontSize: "0.8125rem" }}>Status</th>
+                <th style={{ padding: "10px 16px" }} />
+              </tr></thead>
+              <tbody>
+                {filtered.map((r, i) => (
+                  <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                    <td style={{ padding: "10px 16px", fontWeight: 600 }}>{r.staffName}</td>
+                    <td style={{ padding: "10px 16px", fontSize: "0.8125rem" }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                    <td style={{ padding: "10px 16px", fontSize: "0.8125rem", color: "#6b7280" }}>{r.size ?? "—"}</td>
+                    <td style={{ padding: "10px 16px", fontSize: "0.8125rem" }}>{fmt(r.dateIssued)}</td>
+                    <td style={{ padding: "10px 16px", fontSize: "0.8125rem" }}>{fmt(r.conditionCheckDate)}</td>
+                    <td style={{ padding: "10px 16px", fontSize: "0.8125rem" }}>{r.conditionAtCheck ?? "—"}</td>
+                    <td style={{ padding: "10px 16px" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: r.isActive ? "#dcfce7" : "#f3f4f6", color: r.isActive ? "#166534" : "#6b7280" }}>{r.isActive ? "Active" : "Replaced"}</span>
+                    </td>
+                    <td style={{ padding: "10px 16px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
+                        <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => openEdit(r)} title="Edit"><Pencil size={13} /></Button>
+                        <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#ef4444" }} onClick={() => setDeleteId(r.id)} title="Delete"><Trash2 size={13} /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>PPE Record — {viewItem.staffName}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8, fontSize: "0.875rem" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Staff Member</p><p style={{ fontWeight: 600 }}>{viewItem.staffName}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p>{PPE_TYPES[viewItem.ppeType] ?? viewItem.ppeType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Description</p><p>{viewItem.description ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Size</p><p>{viewItem.size ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Supplier</p><p>{viewItem.supplier ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Date Issued</p><p>{fmt(viewItem.dateIssued)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition Check Date</p><p>{fmt(viewItem.conditionCheckDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition at Check</p><p>{viewItem.conditionAtCheck ?? "—"}</p></div>
+              {viewItem.replacedDate && <><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replaced Date</p><p>{fmt(viewItem.replacedDate)}</p></div><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replacement Reason</p><p>{viewItem.replacedReason ?? "—"}</p></div></>}
+              {viewItem.notes && <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ whiteSpace: "pre-line" }}>{viewItem.notes}</p></div>}
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil size={13} style={{ marginRight: 4 }} />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editing ? "Edit PPE Record" : "Issue PPE to Staff Member"}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 8 }}>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Staff Member *</Label><Input value={form.staffName} onChange={e => setF("staffName", e.target.value)} placeholder="Full name" /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>PPE Type *</Label>
+                <Select value={form.ppeType} onValueChange={v => setF("ppeType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PPE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Description / Specification</Label><Input value={form.description ?? ""} onChange={e => setF("description", e.target.value || null)} placeholder="e.g. EN ISO 20345 S3 steel toe" /></div>
+              <div><Label>Size</Label><Input value={form.size ?? ""} onChange={e => setF("size", e.target.value || null)} placeholder="e.g. UK 10, L, Medium" /></div>
+              <div><Label>Supplier</Label><Input value={form.supplier ?? ""} onChange={e => setF("supplier", e.target.value || null)} /></div>
+              <div><Label>Date Issued *</Label><Input type="date" value={form.dateIssued} onChange={e => setF("dateIssued", e.target.value)} /></div>
+              <div><Label>Condition Check Date</Label><Input type="date" value={form.conditionCheckDate ?? ""} onChange={e => setF("conditionCheckDate", e.target.value || null)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Condition at Last Check</Label>
+                <Select value={form.conditionAtCheck ?? ""} onValueChange={v => setF("conditionAtCheck", v || null)}>
+                  <SelectTrigger><SelectValue placeholder="Select condition…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Good">Good — fit for purpose</SelectItem>
+                    <SelectItem value="Acceptable">Acceptable — minor wear</SelectItem>
+                    <SelectItem value="Needs replacement">Needs Replacement</SelectItem>
+                    <SelectItem value="Condemned">Condemned — taken out of use</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Replaced Date</Label><Input type="date" value={form.replacedDate ?? ""} onChange={e => setF("replacedDate", e.target.value || null)} /></div>
+              <div><Label>Replacement Reason</Label><Input value={form.replacedReason ?? ""} onChange={e => setF("replacedReason", e.target.value || null)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+              <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" id="ppeActive" checked={form.isActive} onChange={e => setF("isActive", e.target.checked)} style={{ height: 16, width: 16 }} />
+                <Label htmlFor="ppeActive">Item currently active / in use</Label>
+              </div>
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.staffName || !form.dateIssued || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editing ? "Update" : "Issue PPE"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove PPE Record?</DialogTitle></DialogHeader>
+            <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This PPE issue record will be permanently removed from the register.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>{deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 const TRAINING_PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#84cc16"];
 
 function StaffTrainingAnalyticsTab({ trainingRecords, certificates }: { trainingRecords: TrainingRecord[]; certificates: CertificateRecord[] }) {
@@ -1753,6 +1939,9 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
             Analytics
           </TabButton>
+          <TabButton active={tab === "ppe"} onClick={() => setTab("ppe")}>
+            PPE Register
+          </TabButton>
         </TabBar>
 
         {!farmId && (
@@ -1775,6 +1964,8 @@ export default function StaffTrainingPage() {
           <RightToWorkTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "rtw" ? urlMember : undefined} />
         ) : tab === "analytics" ? (
           <StaffTrainingAnalyticsTab trainingRecords={trainingRecords} certificates={certificates} />
+        ) : tab === "ppe" ? (
+          <PpeRegisterTab farmId={farmId} />
         ) : (
           <CoursesTab farmId={farmId} />
         )}

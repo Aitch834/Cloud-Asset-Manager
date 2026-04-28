@@ -98,6 +98,7 @@ const complianceNav: NavItem[] = [
   { name: "Fly-Tipping", href: "/fly-tipping", icon: AlertTriangle, moduleKeys: ["risk-waste"] },
   { name: "Encampments", href: "/encampments", icon: AlertTriangle, moduleKeys: ["risk-waste"] },
   { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
+  { name: "Contractors H&S File", href: "/contractors", icon: ClipboardCheck, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
 ];
 
