@@ -20478,6 +20478,78 @@ router.delete("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAu
   res.json({ success: true });
 });
 
+// Mark a RAMS entry as reviewed (stamps current user name + today's date)
+router.patch("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const ramsId = parseInt(req.params.ramsId);
+  const userId = req.userId ?? null;
+  // Resolve display name from users table
+  let displayName = "Unknown";
+  if (userId) {
+    const [userRow] = await db.select({ firstName: usersTable.firstName, lastName: usersTable.lastName }).from(usersTable).where(eq(usersTable.id, userId));
+    if (userRow) displayName = [userRow.firstName, userRow.lastName].filter(Boolean).join(" ").trim() || "Unknown";
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  // Fetch existing to check for a linked pending task
+  const [existing] = await db.select({ pendingReviewTaskId: contractorRamsTable.pendingReviewTaskId }).from(contractorRamsTable).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId)));
+  // Auto-complete the linked task board task if one exists
+  if (existing?.pendingReviewTaskId) {
+    await db.update(farmTaskAssignmentsTable).set({ status: "completed", completedAt: new Date(), completionNote: `RAMS marked as reviewed by ${displayName} on ${today}.` }).where(eq(farmTaskAssignmentsTable.id, existing.pendingReviewTaskId));
+  }
+  const [rams] = await db.update(contractorRamsTable).set({ reviewedBy: displayName, reviewDate: today, pendingReviewTaskId: null, pendingReviewTaskStaffName: null, updatedAt: new Date() }).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId))).returning();
+  if (!rams) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ rams });
+});
+
+// Raise a Task Board review task for a specific RAMS entry
+router.post("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review-task", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contractorId = parseInt(req.params.contractorId);
+  const ramsId = parseInt(req.params.ramsId);
+  const userId = req.userId ?? "unknown";
+  const { assignedToMemberId, dueDate, note } = req.body;
+  if (!assignedToMemberId) { res.status(400).json({ error: "assignedToMemberId is required" }); return; }
+  // Get contractor and RAMS details for the task title/description
+  const [contractor] = await db.select({ companyName: contractorsTable.companyName }).from(contractorsTable).where(and(eq(contractorsTable.id, contractorId), eq(contractorsTable.farmId, farmId)));
+  const [ramsRow] = await db.select({ activityDescription: contractorRamsTable.activityDescription }).from(contractorRamsTable).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId)));
+  if (!contractor || !ramsRow) { res.status(404).json({ error: "Contractor or RAMS not found" }); return; }
+  const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone }).from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
+  if (!member) { res.status(404).json({ error: "Staff member not found" }); return; }
+  const staffName = `${member.firstName} ${member.lastName}`.trim();
+  const staffPhone = member.phone ?? null;
+  const title = `Review RAMS — ${ramsRow.activityDescription} (${contractor.companyName})`;
+  const description = `Please review the Risk Assessment & Method Statement for ${contractor.companyName} covering the following activity:\n\n"${ramsRow.activityDescription}"\n\nOnce reviewed, open the Contractor H&S File in BDE Farm Trac and click 'Mark as Reviewed' on this RAMS entry.${note ? `\n\nNote from manager: ${note}` : ""}`;
+  const [task] = await db.insert(farmTaskAssignmentsTable).values({
+    farmId, tenantId: farmId,
+    assignedToMemberId: Number(assignedToMemberId),
+    assignedByUserId: userId,
+    taskType: "contractor-hs-review",
+    taskSourceId: `contractor-rams-${ramsId}`,
+    title,
+    description,
+    dueDate: dueDate || null,
+    module: "Contractor H&S",
+    href: "/contractors",
+    staffName,
+    staffPhone,
+    assignmentNote: note?.trim() || null,
+    status: "pending",
+    smsSent: false,
+  }).returning();
+  // Store the task reference back on the RAMS record
+  await db.update(contractorRamsTable).set({ pendingReviewTaskId: task.id, pendingReviewTaskStaffName: staffName, updatedAt: new Date() }).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId)));
+  // Send SMS to the assignee
+  let smsSent = false;
+  if (staffPhone) {
+    const duePart = dueDate ? ` Due: ${new Date(dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
+    const smsBody = `Hi ${member.firstName}, you've been assigned a task on BDE Farm Trac: "${title}".${duePart} Log in to see the RAMS document and mark it as reviewed.`;
+    const result = await sendSms(staffPhone, smsBody);
+    smsSent = result.sent;
+    if (smsSent) await db.update(farmTaskAssignmentsTable).set({ smsSent: true, smsSentAt: new Date() }).where(eq(farmTaskAssignmentsTable.id, task.id));
+  }
+  res.json({ task, smsSent });
+});
+
 // ─── Sheep Dipping Records ────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {

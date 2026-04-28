@@ -199,6 +199,8 @@ export const contractorRamsTable = pgTable("contractor_rams", {
   reviewedBy: text("reviewed_by"),
   reviewDate: date("review_date"),
   notes: text("notes"),
+  pendingReviewTaskId: integer("pending_review_task_id"),       // task board task awaiting review
+  pendingReviewTaskStaffName: text("pending_review_task_staff_name"), // snapshot of assignee name
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

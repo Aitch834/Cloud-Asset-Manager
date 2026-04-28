@@ -15,6 +15,7 @@ import {
   Plus, Printer, AlertTriangle, Loader2, Pencil, Trash2, CheckCircle2, XCircle,
   ShieldCheck, Upload, ChevronDown, ChevronUp, UserPlus, FileText, Phone, Mail,
   MapPin, Link2, Building2, Users, ClipboardList, CalendarDays, BadgeCheck,
+  CheckCheck, ClipboardCheck, Clock, Send,
 } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,8 @@ interface ContractorRams {
   reviewedBy: string | null;
   reviewDate: string | null;
   notes: string | null;
+  pendingReviewTaskId: number | null;
+  pendingReviewTaskStaffName: string | null;
 }
 
 interface Contractor {
@@ -85,7 +88,7 @@ const EMPTY_FORM = {
 };
 
 const EMPTY_CONTACT = { name: "", role: null as string | null, phone: null as string | null, email: null as string | null, isPrimary: false, notes: null as string | null };
-const EMPTY_RAMS = { activityDescription: "", documentUrl: null as string | null, documentName: null as string | null, receivedDate: null as string | null, reviewedBy: null as string | null, reviewDate: null as string | null, notes: null as string | null };
+const EMPTY_RAMS = { activityDescription: "", documentUrl: null as string | null, documentName: null as string | null, receivedDate: null as string | null, notes: null as string | null };
 
 const TRADE_TYPES: Record<string, string> = {
   "general": "General Building / Maintenance",
@@ -221,6 +224,19 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
   const [ramsForm, setRamsForm] = useState({ ...EMPTY_RAMS });
   const setRF = (k: string, v: unknown) => setRamsForm(f => ({ ...f, [k]: v }));
 
+  // Assign-for-review dialog state
+  const [assignDialog, setAssignDialog] = useState<{ open: boolean; ramsId: number; activity: string } | null>(null);
+  const [assignMemberId, setAssignMemberId] = useState<string>("");
+  const [assignDueDate, setAssignDueDate] = useState<string>("");
+  const [assignNote, setAssignNote] = useState<string>("");
+
+  // Fetch farm members for the assign dialog
+  const { data: membersData } = useQuery<{ id: number; firstName: string; lastName: string; isActive: boolean }[]>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+    select: (d: any) => (d.members ?? d ?? []).filter((m: any) => m.isActive !== false),
+  });
+
   const addRamsMut = useMutation({
     mutationFn: (b: typeof EMPTY_RAMS) => fetch(`${base}/rams`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setShowRamsForm(false); setRamsForm({ ...EMPTY_RAMS }); },
@@ -233,6 +249,19 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
     mutationFn: (id: number) => fetch(`${base}/rams/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
   });
+  const markReviewedMut = useMutation({
+    mutationFn: (ramsId: number) => fetch(`${base}/rams/${ramsId}/review`, { method: "PATCH" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+  });
+  const raiseTaskMut = useMutation({
+    mutationFn: ({ ramsId, body }: { ramsId: number; body: object }) =>
+      fetch(`${base}/rams/${ramsId}/review-task`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] });
+      setAssignDialog(null);
+      setAssignMemberId(""); setAssignDueDate(""); setAssignNote("");
+    },
+  });
 
   const { contacts, rams } = contractor;
 
@@ -240,16 +269,10 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
     <div className="border-t border-border mt-0 px-5 pt-4 pb-5 bg-muted/20">
       {/* Tab row */}
       <div className="flex gap-1 mb-4">
-        <button
-          onClick={() => setActiveTab("contacts")}
-          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "contacts" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}
-        >
+        <button onClick={() => setActiveTab("contacts")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "contacts" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}>
           <Users className="h-3.5 w-3.5" />Contacts ({contacts.length})
         </button>
-        <button
-          onClick={() => setActiveTab("rams")}
-          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "rams" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}
-        >
+        <button onClick={() => setActiveTab("rams")} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "rams" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}>
           <ClipboardList className="h-3.5 w-3.5" />RAMS ({rams.length})
         </button>
       </div>
@@ -278,7 +301,6 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
               </div>
             </div>
           ))}
-
           {showContactForm ? (
             <div className="p-4 bg-white rounded-lg border border-primary/30 space-y-3">
               <p className="text-xs font-semibold text-foreground/70">{editingContact ? "Edit Contact" : "Add Contact"}</p>
@@ -316,29 +338,74 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
           {rams.length === 0 && !showRamsForm && (
             <p className="text-xs text-muted-foreground italic">No RAMS recorded yet. Add one for each activity this contractor performs on site.</p>
           )}
-          {rams.map(r => (
-            <div key={r.id} className="p-3 bg-white rounded-lg border border-border space-y-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-semibold text-foreground leading-snug">{r.activityDescription}</span>
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingRams(r); setRamsForm({ activityDescription: r.activityDescription, documentUrl: r.documentUrl, documentName: r.documentName, receivedDate: r.receivedDate, reviewedBy: r.reviewedBy, reviewDate: r.reviewDate, notes: r.notes }); setShowRamsForm(true); }}><Pencil className="h-3 w-3" /></Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteRamsMut.mutate(r.id)} disabled={deleteRamsMut.isPending}><Trash2 className="h-3 w-3" /></Button>
+          {rams.map(r => {
+            const isReviewed = !!(r.reviewDate && r.reviewedBy);
+            const hasPendingTask = !!(r.pendingReviewTaskId && r.pendingReviewTaskStaffName);
+            return (
+              <div key={r.id} className={cn("p-3 bg-white rounded-lg border space-y-2", isReviewed ? "border-green-200" : hasPendingTask ? "border-amber-200" : "border-border")}>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground leading-snug">{r.activityDescription}</span>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingRams(r); setRamsForm({ activityDescription: r.activityDescription, documentUrl: r.documentUrl, documentName: r.documentName, receivedDate: r.receivedDate, notes: r.notes }); setShowRamsForm(true); }}><Pencil className="h-3 w-3" /></Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteRamsMut.mutate(r.id)} disabled={deleteRamsMut.isPending}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {r.receivedDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Received {fmt(r.receivedDate)}</span>}
-                {r.reviewDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Reviewed {fmt(r.reviewDate)}</span>}
-                {r.reviewedBy && <span className="flex items-center gap-1"><BadgeCheck className="h-3 w-3" />{r.reviewedBy}</span>}
-              </div>
-              {r.documentUrl && r.documentName && (
-                <div className="flex items-center gap-1.5 text-xs text-primary">
-                  <FileText className="h-3 w-3 flex-shrink-0" />
-                  <a href={r.documentUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2 truncate">{r.documentName}</a>
+
+                {/* Meta row */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {r.receivedDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Received {fmt(r.receivedDate)}</span>}
+                  {r.documentUrl && r.documentName && (
+                    <a href={r.documentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary underline underline-offset-2 truncate max-w-[220px]">
+                      <FileText className="h-3 w-3 flex-shrink-0" />{r.documentName}
+                    </a>
+                  )}
                 </div>
-              )}
-              {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
-            </div>
-          ))}
+
+                {/* Review status row */}
+                {isReviewed ? (
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      Reviewed {fmt(r.reviewDate)} by {r.reviewedBy}
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+                      disabled={markReviewedMut.isPending}
+                      onClick={() => markReviewedMut.mutate(r.id)}>
+                      <ClipboardCheck className="h-3 w-3" />Re-review
+                    </Button>
+                  </div>
+                ) : hasPendingTask ? (
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      Review task assigned to {r.pendingReviewTaskStaffName}
+                    </div>
+                    <Button size="sm" className="h-7 text-xs gap-1 px-2.5"
+                      disabled={markReviewedMut.isPending}
+                      onClick={() => markReviewedMut.mutate(r.id)}>
+                      {markReviewedMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                      Mark as Reviewed
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button size="sm" className="h-7 text-xs gap-1.5 px-2.5"
+                      disabled={markReviewedMut.isPending}
+                      onClick={() => markReviewedMut.mutate(r.id)}>
+                      {markReviewedMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                      Mark as Reviewed
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 px-2.5"
+                      onClick={() => { setAssignDialog({ open: true, ramsId: r.id, activity: r.activityDescription }); setAssignMemberId(""); setAssignDueDate(""); setAssignNote(""); }}>
+                      <Send className="h-3 w-3" />Assign for Review
+                    </Button>
+                  </div>
+                )}
+
+                {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+              </div>
+            );
+          })}
 
           {showRamsForm ? (
             <div className="p-4 bg-white rounded-lg border border-primary/30 space-y-3">
@@ -346,15 +413,9 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><Label className="text-xs">Activity / Task Description *</Label><Input value={ramsForm.activityDescription} onChange={e => setRF("activityDescription", e.target.value)} placeholder="e.g. Grain store construction" className="h-8 text-sm" /></div>
                 <div><Label className="text-xs">Date Received</Label><Input type="date" value={ramsForm.receivedDate ?? ""} onChange={e => setRF("receivedDate", e.target.value || null)} className="h-8 text-sm" /></div>
-                <div><Label className="text-xs">Reviewed By</Label><Input value={ramsForm.reviewedBy ?? ""} onChange={e => setRF("reviewedBy", e.target.value || null)} className="h-8 text-sm" /></div>
-                <div><Label className="text-xs">Review Date</Label><Input type="date" value={ramsForm.reviewDate ?? ""} onChange={e => setRF("reviewDate", e.target.value || null)} className="h-8 text-sm" /></div>
                 <div className="col-span-2">
                   <Label className="text-xs mb-1.5 block">Document</Label>
-                  <RamsUploadWidget
-                    documentUrl={ramsForm.documentUrl}
-                    documentName={ramsForm.documentName}
-                    onChange={(url, name) => setRamsForm(f => ({ ...f, documentUrl: url, documentName: name }))}
-                  />
+                  <RamsUploadWidget documentUrl={ramsForm.documentUrl} documentName={ramsForm.documentName} onChange={(url, name) => setRamsForm(f => ({ ...f, documentUrl: url, documentName: name }))} />
                 </div>
                 <div className="col-span-2"><Label className="text-xs">Notes</Label><Input value={ramsForm.notes ?? ""} onChange={e => setRF("notes", e.target.value || null)} className="h-8 text-sm" /></div>
               </div>
@@ -374,6 +435,54 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
           )}
         </div>
       )}
+
+      {/* Assign for Review dialog */}
+      <Dialog open={!!assignDialog?.open} onOpenChange={o => { if (!o) setAssignDialog(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-primary" />Assign RAMS for Review</DialogTitle>
+            <DialogDescription className="text-xs">
+              A Task Board entry will be created for the reviewer, and they'll receive an SMS notification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="p-3 bg-muted/40 rounded-lg">
+              <p className="text-xs font-semibold text-muted-foreground mb-0.5">Activity</p>
+              <p className="text-sm font-medium">{assignDialog?.activity}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{contractor.companyName}</p>
+            </div>
+            <div>
+              <Label className="text-xs">Assign to *</Label>
+              <Select value={assignMemberId} onValueChange={setAssignMemberId}>
+                <SelectTrigger className="h-9 text-sm mt-1">
+                  <SelectValue placeholder="Select team member…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(membersData ?? []).map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.firstName} {m.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Due Date</Label>
+              <Input type="date" value={assignDueDate} onChange={e => setAssignDueDate(e.target.value)} className="h-9 text-sm mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Note to reviewer (optional)</Label>
+              <Textarea value={assignNote} onChange={e => setAssignNote(e.target.value)} placeholder="e.g. Please review before the contractor arrives on 15 May." className="text-sm mt-1 resize-none" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setAssignDialog(null)}>Cancel</Button>
+            <Button size="sm" className="gap-1.5" disabled={!assignMemberId || raiseTaskMut.isPending}
+              onClick={() => assignDialog && raiseTaskMut.mutate({ ramsId: assignDialog.ramsId, body: { assignedToMemberId: Number(assignMemberId), dueDate: assignDueDate || undefined, note: assignNote || undefined } })}>
+              {raiseTaskMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Assign & Add to Task Board
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
