@@ -93,6 +93,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
   const [mapBlock, setMapBlock] = useState<{ id: number; name: string } | null>(null);
 
   const { data: blocks = [], isLoading } = useQuery({ queryKey: ["horti-blocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks`), { credentials: "include" }).then(r => r.json()) });
+  const { data: farmFields = [] } = useQuery({ queryKey: ["farm-fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.ok ? r.json() : []) });
 
   useEffect(() => {
     if (open && !editing) {
@@ -115,7 +116,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...b, blockCode: code || null }),
+        body: JSON.stringify({ ...b, blockCode: code || null, fieldId: b.fieldId ? parseInt(b.fieldId as string) : null }),
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setOpen(false); setForm({}); setEditing(null); setCodeError(null); },
@@ -140,6 +141,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
               <tr className="border-b">
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Block Name</th>
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Code</th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Parent Field</th>
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Area (ha)</th>
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Soil Type</th>
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Irrigation</th>
@@ -149,12 +151,13 @@ function BlocksTab({ farmId }: { farmId: number }) {
             </thead>
             <tbody>
               {(blocks as Record<string, unknown>[]).length === 0 && (
-                <tr><td colSpan={7} className="py-6 text-center text-sm text-muted-foreground italic">No blocks yet. Add one using the button above.</td></tr>
+                <tr><td colSpan={8} className="py-6 text-center text-sm text-muted-foreground italic">No blocks yet. Add one using the button above.</td></tr>
               )}
               {(blocks as Record<string, unknown>[]).map((row, i) => (
                 <tr key={i} className="border-b last:border-0">
                   <td className="py-2 pr-4">{fmt(row.blockName)}</td>
                   <td className="py-2 pr-4 font-mono text-xs">{fmt(row.blockCode)}</td>
+                  <td className="py-2 pr-4">{row.fieldId ? <span className="text-xs">{fmt(row.fieldName)}{row.fieldReference ? <span className="text-muted-foreground"> ({fmt(row.fieldReference)})</span> : null}</span> : <span className="text-muted-foreground text-xs">—</span>}</td>
                   <td className="py-2 pr-4">{fmt(row.areaHa)}</td>
                   <td className="py-2 pr-4">{fmt(row.soilType)}</td>
                   <td className="py-2 pr-4">{fmt(row.irrigationSystem)}</td>
@@ -179,6 +182,16 @@ function BlocksTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmt(viewRecord.blockName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Code</p><p className="font-mono text-sm">{fmt(viewRecord.blockCode)}</p></div>
+              {viewRecord.fieldId && (
+                <div className="col-span-2 bg-muted/40 rounded p-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Parent Field</p>
+                  <p className="font-medium">{fmt(viewRecord.fieldName)}{viewRecord.fieldReference ? <span className="text-muted-foreground text-xs ml-1">({fmt(viewRecord.fieldReference)})</span> : null}</p>
+                  <div className="flex gap-3 mt-1">
+                    {viewRecord.fieldIsNvz && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">NVZ</span>}
+                    {viewRecord.fieldIsOrganic && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
+                  </div>
+                </div>
+              )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area (ha)</p><p className="font-medium">{fmt(viewRecord.areaHa)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Soil Type</p><p className="font-medium">{fmt(viewRecord.soilType)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Irrigation System</p><p className="font-medium">{fmt(viewRecord.irrigationSystem)}</p></div>
@@ -211,6 +224,19 @@ function BlocksTab({ farmId }: { farmId: number }) {
               />
               {codeError && <p className="text-xs text-red-600 mt-1">{codeError}</p>}
               {!editing && <p className="text-xs text-muted-foreground mt-1">Auto-suggested — you can change this to match your farm plan.</p>}
+            </div>
+            <div className="col-span-2">
+              <Label>Parent Field <span className="text-muted-foreground font-normal">(optional — for mixed farms)</span></Label>
+              <Select value={form.fieldId ?? ""} onValueChange={v => setForm(f => ({ ...f, fieldId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Not linked to a field" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not linked to a field</SelectItem>
+                  {(farmFields as { id: number; name: string; fieldReference?: string }[]).map(f => (
+                    <SelectItem key={f.id} value={String(f.id)}>{f.name}{f.fieldReference ? ` (${f.fieldReference})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Link this block to a farm field to inherit NVZ / organic status.</p>
             </div>
             <div><Label>Area (ha)</Label><Input value={form.areaHa ?? ""} onChange={e => setForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="Will update when boundary is drawn" /></div>
             <div><Label>Soil Type</Label><Input value={form.soilType ?? ""} onChange={e => setForm(f => ({ ...f, soilType: e.target.value }))} /></div>

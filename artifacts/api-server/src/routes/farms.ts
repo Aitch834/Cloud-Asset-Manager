@@ -14379,7 +14379,28 @@ router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requir
 // ============================================================
 router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(horticultureBlocksTable).where(eq(horticultureBlocksTable.farmId, farmId)).orderBy(horticultureBlocksTable.blockName);
+  const rows = await db
+    .select({
+      id: horticultureBlocksTable.id,
+      farmId: horticultureBlocksTable.farmId,
+      fieldId: horticultureBlocksTable.fieldId,
+      blockName: horticultureBlocksTable.blockName,
+      blockCode: horticultureBlocksTable.blockCode,
+      areaHa: horticultureBlocksTable.areaHa,
+      soilType: horticultureBlocksTable.soilType,
+      irrigationSystem: horticultureBlocksTable.irrigationSystem,
+      waterSource: horticultureBlocksTable.waterSource,
+      notes: horticultureBlocksTable.notes,
+      createdAt: horticultureBlocksTable.createdAt,
+      fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      fieldIsNvz: fieldsTable.isNvz,
+      fieldIsOrganic: fieldsTable.isOrganic,
+    })
+    .from(horticultureBlocksTable)
+    .leftJoin(fieldsTable, eq(horticultureBlocksTable.fieldId, fieldsTable.id))
+    .where(eq(horticultureBlocksTable.farmId, farmId))
+    .orderBy(horticultureBlocksTable.blockName);
   res.json(rows);
 });
 router.post("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {

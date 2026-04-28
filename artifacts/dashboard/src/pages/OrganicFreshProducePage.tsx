@@ -627,24 +627,37 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
         </div>
       )}
 
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem", maxHeight: "90vh", overflowY: "auto" }}>
-            <DialogHeader><DialogTitle>Block Conversion Details</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmtRaw(viewRecord.blockName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{fmtRaw(viewRecord.status)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{fmtRaw(viewRecord.certifyingBody)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start</p><p className="font-medium">{fmt(viewRecord.conversionStartDate as string)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fully Organic Date</p><p className="font-medium">{fmt(viewRecord.fullyOrganicDate as string)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Land Use Before</p><p className="font-medium">{fmtRaw(viewRecord.landUseBeforeConversion)}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
-              {viewRecord.id && <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />}
-            </div>
-            <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {viewRecord && (() => {
+        const linkedBlock = (growerBlocks as { id: number; blockName: string; fieldId?: number; fieldName?: string; fieldReference?: string; fieldIsNvz?: boolean; fieldIsOrganic?: boolean }[]).find(b => String(b.id) === String(viewRecord.blockId));
+        return (
+          <Dialog open onOpenChange={() => setViewRecord(null)}>
+            <DialogContent style={{ maxWidth: "42rem", maxHeight: "90vh", overflowY: "auto" }}>
+              <DialogHeader><DialogTitle>Block Conversion Details</DialogTitle></DialogHeader>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmtRaw(viewRecord.blockName)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{fmtRaw(viewRecord.status)}</p></div>
+                {linkedBlock?.fieldId && (
+                  <div className="col-span-2 bg-muted/40 rounded p-2">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Parent Field</p>
+                    <p className="font-medium">{linkedBlock.fieldName ?? "—"}{linkedBlock.fieldReference ? <span className="text-muted-foreground text-xs ml-1">({linkedBlock.fieldReference})</span> : null}</p>
+                    <div className="flex gap-3 mt-1">
+                      {linkedBlock.fieldIsNvz && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">NVZ</span>}
+                      {linkedBlock.fieldIsOrganic && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
+                    </div>
+                  </div>
+                )}
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{fmtRaw(viewRecord.certifyingBody)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start</p><p className="font-medium">{fmt(viewRecord.conversionStartDate as string)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fully Organic Date</p><p className="font-medium">{fmt(viewRecord.fullyOrganicDate as string)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Land Use Before</p><p className="font-medium">{fmtRaw(viewRecord.landUseBeforeConversion)}</p></div>
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+                {viewRecord.id && <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />}
+              </div>
+              <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setPendingHistory([]); } }}>
         <DialogContent style={{ maxWidth: "40rem", maxHeight: "90vh", overflowY: "auto" }}>

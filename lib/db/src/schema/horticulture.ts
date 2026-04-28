@@ -1,10 +1,12 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
+import { fieldsTable } from "./fields-crops";
 
 export const horticultureBlocksTable = pgTable("horticulture_blocks", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
   blockName: text("block_name").notNull(),
   blockCode: text("block_code"),
   areaHa: numeric("area_ha", { precision: 8, scale: 3 }),
