@@ -372,6 +372,9 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_organic_fp_inputs: `/farms/${farmId}/organic-fp-input-log`,
     bde_organic_outdoor_access: `/farms/${farmId}/organic-livestock/outdoor-access`,
     bde_organic_treatments: `/farms/${farmId}/organic-livestock/treatments`,
+    bde_tb_tests: `/farms/${farmId}/tb-tests`,
+    bde_welfare_outcome_assessments: `/farms/${farmId}/welfare-outcomes`,
+    bde_ppe_issue_records: `/farms/${farmId}/ppe-issues`,
   };
   return typeMap[recordType] || null;
 }

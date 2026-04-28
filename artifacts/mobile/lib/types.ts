@@ -246,6 +246,8 @@ export interface LivestockMovement {
   earTagNumbers: string;
   transporterName: string;
   vehicleReg: string;
+  ataNumber?: string;
+  ataExpiryDate?: string;
   notes: string;
   latitude?: number;
   longitude?: number;
@@ -1832,6 +1834,70 @@ export interface OrganicTreatment {
   withdrawalPeriodDays: string;
   certifierNotified: boolean;
   batchNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface TbTestRecord {
+  id: string;
+  farmId: string;
+  testDate: string;
+  herdOrFlockNumber: string;
+  species: string;
+  testType: "routine" | "pre_movement" | "contiguous" | "gamma_ifn" | "check_test" | "other";
+  vetName: string;
+  vetAddress: string;
+  animalsTested: string;
+  reactors: string;
+  inconclusives: string;
+  result: "clear" | "inconclusive" | "failed_reactors";
+  restrictionsLifted: boolean;
+  retestDueDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface WelfareOutcomeRecord {
+  id: string;
+  farmId: string;
+  assessmentDate: string;
+  species: string;
+  animalGroup: string;
+  animalCount: string;
+  assessorName: string;
+  bcsAverage: string;
+  lameness: "none" | "low" | "moderate" | "high";
+  mortalityRate: string;
+  injuriesObserved: boolean;
+  cleanlinessScore: "clean" | "slight" | "moderate" | "dirty";
+  waterAccess: boolean;
+  feedAccess: boolean;
+  shelterAdequate: boolean;
+  behaviourNormal: boolean;
+  outcome: "satisfactory" | "action_required" | "urgent_action";
+  actionsRequired: string;
+  nextAssessmentDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PpeIssueRecord {
+  id: string;
+  farmId: string;
+  issueDate: string;
+  staffName: string;
+  ppeType: string;
+  ppeDescription: string;
+  size: string;
+  manufacturer: string;
+  serialOrBatchNumber: string;
+  expiryDate: string;
+  issuedBy: string;
+  returned: boolean;
+  returnDate: string;
   notes: string;
   createdAt: string;
   synced: boolean;

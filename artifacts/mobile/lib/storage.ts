@@ -205,4 +205,7 @@ export const STORAGE_KEYS = {
   ORGANIC_FP_INPUTS: "bde_organic_fp_inputs",
   ORGANIC_OUTDOOR_ACCESS: "bde_organic_outdoor_access",
   ORGANIC_TREATMENTS: "bde_organic_treatments",
+  TB_TEST_RECORDS: "bde_tb_tests",
+  WELFARE_OUTCOME_RECORDS: "bde_welfare_outcome_assessments",
+  PPE_ISSUE_RECORDS: "bde_ppe_issue_records",
 } as const;

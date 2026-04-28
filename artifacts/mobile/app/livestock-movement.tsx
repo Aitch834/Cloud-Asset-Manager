@@ -60,6 +60,8 @@ export default function LivestockMovementScreen() {
   const [movementRef, setMovementRef] = useState("");
   const [transporterName, setTransporterName] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
+  const [ataNumber, setAtaNumber] = useState("");
+  const [ataExpiryDate, setAtaExpiryDate] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleSave = async () => {
@@ -105,6 +107,8 @@ export default function LivestockMovementScreen() {
       movementRef: movementRef.trim(),
       transporterName: transporterName.trim(),
       vehicleReg: vehicleReg.trim(),
+      ataNumber: ataNumber.trim() || undefined,
+      ataExpiryDate: ataExpiryDate.trim() || undefined,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -268,6 +272,18 @@ export default function LivestockMovementScreen() {
             placeholder="e.g. AB12 CDE"
             value={vehicleReg}
             onChangeText={setVehicleReg}
+          />
+          <Input
+            label="ATA Authorisation Number"
+            placeholder="e.g. ATA-12345 (cattle transporters)"
+            value={ataNumber}
+            onChangeText={setAtaNumber}
+          />
+          <Input
+            label="ATA Expiry Date"
+            placeholder="YYYY-MM-DD"
+            value={ataExpiryDate}
+            onChangeText={setAtaExpiryDate}
           />
           <Input
             label="Notes"
