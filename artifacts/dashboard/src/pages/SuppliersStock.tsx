@@ -1328,6 +1328,12 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+
+  const { data: contractorsData } = useQuery({
+    queryKey: ["contractors-hs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/contractors?showInactive=false`).then(r => r.json()),
+  });
+  const linkedSupplierIds = new Set<number>((contractorsData?.contractors ?? []).map((c: any) => c.supplierId).filter(Boolean));
   const emptyForm = { name: "", contactName: "", email: "", phone: "", address: "", category: "", supplierType: "general", accountNumber: "", ufasNumber: "", femasNumber: "", aphaFeedRegNumber: "", certificationBody: "", certificationExpiry: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
 
@@ -1433,6 +1439,9 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
                       <Badge style={{ background: "#eff6ff", color: "#1d4ed8", border: "none", fontSize: "0.7rem" }}>
                         {SUPPLIER_TYPES.find(t => t.value === s.supplierType)?.label ?? s.supplierType}
                       </Badge>
+                    )}
+                    {isActive && linkedSupplierIds.has(s.id) && (
+                      <Badge style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontSize: "0.7rem" }}>H&amp;S File</Badge>
                     )}
                   </div>
                 </div>

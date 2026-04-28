@@ -10,45 +10,82 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Redirect } from "wouter";
-import { Plus, Printer, AlertTriangle, Loader2, Eye, Pencil, Trash2, CheckCircle2, XCircle, ShieldCheck, FileText } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
+import {
+  Plus, Printer, AlertTriangle, Loader2, Pencil, Trash2, CheckCircle2, XCircle,
+  ShieldCheck, Upload, ChevronDown, ChevronUp, UserPlus, FileText, Phone, Mail,
+  MapPin, Link2, Building2, Users, ClipboardList, CalendarDays, BadgeCheck,
+} from "lucide-react";
 import { printProReport } from "@/lib/print-report";
+import { cn } from "@/lib/utils";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+interface ContractorContact {
+  id: number;
+  contractorId: number;
+  name: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+  isPrimary: boolean;
+  notes: string | null;
+}
+
+interface ContractorRams {
+  id: number;
+  contractorId: number;
+  activityDescription: string;
+  documentUrl: string | null;
+  documentName: string | null;
+  receivedDate: string | null;
+  reviewedBy: string | null;
+  reviewDate: string | null;
+  notes: string | null;
+}
+
 interface Contractor {
   id: number;
   farmId: number;
   companyName: string;
-  contactName: string | null;
   tradeType: string;
+  address: string | null;
+  contactName: string | null;
   phone: string | null;
   email: string | null;
+  supplierId: number | null;
   pliNumber: string | null;
   pliInsurer: string | null;
   pliCoverAmountGbp: string | null;
   pliExpiryDate: string | null;
   pliDocumentUrl: string | null;
   pliDocumentName: string | null;
-  ramsReceived: boolean;
-  ramsReceivedDate: string | null;
-  ramsReviewedBy: string | null;
-  ramsDocumentUrl: string | null;
-  ramsDocumentName: string | null;
+  firstOnSiteDate: string | null;
   lastOnSiteDate: string | null;
   notes: string | null;
   isActive: boolean;
+  contacts: ContractorContact[];
+  rams: ContractorRams[];
 }
 
-const EMPTY: Omit<Contractor, "id" | "farmId"> = {
-  companyName: "", contactName: null, tradeType: "general", phone: null, email: null,
-  pliNumber: null, pliInsurer: null, pliCoverAmountGbp: null, pliExpiryDate: null,
-  pliDocumentUrl: null, pliDocumentName: null, ramsReceived: false, ramsReceivedDate: null,
-  ramsReviewedBy: null, ramsDocumentUrl: null, ramsDocumentName: null,
-  lastOnSiteDate: null, notes: null, isActive: true,
+interface Supplier { id: number; name: string; }
+
+const EMPTY_FORM = {
+  companyName: "", tradeType: "general", address: null as string | null,
+  contactName: null as string | null, phone: null as string | null, email: null as string | null,
+  supplierId: null as number | null,
+  pliNumber: null as string | null, pliInsurer: null as string | null,
+  pliCoverAmountGbp: null as string | null, pliExpiryDate: null as string | null,
+  pliDocumentUrl: null as string | null, pliDocumentName: null as string | null,
+  firstOnSiteDate: null as string | null, lastOnSiteDate: null as string | null,
+  notes: null as string | null, isActive: true,
 };
+
+const EMPTY_CONTACT = { name: "", role: null as string | null, phone: null as string | null, email: null as string | null, isPrimary: false, notes: null as string | null };
+const EMPTY_RAMS = { activityDescription: "", documentUrl: null as string | null, documentName: null as string | null, receivedDate: null as string | null, reviewedBy: null as string | null, reviewDate: null as string | null, notes: null as string | null };
 
 const TRADE_TYPES: Record<string, string> = {
   "general": "General Building / Maintenance",
@@ -69,23 +106,282 @@ const TRADE_TYPES: Record<string, string> = {
   "other": "Other",
 };
 
-function isPliExpiringSoon(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+function isPliExpiringSoon(d: string | null) {
+  if (!d) return false;
+  const diff = (new Date(d).getTime() - Date.now()) / 86400000;
   return diff >= 0 && diff <= 60;
 }
-
-function isPliExpired(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  return new Date(dateStr) < new Date();
+function isPliExpired(d: string | null) {
+  return d ? new Date(d) < new Date() : false;
 }
 
+// ─── PLI Upload widget ───────────────────────────────────────────────────────
+function PliUploadWidget({ documentUrl, documentName, onChange }: {
+  documentUrl: string | null;
+  documentName: string | null;
+  onChange: (url: string, name: string) => void;
+}) {
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: (r: unknown) => {
+      const resp = r as { objectPath?: string; filename?: string; publicUrl?: string };
+      const url = resp.publicUrl ?? resp.objectPath ?? "";
+      const name = resp.filename ?? url.split("/").pop() ?? "Certificate";
+      onChange(url, name);
+    },
+  });
+  return (
+    <div className="space-y-2">
+      <label className={cn(
+        "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors text-sm",
+        isUploading ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/40"
+      )}>
+        {isUploading ? (
+          <><Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" /><span className="text-muted-foreground">Uploading… {progress ?? 0}%</span></>
+        ) : (
+          <><Upload className="h-4 w-4 text-muted-foreground flex-shrink-0" /><span className="text-muted-foreground">{documentName ?? "Upload PLI certificate (PDF, JPG, PNG)"}</span></>
+        )}
+        <input type="file" accept="image/*,application/pdf" className="hidden" disabled={isUploading} onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
+      </label>
+      {documentUrl && documentName && (
+        <div className="flex items-center gap-2 text-xs text-primary">
+          <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+          <a href={documentUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2 truncate">{documentName}</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RAMS Upload widget ──────────────────────────────────────────────────────
+function RamsUploadWidget({ documentUrl, documentName, onChange }: {
+  documentUrl: string | null;
+  documentName: string | null;
+  onChange: (url: string, name: string) => void;
+}) {
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: (r: unknown) => {
+      const resp = r as { objectPath?: string; filename?: string; publicUrl?: string };
+      const url = resp.publicUrl ?? resp.objectPath ?? "";
+      const name = resp.filename ?? url.split("/").pop() ?? "RAMS Document";
+      onChange(url, name);
+    },
+  });
+  return (
+    <div className="space-y-1">
+      <label className={cn(
+        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed cursor-pointer transition-colors text-xs",
+        isUploading ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/40"
+      )}>
+        {isUploading ? (
+          <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary flex-shrink-0" /><span className="text-muted-foreground">Uploading… {progress ?? 0}%</span></>
+        ) : (
+          <><Upload className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" /><span className="text-muted-foreground">{documentName ?? "Attach RAMS document (PDF, DOC, JPG)"}</span></>
+        )}
+        <input type="file" accept="image/*,application/pdf,.doc,.docx" className="hidden" disabled={isUploading} onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
+      </label>
+      {documentUrl && documentName && (
+        <div className="flex items-center gap-1.5 text-xs text-primary pl-1">
+          <FileText className="h-3 w-3 flex-shrink-0" />
+          <a href={documentUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2 truncate">{documentName}</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Expanded card section ───────────────────────────────────────────────────
+function ExpandedContractorSection({ contractor, farmId }: { contractor: Contractor; farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/contractors/${contractor.id}`;
+
+  const [activeTab, setActiveTab] = useState<"contacts" | "rams">("contacts");
+
+  // ── Contacts ──
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [editingContact, setEditingContact] = useState<ContractorContact | null>(null);
+  const [contactForm, setContactForm] = useState({ ...EMPTY_CONTACT });
+  const setCF = (k: string, v: unknown) => setContactForm(f => ({ ...f, [k]: v }));
+
+  const addContactMut = useMutation({
+    mutationFn: (b: typeof EMPTY_CONTACT) => fetch(`${base}/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setShowContactForm(false); setContactForm({ ...EMPTY_CONTACT }); },
+  });
+  const updateContactMut = useMutation({
+    mutationFn: (b: typeof EMPTY_CONTACT & { id: number }) => fetch(`${base}/contacts/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setEditingContact(null); setShowContactForm(false); setContactForm({ ...EMPTY_CONTACT }); },
+  });
+  const deleteContactMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/contacts/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+  });
+
+  // ── RAMS ──
+  const [showRamsForm, setShowRamsForm] = useState(false);
+  const [editingRams, setEditingRams] = useState<ContractorRams | null>(null);
+  const [ramsForm, setRamsForm] = useState({ ...EMPTY_RAMS });
+  const setRF = (k: string, v: unknown) => setRamsForm(f => ({ ...f, [k]: v }));
+
+  const addRamsMut = useMutation({
+    mutationFn: (b: typeof EMPTY_RAMS) => fetch(`${base}/rams`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setShowRamsForm(false); setRamsForm({ ...EMPTY_RAMS }); },
+  });
+  const updateRamsMut = useMutation({
+    mutationFn: (b: typeof EMPTY_RAMS & { id: number }) => fetch(`${base}/rams/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setEditingRams(null); setShowRamsForm(false); setRamsForm({ ...EMPTY_RAMS }); },
+  });
+  const deleteRamsMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/rams/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+  });
+
+  const { contacts, rams } = contractor;
+
+  return (
+    <div className="border-t border-border mt-0 px-5 pt-4 pb-5 bg-muted/20">
+      {/* Tab row */}
+      <div className="flex gap-1 mb-4">
+        <button
+          onClick={() => setActiveTab("contacts")}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "contacts" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}
+        >
+          <Users className="h-3.5 w-3.5" />Contacts ({contacts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("rams")}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors", activeTab === "rams" ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted")}
+        >
+          <ClipboardList className="h-3.5 w-3.5" />RAMS ({rams.length})
+        </button>
+      </div>
+
+      {/* Contacts tab */}
+      {activeTab === "contacts" && (
+        <div className="space-y-3">
+          {contacts.length === 0 && !showContactForm && (
+            <p className="text-xs text-muted-foreground italic">No contacts recorded yet.</p>
+          )}
+          {contacts.map(c => (
+            <div key={c.id} className="flex items-start justify-between gap-3 p-3 bg-white rounded-lg border border-border">
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-foreground">{c.name}</span>
+                  {c.isPrimary && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Primary</span>}
+                  {c.role && <span className="text-xs text-muted-foreground">{c.role}</span>}
+                </div>
+                {c.phone && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3 w-3" />{c.phone}</div>}
+                {c.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3" />{c.email}</div>}
+                {c.notes && <p className="text-xs text-muted-foreground italic mt-1">{c.notes}</p>}
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingContact(c); setContactForm({ name: c.name, role: c.role, phone: c.phone, email: c.email, isPrimary: c.isPrimary, notes: c.notes }); setShowContactForm(true); }}><Pencil className="h-3 w-3" /></Button>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteContactMut.mutate(c.id)} disabled={deleteContactMut.isPending}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            </div>
+          ))}
+
+          {showContactForm ? (
+            <div className="p-4 bg-white rounded-lg border border-primary/30 space-y-3">
+              <p className="text-xs font-semibold text-foreground/70">{editingContact ? "Edit Contact" : "Add Contact"}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><Label className="text-xs">Full Name *</Label><Input value={contactForm.name} onChange={e => setCF("name", e.target.value)} placeholder="e.g. Jane Smith" className="h-8 text-sm" /></div>
+                <div><Label className="text-xs">Role / Position</Label><Input value={contactForm.role ?? ""} onChange={e => setCF("role", e.target.value || null)} placeholder="e.g. H&S Contact" className="h-8 text-sm" /></div>
+                <div><Label className="text-xs">Phone</Label><Input type="tel" value={contactForm.phone ?? ""} onChange={e => setCF("phone", e.target.value || null)} className="h-8 text-sm" /></div>
+                <div className="col-span-2"><Label className="text-xs">Email</Label><Input type="email" value={contactForm.email ?? ""} onChange={e => setCF("email", e.target.value || null)} className="h-8 text-sm" /></div>
+                <div className="col-span-2 flex items-center gap-2">
+                  <input type="checkbox" id={`primary-${contractor.id}`} checked={contactForm.isPrimary} onChange={e => setCF("isPrimary", e.target.checked)} className="h-4 w-4" />
+                  <Label htmlFor={`primary-${contractor.id}`} className="text-xs font-normal">Primary contact</Label>
+                </div>
+                <div className="col-span-2"><Label className="text-xs">Notes</Label><Input value={contactForm.notes ?? ""} onChange={e => setCF("notes", e.target.value || null)} className="h-8 text-sm" /></div>
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button variant="outline" size="sm" onClick={() => { setShowContactForm(false); setEditingContact(null); setContactForm({ ...EMPTY_CONTACT }); }}>Cancel</Button>
+                <Button size="sm" disabled={!contactForm.name || addContactMut.isPending || updateContactMut.isPending}
+                  onClick={() => editingContact ? updateContactMut.mutate({ ...contactForm, id: editingContact.id }) : addContactMut.mutate(contactForm)}>
+                  {(addContactMut.isPending || updateContactMut.isPending) && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                  {editingContact ? "Update" : "Add Contact"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => { setEditingContact(null); setContactForm({ ...EMPTY_CONTACT }); setShowContactForm(true); }}>
+              <UserPlus className="h-3.5 w-3.5" />Add Contact
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* RAMS tab */}
+      {activeTab === "rams" && (
+        <div className="space-y-3">
+          {rams.length === 0 && !showRamsForm && (
+            <p className="text-xs text-muted-foreground italic">No RAMS recorded yet. Add one for each activity this contractor performs on site.</p>
+          )}
+          {rams.map(r => (
+            <div key={r.id} className="p-3 bg-white rounded-lg border border-border space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-sm font-semibold text-foreground leading-snug">{r.activityDescription}</span>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingRams(r); setRamsForm({ activityDescription: r.activityDescription, documentUrl: r.documentUrl, documentName: r.documentName, receivedDate: r.receivedDate, reviewedBy: r.reviewedBy, reviewDate: r.reviewDate, notes: r.notes }); setShowRamsForm(true); }}><Pencil className="h-3 w-3" /></Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteRamsMut.mutate(r.id)} disabled={deleteRamsMut.isPending}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {r.receivedDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Received {fmt(r.receivedDate)}</span>}
+                {r.reviewDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Reviewed {fmt(r.reviewDate)}</span>}
+                {r.reviewedBy && <span className="flex items-center gap-1"><BadgeCheck className="h-3 w-3" />{r.reviewedBy}</span>}
+              </div>
+              {r.documentUrl && r.documentName && (
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <FileText className="h-3 w-3 flex-shrink-0" />
+                  <a href={r.documentUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2 truncate">{r.documentName}</a>
+                </div>
+              )}
+              {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+            </div>
+          ))}
+
+          {showRamsForm ? (
+            <div className="p-4 bg-white rounded-lg border border-primary/30 space-y-3">
+              <p className="text-xs font-semibold text-foreground/70">{editingRams ? "Edit RAMS" : "Add RAMS"}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><Label className="text-xs">Activity / Task Description *</Label><Input value={ramsForm.activityDescription} onChange={e => setRF("activityDescription", e.target.value)} placeholder="e.g. Grain store construction" className="h-8 text-sm" /></div>
+                <div><Label className="text-xs">Date Received</Label><Input type="date" value={ramsForm.receivedDate ?? ""} onChange={e => setRF("receivedDate", e.target.value || null)} className="h-8 text-sm" /></div>
+                <div><Label className="text-xs">Reviewed By</Label><Input value={ramsForm.reviewedBy ?? ""} onChange={e => setRF("reviewedBy", e.target.value || null)} className="h-8 text-sm" /></div>
+                <div><Label className="text-xs">Review Date</Label><Input type="date" value={ramsForm.reviewDate ?? ""} onChange={e => setRF("reviewDate", e.target.value || null)} className="h-8 text-sm" /></div>
+                <div className="col-span-2">
+                  <Label className="text-xs mb-1.5 block">Document</Label>
+                  <RamsUploadWidget
+                    documentUrl={ramsForm.documentUrl}
+                    documentName={ramsForm.documentName}
+                    onChange={(url, name) => setRamsForm(f => ({ ...f, documentUrl: url, documentName: name }))}
+                  />
+                </div>
+                <div className="col-span-2"><Label className="text-xs">Notes</Label><Input value={ramsForm.notes ?? ""} onChange={e => setRF("notes", e.target.value || null)} className="h-8 text-sm" /></div>
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button variant="outline" size="sm" onClick={() => { setShowRamsForm(false); setEditingRams(null); setRamsForm({ ...EMPTY_RAMS }); }}>Cancel</Button>
+                <Button size="sm" disabled={!ramsForm.activityDescription || addRamsMut.isPending || updateRamsMut.isPending}
+                  onClick={() => editingRams ? updateRamsMut.mutate({ ...ramsForm, id: editingRams.id }) : addRamsMut.mutate(ramsForm)}>
+                  {(addRamsMut.isPending || updateRamsMut.isPending) && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                  {editingRams ? "Update RAMS" : "Add RAMS"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => { setEditingRams(null); setRamsForm({ ...EMPTY_RAMS }); setShowRamsForm(true); }}>
+              <Plus className="h-3.5 w-3.5" />Add RAMS
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function ContractorsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
-
   if (!farmId) return <Redirect href="/select" />;
 
   const base = `/api/farms/${farmId}/contractors`;
@@ -100,68 +396,94 @@ export default function ContractorsPage() {
     queryFn: () => fetch(`${base}?showInactive=true`).then(r => r.json()),
     enabled: showInactive,
   });
+  const { data: suppliersData } = useQuery<{ records: Supplier[] }>({
+    queryKey: ["suppliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()),
+  });
 
   const contractors: Contractor[] = (showInactive ? allData?.contractors : data?.contractors) ?? [];
+  const suppliers: Supplier[] = suppliersData?.records ?? [];
 
-  const [viewItem, setViewItem] = useState<Contractor | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Contractor | null>(null);
-  const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); qc.invalidateQueries({ queryKey: ["contractors-hs-all", farmId] }); };
+
   const createMut = useMutation({
-    mutationFn: (b: typeof EMPTY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); qc.invalidateQueries({ queryKey: ["contractors-hs-all", farmId] }); setShowForm(false); setForm({ ...EMPTY }); },
+    mutationFn: (b: typeof EMPTY_FORM) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: (d) => { invalidate(); setShowForm(false); setForm({ ...EMPTY_FORM }); if (d.contractor) setExpandedId(d.contractor.id); },
   });
   const updateMut = useMutation({
-    mutationFn: (b: typeof EMPTY & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); qc.invalidateQueries({ queryKey: ["contractors-hs-all", farmId] }); setShowForm(false); setEditing(null); },
+    mutationFn: (b: typeof EMPTY_FORM & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { invalidate(); setShowForm(false); setEditing(null); },
   });
   const deactivateMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); qc.invalidateQueries({ queryKey: ["contractors-hs-all", farmId] }); setDeleteId(null); },
+    onSuccess: () => { invalidate(); setDeleteId(null); },
   });
 
   function openEdit(c: Contractor) {
     setEditing(c);
-    setForm({ companyName: c.companyName, contactName: c.contactName ?? null, tradeType: c.tradeType, phone: c.phone ?? null, email: c.email ?? null, pliNumber: c.pliNumber ?? null, pliInsurer: c.pliInsurer ?? null, pliCoverAmountGbp: c.pliCoverAmountGbp ?? null, pliExpiryDate: c.pliExpiryDate ?? null, pliDocumentUrl: c.pliDocumentUrl ?? null, pliDocumentName: c.pliDocumentName ?? null, ramsReceived: c.ramsReceived, ramsReceivedDate: c.ramsReceivedDate ?? null, ramsReviewedBy: c.ramsReviewedBy ?? null, ramsDocumentUrl: c.ramsDocumentUrl ?? null, ramsDocumentName: c.ramsDocumentName ?? null, lastOnSiteDate: c.lastOnSiteDate ?? null, notes: c.notes ?? null, isActive: c.isActive });
+    setForm({
+      companyName: c.companyName, tradeType: c.tradeType, address: c.address,
+      contactName: c.contactName, phone: c.phone, email: c.email,
+      supplierId: c.supplierId,
+      pliNumber: c.pliNumber, pliInsurer: c.pliInsurer, pliCoverAmountGbp: c.pliCoverAmountGbp,
+      pliExpiryDate: c.pliExpiryDate, pliDocumentUrl: c.pliDocumentUrl, pliDocumentName: c.pliDocumentName,
+      firstOnSiteDate: c.firstOnSiteDate, lastOnSiteDate: c.lastOnSiteDate,
+      notes: c.notes, isActive: c.isActive,
+    });
     setShowForm(true);
   }
 
-  const filtered = contractors.filter(c => !search || c.companyName.toLowerCase().includes(search.toLowerCase()) || (TRADE_TYPES[c.tradeType] ?? c.tradeType).toLowerCase().includes(search.toLowerCase()));
+  const filtered = contractors.filter(c =>
+    !search || c.companyName.toLowerCase().includes(search.toLowerCase()) ||
+    (TRADE_TYPES[c.tradeType] ?? c.tradeType).toLowerCase().includes(search.toLowerCase())
+  );
 
   function printReport() {
-    const rows = filtered.map(c => `<tr><td>${c.companyName}</td><td>${TRADE_TYPES[c.tradeType] ?? c.tradeType}</td><td>${c.contactName ?? "—"}</td><td>${c.pliNumber ?? "—"}</td><td>${c.pliInsurer ?? "—"}</td><td>${fmt(c.pliExpiryDate)}</td><td>${c.ramsReceived ? "Yes" : "No"}</td><td>${fmt(c.lastOnSiteDate)}</td></tr>`).join("");
+    const rows = filtered.map(c => {
+      const pliStatus = isPliExpired(c.pliExpiryDate) ? "EXPIRED" : isPliExpiringSoon(c.pliExpiryDate) ? "Expiring soon" : c.pliNumber ? "Current" : "Not recorded";
+      const ramsStatus = c.rams.length > 0 ? `${c.rams.length} RAMS on file` : "None";
+      return `<tr><td>${c.companyName}</td><td>${TRADE_TYPES[c.tradeType] ?? c.tradeType}</td><td>${c.address ?? "—"}</td><td>${c.contacts.map(x => x.name).join(", ") || "—"}</td><td>${c.pliNumber ?? "—"}</td><td>${fmt(c.pliExpiryDate)} (${pliStatus})</td><td>${ramsStatus}</td><td>${fmt(c.firstOnSiteDate)}</td><td>${fmt(c.lastOnSiteDate)}</td></tr>`;
+    }).join("");
     printProReport({
       title: "Contractor H&S File",
-      subtitle: `${filtered.length} contractors on record — Public Liability Insurance & RAMS register`,
-      tableHtml: `<table><thead><tr><th>Company</th><th>Trade</th><th>Contact</th><th>PLI Number</th><th>Insurer</th><th>PLI Expiry</th><th>RAMS Received</th><th>Last On-Site</th></tr></thead><tbody>${rows}</tbody></table>`,
+      subtitle: `${filtered.length} contractors on record`,
+      tableHtml: `<table><thead><tr><th>Company</th><th>Trade</th><th>Address</th><th>Contacts</th><th>PLI No.</th><th>PLI Expiry</th><th>RAMS</th><th>First On-Site</th><th>Last On-Site</th></tr></thead><tbody>${rows}</tbody></table>`,
     });
   }
 
   const pliIssues = contractors.filter(c => c.isActive && (isPliExpired(c.pliExpiryDate) || isPliExpiringSoon(c.pliExpiryDate) || !c.pliNumber));
-  const ramsIssues = contractors.filter(c => c.isActive && !c.ramsReceived);
+  const ramsIssues = contractors.filter(c => c.isActive && c.rams.length === 0);
+  const linkedSupplierIds = new Set(contractors.map(c => c.supplierId).filter(Boolean));
 
   return (
     <AppLayout title="Contractors H&S File">
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <div>
-          <p className="text-sm text-gray-500 mt-0.5">Public liability insurance certificates and RAMS (Risk Assessments &amp; Method Statements) for all contractors working on the farm. Required under Red Tractor and Health &amp; Safety at Work Act 1974.</p>
-        </div>
+        <p className="text-sm text-gray-500 max-w-2xl">
+          Public liability insurance, RAMS, and contact records for all contractors working on the farm. Required under Red Tractor and the Health &amp; Safety at Work Act 1974.
+        </p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Register</Button>
-          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Add Contractor</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_FORM }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Add Contractor</Button>
         </div>
       </div>
 
       {(pliIssues.length > 0 || ramsIssues.length > 0) && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-          <strong>Action required:</strong>
-          {pliIssues.length > 0 && <span> {pliIssues.length} contractor{pliIssues.length > 1 ? "s" : ""} with missing, expired, or expiring PLI.</span>}
-          {ramsIssues.length > 0 && <span> {ramsIssues.length} contractor{ramsIssues.length > 1 ? "s" : ""} without RAMS on file.</span>}
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>Action required:</strong>
+            {pliIssues.length > 0 && <> {pliIssues.length} contractor{pliIssues.length > 1 ? "s" : ""} with missing, expired, or expiring PLI.</>}
+            {ramsIssues.length > 0 && <> {ramsIssues.length} contractor{ramsIssues.length > 1 ? "s" : ""} without any RAMS on file.</>}
+          </span>
         </div>
       )}
 
@@ -182,164 +504,201 @@ export default function ContractorsPage() {
           <p className="text-sm text-muted-foreground">Add contractors working on the farm to maintain your H&amp;S file.</p>
         </CardContent></Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Company</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Trade</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">PLI No.</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">PLI Expiry</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">RAMS</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Last On-Site</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map(c => {
-                const pliExpired = isPliExpired(c.pliExpiryDate);
-                const pliSoon = !pliExpired && isPliExpiringSoon(c.pliExpiryDate);
-                return (
-                  <tr key={c.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{c.companyName}</div>
-                      {c.contactName && <div className="text-xs text-muted-foreground">{c.contactName}</div>}
-                      {c.email && <div className="text-xs text-muted-foreground">{c.email}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{TRADE_TYPES[c.tradeType] ?? c.tradeType}</td>
-                    <td className="px-4 py-3">
-                      {c.pliNumber ? (
-                        <span className="font-mono text-xs font-semibold text-primary">{c.pliNumber}</span>
-                      ) : (
-                        <span className="text-xs text-red-600 font-semibold">Not recorded</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {c.pliExpiryDate ? (
-                        <span className={pliExpired ? "text-red-600 font-semibold" : pliSoon ? "text-amber-600 font-semibold" : ""}>
-                          {fmt(c.pliExpiryDate)}{pliExpired ? " ⚠ EXPIRED" : pliSoon ? " ⚠ Expiring soon" : ""}
+        <div className="space-y-3">
+          {filtered.map(c => {
+            const pliExpired = isPliExpired(c.pliExpiryDate);
+            const pliSoon = !pliExpired && isPliExpiringSoon(c.pliExpiryDate);
+            const expanded = expandedId === c.id;
+            const linkedSupplier = suppliers.find(s => s.id === c.supplierId);
+            return (
+              <div key={c.id} className={cn("rounded-xl border bg-white overflow-hidden", !c.isActive && "opacity-60")}>
+                {/* Card header row */}
+                <div className="flex items-start gap-4 px-5 py-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-semibold text-base text-foreground">{c.companyName}</span>
+                      {!c.isActive && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">Inactive</span>}
+                      {linkedSupplier && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                          <Link2 className="h-2.5 w-2.5" />Trade Contact: {linkedSupplier.name}
                         </span>
-                      ) : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.ramsReceived ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-700 font-semibold"><CheckCircle2 className="h-3 w-3" />Received {fmt(c.ramsReceivedDate)}</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold"><XCircle className="h-3 w-3" />Not received</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{fmt(c.lastOnSiteDate)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setViewItem(c)} title="View"><Eye className="h-3 w-3 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(c.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{TRADE_TYPES[c.tradeType] ?? c.tradeType}</p>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+                      {c.address && <span className="flex items-center gap-1"><MapPin className="h-3 w-3 flex-shrink-0" />{c.address}</span>}
+                      {c.contacts.length > 0 && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.contacts.length} contact{c.contacts.length > 1 ? "s" : ""}</span>}
+                      {c.contacts.length === 0 && (c.contactName || c.phone) && (
+                        <span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.contactName ?? c.phone}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status badges */}
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {/* PLI status */}
+                      {pliExpired ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                          <XCircle className="h-3 w-3" />PLI Expired
+                        </span>
+                      ) : pliSoon ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          <AlertTriangle className="h-3 w-3" />PLI Expiring {fmt(c.pliExpiryDate)}
+                        </span>
+                      ) : c.pliNumber ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3" />PLI Current
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                          <XCircle className="h-3 w-3" />PLI Not Recorded
+                        </span>
+                      )}
+                      {/* RAMS status */}
+                      {c.rams.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3" />{c.rams.length} RAMS
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                          <XCircle className="h-3 w-3" />No RAMS
+                        </span>
+                      )}
+                    </div>
+                    {/* Site dates */}
+                    {(c.firstOnSiteDate || c.lastOnSiteDate) && (
+                      <p className="text-[10px] text-muted-foreground text-right">
+                        {c.firstOnSiteDate && <>First: {fmt(c.firstOnSiteDate)}</>}
+                        {c.firstOnSiteDate && c.lastOnSiteDate && " · "}
+                        {c.lastOnSiteDate && <>Last: {fmt(c.lastOnSiteDate)}</>}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(c)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteId(c.id)} title="Deactivate"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground" onClick={() => setExpandedId(expanded ? null : c.id)} title={expanded ? "Collapse" : "Contacts & RAMS"}>
+                      {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* PLI certificate link in card */}
+                {c.pliDocumentName && c.pliDocumentUrl && (
+                  <div className="px-5 pb-3 -mt-1">
+                    <a href={c.pliDocumentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-primary underline underline-offset-2">
+                      <FileText className="h-3 w-3" />{c.pliDocumentName}
+                    </a>
+                  </div>
+                )}
+
+                {/* Expanded section */}
+                {expanded && <ExpandedContractorSection contractor={c} farmId={farmId} />}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {viewItem && (
-        <Dialog open onOpenChange={() => setViewItem(null)}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{viewItem.companyName}</DialogTitle>
-              <DialogDescription>{TRADE_TYPES[viewItem.tradeType] ?? viewItem.tradeType}</DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Contact Name</p><p className="font-medium">{viewItem.contactName ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewItem.phone ?? "—"}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewItem.email ?? "—"}</p></div>
-              <div className="col-span-2 border-t pt-3"><p className="text-xs font-semibold text-gray-500 uppercase mb-2">Public Liability Insurance</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PLI Policy Number</p><p className="font-medium font-mono">{viewItem.pliNumber ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Insurer</p><p className="font-medium">{viewItem.pliInsurer ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cover Amount</p><p className="font-medium">{viewItem.pliCoverAmountGbp ? `£${Number(viewItem.pliCoverAmountGbp).toLocaleString()}` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PLI Expiry</p><p className={`font-medium ${isPliExpired(viewItem.pliExpiryDate) ? "text-red-600" : isPliExpiringSoon(viewItem.pliExpiryDate) ? "text-amber-600" : ""}`}>{fmt(viewItem.pliExpiryDate)}</p></div>
-              {viewItem.pliDocumentName && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">PLI Certificate</p><a href={viewItem.pliDocumentUrl ?? "#"} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.pliDocumentName}</a></div>}
-              <div className="col-span-2 border-t pt-3"><p className="text-xs font-semibold text-gray-500 uppercase mb-2">RAMS (Risk Assessment & Method Statement)</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">RAMS Status</p><p className={`font-semibold ${viewItem.ramsReceived ? "text-green-700" : "text-red-600"}`}>{viewItem.ramsReceived ? "Received" : "Not Received"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">RAMS Received Date</p><p className="font-medium">{fmt(viewItem.ramsReceivedDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reviewed By</p><p className="font-medium">{viewItem.ramsReviewedBy ?? "—"}</p></div>
-              {viewItem.ramsDocumentName && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">RAMS Document</p><a href={viewItem.ramsDocumentUrl ?? "#"} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.ramsDocumentName}</a></div>}
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Last On-Site</p><p className="font-medium">{fmt(viewItem.lastOnSiteDate)}</p></div>
-              {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
-            </div>
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
-              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
+      {/* Add / Edit dialog */}
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Contractor" : "Add Contractor to H&S File"}</DialogTitle>
-              <DialogDescription>Record PLI certificate and RAMS details for this contractor.</DialogDescription>
+              <DialogDescription>Fill in the company details and PLI below. Contacts and RAMS documents are managed from the contractor card after saving.</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-4 mt-2">
+
+              {/* Company info */}
+              <div className="col-span-2 flex items-center gap-2 pb-1">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Company Information</p>
+              </div>
               <div className="col-span-2"><Label>Company Name *</Label><Input value={form.companyName} onChange={e => setF("companyName", e.target.value)} placeholder="e.g. Smith Electrical Services Ltd" /></div>
-              <div><Label>Contact Name</Label><Input value={form.contactName ?? ""} onChange={e => setF("contactName", e.target.value || null)} /></div>
-              <div><Label>Trade Type *</Label>
+              <div>
+                <Label>Trade Type *</Label>
                 <Select value={form.tradeType} onValueChange={v => setF("tradeType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(TRADE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{Object.entries(TRADE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Phone</Label><Input type="tel" value={form.phone ?? ""} onChange={e => setF("phone", e.target.value || null)} /></div>
-              <div><Label>Email</Label><Input type="email" value={form.email ?? ""} onChange={e => setF("email", e.target.value || null)} /></div>
+              <div className="flex items-center gap-2 mt-5">
+                <input type="checkbox" id="cActive" checked={form.isActive} onChange={e => setF("isActive", e.target.checked)} className="h-4 w-4" />
+                <Label htmlFor="cActive" className="font-normal">Active contractor</Label>
+              </div>
+              <div className="col-span-2"><Label>Address</Label><Textarea value={form.address ?? ""} onChange={e => setF("address", e.target.value || null)} rows={2} placeholder="Registered or operational address" /></div>
 
-              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Public Liability Insurance</p></div>
-              <div><Label>PLI Policy Number</Label><Input value={form.pliNumber ?? ""} onChange={e => setF("pliNumber", e.target.value || null)} className="font-mono" placeholder="e.g. PLI-12345678" /></div>
+              {/* Supplier link */}
+              {suppliers.length > 0 && (
+                <>
+                  <div className="col-span-2 border-t pt-4 flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trade Contact Link</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Link to existing Trade Contact (optional)</Label>
+                    <Select value={form.supplierId ? String(form.supplierId) : "__none__"} onValueChange={v => setF("supplierId", v === "__none__" ? null : parseInt(v))}>
+                      <SelectTrigger><SelectValue placeholder="Not linked" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not linked</SelectItem>
+                        {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Linking lets the Trade Contacts register show that a H&amp;S file is held for this supplier.</p>
+                  </div>
+                </>
+              )}
+
+              {/* PLI */}
+              <div className="col-span-2 border-t pt-4 flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Public Liability Insurance</p>
+              </div>
+              <div><Label>Policy Number</Label><Input value={form.pliNumber ?? ""} onChange={e => setF("pliNumber", e.target.value || null)} className="font-mono" placeholder="e.g. PLI-12345678" /></div>
               <div><Label>Insurer</Label><Input value={form.pliInsurer ?? ""} onChange={e => setF("pliInsurer", e.target.value || null)} /></div>
               <div><Label>Cover Amount (£)</Label><Input type="number" min={0} value={form.pliCoverAmountGbp ?? ""} onChange={e => setF("pliCoverAmountGbp", e.target.value || null)} placeholder="e.g. 5000000" /></div>
-              <div><Label>PLI Expiry Date</Label><Input type="date" value={form.pliExpiryDate ?? ""} onChange={e => setF("pliExpiryDate", e.target.value || null)} /></div>
-              <div><Label>PLI Certificate Name</Label><Input value={form.pliDocumentName ?? ""} onChange={e => setF("pliDocumentName", e.target.value || null)} placeholder="e.g. PLI Certificate 2025.pdf" /></div>
-              <div><Label>PLI Certificate URL</Label><Input value={form.pliDocumentUrl ?? ""} onChange={e => setF("pliDocumentUrl", e.target.value || null)} placeholder="https://…" /></div>
-
-              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">RAMS (Risk Assessment &amp; Method Statement)</p></div>
-              <div className="col-span-2 flex items-center gap-2">
-                <input type="checkbox" id="ramsReceived" checked={form.ramsReceived} onChange={e => setF("ramsReceived", e.target.checked)} className="h-4 w-4" />
-                <Label htmlFor="ramsReceived">RAMS received and on file</Label>
+              <div><Label>Expiry Date</Label><Input type="date" value={form.pliExpiryDate ?? ""} onChange={e => setF("pliExpiryDate", e.target.value || null)} /></div>
+              <div className="col-span-2">
+                <Label className="mb-1.5 block">PLI Certificate</Label>
+                <PliUploadWidget
+                  documentUrl={form.pliDocumentUrl}
+                  documentName={form.pliDocumentName}
+                  onChange={(url, name) => setForm(f => ({ ...f, pliDocumentUrl: url, pliDocumentName: name }))}
+                />
               </div>
-              {form.ramsReceived && <>
-                <div><Label>RAMS Received Date</Label><Input type="date" value={form.ramsReceivedDate ?? ""} onChange={e => setF("ramsReceivedDate", e.target.value || null)} /></div>
-                <div><Label>Reviewed By</Label><Input value={form.ramsReviewedBy ?? ""} onChange={e => setF("ramsReviewedBy", e.target.value || null)} /></div>
-                <div><Label>RAMS Document Name</Label><Input value={form.ramsDocumentName ?? ""} onChange={e => setF("ramsDocumentName", e.target.value || null)} /></div>
-                <div><Label>RAMS Document URL</Label><Input value={form.ramsDocumentUrl ?? ""} onChange={e => setF("ramsDocumentUrl", e.target.value || null)} placeholder="https://…" /></div>
-              </>}
 
+              {/* Site activity */}
+              <div className="col-span-2 border-t pt-4 flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">On-Farm Activity</p>
+              </div>
+              <div><Label>First On-Site Date</Label><Input type="date" value={form.firstOnSiteDate ?? ""} onChange={e => setF("firstOnSiteDate", e.target.value || null)} /></div>
               <div><Label>Last On-Site Date</Label><Input type="date" value={form.lastOnSiteDate ?? ""} onChange={e => setF("lastOnSiteDate", e.target.value || null)} /></div>
-              <div className="flex items-center gap-2 mt-5">
-                <input type="checkbox" id="contractorActive" checked={form.isActive} onChange={e => setF("isActive", e.target.checked)} className="h-4 w-4" />
-                <Label htmlFor="contractorActive">Active contractor</Label>
-              </div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.companyName || createMut.isPending || updateMut.isPending}>
                 {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
-                {editing ? "Update" : "Add Contractor"}
+                {editing ? "Update Contractor" : "Add Contractor"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
+      {/* Deactivate confirm */}
       {deleteId !== null && (
         <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent className="max-w-sm">
-            <DialogHeader><DialogTitle>Deactivate Contractor?</DialogTitle><DialogDescription>The contractor will be marked as inactive and hidden from the main list. This does not delete any records.</DialogDescription></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Deactivate Contractor?</DialogTitle>
+              <DialogDescription>The contractor will be marked as inactive and hidden from the active list. All H&amp;S records, contacts, and RAMS are retained.</DialogDescription>
+            </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deactivateMut.mutate(deleteId!)} disabled={deactivateMut.isPending}>

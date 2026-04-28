@@ -278,6 +278,8 @@ import {
   welfareOutcomeAssessmentsTable,
   ppeIssueRecordsTable,
   contractorsTable,
+  contractorContactsTable,
+  contractorRamsTable,
   sheepDippingRecordsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
@@ -20325,7 +20327,18 @@ router.get("/farms/:farmId/contractors", requireAuth, requireTenant, requireModu
   const rows = await db.select().from(contractorsTable).where(
     showInactive ? eq(contractorsTable.farmId, farmId) : and(eq(contractorsTable.farmId, farmId), eq(contractorsTable.isActive, true))
   ).orderBy(asc(contractorsTable.companyName));
-  res.json({ contractors: rows });
+  if (rows.length === 0) { res.json({ contractors: [] }); return; }
+  const ids = rows.map(r => r.id);
+  const [contacts, ramsList] = await Promise.all([
+    db.select().from(contractorContactsTable).where(and(inArray(contractorContactsTable.contractorId, ids), eq(contractorContactsTable.farmId, farmId))).orderBy(asc(contractorContactsTable.id)),
+    db.select().from(contractorRamsTable).where(and(inArray(contractorRamsTable.contractorId, ids), eq(contractorRamsTable.farmId, farmId))).orderBy(asc(contractorRamsTable.id)),
+  ]);
+  const contractors = rows.map(r => ({
+    ...r,
+    contacts: contacts.filter(c => c.contractorId === r.id),
+    rams: ramsList.filter(rm => rm.contractorId === r.id),
+  }));
+  res.json({ contractors });
 });
 
 router.post("/farms/:farmId/contractors", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -20335,26 +20348,24 @@ router.post("/farms/:farmId/contractors", requireAuth, requireTenant, requireMod
   const [contractor] = await db.insert(contractorsTable).values({
     farmId,
     companyName: String(b.companyName),
-    contactName: b.contactName ? String(b.contactName) : null,
     tradeType: String(b.tradeType),
+    address: b.address ? String(b.address) : null,
+    contactName: b.contactName ? String(b.contactName) : null,
     phone: b.phone ? String(b.phone) : null,
     email: b.email ? String(b.email) : null,
+    supplierId: b.supplierId ? parseInt(String(b.supplierId)) : null,
     pliNumber: b.pliNumber ? String(b.pliNumber) : null,
     pliInsurer: b.pliInsurer ? String(b.pliInsurer) : null,
     pliCoverAmountGbp: b.pliCoverAmountGbp ? String(b.pliCoverAmountGbp) : null,
     pliExpiryDate: b.pliExpiryDate ? String(b.pliExpiryDate) : null,
     pliDocumentUrl: b.pliDocumentUrl ? String(b.pliDocumentUrl) : null,
     pliDocumentName: b.pliDocumentName ? String(b.pliDocumentName) : null,
-    ramsReceived: b.ramsReceived === true || b.ramsReceived === "true",
-    ramsReceivedDate: b.ramsReceivedDate ? String(b.ramsReceivedDate) : null,
-    ramsReviewedBy: b.ramsReviewedBy ? String(b.ramsReviewedBy) : null,
-    ramsDocumentUrl: b.ramsDocumentUrl ? String(b.ramsDocumentUrl) : null,
-    ramsDocumentName: b.ramsDocumentName ? String(b.ramsDocumentName) : null,
+    firstOnSiteDate: b.firstOnSiteDate ? String(b.firstOnSiteDate) : null,
     lastOnSiteDate: b.lastOnSiteDate ? String(b.lastOnSiteDate) : null,
     notes: b.notes ? String(b.notes) : null,
     isActive: b.isActive !== false,
   }).returning();
-  res.json({ contractor });
+  res.json({ contractor: { ...contractor, contacts: [], rams: [] } });
 });
 
 router.put("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -20362,9 +20373,9 @@ router.put("/farms/:farmId/contractors/:id", requireAuth, requireTenant, require
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["companyName","contactName","tradeType","phone","email","pliNumber","pliInsurer","pliCoverAmountGbp","pliExpiryDate","pliDocumentUrl","pliDocumentName","ramsReceived","ramsReceivedDate","ramsReviewedBy","ramsDocumentUrl","ramsDocumentName","lastOnSiteDate","notes","isActive"];
+  const fields = ["companyName","tradeType","address","contactName","phone","email","supplierId","pliNumber","pliInsurer","pliCoverAmountGbp","pliExpiryDate","pliDocumentUrl","pliDocumentName","firstOnSiteDate","lastOnSiteDate","notes","isActive"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
-  if (b.ramsReceived !== undefined) updates.ramsReceived = b.ramsReceived === true || b.ramsReceived === "true";
+  if (b.supplierId !== undefined) updates.supplierId = b.supplierId ? parseInt(String(b.supplierId)) : null;
   const [contractor] = await db.update(contractorsTable).set(updates).where(and(eq(contractorsTable.id, id), eq(contractorsTable.farmId, farmId))).returning();
   if (!contractor) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ contractor });
@@ -20374,6 +20385,96 @@ router.delete("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requ
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
   await db.update(contractorsTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(contractorsTable.id, id), eq(contractorsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Contractor Contacts ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/contractors/:contractorId/contacts", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contractorId = parseInt(req.params.contractorId);
+  const rows = await db.select().from(contractorContactsTable).where(and(eq(contractorContactsTable.contractorId, contractorId), eq(contractorContactsTable.farmId, farmId))).orderBy(asc(contractorContactsTable.id));
+  res.json({ contacts: rows });
+});
+
+router.post("/farms/:farmId/contractors/:contractorId/contacts", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contractorId = parseInt(req.params.contractorId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.name) { res.status(400).json({ error: "name is required" }); return; }
+  const [contact] = await db.insert(contractorContactsTable).values({
+    contractorId, farmId,
+    name: String(b.name),
+    role: b.role ? String(b.role) : null,
+    phone: b.phone ? String(b.phone) : null,
+    email: b.email ? String(b.email) : null,
+    isPrimary: b.isPrimary === true || b.isPrimary === "true",
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ contact });
+});
+
+router.put("/farms/:farmId/contractors/:contractorId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contactId = parseInt(req.params.contactId);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["name","role","phone","email","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  if (b.isPrimary !== undefined) updates.isPrimary = b.isPrimary === true || b.isPrimary === "true";
+  const [contact] = await db.update(contractorContactsTable).set(updates).where(and(eq(contractorContactsTable.id, contactId), eq(contractorContactsTable.farmId, farmId))).returning();
+  if (!contact) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ contact });
+});
+
+router.delete("/farms/:farmId/contractors/:contractorId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contactId = parseInt(req.params.contactId);
+  await db.delete(contractorContactsTable).where(and(eq(contractorContactsTable.id, contactId), eq(contractorContactsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Contractor RAMS ──────────────────────────────────────────────────────────
+router.get("/farms/:farmId/contractors/:contractorId/rams", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contractorId = parseInt(req.params.contractorId);
+  const rows = await db.select().from(contractorRamsTable).where(and(eq(contractorRamsTable.contractorId, contractorId), eq(contractorRamsTable.farmId, farmId))).orderBy(asc(contractorRamsTable.id));
+  res.json({ rams: rows });
+});
+
+router.post("/farms/:farmId/contractors/:contractorId/rams", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const contractorId = parseInt(req.params.contractorId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.activityDescription) { res.status(400).json({ error: "activityDescription is required" }); return; }
+  const [rams] = await db.insert(contractorRamsTable).values({
+    contractorId, farmId,
+    activityDescription: String(b.activityDescription),
+    documentUrl: b.documentUrl ? String(b.documentUrl) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+    receivedDate: b.receivedDate ? String(b.receivedDate) : null,
+    reviewedBy: b.reviewedBy ? String(b.reviewedBy) : null,
+    reviewDate: b.reviewDate ? String(b.reviewDate) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ rams });
+});
+
+router.put("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const ramsId = parseInt(req.params.ramsId);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["activityDescription","documentUrl","documentName","receivedDate","reviewedBy","reviewDate","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [rams] = await db.update(contractorRamsTable).set(updates).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId))).returning();
+  if (!rams) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ rams });
+});
+
+router.delete("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const ramsId = parseInt(req.params.ramsId);
+  await db.delete(contractorRamsTable).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

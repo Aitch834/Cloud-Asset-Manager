@@ -13,6 +13,7 @@ import {
   timestamp, numeric, date,
 } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 // ─── TB Test Register ────────────────────────────────────────────────────────
 // Statutory record for cattle and sheep holdings under APHA/TBAEngine rules.
@@ -124,10 +125,16 @@ export const contractorsTable = pgTable("contractors", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
 
   companyName: text("company_name").notNull(),
-  contactName: text("contact_name"),
   tradeType: text("trade_type").notNull(),             // "electrical", "plumbing", "agrochemical", "ai_technician", "slurry", "construction", "roofing", "machinery", "vet", "other"
+  address: text("address"),
+
+  // ── Legacy single-contact fields (kept for backward compat; new contacts go in contractor_contacts) ──
+  contactName: text("contact_name"),
   phone: text("phone"),
   email: text("email"),
+
+  // ── Optional link to the Suppliers / Trade Contacts register ────────────────
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
 
   // ── Public Liability Insurance ──────────────────────────────────────────────
   pliNumber: text("pli_number"),
@@ -137,7 +144,7 @@ export const contractorsTable = pgTable("contractors", {
   pliDocumentUrl: text("pli_document_url"),
   pliDocumentName: text("pli_document_name"),
 
-  // ── Risk Assessment & Method Statement ─────────────────────────────────────
+  // ── Legacy single RAMS fields (kept for backward compat; new RAMS go in contractor_rams) ──
   ramsReceived: boolean("rams_received").notNull().default(false),
   ramsReceivedDate: date("rams_received_date"),
   ramsReviewedBy: text("rams_reviewed_by"),
@@ -145,6 +152,7 @@ export const contractorsTable = pgTable("contractors", {
   ramsDocumentName: text("rams_document_name"),
 
   // ── On-farm activity ───────────────────────────────────────────────────────
+  firstOnSiteDate: date("first_on_site_date"),
   lastOnSiteDate: date("last_on_site_date"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
@@ -154,6 +162,49 @@ export const contractorsTable = pgTable("contractors", {
 
 export type Contractor = typeof contractorsTable.$inferSelect;
 export type NewContractor = typeof contractorsTable.$inferInsert;
+
+// ─── Contractor Contacts ──────────────────────────────────────────────────────
+// Multiple named contacts per contractor (e.g. office contact, H&S contact,
+// emergency contact, site supervisor).
+
+export const contractorContactsTable = pgTable("contractor_contacts", {
+  id: serial("id").primaryKey(),
+  contractorId: integer("contractor_id").notNull().references(() => contractorsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  role: text("role"),                                  // e.g. "Office", "H&S Contact", "Site Supervisor", "Emergency"
+  phone: text("phone"),
+  email: text("email"),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ContractorContact = typeof contractorContactsTable.$inferSelect;
+export type NewContractorContact = typeof contractorContactsTable.$inferInsert;
+
+// ─── Contractor RAMS (Risk Assessments & Method Statements) ──────────────────
+// One row per activity/task type — a contractor may have multiple RAMS for
+// different activities performed on the holding (e.g. grain store maintenance,
+// pesticide application, machinery repair each require separate RAMS).
+
+export const contractorRamsTable = pgTable("contractor_rams", {
+  id: serial("id").primaryKey(),
+  contractorId: integer("contractor_id").notNull().references(() => contractorsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  activityDescription: text("activity_description").notNull(), // e.g. "Grain store construction", "Slurry tanker operation"
+  documentUrl: text("document_url"),
+  documentName: text("document_name"),
+  receivedDate: date("received_date"),
+  reviewedBy: text("reviewed_by"),
+  reviewDate: date("review_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ContractorRams = typeof contractorRamsTable.$inferSelect;
+export type NewContractorRams = typeof contractorRamsTable.$inferInsert;
 
 // ─── Sheep Dipping Records ───────────────────────────────────────────────────
 // Specific legal recording requirements beyond standard medicine records.
