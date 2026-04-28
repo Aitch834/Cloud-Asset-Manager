@@ -282,6 +282,27 @@ export default function TaskBoardPage() {
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
+  const [completedWindow, setCompletedWindow] = useState("90d");
+
+  const WINDOW_OPTIONS: { value: string; label: string }[] = [
+    { value: "30d",  label: "Last 30 days" },
+    { value: "90d",  label: "Last 90 days" },
+    { value: "12m",  label: "Last 12 months" },
+    { value: "all",  label: "All time" },
+  ];
+
+  function applyCompletedWindow(items: Assignment[]): Assignment[] {
+    if (completedWindow === "all") return items;
+    const now = new Date();
+    const cutoff = new Date(now);
+    if (completedWindow === "30d") cutoff.setDate(now.getDate() - 30);
+    else if (completedWindow === "90d") cutoff.setDate(now.getDate() - 90);
+    else if (completedWindow === "12m") cutoff.setFullYear(now.getFullYear() - 1);
+    return items.filter(r => {
+      const d = r.completedAt ?? r.createdAt;
+      return d ? new Date(d) >= cutoff : true;
+    });
+  }
 
   const { data, isLoading } = useQuery<{ records: Assignment[] }>({
     queryKey: ["task-assignments", farmId],
@@ -307,7 +328,8 @@ export default function TaskBoardPage() {
   });
 
   const pending = filtered.filter(r => r.status === "pending" || r.status === "in_progress");
-  const completed = filtered.filter(r => r.status === "completed" || r.status === "cancelled");
+  const completedAll = filtered.filter(r => r.status === "completed" || r.status === "cancelled");
+  const completed = applyCompletedWindow(completedAll);
 
   const staffNames = Array.from(new Set(records.map(r => r.staffName))).sort();
   const totalPending = records.filter(r => r.status === "pending" || r.status === "in_progress").length;
@@ -402,17 +424,34 @@ export default function TaskBoardPage() {
         )}
 
         {/* Completed / cancelled */}
-        {completed.length > 0 && (
+        {completedAll.length > 0 && (
           <div>
-            <h2 className="font-bold text-sm text-foreground/70 mb-3 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Completed & Cancelled ({completed.length})
-            </h2>
-            <div className="space-y-2">
-              {completed.map(a => (
-                <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
-              ))}
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <h2 className="font-bold text-sm text-foreground/70 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                Completed & Cancelled ({completed.length}{completedAll.length !== completed.length ? ` of ${completedAll.length}` : ""})
+              </h2>
+              <select
+                value={completedWindow}
+                onChange={e => setCompletedWindow(e.target.value)}
+                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70"
+              >
+                {WINDOW_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
+            {completed.length === 0 ? (
+              <p className="text-xs text-foreground/40 text-center py-6">
+                No completed tasks in this period. Choose "All time" to see everything.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {completed.map(a => (
+                  <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
