@@ -76,6 +76,15 @@ interface Inspection {
   certificateReference: string | null;
 }
 
+interface FpBlock {
+  id: number;
+  blockName: string;
+  status: string;
+  conversionStartDate: string | null;
+  fullyOrganicDate: string | null;
+  certifyingBody: string | null;
+}
+
 const OUTCOME_COLORS: Record<string, string> = {
   Pass: colors.success,
   "Conditional Pass": "#d97706",
@@ -97,6 +106,7 @@ export default function OrganicOverviewScreen() {
 
   const [certification, setCertification] = useState<Certification | null>(null);
   const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [fpBlocks, setFpBlocks] = useState<FpBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -106,9 +116,10 @@ export default function OrganicOverviewScreen() {
     if (!farmId || !apiBase) { setLoading(false); return; }
     try {
       const headers = await getAuthHeaders();
-      const [certRes, inspRes] = await Promise.all([
+      const [certRes, inspRes, blockRes] = await Promise.all([
         fetch(`${apiBase}/api/farms/${farmId}/organic/certification`, { headers }),
         fetch(`${apiBase}/api/farms/${farmId}/organic/inspections`, { headers }),
+        fetch(`${apiBase}/api/farms/${farmId}/organic-fp-block-status`, { headers }),
       ]);
       if (certRes.ok) {
         const data = await certRes.json();
@@ -117,6 +128,10 @@ export default function OrganicOverviewScreen() {
       if (inspRes.ok) {
         const data = await inspRes.json();
         setInspections((data.records ?? []).slice(0, 5));
+      }
+      if (blockRes.ok) {
+        const data = await blockRes.json();
+        setFpBlocks(data.records ?? []);
       }
     } catch {}
     setLoading(false);
@@ -210,6 +225,63 @@ export default function OrganicOverviewScreen() {
               <View style={styles.card}>
                 <Text style={styles.emptyText}>No inspection dates recorded.</Text>
               </View>
+            )}
+
+            {fpBlocks.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>FP Block Conversion Status</Text>
+                <View style={styles.card}>
+                  <View style={styles.blockSummaryRow}>
+                    <View style={[styles.blockSummaryChip, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+                      <Text style={[styles.blockSummaryCount, { color: "#15803d" }]}>
+                        {fpBlocks.filter(b => b.status === "fully-organic").length}
+                      </Text>
+                      <Text style={[styles.blockSummaryLabel, { color: "#15803d" }]}>Fully Organic</Text>
+                    </View>
+                    <View style={[styles.blockSummaryChip, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
+                      <Text style={[styles.blockSummaryCount, { color: "#92400e" }]}>
+                        {fpBlocks.filter(b => b.status === "in-conversion").length}
+                      </Text>
+                      <Text style={[styles.blockSummaryLabel, { color: "#92400e" }]}>In Conversion</Text>
+                    </View>
+                    {fpBlocks.filter(b => b.status !== "fully-organic" && b.status !== "in-conversion").length > 0 && (
+                      <View style={[styles.blockSummaryChip, { backgroundColor: "#f1f5f9", borderColor: "#e2e8f0" }]}>
+                        <Text style={[styles.blockSummaryCount, { color: colors.textSecondary }]}>
+                          {fpBlocks.filter(b => b.status !== "fully-organic" && b.status !== "in-conversion").length}
+                        </Text>
+                        <Text style={[styles.blockSummaryLabel, { color: colors.textSecondary }]}>Other</Text>
+                      </View>
+                    )}
+                  </View>
+                  {fpBlocks.slice(0, 6).map((block, i) => {
+                    const isOrganic = block.status === "fully-organic";
+                    const isConverting = block.status === "in-conversion";
+                    const dotColor = isOrganic ? "#16a34a" : isConverting ? "#d97706" : colors.textSecondary;
+                    const dateLabel = isOrganic
+                      ? block.fullyOrganicDate ? `Organic from ${fmtDate(block.fullyOrganicDate)}` : null
+                      : block.conversionStartDate ? `Converting since ${fmtDate(block.conversionStartDate)}` : null;
+                    return (
+                      <View key={block.id}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <View style={styles.blockRow}>
+                          <View style={[styles.blockDot, { backgroundColor: dotColor }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.blockName}>{block.blockName}</Text>
+                            {dateLabel ? <Text style={styles.blockDate}>{dateLabel}</Text> : null}
+                            {block.certifyingBody ? <Text style={styles.blockDate}>{block.certifyingBody}</Text> : null}
+                          </View>
+                          <Text style={[styles.blockStatus, { color: dotColor }]}>
+                            {isOrganic ? "Organic" : isConverting ? "Converting" : block.status}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {fpBlocks.length > 6 && (
+                    <Text style={styles.blockMore}>+{fpBlocks.length - 6} more blocks — view in dashboard</Text>
+                  )}
+                </View>
+              </>
             )}
 
             <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -365,4 +437,17 @@ const styles = StyleSheet.create({
   inspRow: { flexDirection: "row", alignItems: "flex-start" },
   inspTitle: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   inspOutcome: { fontFamily: fonts.medium, fontSize: fontSize.xs, marginTop: 2 },
+  blockSummaryRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, flexWrap: "wrap" },
+  blockSummaryChip: {
+    flex: 1, alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    borderRadius: radius.md, borderWidth: 1,
+  },
+  blockSummaryCount: { fontFamily: fonts.bold, fontSize: fontSize.xl },
+  blockSummaryLabel: { fontFamily: fonts.regular, fontSize: fontSize.xs, marginTop: 2 },
+  blockRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
+  blockDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  blockName: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
+  blockDate: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
+  blockStatus: { fontFamily: fonts.semiBold, fontSize: fontSize.xs },
+  blockMore: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, textAlign: "center", marginTop: spacing.sm },
 });
