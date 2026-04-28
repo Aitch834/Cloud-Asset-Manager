@@ -470,4 +470,32 @@ export const api = {
       { trialDays },
       secret,
     ),
+
+  getHelpArticles: (secret: string) =>
+    get<{ articles: HelpArticle[] }>("/admin/help-articles", secret),
+
+  createHelpArticle: (data: Omit<HelpArticle, "id" | "createdAt" | "updatedAt">, secret: string) =>
+    post<{ article: HelpArticle }>("/admin/help-articles", data, secret),
+
+  updateHelpArticle: (id: number, data: Partial<Omit<HelpArticle, "id" | "createdAt" | "updatedAt">>, secret: string) =>
+    put<{ article: HelpArticle }>(`/admin/help-articles/${id}`, data, secret),
+
+  deleteHelpArticle: (id: number, secret: string) =>
+    del<{ success: boolean }>(`/admin/help-articles/${id}`, secret),
+
+  seedDefaultHelpArticles: (secret: string) =>
+    post<{ success: boolean; inserted: number; skipped: number }>("/admin/help-articles/seed-defaults", {}, secret),
 };
+
+export interface HelpArticle {
+  id: number;
+  title: string;
+  slug: string;
+  category: string;
+  content: string;
+  excerpt: string | null;
+  published: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}

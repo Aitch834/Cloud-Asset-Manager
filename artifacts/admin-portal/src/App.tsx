@@ -15,6 +15,7 @@ import Database from "@/pages/Database";
 import Invoices from "@/pages/Invoices";
 import PlatformConfig from "@/pages/PlatformConfig";
 import Lookups from "@/pages/Lookups";
+import HelpCentre from "@/pages/HelpCentre";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -35,6 +36,7 @@ function PortalRouter() {
         <Route path="/database" component={Database} />
         <Route path="/lookups" component={Lookups} />
         <Route path="/platform-config" component={PlatformConfig} />
+        <Route path="/help-articles" component={HelpCentre} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
