@@ -12280,6 +12280,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     organicDairyMilkWdRows,
     organicDairyMeatWdRows,
     medOrgWdRows,
+    tbTestRetestRows,
+    welfareAssessmentDueRows,
+    contractorPliRows,
+    sheepDipWithdrawalRows,
+    sheepDipCertRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -12556,6 +12561,31 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, organicWithdrawalEndDate: livestockMedicineRecordsTable.organicWithdrawalEndDate })
       .from(livestockMedicineRecordsTable)
       .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd))),
+
+    // ── TB Test Register: next retest due date ────────────────────────────────
+    db.select({ id: tbTestsTable.id, species: tbTestsTable.species, herdFlockRef: tbTestsTable.herdFlockRef, nextTestDueDate: tbTestsTable.nextTestDueDate })
+      .from(tbTestsTable)
+      .where(and(eq(tbTestsTable.farmId, farmId), isNotNull(tbTestsTable.nextTestDueDate), gte(tbTestsTable.nextTestDueDate, overdueStart.toISOString().split("T")[0]), lt(tbTestsTable.nextTestDueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Welfare Outcome Assessments: next assessment due date ─────────────────
+    db.select({ id: welfareOutcomeAssessmentsTable.id, species: welfareOutcomeAssessmentsTable.species, herdFlockRef: welfareOutcomeAssessmentsTable.herdFlockRef, nextAssessmentDue: welfareOutcomeAssessmentsTable.nextAssessmentDue })
+      .from(welfareOutcomeAssessmentsTable)
+      .where(and(eq(welfareOutcomeAssessmentsTable.farmId, farmId), isNotNull(welfareOutcomeAssessmentsTable.nextAssessmentDue), gte(welfareOutcomeAssessmentsTable.nextAssessmentDue, overdueStart.toISOString().split("T")[0]), lt(welfareOutcomeAssessmentsTable.nextAssessmentDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Contractors: PLI expiry date ──────────────────────────────────────────
+    db.select({ id: contractorsTable.id, companyName: contractorsTable.companyName, tradeType: contractorsTable.tradeType, pliInsurer: contractorsTable.pliInsurer, pliExpiryDate: contractorsTable.pliExpiryDate })
+      .from(contractorsTable)
+      .where(and(eq(contractorsTable.farmId, farmId), eq(contractorsTable.isActive, true), isNotNull(contractorsTable.pliExpiryDate), gte(contractorsTable.pliExpiryDate, overdueStart.toISOString().split("T")[0]), lt(contractorsTable.pliExpiryDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Sheep Dipping: withdrawal clear date ──────────────────────────────────
+    db.select({ id: sheepDippingRecordsTable.id, productName: sheepDippingRecordsTable.productName, herdFlockRef: sheepDippingRecordsTable.herdFlockRef, withdrawalClearDate: sheepDippingRecordsTable.withdrawalClearDate })
+      .from(sheepDippingRecordsTable)
+      .where(and(eq(sheepDippingRecordsTable.farmId, farmId), isNotNull(sheepDippingRecordsTable.withdrawalClearDate), gte(sheepDippingRecordsTable.withdrawalClearDate, overdueStart.toISOString().split("T")[0]), lt(sheepDippingRecordsTable.withdrawalClearDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Sheep Dipping: operator certificate expiry ────────────────────────────
+    db.select({ id: sheepDippingRecordsTable.id, operatorName: sheepDippingRecordsTable.operatorName, operatorCertNumber: sheepDippingRecordsTable.operatorCertNumber, operatorCertExpiry: sheepDippingRecordsTable.operatorCertExpiry })
+      .from(sheepDippingRecordsTable)
+      .where(and(eq(sheepDippingRecordsTable.farmId, farmId), isNotNull(sheepDippingRecordsTable.operatorCertExpiry), gte(sheepDippingRecordsTable.operatorCertExpiry, overdueStart.toISOString().split("T")[0]), lt(sheepDippingRecordsTable.operatorCertExpiry, rangeEnd.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -12977,6 +13007,82 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Livestock",
       href: `/medicine?open=${r.id}`,
       colour: "emerald",
+    });
+  }
+
+  for (const r of tbTestRetestRows) {
+    if (!r.nextTestDueDate) continue;
+    const herd = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    tasks.push({
+      id: `tb-retest-${r.id}`,
+      type: "tb_retest_due",
+      title: `TB Retest Due${herd}`,
+      description: `A TB skin test is due for your ${r.species || "cattle"} herd${herd}. Book your Official Veterinarian (OV) or approved vet promptly — movement restrictions remain until a clear result is obtained.`,
+      dueDate: toISO(r.nextTestDueDate)!,
+      module: "Livestock",
+      href: `/livestock?tab=tb-tests`,
+      colour: "red",
+    });
+  }
+
+  for (const r of welfareAssessmentDueRows) {
+    if (!r.nextAssessmentDue) continue;
+    const herd = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    tasks.push({
+      id: `woa-due-${r.id}`,
+      type: "welfare_assessment_due",
+      title: `Welfare Outcome Assessment Due — ${r.species || "Livestock"}${herd}`,
+      description: `A Red Tractor Welfare Outcome Assessment (WOA) is due for your ${r.species || "livestock"}${herd}. Complete and record the assessment in Livestock → Welfare Outcomes.`,
+      dueDate: toISO(r.nextAssessmentDue)!,
+      module: "Livestock",
+      href: `/livestock?tab=welfare`,
+      colour: "green",
+    });
+  }
+
+  for (const r of contractorPliRows) {
+    if (!r.pliExpiryDate) continue;
+    const trade = r.tradeType ? ` (${r.tradeType.replace(/_/g, " ")})` : "";
+    const insurer = r.pliInsurer ? ` — ${r.pliInsurer}` : "";
+    tasks.push({
+      id: `contractor-pli-${r.id}`,
+      type: "contractor_pli_expiry",
+      title: `Contractor PLI Expiring — ${r.companyName}${trade}`,
+      description: `The public liability insurance for contractor ${r.companyName}${trade}${insurer} is due to expire. Obtain a renewed certificate before allowing them back on site.`,
+      dueDate: toISO(r.pliExpiryDate)!,
+      module: "Health & Safety",
+      href: `/contractors`,
+      colour: "amber",
+    });
+  }
+
+  for (const r of sheepDipWithdrawalRows) {
+    if (!r.withdrawalClearDate) continue;
+    const flock = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    tasks.push({
+      id: `sheep-dip-wd-${r.id}`,
+      type: "sheep_dip_withdrawal",
+      title: `Sheep Dipping Withdrawal Clears${flock}`,
+      description: `The post-dipping withdrawal period for '${r.productName || "dipping product"}'${flock} clears on this date. Sheep must not be slaughtered for human consumption before this date.`,
+      dueDate: toISO(r.withdrawalClearDate)!,
+      module: "Livestock",
+      href: `/livestock?tab=sheep-dipping`,
+      colour: "green",
+    });
+  }
+
+  for (const r of sheepDipCertRows) {
+    if (!r.operatorCertExpiry) continue;
+    const certNum = r.operatorCertNumber ? ` (${r.operatorCertNumber})` : "";
+    tasks.push({
+      id: `sheep-dip-cert-${r.id}`,
+      type: "sheep_dip_operator_cert_expiry",
+      title: `Sheep Dipping Operator Certificate Expiring — ${r.operatorName || "Operator"}`,
+      description: `The dipping operator certificate${certNum} for ${r.operatorName || "the operator"} is due to expire. Renewal requires a NPTC BASIS Level 3 assessment. Do not allow dipping after expiry without a valid certificate.`,
+      dueDate: toISO(r.operatorCertExpiry)!,
+      module: "Livestock",
+      href: `/livestock?tab=sheep-dipping`,
+      colour: "amber",
     });
   }
 
