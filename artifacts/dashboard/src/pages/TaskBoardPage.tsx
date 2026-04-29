@@ -5,6 +5,7 @@ import { Redirect, useSearch } from "wouter";
 import {
   ClipboardList, CheckCircle2, Clock, XCircle, Loader2, Trash2, ChevronDown,
   UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight, Search,
+  BarChart3, Printer, ChevronRight, Building2, Users, ChevronUp,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -269,6 +270,312 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
   );
 }
 
+// ─── Reports View ─────────────────────────────────────────────────────────────
+
+type ReportTask = {
+  id: number;
+  title: string;
+  status: string;
+  module: string | null;
+  taskType: string;
+  staffName: string;
+  dueDate: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  assignedToMemberId: number | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  departmentColour: string | null;
+};
+
+const PERIOD_OPTIONS = [
+  { value: "this-week",    label: "This Week" },
+  { value: "last-week",    label: "Last Week" },
+  { value: "this-month",   label: "This Month" },
+  { value: "last-month",   label: "Last Month" },
+  { value: "last-3-months",label: "Last 3 Months" },
+];
+
+function fmtPeriodLabel(period: string, start: string, end: string) {
+  const s = new Date(start).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const e = new Date(end).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return `${s} – ${e}`;
+}
+
+function StatusPill({ status, count }: { status: string; count: number }) {
+  if (count === 0) return null;
+  const cfg: Record<string, string> = {
+    completed:   "bg-emerald-100 text-emerald-700",
+    in_progress: "bg-blue-100 text-blue-700",
+    pending:     "bg-amber-100 text-amber-700",
+    cancelled:   "bg-slate-100 text-slate-500",
+  };
+  const labels: Record<string, string> = {
+    completed: "Done", in_progress: "In Progress", pending: "Pending", cancelled: "Cancelled",
+  };
+  return (
+    <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${cfg[status] ?? "bg-slate-100 text-slate-600"}`}>
+      {count} {labels[status] ?? status}
+    </span>
+  );
+}
+
+function TaskRow({ task }: { task: ReportTask }) {
+  const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending;
+  const Icon = cfg.icon;
+  return (
+    <div className="flex items-center gap-3 py-2 px-3 text-sm border-b border-border/20 last:border-0">
+      <Icon className={`w-3.5 h-3.5 shrink-0 ${
+        task.status === "completed" ? "text-emerald-500" :
+        task.status === "in_progress" ? "text-blue-500" :
+        task.status === "cancelled" ? "text-slate-400" : "text-amber-500"
+      }`} />
+      <span className="flex-1 font-medium truncate">{task.title}</span>
+      <span className="text-xs text-foreground/50 shrink-0">{task.staffName}</span>
+      {task.completedAt
+        ? <span className="text-xs text-foreground/40 shrink-0">{fmtDate(task.completedAt)}</span>
+        : task.dueDate
+          ? <span className="text-xs text-foreground/40 shrink-0">Due {fmtDate(task.dueDate)}</span>
+          : null}
+    </div>
+  );
+}
+
+function StaffGroup({ staffName, tasks }: { staffName: string; tasks: ReportTask[] }) {
+  const [open, setOpen] = useState(false);
+  const completed   = tasks.filter(t => t.status === "completed").length;
+  const inProgress  = tasks.filter(t => t.status === "in_progress").length;
+  const pending     = tasks.filter(t => t.status === "pending").length;
+  const cancelled   = tasks.filter(t => t.status === "cancelled").length;
+  return (
+    <div className="border border-border/40 rounded-lg overflow-hidden">
+      <button
+        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-black/[0.02] transition-colors text-left"
+        onClick={() => setOpen(v => !v)}
+      >
+        {open ? <ChevronUp className="w-3.5 h-3.5 text-foreground/40 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-foreground/40 shrink-0" />}
+        <Users className="w-3.5 h-3.5 text-foreground/50 shrink-0" />
+        <span className="text-sm font-medium flex-1">{staffName}</span>
+        <div className="flex gap-1.5 flex-wrap justify-end">
+          <StatusPill status="completed" count={completed} />
+          <StatusPill status="in_progress" count={inProgress} />
+          <StatusPill status="pending" count={pending} />
+          <StatusPill status="cancelled" count={cancelled} />
+        </div>
+      </button>
+      {open && (
+        <div className="bg-slate-50 border-t border-border/30">
+          {tasks.map(t => <TaskRow key={t.id} task={t} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeptGroup({ deptName, deptColour, tasks }: { deptName: string; deptColour: string | null; tasks: ReportTask[] }) {
+  const [open, setOpen] = useState(true);
+  const byStaff = tasks.reduce<Record<string, ReportTask[]>>((acc, t) => {
+    const key = t.staffName || "Unassigned";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.status === "completed").length;
+  const inProgress = tasks.filter(t => t.status === "in_progress").length;
+  const pending = tasks.filter(t => t.status === "pending").length;
+  const cancelled = tasks.filter(t => t.status === "cancelled").length;
+  return (
+    <div className="border border-border/50 rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        onClick={() => setOpen(v => !v)}
+      >
+        {open ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0" /> : <ChevronDown className="w-4 h-4 text-foreground/40 shrink-0" />}
+        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: deptColour ?? "#374151" }} />
+        <Building2 className="w-4 h-4 text-foreground/50 shrink-0" />
+        <span className="font-semibold text-sm flex-1">{deptName}</span>
+        <span className="text-xs text-foreground/50">{total} task{total !== 1 ? "s" : ""}</span>
+        <div className="flex gap-1.5 flex-wrap justify-end ml-2">
+          <StatusPill status="completed" count={completed} />
+          <StatusPill status="in_progress" count={inProgress} />
+          <StatusPill status="pending" count={pending} />
+          <StatusPill status="cancelled" count={cancelled} />
+        </div>
+      </button>
+      {open && (
+        <div className="divide-y divide-border/20 px-3 py-2 space-y-2">
+          {Object.entries(byStaff).sort(([a],[b]) => a.localeCompare(b)).map(([name, staffTasks]) => (
+            <StaffGroup key={name} staffName={name} tasks={staffTasks} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportTask[] }) {
+  const [open, setOpen] = useState(true);
+  const byDept = tasks.reduce<Record<string, ReportTask[]>>((acc, t) => {
+    const key = t.departmentName ?? "__none__";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.status === "completed").length;
+  const inProgress = tasks.filter(t => t.status === "in_progress").length;
+  const pending = tasks.filter(t => t.status === "pending").length;
+  const cancelled = tasks.filter(t => t.status === "cancelled").length;
+  return (
+    <div className="border-2 border-border rounded-2xl overflow-hidden">
+      <button
+        className="w-full flex items-center gap-3 px-5 py-4 bg-white hover:bg-black/[0.01] transition-colors text-left"
+        onClick={() => setOpen(v => !v)}
+      >
+        {open ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0" /> : <ChevronRight className="w-4 h-4 text-foreground/40 shrink-0" />}
+        <ClipboardList className="w-4 h-4 text-primary shrink-0" />
+        <span className="font-bold text-sm flex-1">{moduleName}</span>
+        <span className="text-xs text-foreground/50">{total} task{total !== 1 ? "s" : ""}</span>
+        <div className="flex gap-1.5 flex-wrap justify-end ml-3">
+          <StatusPill status="completed" count={completed} />
+          <StatusPill status="in_progress" count={inProgress} />
+          <StatusPill status="pending" count={pending} />
+          <StatusPill status="cancelled" count={cancelled} />
+        </div>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 bg-slate-50/50 border-t border-border">
+          {Object.entries(byDept)
+            .sort(([a],[b]) => (a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b)))
+            .map(([deptKey, deptTasks]) => {
+              const firstTask = deptTasks[0];
+              return (
+                <DeptGroup
+                  key={deptKey}
+                  deptName={deptKey === "__none__" ? "No Department" : deptKey}
+                  deptColour={deptKey === "__none__" ? "#94a3b8" : firstTask.departmentColour}
+                  tasks={deptTasks}
+                />
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReportsView({ farmId }: { farmId: number }) {
+  const [period, setPeriod] = useState("this-month");
+
+  const { data, isLoading } = useQuery<{ tasks: ReportTask[]; period: string; startDate: string; endDate: string }>({
+    queryKey: ["task-report", farmId, period],
+    queryFn: () => fetch(`/api/farms/${farmId}/task-report?period=${period}`).then(r => r.json()),
+  });
+
+  const tasks = data?.tasks ?? [];
+
+  const byModule = tasks.reduce<Record<string, ReportTask[]>>((acc, t) => {
+    const key = t.module || "General";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
+
+  const totalCompleted  = tasks.filter(t => t.status === "completed").length;
+  const totalInProgress = tasks.filter(t => t.status === "in_progress").length;
+  const totalPending    = tasks.filter(t => t.status === "pending").length;
+  const totalCancelled  = tasks.filter(t => t.status === "cancelled").length;
+
+  return (
+    <div className="space-y-5 print:space-y-4">
+      {/* Controls */}
+      <div className="flex items-center gap-3 flex-wrap print:hidden">
+        <select
+          value={period}
+          onChange={e => setPeriod(e.target.value)}
+          className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          {PERIOD_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {data && (
+          <span className="text-xs text-foreground/50">
+            {fmtPeriodLabel(period, data.startDate, data.endDate)}
+          </span>
+        )}
+        <button
+          onClick={() => window.print()}
+          className="ml-auto flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-black/[0.03] transition-colors"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          Print / Export
+        </button>
+      </div>
+
+      {/* Print header */}
+      <div className="hidden print:block mb-6">
+        <h1 className="text-xl font-bold">Task Board Report</h1>
+        {data && (
+          <p className="text-sm text-slate-600 mt-1">
+            Period: {PERIOD_OPTIONS.find(o => o.value === period)?.label} —{" "}
+            {fmtPeriodLabel(period, data.startDate, data.endDate)}
+          </p>
+        )}
+      </div>
+
+      {/* Summary pills */}
+      {tasks.length > 0 && (
+        <div className="flex gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-border text-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="font-bold">{totalCompleted}</span>
+            <span className="text-foreground/50">Completed</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-border text-sm">
+            <ClipboardList className="w-4 h-4 text-blue-500" />
+            <span className="font-bold">{totalInProgress}</span>
+            <span className="text-foreground/50">In Progress</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-border text-sm">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span className="font-bold">{totalPending}</span>
+            <span className="text-foreground/50">Pending</span>
+          </div>
+          {totalCancelled > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-border text-sm">
+              <XCircle className="w-4 h-4 text-slate-400" />
+              <span className="font-bold">{totalCancelled}</span>
+              <span className="text-foreground/50">Cancelled</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="flex items-center justify-center py-16 text-foreground/40">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span className="text-sm">Loading report…</span>
+        </div>
+      )}
+
+      {!isLoading && tasks.length === 0 && (
+        <Card className="p-12 text-center border-dashed">
+          <BarChart3 className="w-10 h-10 text-foreground/20 mx-auto mb-3" />
+          <h3 className="font-semibold text-foreground mb-1">No tasks in this period</h3>
+          <p className="text-sm text-foreground/50">Try a different time period or assign some tasks on the board.</p>
+        </Card>
+      )}
+
+      {/* Module groups */}
+      {!isLoading && Object.entries(byModule).sort(([a],[b]) => a.localeCompare(b)).map(([mod, modTasks]) => (
+        <ModuleGroup key={mod} moduleName={mod} tasks={modTasks} />
+      ))}
+    </div>
+  );
+}
+
 export default function TaskBoardPage() {
   const { farmId } = useAppStore();
   if (!farmId) return <Redirect href="/select" />;
@@ -280,6 +587,7 @@ export default function TaskBoardPage() {
     return v ? parseInt(v, 10) : null;
   })();
 
+  const [view, setView] = useState<"board" | "reports">("board");
   const [statusFilter, setStatusFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
   const [completedWindow, setCompletedWindow] = useState("90d");
@@ -337,6 +645,36 @@ export default function TaskBoardPage() {
   return (
     <AppLayout title="Task Board">
       <div className="max-w-3xl space-y-6">
+
+        {/* View toggle */}
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+          <button
+            onClick={() => setView("board")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
+              view === "board" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
+            )}
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+            Board
+          </button>
+          <button
+            onClick={() => setView("reports")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
+              view === "reports" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
+            )}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Reports
+          </button>
+        </div>
+
+        {/* Reports view */}
+        {view === "reports" && <ReportsView farmId={farmId} />}
+
+        {/* Board view */}
+        {view === "board" && <>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -460,6 +798,8 @@ export default function TaskBoardPage() {
             All assigned tasks are complete. Great work.
           </p>
         )}
+
+        </>}
 
       </div>
     </AppLayout>

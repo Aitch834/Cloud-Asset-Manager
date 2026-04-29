@@ -197,6 +197,24 @@ export const invoicesTable = pgTable("invoices", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ── Farm Departments ───────────────────────────────────────────────────────────
+// Optional grouping for staff — e.g. "Dairy Unit", "Arable", "Maintenance".
+// Larger holdings use departments to monitor performance across teams.
+
+export const farmDepartmentsTable = pgTable("farm_departments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  colour: text("colour").notNull().default("#6b7280"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type FarmDepartment = typeof farmDepartmentsTable.$inferSelect;
+export type NewFarmDepartment = typeof farmDepartmentsTable.$inferInsert;
+
 export const farmMembersTable = pgTable("farm_members", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
@@ -207,6 +225,7 @@ export const farmMembersTable = pgTable("farm_members", {
   email: text("email"),
   phone: text("phone"),
   jobTitle: text("job_title"),
+  departmentId: integer("department_id").references(() => farmDepartmentsTable.id, { onDelete: "set null" }),
   employedFrom: timestamp("employed_from", { withTimezone: true }),
   employedTo: timestamp("employed_to", { withTimezone: true }),
   farmRole: text("farm_role").notNull().default("operator"),

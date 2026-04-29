@@ -15,6 +15,7 @@ import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
   Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound, Eye,
+  Building2, Pencil, Trash2, ChevronUp, Settings2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -31,6 +32,14 @@ function authHeaders(): HeadersInit {
 
 type FarmRole = "operator" | "senior" | "manager" | "owner";
 type AccessType = "none" | "mobile_only" | "web_only" | "full";
+
+interface Department {
+  id: number;
+  name: string;
+  description: string | null;
+  colour: string;
+  isActive: boolean;
+}
 
 interface FarmMember {
   id: number;
@@ -55,6 +64,9 @@ interface FarmMember {
   employedFrom: string | null;
   employedTo: string | null;
   createdAt: string;
+  departmentId: number | null;
+  departmentName: string | null;
+  departmentColour: string | null;
 }
 
 interface CertRecord {
@@ -188,14 +200,231 @@ function CertBadge({ name, certs }: { name: string; certs: CertRecord[] }) {
   );
 }
 
+// ─── Departments Panel ────────────────────────────────────────────────────────
+
+const DEPT_PRESET_COLOURS = [
+  "#16a34a", "#b45309", "#1d4ed8", "#7c3aed", "#be123c", "#0f766e",
+  "#c2410c", "#6d28d9", "#0369a1", "#374151",
+];
+
+function DepartmentsPanel({ farmId }: { farmId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [editDept, setEditDept] = useState<Department | null>(null);
+
+  const [dName, setDName] = useState("");
+  const [dDesc, setDDesc] = useState("");
+  const [dColour, setDColour] = useState(DEPT_PRESET_COLOURS[0]);
+
+  const { data } = useQuery<{ departments: Department[] }>({
+    queryKey: ["farm-departments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/departments`, { headers: authHeaders() }).then(r => r.json()),
+  });
+  const departments = data?.departments ?? [];
+
+  function resetForm() { setDName(""); setDDesc(""); setDColour(DEPT_PRESET_COLOURS[0]); }
+
+  function startEdit(d: Department) {
+    setEditDept(d);
+    setDName(d.name);
+    setDDesc(d.description ?? "");
+    setDColour(d.colour);
+    setAdding(true);
+  }
+
+  const createDept = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/departments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ name: dName.trim(), description: dDesc.trim() || null, colour: dColour }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-departments", farmId] });
+      setAdding(false);
+      resetForm();
+      toast({ title: "Department created" });
+    },
+    onError: () => toast({ title: "Failed to create department", variant: "destructive" }),
+  });
+
+  const updateDept = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/departments/${editDept!.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ name: dName.trim(), description: dDesc.trim() || null, colour: dColour }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-departments", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-members", farmId] });
+      setAdding(false);
+      setEditDept(null);
+      resetForm();
+      toast({ title: "Department updated" });
+    },
+    onError: () => toast({ title: "Failed to update department", variant: "destructive" }),
+  });
+
+  const deleteDept = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/farms/${farmId}/departments/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-departments", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-members", farmId] });
+      toast({ title: "Department deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete department", variant: "destructive" }),
+  });
+
+  return (
+    <Card className="border border-border/60">
+      <button
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-black/[0.02] transition-colors"
+        onClick={() => setOpen(v => !v)}
+      >
+        <div className="flex items-center gap-2.5">
+          <Building2 className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold">Farm Departments</span>
+          <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+            {departments.filter(d => d.isActive).length} active
+          </span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <CardContent className="pt-0 pb-4 px-5 space-y-3">
+          {/* Department list */}
+          {departments.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {departments.map(d => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-white px-3 py-2 text-sm"
+                >
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: d.colour }} />
+                  <span className="font-medium">{d.name}</span>
+                  {d.description && (
+                    <span className="text-xs text-muted-foreground hidden sm:inline">— {d.description}</span>
+                  )}
+                  <button
+                    onClick={() => startEdit(d)}
+                    className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Delete "${d.name}"? Members will be unlinked.`)) deleteDept.mutate(d.id); }}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add / edit form */}
+          {adding ? (
+            <div className="rounded-lg border border-border/60 bg-slate-50 p-4 space-y-3">
+              <p className="text-sm font-semibold">{editDept ? "Edit Department" : "New Department"}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Name *</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="e.g. Arable, Livestock…"
+                    value={dName}
+                    onChange={e => setDName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Description</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="Optional short description"
+                    value={dDesc}
+                    onChange={e => setDDesc(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Colour</Label>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {DEPT_PRESET_COLOURS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setDColour(c)}
+                      className={`w-6 h-6 rounded-full border-2 transition-all ${dColour === c ? "border-foreground scale-110" : "border-transparent"}`}
+                      style={{ background: c }}
+                      title={c}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={dColour}
+                    onChange={e => setDColour(e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border border-border"
+                    title="Custom colour"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  size="sm"
+                  onClick={() => editDept ? updateDept.mutate() : createDept.mutate()}
+                  disabled={!dName.trim() || createDept.isPending || updateDept.isPending}
+                >
+                  {(createDept.isPending || updateDept.isPending) ? "Saving…" : editDept ? "Save Changes" : "Add Department"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setAdding(false); setEditDept(null); resetForm(); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { resetForm(); setEditDept(null); setAdding(true); }}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add Department
+            </Button>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 // ─── Add Member Dialog ────────────────────────────────────────────────────────
 
-function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: boolean; onClose: () => void }) {
+function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: number; open: boolean; onClose: () => void; departments: Department[] }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [departmentId, setDepartmentId] = useState<string>("none");
   const [farmRole, setFarmRole] = useState<FarmRole>("operator");
   const [employedFrom, setEmployedFrom] = useState("");
   const [notes, setNotes] = useState("");
@@ -211,7 +440,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
 
   function reset() {
     setFirstName(""); setLastName(""); setEmail(""); setPhone(""); setJobTitle("");
-    setFarmRole("operator"); setEmployedFrom(""); setNotes("");
+    setDepartmentId("none"); setFarmRole("operator"); setEmployedFrom(""); setNotes("");
     setNiNumber(""); setPayrollNumber("");
     setNokName(""); setNokRelationship(""); setNokPhone(""); setNokEmail("");
     setStep("form");
@@ -222,7 +451,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
       const res = await fetch(`/api/farms/${farmId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, farmRole, employedFrom: employedFrom || null, notes: notes || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, farmRole, employedFrom: employedFrom || null, notes: notes || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -284,6 +513,25 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
                     </SelectContent>
                   </Select>
                 </div>
+                {departments.length > 0 && (
+                  <div>
+                    <Label>Department</Label>
+                    <Select value={departmentId} onValueChange={setDepartmentId}>
+                      <SelectTrigger><SelectValue placeholder="No department" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No department</SelectItem>
+                        {departments.map(d => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            <span className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: d.colour }} />
+                              {d.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="employment" className="space-y-3 pt-3">
                 <div>
@@ -493,11 +741,12 @@ function InviteDialog({
 // ─── Edit Access Dialog ───────────────────────────────────────────────────────
 
 function EditMemberDialog({
-  farmId, member, open, onClose,
-}: { farmId: number; member: FarmMember | null; open: boolean; onClose: () => void }) {
+  farmId, member, open, onClose, departments,
+}: { farmId: number; member: FarmMember | null; open: boolean; onClose: () => void; departments: Department[] }) {
   const [farmRole, setFarmRole] = useState<FarmRole>(member?.farmRole ?? "operator");
   const [accessType, setAccessType] = useState<AccessType>(member?.accessType ?? "none");
   const [jobTitle, setJobTitle] = useState(member?.jobTitle ?? "");
+  const [departmentId, setDepartmentId] = useState<string>(member?.departmentId ? String(member.departmentId) : "none");
   const [niNumber, setNiNumber] = useState(member?.niNumber ?? "");
   const [payrollNumber, setPayrollNumber] = useState(member?.payrollNumber ?? "");
   const [nokName, setNokName] = useState(member?.nokName ?? "");
@@ -512,7 +761,7 @@ function EditMemberDialog({
       const res = await fetch(`/api/farms/${farmId}/members/${member!.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Save failed");
     },
@@ -537,6 +786,25 @@ function EditMemberDialog({
             <Label>Job Title</Label>
             <Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Stockman, Tractor Driver…" />
           </div>
+          {departments.length > 0 && (
+            <div>
+              <Label>Department</Label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger><SelectValue placeholder="No department" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No department</SelectItem>
+                  {departments.map(d => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: d.colour }} />
+                        {d.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>NI Number</Label>
@@ -637,6 +905,15 @@ function MemberRow({
         <div>
           <p className="font-medium">{fullName}</p>
           {member.jobTitle && <p className="text-xs text-muted-foreground mt-0.5">{member.jobTitle}</p>}
+          {member.departmentName && (
+            <span
+              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-white"
+              style={{ background: member.departmentColour ?? "#374151" }}
+            >
+              <Building2 className="w-2.5 h-2.5" />
+              {member.departmentName}
+            </span>
+          )}
         </div>
       </td>
       <td className="px-6 py-4">
@@ -725,6 +1002,12 @@ export default function StaffPage() {
   const { data, isLoading, isError, refetch } = useMembers(farmId);
   const { data: certData } = useCerts(farmId);
   const { data: rtwData } = useRtw(farmId);
+  const { data: deptData } = useQuery<{ departments: Department[] }>({
+    queryKey: ["farm-departments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/departments`, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const departments = deptData?.departments ?? [];
 
   const allCerts = certData?.records ?? [];
   const allRtw = rtwData?.records ?? [];
@@ -762,6 +1045,9 @@ export default function StaffPage() {
           Add Staff Member
         </Button>
       </div>
+
+      {/* Departments panel */}
+      <DepartmentsPanel farmId={farmId} />
 
       {/* Summary counts */}
       {!isLoading && !isError && (data?.members?.length ?? 0) > 0 && (
@@ -849,11 +1135,11 @@ export default function StaffPage() {
         </CardContent></Card>
       )}
 
-      <AddMemberDialog farmId={farmId} open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddMemberDialog farmId={farmId} open={addOpen} onClose={() => setAddOpen(false)} departments={departments} />
       <InviteDialog farmId={farmId} member={inviteMember} open={!!inviteMember}
         onClose={() => setInviteMember(null)} />
       <EditMemberDialog farmId={farmId} member={editMember} open={!!editMember}
-        onClose={() => setEditMember(null)} />
+        onClose={() => setEditMember(null)} departments={departments} />
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>

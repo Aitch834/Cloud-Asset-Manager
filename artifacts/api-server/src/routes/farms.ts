@@ -211,6 +211,7 @@ import {
   boreholeTestsTable,
   irrigationRecordsTable,
   irrigationEquipmentTable,
+  farmDepartmentsTable,
   farmMembersTable,
   userInvitationsTable,
   staffFarmAssignmentsTable,
@@ -6264,6 +6265,90 @@ router.delete("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant,
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(farmTaskAssignmentsTable).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Task Board Report ─────────────────────────────────────────────────────────
+// Returns completed/in-progress/pending tasks for a date period with department info,
+// intended for the Management Reports view (grouped by Module → Department → Staff).
+router.get("/farms/:farmId/task-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const period = String(req.query.period ?? "this-month");
+
+  const now = new Date();
+  let startDate: Date;
+  let endDate: Date = now;
+
+  const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+  const endOfDay   = (d: Date) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
+
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const monday = new Date(now); monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+
+  switch (period) {
+    case "this-week":
+      startDate = startOfDay(monday);
+      endDate   = endOfDay(now);
+      break;
+    case "last-week": {
+      const prevMon = new Date(monday); prevMon.setDate(monday.getDate() - 7);
+      const prevSun = new Date(monday); prevSun.setDate(monday.getDate() - 1);
+      startDate = startOfDay(prevMon);
+      endDate   = endOfDay(prevSun);
+      break;
+    }
+    case "this-month":
+      startDate = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+      endDate   = endOfDay(now);
+      break;
+    case "last-month": {
+      const firstOfLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastOfLast  = new Date(now.getFullYear(), now.getMonth(), 0);
+      startDate = startOfDay(firstOfLast);
+      endDate   = endOfDay(lastOfLast);
+      break;
+    }
+    case "last-3-months":
+      startDate = startOfDay(new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()));
+      endDate   = endOfDay(now);
+      break;
+    default:
+      startDate = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+      endDate   = endOfDay(now);
+  }
+
+  // Fetch tasks created in period, left-join members → departments
+  const rows = await db
+    .select({
+      id: farmTaskAssignmentsTable.id,
+      title: farmTaskAssignmentsTable.title,
+      description: farmTaskAssignmentsTable.description,
+      status: farmTaskAssignmentsTable.status,
+      module: farmTaskAssignmentsTable.module,
+      taskType: farmTaskAssignmentsTable.taskType,
+      dueDate: farmTaskAssignmentsTable.dueDate,
+      createdAt: farmTaskAssignmentsTable.createdAt,
+      completedAt: farmTaskAssignmentsTable.completedAt,
+      assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId,
+      staffName: farmTaskAssignmentsTable.staffName,
+      workOrderRef: farmTaskAssignmentsTable.workOrderRef,
+      href: farmTaskAssignmentsTable.href,
+      departmentId: farmMembersTable.departmentId,
+      departmentName: farmDepartmentsTable.name,
+      departmentColour: farmDepartmentsTable.colour,
+    })
+    .from(farmTaskAssignmentsTable)
+    .leftJoin(farmMembersTable, eq(farmTaskAssignmentsTable.assignedToMemberId, farmMembersTable.id))
+    .leftJoin(farmDepartmentsTable, eq(farmMembersTable.departmentId, farmDepartmentsTable.id))
+    .where(
+      and(
+        eq(farmTaskAssignmentsTable.farmId, farmId),
+        gte(farmTaskAssignmentsTable.createdAt, startDate),
+        lte(farmTaskAssignmentsTable.createdAt, endDate),
+      )
+    )
+    .orderBy(farmTaskAssignmentsTable.createdAt);
+
+  res.json({ tasks: rows, period, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 });
 
 // ─── Work Orders (task assignments with a workOrderRef) ────────────────────────
@@ -16443,16 +16528,87 @@ router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requir
   res.json({ success: true });
 });
 
+// ─── Farm Departments ─────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/departments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const departments = await db.select().from(farmDepartmentsTable)
+    .where(eq(farmDepartmentsTable.farmId, farmId))
+    .orderBy(farmDepartmentsTable.name);
+  res.json({ departments });
+});
+
+router.post("/farms/:farmId/departments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const { name, description, colour } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+  const [dept] = await db.insert(farmDepartmentsTable).values({ farmId, name: name.trim(), description: description?.trim() || null, colour: colour || "#6b7280" }).returning();
+  res.json({ department: dept });
+});
+
+router.put("/farms/:farmId/departments/:deptId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const deptId = parseInt(req.params.deptId);
+  const { name, description, colour, isActive } = req.body;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (name !== undefined) updates.name = name.trim();
+  if (description !== undefined) updates.description = description?.trim() || null;
+  if (colour !== undefined) updates.colour = colour;
+  if (isActive !== undefined) updates.isActive = isActive;
+  const [dept] = await db.update(farmDepartmentsTable).set(updates).where(and(eq(farmDepartmentsTable.id, deptId), eq(farmDepartmentsTable.farmId, farmId))).returning();
+  if (!dept) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ department: dept });
+});
+
+router.delete("/farms/:farmId/departments/:deptId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const deptId = parseInt(req.params.deptId);
+  // Soft-delete: deactivate rather than hard delete (staff may still reference it)
+  await db.update(farmDepartmentsTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(farmDepartmentsTable.id, deptId), eq(farmDepartmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ─── Farm Members (Staff Records + System Access) ─────────────────────────────
 
-// List all farm members (staff records) for a farm
+// List all farm members (staff records) for a farm — includes department name join
 router.get("/farms/:farmId/members", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const members = await db.select().from(farmMembersTable)
+  const rows = await db
+    .select({
+      id: farmMembersTable.id,
+      farmId: farmMembersTable.farmId,
+      tenantId: farmMembersTable.tenantId,
+      linkedUserId: farmMembersTable.linkedUserId,
+      firstName: farmMembersTable.firstName,
+      lastName: farmMembersTable.lastName,
+      email: farmMembersTable.email,
+      phone: farmMembersTable.phone,
+      jobTitle: farmMembersTable.jobTitle,
+      departmentId: farmMembersTable.departmentId,
+      departmentName: farmDepartmentsTable.name,
+      departmentColour: farmDepartmentsTable.colour,
+      employedFrom: farmMembersTable.employedFrom,
+      employedTo: farmMembersTable.employedTo,
+      farmRole: farmMembersTable.farmRole,
+      accessType: farmMembersTable.accessType,
+      invitationStatus: farmMembersTable.invitationStatus,
+      isActive: farmMembersTable.isActive,
+      notes: farmMembersTable.notes,
+      niNumber: farmMembersTable.niNumber,
+      payrollNumber: farmMembersTable.payrollNumber,
+      nokName: farmMembersTable.nokName,
+      nokRelationship: farmMembersTable.nokRelationship,
+      nokPhone: farmMembersTable.nokPhone,
+      nokEmail: farmMembersTable.nokEmail,
+      createdAt: farmMembersTable.createdAt,
+      updatedAt: farmMembersTable.updatedAt,
+    })
+    .from(farmMembersTable)
+    .leftJoin(farmDepartmentsTable, eq(farmMembersTable.departmentId, farmDepartmentsTable.id))
     .where(eq(farmMembersTable.farmId, farmId))
     .orderBy(farmMembersTable.lastName, farmMembersTable.firstName);
-  res.json({ members });
+  res.json({ members: rows });
 });
 
 // Create a staff record (no system access by default)
@@ -16460,7 +16616,7 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const tenantId = (req as any).tenantId as number;
-  const { firstName, lastName, email, phone, jobTitle, farmRole, employedFrom, employedTo, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, departmentId, farmRole, employedFrom, employedTo, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   if (!firstName || !lastName) { res.status(400).json({ error: "First name and last name are required" }); return; }
   const [member] = await db.insert(farmMembersTable).values({
     farmId,
@@ -16470,6 +16626,7 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
     email: email ?? null,
     phone: phone ?? null,
     jobTitle: jobTitle ?? null,
+    departmentId: departmentId ? Number(departmentId) : null,
     farmRole: farmRole ?? "operator",
     accessType: "none",
     invitationStatus: "not_invited",
@@ -16491,13 +16648,14 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const memberId = parseInt(req.params.memberId);
-  const { firstName, lastName, email, phone, jobTitle, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, departmentId, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   const [member] = await db.update(farmMembersTable).set({
     ...(firstName !== undefined && { firstName }),
     ...(lastName !== undefined && { lastName }),
     ...(email !== undefined && { email }),
     ...(phone !== undefined && { phone }),
     ...(jobTitle !== undefined && { jobTitle }),
+    ...(departmentId !== undefined && { departmentId: departmentId ? Number(departmentId) : null }),
     ...(farmRole !== undefined && { farmRole }),
     ...(accessType !== undefined && { accessType }),
     ...(employedFrom !== undefined && { employedFrom: employedFrom ? new Date(employedFrom) : null }),

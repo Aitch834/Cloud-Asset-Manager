@@ -144,11 +144,19 @@ The following features were added to close identified Red Tractor / APHA complia
 
 ### Schema Changes
 - `livestock_movements` table: added `ata_number` and `ata_expiry_date` columns for Animal Transporter Authorisation tracking
+- `farm_departments` table (`farmDepartmentsTable`) added — id, farmId, tenantId, name, description, colour, isActive, timestamps
+- `farm_members` table: `departmentId` nullable FK to `farm_departments` added
 
 ### New API Routes (`artifacts/api-server/src/routes/farms.ts`)
 Full CRUD routes (GET/POST/PUT/DELETE) for each of the 5 new tables under the pattern `/api/farms/:farmId/[resource]` gated on `requireModuleByKey`.
+- GET/POST/PUT/DELETE `/farms/:farmId/departments` — department CRUD
+- GET `/farms/:farmId/members` — now LEFT JOINs `farm_departments`, returns `departmentId`, `departmentName`, `departmentColour`
+- POST/PUT `/farms/:farmId/members[/:id]` — accept `departmentId` in body
+- GET `/farms/:farmId/task-report?period=...` — period-based task report; LEFT JOINs members → departments; periods: this-week / last-week / this-month / last-month / last-3-months
 
 ### Dashboard Features
+- **Staff → Farm Departments panel** — collapsible panel at top of Staff page; add/edit/delete departments with name, description, colour; department badge shown on each staff row; department picker in Add + Edit member dialogs
+- **Task Board → Reports tab** — Board/Reports toggle; period picker (This Week / Last Week / This Month / Last Month / Last 3 Months); hierarchical grouping Module → Department → Staff; count pills (Completed / In Progress / Pending / Cancelled); expandable rows showing individual tasks with status/date; print button (window.print)
 - **Livestock → TB Tests tab** — view-before-edit, print TB test report
 - **Livestock → Welfare Outcomes tab** — WOA records with corrective action tracking and print report
 - **Livestock → Sheep Dipping tab** — COSHH-compliant dipping records with print report
