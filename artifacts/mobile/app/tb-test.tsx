@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
+  FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,12 +18,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { useApiHerds } from "@/lib/hooks/useApiHerds";
+import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
+import { getApiBase, uploadPhotoToStorage } from "@/lib/uploadPhoto";
 import type { TbTestRecord } from "@/lib/types";
 
 type TestType = TbTestRecord["testType"];
@@ -50,21 +56,75 @@ export default function TbTestScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
 
+  const farmId = currentFarm?.id;
+  const { herds, loading: herdsLoading } = useApiHerds(farmId);
+
   const today = new Date().toISOString().split("T")[0];
 
   const [testDate, setTestDate] = useState(today);
+
+  const [herdId, setHerdId] = useState<number | null>(null);
   const [herdOrFlockNumber, setHerdOrFlockNumber] = useState("");
+  const [herdPickerVisible, setHerdPickerVisible] = useState(false);
+
   const [species, setSpecies] = useState("Cattle");
   const [testType, setTestType] = useState<TestType>("routine");
+
   const [vetName, setVetName] = useState("");
   const [vetAddress, setVetAddress] = useState("");
-  const [animalsTested, setAnimalsTested] = useState("");
+  const [recentVets, setRecentVets] = useState<string[]>([]);
+  const [showVetSuggestions, setShowVetSuggestions] = useState(false);
+
+  const [earTags, setEarTags] = useState<string[]>([]);
+  const [rfidInput, setRfidInput] = useState("");
+  const [manualAnimalsTested, setManualAnimalsTested] = useState("");
+
   const [reactors, setReactors] = useState("0");
   const [inconclusives, setInconclusives] = useState("0");
   const [result, setResult] = useState<TestResult>("clear");
   const [restrictionsLifted, setRestrictionsLifted] = useState(false);
   const [retestDueDate, setRetestDueDate] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const animalsTested = earTags.length > 0 ? String(earTags.length) : manualAnimalsTested;
+
+  useEffect(() => {
+    getList<TbTestRecord>(STORAGE_KEYS.TB_TEST_RECORDS).then((records) => {
+      const vets = [...new Set(records.map((r) => r.vetName).filter((v) => !!v.trim()))];
+      setRecentVets(vets);
+    });
+  }, []);
+
+  function handleTagScanned(tag: string) {
+    const cleaned = tag.trim().toUpperCase();
+    if (!cleaned || earTags.includes(cleaned)) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setEarTags((prev) => [...prev, cleaned]);
+    setRfidInput("");
+  }
+
+  function addManualTag() {
+    const cleaned = rfidInput.trim().toUpperCase();
+    if (!cleaned || earTags.includes(cleaned)) { setRfidInput(""); return; }
+    setEarTags((prev) => [...prev, cleaned]);
+    setRfidInput("");
+  }
+
+  function removeTag(tag: string) {
+    setEarTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  function selectHerd(herd: { id: number; name: string; herdNumber?: string | null }) {
+    setHerdId(herd.id);
+    setHerdOrFlockNumber(herd.herdNumber || herd.name);
+    setHerdPickerVisible(false);
+  }
+
+  const filteredVets = vetName.trim().length >= 2
+    ? recentVets.filter((v) => v.toLowerCase().includes(vetName.toLowerCase()))
+    : [];
 
   const handleSave = async () => {
     if (!testDate || !vetName.trim() || !animalsTested.trim()) {
@@ -74,22 +134,35 @@ export default function TbTestScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let documentPath: string | null = null;
+    let documentName: string | null = null;
+    if (photoUri) {
+      try {
+        const path = await uploadPhotoToStorage(photoUri, getApiBase(), "tb-test-doc.jpg");
+        if (path) { documentPath = path; documentName = "tb-test-doc.jpg"; }
+      } catch (_) {}
+    }
+
     const record: TbTestRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
       testDate,
       herdOrFlockNumber: herdOrFlockNumber.trim(),
+      herdId,
       species,
       testType,
       vetName: vetName.trim(),
       vetAddress: vetAddress.trim(),
       animalsTested: animalsTested.trim(),
+      animalEarTags: earTags.length > 0 ? JSON.stringify(earTags) : null,
       reactors: reactors.trim(),
       inconclusives: inconclusives.trim(),
       result,
       restrictionsLifted,
       retestDueDate: retestDueDate.trim(),
       notes: notes.trim(),
+      documentPath,
+      documentName,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -124,12 +197,25 @@ export default function TbTestScreen() {
             onChangeText={setTestDate}
             placeholder="YYYY-MM-DD"
           />
-          <Input
-            label="Herd / CTS Number"
-            value={herdOrFlockNumber}
-            onChangeText={setHerdOrFlockNumber}
-            placeholder="e.g. 33/444/55555"
-          />
+
+          <Text style={styles.fieldLabel}>Herd / Flock</Text>
+          <Pressable
+            style={styles.pickerRow}
+            onPress={() => setHerdPickerVisible(true)}
+          >
+            <Text style={herdOrFlockNumber ? styles.pickerValue : styles.pickerPlaceholder}>
+              {herdOrFlockNumber || (herdsLoading ? "Loading herds…" : "Select from herd register…")}
+            </Text>
+            <Feather name="chevron-down" size={16} color={colors.textSecondary} />
+          </Pressable>
+          {herdId === null && (
+            <Input
+              value={herdOrFlockNumber}
+              onChangeText={setHerdOrFlockNumber}
+              placeholder="Or type CPH / herd number manually"
+              containerStyle={{ marginTop: spacing.xs }}
+            />
+          )}
 
           <Text style={styles.fieldLabel}>Species</Text>
           <View style={styles.chipRow}>
@@ -161,9 +247,21 @@ export default function TbTestScreen() {
           <Input
             label="Vet Name *"
             value={vetName}
-            onChangeText={setVetName}
+            onChangeText={(v) => { setVetName(v); setShowVetSuggestions(true); }}
+            onFocus={() => setShowVetSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowVetSuggestions(false), 150)}
             placeholder="e.g. Dr A. Smith"
           />
+          {showVetSuggestions && filteredVets.length > 0 && (
+            <View style={styles.suggestionBox}>
+              {filteredVets.map((v) => (
+                <Pressable key={v} style={styles.suggestionRow} onPress={() => { setVetName(v); setShowVetSuggestions(false); }}>
+                  <Feather name="user" size={13} color={colors.textSecondary} style={{ marginRight: spacing.xs }} />
+                  <Text style={styles.suggestionText}>{v}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <Input
             label="Vet Practice / Address"
             value={vetAddress}
@@ -171,14 +269,53 @@ export default function TbTestScreen() {
             placeholder="e.g. Valley Farm Vets, Shrewsbury"
           />
 
-          <Text style={styles.sectionTitle}>Animals & Results</Text>
-          <Input
-            label="Animals Tested *"
-            value={animalsTested}
-            onChangeText={setAnimalsTested}
-            placeholder="Number of animals"
-            keyboardType="numeric"
+          <Text style={styles.sectionTitle}>Animals Tested</Text>
+          <Text style={styles.fieldLabel}>Scan Ear Tags with Bluetooth Wand</Text>
+          <RFIDTagInput
+            label={earTags.length > 0 ? `Scan next tag (${earTags.length} scanned)` : "Scan ear tag"}
+            value={rfidInput}
+            onChangeText={setRfidInput}
+            onTagScanned={handleTagScanned}
+            placeholder="Hold wand to ear tag…"
           />
+          {rfidInput.trim().length > 0 && (
+            <Pressable style={styles.addTagBtn} onPress={addManualTag}>
+              <Feather name="plus" size={14} color={colors.primary} />
+              <Text style={styles.addTagText}>Add "{rfidInput.trim().toUpperCase()}"</Text>
+            </Pressable>
+          )}
+
+          {earTags.length > 0 && (
+            <View style={styles.tagList}>
+              <Text style={styles.tagListHeader}>{earTags.length} ear tag{earTags.length !== 1 ? "s" : ""} recorded</Text>
+              {earTags.map((tag, i) => (
+                <View key={tag} style={styles.tagRow}>
+                  <Text style={styles.tagIndex}>{i + 1}</Text>
+                  <Text style={styles.tagValue}>{tag}</Text>
+                  <Pressable onPress={() => removeTag(tag)} style={styles.tagRemove}>
+                    <Feather name="x" size={14} color={colors.error} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {earTags.length === 0 && (
+            <Input
+              label="Animals Tested *"
+              value={manualAnimalsTested}
+              onChangeText={setManualAnimalsTested}
+              placeholder="Number of animals"
+              keyboardType="numeric"
+            />
+          )}
+          {earTags.length > 0 && (
+            <View style={styles.autoCountRow}>
+              <Feather name="check-circle" size={14} color={colors.success} />
+              <Text style={styles.autoCountText}>Animals tested auto-set to {earTags.length} from scanned tags</Text>
+            </View>
+          )}
+
           <View style={styles.row}>
             <View style={{ flex: 1, marginRight: spacing.sm }}>
               <Input
@@ -233,6 +370,14 @@ export default function TbTestScreen() {
             <Text style={styles.toggleLabel}>Movement restrictions lifted</Text>
           </Pressable>
 
+          <Text style={styles.sectionTitle}>Document</Text>
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach TB2 / Test Certificate"
+            promptTitle="Attach TB Test Document"
+          />
+
           <Text style={styles.sectionTitle}>Notes</Text>
           <Input
             label="Additional Notes"
@@ -254,6 +399,53 @@ export default function TbTestScreen() {
           <View style={{ height: insets.bottom + spacing.xxxl }} />
         </ScrollView>
       </View>
+
+      <Modal visible={herdPickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setHerdPickerVisible(false)}>
+        <View style={[styles.modalContainer, { paddingTop: insets.top + spacing.sm }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Herd / Flock</Text>
+            <Pressable onPress={() => setHerdPickerVisible(false)} style={styles.modalClose}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+          {herds.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>{herdsLoading ? "Loading…" : "No herds found in register."}</Text>
+              <Pressable style={styles.manualEntry} onPress={() => { setHerdId(null); setHerdPickerVisible(false); }}>
+                <Text style={styles.manualEntryText}>Enter manually instead</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <FlatList
+              data={herds}
+              keyExtractor={(item) => String(item.id)}
+              contentContainerStyle={{ padding: spacing.md }}
+              renderItem={({ item }) => (
+                <Pressable style={styles.herdRow} onPress={() => selectHerd(item)}>
+                  <View style={styles.herdIcon}>
+                    <Text style={styles.herdIconText}>{item.type === "sheep" ? "🐑" : item.type === "pig" ? "🐷" : "🐄"}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.herdName}>{item.name}</Text>
+                    {item.herdNumber && <Text style={styles.herdNumber}>{item.herdNumber}</Text>}
+                    <Text style={styles.herdType}>{item.type}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                </Pressable>
+              )}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListFooterComponent={() => (
+                <Pressable style={[styles.herdRow, { marginTop: spacing.sm }]} onPress={() => { setHerdId(null); setHerdOrFlockNumber(""); setHerdPickerVisible(false); }}>
+                  <View style={[styles.herdIcon, { backgroundColor: colors.border }]}>
+                    <Feather name="edit-2" size={14} color={colors.textSecondary} />
+                  </View>
+                  <Text style={[styles.herdName, { color: colors.textSecondary }]}>Enter manually…</Text>
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -287,6 +479,20 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.xs,
+  },
+  pickerValue: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  pickerPlaceholder: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
   chip: {
     paddingHorizontal: spacing.sm,
@@ -299,6 +505,70 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primary + "15" },
   chipText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary },
   chipTextActive: { color: colors.primary },
+  suggestionBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+    overflow: "hidden",
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  suggestionText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text },
+  addTagBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  addTagText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
+  tagList: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+    marginBottom: spacing.xs,
+  },
+  tagListHeader: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  tagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tagIndex: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, width: 24 },
+  tagValue: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  tagRemove: { padding: spacing.xs },
+  autoCountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  autoCountText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.success },
   row: { flexDirection: "row" },
   resultOption: {
     flexDirection: "row",
@@ -333,4 +603,40 @@ const styles = StyleSheet.create({
   },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   toggleLabel: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  modalContainer: { flex: 1, backgroundColor: colors.background },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  modalTitle: { fontFamily: fonts.bold, fontSize: fontSize.md, color: colors.text },
+  modalClose: { padding: spacing.xs },
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  manualEntry: { marginTop: spacing.md },
+  manualEntryText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
+  herdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  herdIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary + "20",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  herdIconText: { fontSize: 18 },
+  herdName: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
+  herdNumber: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  herdType: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, textTransform: "capitalize" },
+  separator: { height: 1, backgroundColor: colors.border },
 });

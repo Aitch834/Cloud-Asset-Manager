@@ -5775,15 +5775,24 @@ function LambingSection({ farmId }: { farmId: number }) {
 
 // ─── TB Test Register ──────────────────────────────────────────────────────────
 
-interface TbTest { id: number; farmId: number; testDate: string; readingDate: string | null; testType: string; species: string; herdFlockRef: string | null; animalsTested: number | null; reactors: number; inconclusives: number; outcome: string; aphaOfficer: string | null; aphaCaseRef: string | null; movementRestriction: boolean; restrictionLiftedDate: string | null; nextTestDueDate: string | null; testingVet: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+interface TbTest { id: number; farmId: number; testDate: string; readingDate: string | null; testType: string; species: string; herdFlockRef: string | null; herdId: number | null; animalsTested: number | null; animalEarTags: string | null; reactors: number; inconclusives: number; outcome: string; aphaOfficer: string | null; aphaCaseRef: string | null; movementRestriction: boolean; restrictionLiftedDate: string | null; nextTestDueDate: string | null; testingVet: string | null; documentUrl: string | null; documentName: string | null; documentPath: string | null; notes: string | null; }
 
-const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, animalsTested: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, notes: null };
+const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, herdId: null, animalsTested: null, animalEarTags: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, documentPath: null, notes: null };
 
 function TbTestsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/tb-tests`;
   const { data, isLoading } = useQuery<{ records: TbTest[] }>({ queryKey: ["tb-tests", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
+
+  const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
+  const herds = herdsData?.records ?? [];
+
+  const vetNames = [...new Set(records.map(r => r.testingVet).filter((v): v is string => !!v))];
+
+  const { uploadFile, isUploading: isUploadingDoc } = useUpload();
+  const [pendingDoc, setPendingDoc] = useState<{ path: string; name: string } | null>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const [viewItem, setViewItem] = useState<TbTest | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -5796,7 +5805,7 @@ function TbTestsSection({ farmId }: { farmId: number }) {
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_TB & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setShowForm(false); setEditing(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setDeleteId(null); } });
 
-  function openEdit(r: TbTest) { setEditing(r); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, animalsTested: r.animalsTested, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+  function openEdit(r: TbTest) { setEditing(r); setPendingDoc(null); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, herdId: r.herdId ?? null, animalsTested: r.animalsTested, animalEarTags: r.animalEarTags ?? null, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
     const rows = records.map(r => `<tr><td>${formatDate(r.testDate)}</td><td>${r.testType.replace(/-/g," ")}</td><td>${r.species}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.animalsTested ?? "—"}</td><td>${r.reactors}</td><td>${r.inconclusives}</td><td>${r.outcome.toUpperCase()}</td><td>${r.movementRestriction ? "YES" : "No"}</td><td>${formatDate(r.nextTestDueDate)}</td></tr>`).join("");
@@ -5880,7 +5889,8 @@ function TbTestsSection({ farmId }: { farmId: number }) {
               {viewItem.aphaOfficer && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Officer</p><p className="font-medium">{viewItem.aphaOfficer}</p></div>}
               {viewItem.aphaCaseRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Case Ref</p><p className="font-medium font-mono">{viewItem.aphaCaseRef}</p></div>}
               {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
-              {viewItem.documentName && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Document</p><a href={viewItem.documentUrl ?? "#"} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.documentName}</a></div>}
+              {(viewItem.documentName || viewItem.documentPath) && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Document</p><a href={viewItem.documentPath ? `/api/storage${viewItem.documentPath}` : (viewItem.documentUrl ?? "#")} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.documentName || "View Document"}</a></div>}
+          {viewItem.animalEarTags && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Ear Tags ({viewItem.animalEarTags.split("\n").filter(t => t.trim()).length})</p><pre className="text-xs font-mono bg-muted rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">{viewItem.animalEarTags}</pre></div>}
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
@@ -5922,8 +5932,38 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Herd / Flock Reference</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="CPH / herd name" /></div>
-              <div><Label>Animals Tested</Label><Input type="number" min={0} value={form.animalsTested ?? ""} onChange={e => setF("animalsTested", e.target.value ? Number(e.target.value) : null)} /></div>
+              <div><Label>Herd / Flock</Label>
+                {herds.length > 0 ? (
+                  <Select value={form.herdId ? String(form.herdId) : "__manual"} onValueChange={v => { if (v === "__manual") { setF("herdId", null); } else { const h = herds.find(h => h.id === Number(v)); setF("herdId", Number(v)); if (h) setF("herdFlockRef", h.herdNumber || h.name); } }}>
+                    <SelectTrigger><SelectValue placeholder="Select herd…" /></SelectTrigger>
+                    <SelectContent>
+                      {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
+                      <SelectItem value="__manual">Enter manually…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="CPH / herd name" />
+                )}
+                {form.herdId === null && herds.length > 0 && (
+                  <Input className="mt-1" value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="Herd / flock number or name" />
+                )}
+              </div>
+              <div><Label>Animals Tested</Label><Input type="number" min={0} value={form.animalsTested ?? ""} onChange={e => setF("animalsTested", e.target.value ? Number(e.target.value) : null)} placeholder={form.animalEarTags ? String((form.animalEarTags.split("\n").filter(t => t.trim()).length)) : ""} /></div>
+              <div className="col-span-2">
+                <Label>Animal Ear Tags <span className="text-muted-foreground font-normal">(one per line — count auto-fills Animals Tested)</span></Label>
+                <Textarea
+                  rows={4}
+                  value={form.animalEarTags ?? ""}
+                  onChange={e => {
+                    const raw = e.target.value || null;
+                    setF("animalEarTags", raw);
+                    const count = raw ? raw.split("\n").filter(t => t.trim()).length : null;
+                    if (count) setF("animalsTested", count);
+                  }}
+                  placeholder={"UK123456789012\nUK123456789013\n…"}
+                  className="font-mono text-xs"
+                />
+              </div>
               <div><Label>Reactors</Label><Input type="number" min={0} value={form.reactors} onChange={e => setF("reactors", Number(e.target.value))} /></div>
               <div><Label>Inconclusives</Label><Input type="number" min={0} value={form.inconclusives} onChange={e => setF("inconclusives", Number(e.target.value))} /></div>
               <div className="col-span-2"><Label>Outcome *</Label>
@@ -5943,11 +5983,36 @@ function TbTestsSection({ farmId }: { farmId: number }) {
               </div>
               {form.movementRestriction && <div><Label>Restriction Lifted Date</Label><Input type="date" value={form.restrictionLiftedDate ?? ""} onChange={e => setF("restrictionLiftedDate", e.target.value || null)} /></div>}
               <div><Label>Next Test Due Date</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => setF("nextTestDueDate", e.target.value || null)} /></div>
-              <div><Label>Testing Vet</Label><Input value={form.testingVet ?? ""} onChange={e => setF("testingVet", e.target.value || null)} placeholder="Veterinary surgeon name" /></div>
+              <div><Label>Testing Vet</Label>
+                <Input list="tb-vet-list" value={form.testingVet ?? ""} onChange={e => setF("testingVet", e.target.value || null)} placeholder="Veterinary surgeon name" />
+                <datalist id="tb-vet-list">{vetNames.map(v => <option key={v} value={v} />)}</datalist>
+              </div>
               <div><Label>APHA Officer</Label><Input value={form.aphaOfficer ?? ""} onChange={e => setF("aphaOfficer", e.target.value || null)} /></div>
               <div><Label>APHA Case Reference</Label><Input value={form.aphaCaseRef ?? ""} onChange={e => setF("aphaCaseRef", e.target.value || null)} className="font-mono" /></div>
-              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} placeholder="e.g. APHA TB2 Form" /></div>
-              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+              <div className="col-span-2">
+                <Label>Test Document</Label>
+                <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={async e => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const path = await uploadFile({ file, prefix: `farms/${farmId}/tb-tests/docs` });
+                  if (path) { setPendingDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                  if (docInputRef.current) docInputRef.current.value = "";
+                }} />
+                {(pendingDoc || form.documentPath || form.documentName) ? (
+                  <div className="flex items-center gap-2 mt-1 p-2 border rounded text-sm">
+                    <span className="text-muted-foreground">📎</span>
+                    {form.documentPath ? (
+                      <a href={`/api/storage${form.documentPath}`} target="_blank" rel="noreferrer" className="text-primary underline truncate flex-1">{form.documentName || "Document"}</a>
+                    ) : (
+                      <span className="truncate flex-1">{form.documentName || "Document"}</span>
+                    )}
+                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setPendingDoc(null); setF("documentPath", null); setF("documentName", null); }}>×</Button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => docInputRef.current?.click()} disabled={isUploadingDoc}>
+                    {isUploadingDoc ? "Uploading…" : "Upload Document (PDF / image)"}
+                  </Button>
+                )}
+              </div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">

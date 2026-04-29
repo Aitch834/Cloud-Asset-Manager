@@ -20344,6 +20344,9 @@ router.post("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModule
     testingVet: b.testingVet ? String(b.testingVet) : null,
     documentUrl: b.documentUrl ? String(b.documentUrl) : null,
     documentName: b.documentName ? String(b.documentName) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    herdId: b.herdId != null ? Number(b.herdId) : null,
+    animalEarTags: b.animalEarTags ? String(b.animalEarTags) : null,
     notes: b.notes ? String(b.notes) : null,
   }).returning();
   res.json({ record });
@@ -20354,7 +20357,7 @@ router.put("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireMod
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["testDate","readingDate","testType","species","herdFlockRef","animalsTested","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","notes"];
+  const fields = ["testDate","readingDate","testType","species","herdFlockRef","herdId","animalsTested","animalEarTags","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","documentPath","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   if (b.movementRestriction !== undefined) updates.movementRestriction = b.movementRestriction === true || b.movementRestriction === "true";
   const [record] = await db.update(tbTestsTable).set(updates).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId))).returning();
@@ -20367,6 +20370,15 @@ router.delete("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, require
   const id = parseInt(req.params.id);
   await db.delete(tbTestsTable).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/tb-tests/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(tbTestsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
 });
 
 // ─── Welfare Outcome Assessments (WOA) ────────────────────────────────────────

@@ -38,8 +38,11 @@ export const tbTestsTable = pgTable("tb_tests", {
   restrictionLiftedDate: date("restriction_lifted_date"),
   nextTestDueDate: date("next_test_due_date"),
   testingVet: text("testing_vet"),                     // vet or OV who conducted the test
-  documentUrl: text("document_url"),                   // uploaded TB test certificate/report
+  documentUrl: text("document_url"),                   // legacy URL field (kept for existing data)
   documentName: text("document_name"),
+  documentPath: text("document_path"),                 // object-storage path (new upload pattern)
+  herdId: integer("herd_id"),                          // soft FK → herd_flock_register.id
+  animalEarTags: text("animal_ear_tags"),              // JSON array of individual ear tag strings
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

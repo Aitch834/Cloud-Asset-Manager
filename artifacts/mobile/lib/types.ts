@@ -1855,6 +1855,10 @@ export interface TbTestRecord {
   restrictionsLifted: boolean;
   retestDueDate: string;
   notes: string;
+  herdId?: number | null;
+  animalEarTags?: string | null;
+  documentPath?: string | null;
+  documentName?: string | null;
   createdAt: string;
   synced: boolean;
 }
