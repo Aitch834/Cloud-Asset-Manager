@@ -38,6 +38,7 @@ import FieldInspectionsPage from "@/pages/FieldInspectionsPage";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
+import DepartmentsPage from "@/pages/DepartmentsPage";
 import StaffTrainingPage from "@/pages/StaffTrainingPage";
 import NotFound from "@/pages/not-found";
 import SoilTestsPage from "@/pages/SoilTestsPage";
@@ -341,6 +342,7 @@ function ProtectedContent() {
         <Route path="/soil-dashboard" component={SoilDashboard} />
         <Route path="/fleet-dashboard" component={FleetDashboard} />
         <Route path="/staff" component={StaffPage} />
+        <Route path="/departments" component={DepartmentsPage} />
         <Route path="/settings/access" component={AdvisorsAccessPage} />
         <Route path="/settings/farm" component={FarmSettingsPage} />
         <Route path="/settings" component={SettingsPage} />
@@ -447,6 +449,7 @@ function DevBypassContent() {
         <Route path="/soil-dashboard" component={SoilDashboard} />
         <Route path="/fleet-dashboard" component={FleetDashboard} />
         <Route path="/staff" component={StaffPage} />
+        <Route path="/departments" component={DepartmentsPage} />
         <Route path="/settings/access" component={AdvisorsAccessPage} />
         <Route path="/settings/farm" component={FarmSettingsPage} />
         <Route path="/settings" component={SettingsPage} />

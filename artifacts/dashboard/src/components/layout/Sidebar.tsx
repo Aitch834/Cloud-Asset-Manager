@@ -75,6 +75,7 @@ const coreNav: NavItem[] = [
   { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
   { name: "Task Board", href: "/task-board", icon: ClipboardList },
   { name: "Staff", href: "/staff", icon: Users },
+  { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Training", href: "/training", icon: GraduationCap },
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },
