@@ -6210,15 +6210,22 @@ function TbTestsSection({ farmId }: { farmId: number }) {
 
 // ─── Welfare Outcome Assessment ────────────────────────────────────────────────
 
-interface WelfareOutcomeRecord { id: number; farmId: number; assessmentDate: string; assessorName: string; assessorRole: string | null; species: string; herdFlockRef: string | null; sampleSize: number | null; lamenessScore: string | null; bodyConditionScore: string | null; dungScore: string | null; skinLesionScore: string | null; nasalDischargeScore: string | null; eyeDischargeScore: string | null; mortalityRate: string | null; calvingLambingScore: string | null; overallOutcome: string; correctiveActions: string | null; targetDate: string | null; nextAssessmentDue: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+interface WelfareOutcomeRecord { id: number; farmId: number; assessmentDate: string; assessorName: string; assessorRole: string | null; species: string; herdFlockRef: string | null; sampleSize: number | null; lamenessScore: string | null; bodyConditionScore: string | null; dungScore: string | null; skinLesionScore: string | null; nasalDischargeScore: string | null; eyeDischargeScore: string | null; mortalityRate: string | null; calvingLambingScore: string | null; overallOutcome: string; correctiveActions: string | null; targetDate: string | null; nextAssessmentDue: string | null; documentUrl: string | null; documentName: string | null; documentPath: string | null; notes: string | null; }
 
-const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = { assessmentDate: "", assessorName: "", assessorRole: null, species: "cattle", herdFlockRef: null, sampleSize: null, lamenessScore: null, bodyConditionScore: null, dungScore: null, skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null, mortalityRate: null, calvingLambingScore: null, overallOutcome: "acceptable", correctiveActions: null, targetDate: null, nextAssessmentDue: null, documentUrl: null, documentName: null, notes: null };
+const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = { assessmentDate: "", assessorName: "", assessorRole: null, species: "cattle", herdFlockRef: null, sampleSize: null, lamenessScore: null, bodyConditionScore: null, dungScore: null, skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null, mortalityRate: null, calvingLambingScore: null, overallOutcome: "acceptable", correctiveActions: null, targetDate: null, nextAssessmentDue: null, documentUrl: null, documentName: null, documentPath: null, notes: null };
 
 function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/welfare-outcome-assessments`;
   const { data, isLoading } = useQuery<{ records: WelfareOutcomeRecord[] }>({ queryKey: ["welfare-outcomes", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
+
+  const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
+  const herds = herdsData?.records ?? [];
+
+  const { uploadFile: uploadWoaDoc, isUploading: isUploadingWoaDoc } = useUpload();
+  const [pendingWoaDoc, setPendingWoaDoc] = useState<{ path: string; name: string } | null>(null);
+  const woaDocRef = useRef<HTMLInputElement>(null);
 
   const [viewItem, setViewItem] = useState<WelfareOutcomeRecord | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -6227,11 +6234,11 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); } });
-  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); } });
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setDeleteId(null); } });
 
-  function openEdit(r: WelfareOutcomeRecord) { setEditing(r); setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+  function openEdit(r: WelfareOutcomeRecord) { setEditing(r); setPendingWoaDoc(null); setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
     const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.bodyConditionScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
@@ -6347,16 +6354,32 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Herd / Flock Ref</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} /></div>
-              <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} /></div>
-              <div><Label>Lameness Score (%)</Label><Input value={form.lamenessScore ?? ""} onChange={e => setF("lamenessScore", e.target.value || null)} placeholder="e.g. 4.2" /></div>
-              <div><Label>Body Condition Score</Label><Input value={form.bodyConditionScore ?? ""} onChange={e => setF("bodyConditionScore", e.target.value || null)} placeholder="e.g. 2.5/5" /></div>
-              <div><Label>Dung Score</Label><Input value={form.dungScore ?? ""} onChange={e => setF("dungScore", e.target.value || null)} placeholder="e.g. 2/5" /></div>
-              <div><Label>Skin Lesion Score (%)</Label><Input value={form.skinLesionScore ?? ""} onChange={e => setF("skinLesionScore", e.target.value || null)} /></div>
-              <div><Label>Nasal Discharge (%)</Label><Input value={form.nasalDischargeScore ?? ""} onChange={e => setF("nasalDischargeScore", e.target.value || null)} /></div>
-              <div><Label>Eye Discharge (%)</Label><Input value={form.eyeDischargeScore ?? ""} onChange={e => setF("eyeDischargeScore", e.target.value || null)} /></div>
-              <div><Label>Mortality Rate (%)</Label><Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} /></div>
-              <div><Label>Calving / Lambing Score</Label><Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} /></div>
+              <div><Label>Herd / Flock</Label>
+                <Select value={form.herdFlockRef ?? "__none__"} onValueChange={v => setF("herdFlockRef", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select herd / flock" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not specified —</SelectItem>
+                    {herds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="No. animals observed" /></div>
+              <div><Label>Lameness Score (%)</Label><Input value={form.lamenessScore ?? ""} onChange={e => setF("lamenessScore", e.target.value || null)} placeholder="% animals lame" /></div>
+              <div><Label>Body Condition Score</Label><Input value={form.bodyConditionScore ?? ""} onChange={e => setF("bodyConditionScore", e.target.value || null)} placeholder="% thin (BCS &lt;2)" /></div>
+              <div><Label>Dung Score</Label><Input value={form.dungScore ?? ""} onChange={e => setF("dungScore", e.target.value || null)} placeholder="% dirty hindquarters" /></div>
+              <div><Label>Skin Lesion Score (%)</Label><Input value={form.skinLesionScore ?? ""} onChange={e => setF("skinLesionScore", e.target.value || null)} placeholder="% with skin injuries" /></div>
+              <div><Label>Nasal Discharge (%)</Label><Input value={form.nasalDischargeScore ?? ""} onChange={e => setF("nasalDischargeScore", e.target.value || null)} placeholder="% with respiratory signs" /></div>
+              <div><Label>Eye Discharge (%)</Label><Input value={form.eyeDischargeScore ?? ""} onChange={e => setF("eyeDischargeScore", e.target.value || null)} placeholder="% with eye discharge" /></div>
+              <div>
+                <Label>Mortality Rate (%)</Label>
+                <Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} placeholder="Rolling 12-month %" />
+                <p className="text-xs text-muted-foreground mt-0.5">Calculate from your Mortality Register: total deaths in last 12 months ÷ average herd size × 100</p>
+              </div>
+              <div>
+                <Label>Calving / Lambing Score</Label>
+                <Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} placeholder="% assisted births" />
+                <p className="text-xs text-muted-foreground mt-0.5">% of births requiring assistance — from your AI Reproduction / Lambing records</p>
+              </div>
               <div className="col-span-2"><Label>Overall Outcome *</Label>
                 <Select value={form.overallOutcome} onValueChange={v => setF("overallOutcome", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -6368,11 +6391,44 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2"><Label>Corrective Actions</Label><Textarea value={form.correctiveActions ?? ""} onChange={e => setF("correctiveActions", e.target.value || null)} rows={2} placeholder="Actions to address any welfare concerns identified" /></div>
+              {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && (
+                <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-amber-800">
+                  <strong>⚠ Action required</strong> — Complete the Corrective Actions and Target Date fields below. A task will appear on the Week Ahead planner for all farm staff so this can be tracked and signed off before the target date.
+                </div>
+              )}
+              <div className="col-span-2">
+                <Label>Corrective Actions</Label>
+                <Textarea value={form.correctiveActions ?? ""} onChange={e => setF("correctiveActions", e.target.value || null)} rows={3} placeholder="Describe the specific actions that must be taken to address the welfare concerns identified — who, what, and by when" />
+                {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && !form.correctiveActions && (
+                  <p className="text-xs text-red-600 mt-0.5">Required when outcome is Needs Improvement or Poor</p>
+                )}
+              </div>
               <div><Label>Target Completion Date</Label><Input type="date" value={form.targetDate ?? ""} onChange={e => setF("targetDate", e.target.value || null)} /></div>
               <div><Label>Next Assessment Due</Label><Input type="date" value={form.nextAssessmentDue ?? ""} onChange={e => setF("nextAssessmentDue", e.target.value || null)} /></div>
-              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} /></div>
-              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+              <div className="col-span-2">
+                <Label>Assessment Document</Label>
+                <input type="file" ref={woaDocRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={async e => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const path = await uploadWoaDoc({ file, prefix: `farms/${farmId}/welfare-assessments/docs` });
+                  if (path) { setPendingWoaDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                  if (woaDocRef.current) woaDocRef.current.value = "";
+                }} />
+                {(pendingWoaDoc || form.documentPath || form.documentName) ? (
+                  <div className="flex items-center gap-2 mt-1 p-2 border rounded text-sm">
+                    <span className="text-muted-foreground">📎</span>
+                    {form.documentPath ? (
+                      <a href={`/api/storage${form.documentPath}`} target="_blank" rel="noreferrer" className="text-primary underline truncate flex-1">{form.documentName || "Document"}</a>
+                    ) : (
+                      <span className="truncate flex-1">{form.documentName || "Document"}</span>
+                    )}
+                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setPendingWoaDoc(null); setF("documentPath", null); setF("documentName", null); }}>×</Button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => woaDocRef.current?.click()} disabled={isUploadingWoaDoc}>
+                    {isUploadingWoaDoc ? "Uploading…" : "Upload Document (PDF / image)"}
+                  </Button>
+                )}
+              </div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">

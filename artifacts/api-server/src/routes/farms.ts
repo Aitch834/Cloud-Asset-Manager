@@ -12370,6 +12370,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     tbTestRetestRows,
     tbTestReadingDueRows,
     welfareAssessmentDueRows,
+    woaCorrectiveActionRows,
     contractorPliRows,
     sheepDipWithdrawalRows,
     sheepDipCertRows,
@@ -12676,6 +12677,17 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: welfareOutcomeAssessmentsTable.id, species: welfareOutcomeAssessmentsTable.species, herdFlockRef: welfareOutcomeAssessmentsTable.herdFlockRef, nextAssessmentDue: welfareOutcomeAssessmentsTable.nextAssessmentDue })
       .from(welfareOutcomeAssessmentsTable)
       .where(and(eq(welfareOutcomeAssessmentsTable.farmId, farmId), isNotNull(welfareOutcomeAssessmentsTable.nextAssessmentDue), gte(welfareOutcomeAssessmentsTable.nextAssessmentDue, overdueStart.toISOString().split("T")[0]), lt(welfareOutcomeAssessmentsTable.nextAssessmentDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Welfare Outcome Assessments: corrective action target date ────────────
+    db.select({ id: welfareOutcomeAssessmentsTable.id, species: welfareOutcomeAssessmentsTable.species, herdFlockRef: welfareOutcomeAssessmentsTable.herdFlockRef, overallOutcome: welfareOutcomeAssessmentsTable.overallOutcome, correctiveActions: welfareOutcomeAssessmentsTable.correctiveActions, targetDate: welfareOutcomeAssessmentsTable.targetDate, assessmentDate: welfareOutcomeAssessmentsTable.assessmentDate })
+      .from(welfareOutcomeAssessmentsTable)
+      .where(and(
+        eq(welfareOutcomeAssessmentsTable.farmId, farmId),
+        isNotNull(welfareOutcomeAssessmentsTable.targetDate),
+        gte(welfareOutcomeAssessmentsTable.targetDate, overdueStart.toISOString().split("T")[0]),
+        lt(welfareOutcomeAssessmentsTable.targetDate, rangeEnd.toISOString().split("T")[0]),
+        or(eq(welfareOutcomeAssessmentsTable.overallOutcome, "needs-improvement"), eq(welfareOutcomeAssessmentsTable.overallOutcome, "poor")),
+      )),
 
     // ── Contractors: PLI expiry date ──────────────────────────────────────────
     db.select({ id: contractorsTable.id, companyName: contractorsTable.companyName, tradeType: contractorsTable.tradeType, pliInsurer: contractorsTable.pliInsurer, pliExpiryDate: contractorsTable.pliExpiryDate })
@@ -13157,8 +13169,24 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       description: `A Red Tractor Welfare Outcome Assessment (WOA) is due for your ${r.species || "livestock"}${herd}. Complete and record the assessment in Livestock → Welfare Outcomes.`,
       dueDate: toISO(r.nextAssessmentDue)!,
       module: "Livestock",
-      href: `/livestock?tab=welfare`,
+      href: `/livestock?tab=welfare-outcomes`,
       colour: "green",
+    });
+  }
+
+  for (const r of woaCorrectiveActionRows) {
+    if (!r.targetDate) continue;
+    const herd = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    const urgency = r.overallOutcome === "poor" ? "URGENT" : "Action required";
+    tasks.push({
+      id: `woa-ca-${r.id}`,
+      type: "woa_corrective_action",
+      title: `${urgency}: Welfare Corrective Actions Due — ${r.species || "Livestock"}${herd}`,
+      description: `A welfare assessment dated ${r.assessmentDate} was rated '${r.overallOutcome.replace(/-/g, " ")}' for your ${r.species || "livestock"}${herd}. The corrective action deadline is approaching.${r.correctiveActions ? ` Actions required: ${r.correctiveActions}` : " Review the Welfare Outcomes register and ensure all corrective actions are completed before the target date."}`,
+      dueDate: toISO(r.targetDate)!,
+      module: "Livestock",
+      href: `/livestock?tab=welfare-outcomes`,
+      colour: r.overallOutcome === "poor" ? "red" : "amber",
     });
   }
 
@@ -20450,6 +20478,7 @@ router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTe
     nextAssessmentDue: b.nextAssessmentDue ? String(b.nextAssessmentDue) : null,
     documentUrl: b.documentUrl ? String(b.documentUrl) : null,
     documentName: b.documentName ? String(b.documentName) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
     notes: b.notes ? String(b.notes) : null,
   }).returning();
   res.json({ record });
@@ -20460,7 +20489,7 @@ router.put("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requir
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["assessmentDate","assessorName","assessorRole","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","notes"];
+  const fields = ["assessmentDate","assessorName","assessorRole","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","documentPath","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(welfareOutcomeAssessmentsTable).set(updates).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }

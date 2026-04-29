@@ -83,6 +83,7 @@ export const welfareOutcomeAssessmentsTable = pgTable("welfare_outcome_assessmen
   nextAssessmentDue: date("next_assessment_due"),
   documentUrl: text("document_url"),
   documentName: text("document_name"),
+  documentPath: text("document_path"),               // object-storage path (upload pattern)
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
