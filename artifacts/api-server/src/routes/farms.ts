@@ -12368,6 +12368,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     organicDairyMeatWdRows,
     medOrgWdRows,
     tbTestRetestRows,
+    tbTestReadingDueRows,
     welfareAssessmentDueRows,
     contractorPliRows,
     sheepDipWithdrawalRows,
@@ -12653,6 +12654,23 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: tbTestsTable.id, species: tbTestsTable.species, herdFlockRef: tbTestsTable.herdFlockRef, nextTestDueDate: tbTestsTable.nextTestDueDate })
       .from(tbTestsTable)
       .where(and(eq(tbTestsTable.farmId, farmId), isNotNull(tbTestsTable.nextTestDueDate), gte(tbTestsTable.nextTestDueDate, overdueStart.toISOString().split("T")[0]), lt(tbTestsTable.nextTestDueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── TB Test Register: SICCT reading due (injection done, no reading yet) ──
+    // Reading happens 72 h after injection → readingDue = testDate + 3 days.
+    // We surface tests whose readingDue falls within the planner window.
+    (() => {
+      const readingWindowStart = new Date(overdueStart); readingWindowStart.setDate(readingWindowStart.getDate() - 3);
+      const readingWindowEnd = new Date(rangeEnd); readingWindowEnd.setDate(readingWindowEnd.getDate() - 3);
+      return db.select({ id: tbTestsTable.id, species: tbTestsTable.species, herdFlockRef: tbTestsTable.herdFlockRef, testDate: tbTestsTable.testDate })
+        .from(tbTestsTable)
+        .where(and(
+          eq(tbTestsTable.farmId, farmId),
+          isNull(tbTestsTable.readingDate),
+          isNotNull(tbTestsTable.testDate),
+          gte(tbTestsTable.testDate, readingWindowStart.toISOString().split("T")[0]),
+          lt(tbTestsTable.testDate, readingWindowEnd.toISOString().split("T")[0]),
+        ));
+    })(),
 
     // ── Welfare Outcome Assessments: next assessment due date ─────────────────
     db.select({ id: welfareOutcomeAssessmentsTable.id, species: welfareOutcomeAssessmentsTable.species, herdFlockRef: welfareOutcomeAssessmentsTable.herdFlockRef, nextAssessmentDue: welfareOutcomeAssessmentsTable.nextAssessmentDue })
@@ -13109,6 +13127,23 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Livestock",
       href: `/livestock?tab=tb-tests`,
       colour: "red",
+    });
+  }
+
+  for (const r of tbTestReadingDueRows) {
+    if (!r.testDate) continue;
+    const readingDue = new Date(r.testDate + "T00:00:00Z");
+    readingDue.setDate(readingDue.getDate() + 3);
+    const herd = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    tasks.push({
+      id: `tb-reading-${r.id}`,
+      type: "tb_reading_due",
+      title: `Read SICCT Results${herd}`,
+      description: `The 72-hour tuberculin skin reading is due for ${r.species || "cattle"}${herd}. Injection was administered on ${r.testDate}. Measure skin reactions, record reactors and inconclusives, and log the Reading Date in Livestock → TB Tests.`,
+      dueDate: readingDue.toISOString(),
+      module: "Livestock",
+      href: `/livestock?tab=tb-tests`,
+      colour: "amber",
     });
   }
 

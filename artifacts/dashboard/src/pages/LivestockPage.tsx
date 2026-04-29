@@ -3172,11 +3172,25 @@ interface AnimalProfile {
 }
 
 // ─── Animal Quick View Dialog ──────────────────────────────────────────────────
-function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
-  animal: Animal; herds: Herd[]; onClose: () => void;
+function AnimalQuickViewDialog({ animal, herds, farmId, onClose, onEdit, onProfile }: {
+  animal: Animal; herds: Herd[]; farmId: number; onClose: () => void;
   onEdit: (a: Animal) => void; onProfile: (a: Animal) => void;
 }) {
   const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "Unassigned";
+  const earTag = (animal.earTagNumber || animal.tagNumber || "").trim().toUpperCase();
+  const { data: tbData } = useQuery<{ records: { id: number; testDate: string; readingDate: string | null; testType: string; outcome: string; species: string; animalEarTags: string | null }[] }>({
+    queryKey: ["tb-tests", farmId], queryFn: () => fetch(`/api/farms/${farmId}/tb-tests`).then(r => r.json()),
+    enabled: !!earTag,
+  });
+  const tbHistory = (tbData?.records ?? []).filter(t => {
+    if (!earTag || !t.animalEarTags) return false;
+    try {
+      const tags: string[] = JSON.parse(t.animalEarTags);
+      return tags.map(x => x.trim().toUpperCase()).includes(earTag);
+    } catch {
+      return t.animalEarTags.split("\n").map(x => x.trim().toUpperCase()).includes(earTag);
+    }
+  }).sort((a, b) => b.testDate.localeCompare(a.testDate));
   const statusColor = {
     active: "bg-green-50 text-green-700", sold: "bg-amber-50 text-amber-700",
     dead: "bg-red-50 text-red-700", removed: "bg-gray-50 text-gray-600",
@@ -3205,6 +3219,33 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Alt. ID</p><p className="font-mono text-xs">{animal.tagNumber || "—"}</p></div>
           </div>
           {animal.notes && <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Notes</p><p className="text-gray-700 whitespace-pre-line">{animal.notes}</p></div>}
+          {earTag && (
+            <div className="border rounded-md overflow-hidden mt-2">
+              <div className="bg-muted/50 px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">TB Test History</div>
+              {tbHistory.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground italic">No SICCT tests recorded for this ear tag</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b"><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Injection</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Stage</th><th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Result</th></tr></thead>
+                  <tbody className="divide-y">
+                    {tbHistory.map(t => (
+                      <tr key={t.id} className="hover:bg-muted/20">
+                        <td className="px-3 py-1.5 font-medium">{formatDate(t.testDate)}</td>
+                        <td className="px-3 py-1.5">
+                          {t.readingDate
+                            ? <span className="text-green-700 font-semibold">✓ Complete</span>
+                            : <span className="text-amber-600 font-semibold">⏳ Reading pending</span>}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className={`inline-flex text-xs font-semibold rounded-full px-1.5 py-0.5 ${OUTCOME_COLOURS[t.outcome] ?? "bg-gray-100 text-gray-700"}`}>{t.outcome.toUpperCase()}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
@@ -4064,6 +4105,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
       {viewAnimal && (
         <AnimalQuickViewDialog
           animal={viewAnimal}
+          farmId={farmId}
           herds={herds}
           onClose={() => setViewAnimal(null)}
           onEdit={a => { setViewAnimal(null); openEdit(a); }}
@@ -5836,7 +5878,7 @@ function TbTestsSection({ farmId }: { farmId: number }) {
         : <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50"><tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Test Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Injection / Reading</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Species</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Herd/Flock</th>
@@ -5849,7 +5891,12 @@ function TbTestsSection({ farmId }: { farmId: number }) {
               <tbody className="divide-y">
                 {records.map(r => (
                   <tr key={r.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium">{formatDate(r.testDate)}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{formatDate(r.testDate)}</div>
+                      {r.readingDate
+                        ? <div className="text-xs text-muted-foreground mt-0.5">Reading: {formatDate(r.readingDate)}</div>
+                        : <div className="text-xs text-amber-600 font-semibold mt-0.5">⏳ Reading pending</div>}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600 capitalize">{r.testType.replace(/-/g," ")}</td>
                     <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">{r.herdFlockRef ?? "—"}</td>
@@ -5872,9 +5919,14 @@ function TbTestsSection({ farmId }: { farmId: number }) {
         <Dialog open onOpenChange={() => setViewItem(null)}>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>TB Test — {formatDate(viewItem.testDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.testType.replace(/-/g," ")}</DialogDescription></DialogHeader>
+            <div className="flex items-center gap-2 mt-1 mb-2">
+              {viewItem.readingDate
+                ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800">✓ Both stages complete</span>
+                : <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">⏳ Stage 1 done — Reading pending</span>}
+            </div>
             <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Date</p><p className="font-medium">{formatDate(viewItem.testDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{formatDate(viewItem.readingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stage 1 — Injection</p><p className="font-medium">{formatDate(viewItem.testDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stage 2 — Reading (72 h)</p><p className="font-medium">{viewItem.readingDate ? formatDate(viewItem.readingDate) : <span className="text-amber-600">Pending</span>}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium capitalize">{viewItem.testType.replace(/-/g," ")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium capitalize">{viewItem.species}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock Ref</p><p className="font-medium">{viewItem.herdFlockRef ?? "—"}</p></div>
