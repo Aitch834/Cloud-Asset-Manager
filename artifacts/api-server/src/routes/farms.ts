@@ -20444,6 +20444,90 @@ router.patch("/farms/:farmId/tb-tests/:id/document", requireAuth, requireTenant,
   res.json({ record });
 });
 
+// ─── Welfare Outcome Assessments — Auto-calculation helper ────────────────────
+// Returns pre-calculated mortality rate and calving/lambing score for a given
+// herd + species combination, derived from the mortality register and calving/
+// lambing records held in the app. Values cover the rolling 12-month window.
+
+router.get("/farms/:farmId/woa-auto-calc", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const herdId = req.query.herdId ? parseInt(req.query.herdId as string) : null;
+  const species = (req.query.species as string | undefined)?.toLowerCase() ?? "";
+
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  const cutoff = twelveMonthsAgo.toISOString();
+
+  // ── Mortality rate ────────────────────────────────────────────────────────
+  // Count deaths in last 12 months for this herd/species
+  const mortalityWhere = herdId
+    ? and(eq(livestockMortalityTable.farmId, farmId), eq(livestockMortalityTable.herdId, herdId), gte(livestockMortalityTable.dateOfDeath, new Date(cutoff)))
+    : and(eq(livestockMortalityTable.farmId, farmId), gte(livestockMortalityTable.dateOfDeath, new Date(cutoff)));
+
+  const [mortalityResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(livestockMortalityTable)
+    .where(mortalityWhere);
+
+  const deathCount = mortalityResult?.count ?? 0;
+
+  // Current active animal count (herd size denominator)
+  const herdSizeWhere = herdId
+    ? and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.herdId, herdId), sql`${livestockAnimalsTable.status} not in ('dead','sold')`)
+    : and(eq(livestockAnimalsTable.farmId, farmId), sql`${livestockAnimalsTable.status} not in ('dead','sold')`);
+
+  const [herdSizeResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(livestockAnimalsTable)
+    .where(herdSizeWhere);
+
+  const herdSize = herdSizeResult?.count ?? 0;
+  const mortalityRate = herdSize > 0 ? ((deathCount / herdSize) * 100).toFixed(1) : null;
+
+  // ── Calving / Lambing score ───────────────────────────────────────────────
+  let calvingLambingScore: string | null = null;
+
+  const isCattle = species === "cattle" || species === "beef-cattle";
+  const isSheep = species === "sheep";
+
+  if (isCattle) {
+    const calvingWhere = herdId
+      ? and(eq(dairyCalvingRecordsTable.farmId, farmId), eq(dairyCalvingRecordsTable.herdId, herdId), gte(dairyCalvingRecordsTable.calvingDate, new Date(cutoff)))
+      : and(eq(dairyCalvingRecordsTable.farmId, farmId), gte(dairyCalvingRecordsTable.calvingDate, new Date(cutoff)));
+
+    const [calvingTotal] = await db
+      .select({ total: sql<number>`count(*)::int`, assisted: sql<number>`count(*) filter (where ${dairyCalvingRecordsTable.assistanceRequired} = true)::int` })
+      .from(dairyCalvingRecordsTable)
+      .where(calvingWhere);
+
+    if (calvingTotal?.total > 0) {
+      calvingLambingScore = ((calvingTotal.assisted / calvingTotal.total) * 100).toFixed(1);
+    }
+  } else if (isSheep) {
+    const lambingWhere = herdId
+      ? and(eq(lambingRecordsTable.farmId, farmId), eq(lambingRecordsTable.herdId, herdId), gte(lambingRecordsTable.lambingDate, twelveMonthsAgo.toISOString().split("T")[0]))
+      : and(eq(lambingRecordsTable.farmId, farmId), gte(lambingRecordsTable.lambingDate, twelveMonthsAgo.toISOString().split("T")[0]));
+
+    const [lambingTotal] = await db
+      .select({ total: sql<number>`count(*)::int`, assisted: sql<number>`count(*) filter (where ${lambingRecordsTable.assistanceRequired} = true)::int` })
+      .from(lambingRecordsTable)
+      .where(lambingWhere);
+
+    if (lambingTotal?.total > 0) {
+      calvingLambingScore = ((lambingTotal.assisted / lambingTotal.total) * 100).toFixed(1);
+    }
+  }
+
+  res.json({
+    mortalityRate,         // rolling 12m %, or null if no animals recorded
+    calvingLambingScore,   // % assisted births, or null if no records / non-cattle/sheep
+    herdSize,              // current active animal count (denominator)
+    deathCount,            // deaths in last 12 months
+  });
+});
+
 // ─── Welfare Outcome Assessments (WOA) ────────────────────────────────────────
 
 router.get("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {

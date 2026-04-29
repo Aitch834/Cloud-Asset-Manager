@@ -6232,13 +6232,42 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<WelfareOutcomeRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_WOA>({ ...EMPTY_WOA });
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [selectedHerdId, setSelectedHerdId] = useState<number | null>(null);
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  // Filter herds by species — herd register `type` is free-text (e.g. "Cattle", "Sheep")
+  function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string): boolean {
+    const s = woaSpecies.toLowerCase();
+    const t = herdType.toLowerCase();
+    if (s === "cattle" || s === "beef-cattle") return t.includes("cattle") || t === "cattle";
+    if (s === "sheep") return t.includes("sheep") || t.includes("flock");
+    if (s === "pigs") return t.includes("pig") || t.includes("swine");
+    if (s === "poultry") return t.includes("poultry") || t.includes("chicken") || t.includes("turkey") || t.includes("hen") || t.includes("broiler") || t.includes("layer");
+    if (s === "goats") return t.includes("goat");
+    return t.includes(s);
+  }
+  const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
+  // If species changes and currently selected herd is now invalid, clear it
+  const currentHerdStillValid = !form.herdFlockRef || filteredHerds.some(h => h.name === form.herdFlockRef);
+
+  // Auto-calc: fetch mortality rate + calving/lambing score when a herd is selected
+  const { data: autoCalc } = useQuery<{ mortalityRate: string | null; calvingLambingScore: string | null; herdSize: number; deathCount: number }>({
+    queryKey: ["woa-auto-calc", farmId, selectedHerdId, form.species],
+    queryFn: () => fetch(`/api/farms/${farmId}/woa-auto-calc?herdId=${selectedHerdId}&species=${form.species}`).then(r => r.json()),
+    enabled: selectedHerdId !== null && showForm,
+    staleTime: 60_000,
+  });
 
   const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); } });
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setDeleteId(null); } });
 
-  function openEdit(r: WelfareOutcomeRecord) { setEditing(r); setPendingWoaDoc(null); setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null }); setShowForm(true); }
+  function openEdit(r: WelfareOutcomeRecord) {
+    setEditing(r); setPendingWoaDoc(null);
+    setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null });
+    if (r.herdFlockRef) { const h = herds.find(h => h.name === r.herdFlockRef); setSelectedHerdId(h?.id ?? null); } else { setSelectedHerdId(null); }
+    setShowForm(true);
+  }
 
   function printReport() {
     const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.bodyConditionScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
@@ -6343,7 +6372,12 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               <div><Label>Assessor Name *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Vet / farm manager" /></div>
               <div><Label>Assessor Role</Label><Input value={form.assessorRole ?? ""} onChange={e => setF("assessorRole", e.target.value || null)} placeholder="e.g. Farm vet, assurance assessor" /></div>
               <div><Label>Species *</Label>
-                <Select value={form.species} onValueChange={v => setF("species", v)}>
+                <Select value={form.species} onValueChange={v => {
+                  setF("species", v);
+                  // Clear herd selection if it no longer applies to the new species
+                  const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(v, h.type)).some(h => h.name === form.herdFlockRef);
+                  if (!herdStillValid) { setF("herdFlockRef", null); setSelectedHerdId(null); }
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cattle">Cattle (Dairy)</SelectItem>
@@ -6355,13 +6389,25 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Herd / Flock</Label>
-                <Select value={form.herdFlockRef ?? "__none__"} onValueChange={v => setF("herdFlockRef", v === "__none__" ? null : v)}>
+                <Select value={currentHerdStillValid ? (form.herdFlockRef ?? "__none__") : "__none__"} onValueChange={v => {
+                  if (v === "__none__") { setF("herdFlockRef", null); setSelectedHerdId(null); }
+                  else {
+                    const h = filteredHerds.find(h => h.name === v);
+                    setF("herdFlockRef", v);
+                    setSelectedHerdId(h?.id ?? null);
+                  }
+                }}>
                   <SelectTrigger><SelectValue placeholder="Select herd / flock" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Not specified —</SelectItem>
-                    {herds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
+                    {filteredHerds.length > 0
+                      ? filteredHerds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)
+                      : herds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {filteredHerds.length === 0 && herds.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">No {form.species} herds registered — showing all. Add a herd in the Herds Register to filter by species.</p>
+                )}
               </div>
               <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="No. animals observed" /></div>
               <div><Label>Lameness Score (%)</Label><Input value={form.lamenessScore ?? ""} onChange={e => setF("lamenessScore", e.target.value || null)} placeholder="% animals lame" /></div>
@@ -6371,14 +6417,34 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               <div><Label>Nasal Discharge (%)</Label><Input value={form.nasalDischargeScore ?? ""} onChange={e => setF("nasalDischargeScore", e.target.value || null)} placeholder="% with respiratory signs" /></div>
               <div><Label>Eye Discharge (%)</Label><Input value={form.eyeDischargeScore ?? ""} onChange={e => setF("eyeDischargeScore", e.target.value || null)} placeholder="% with eye discharge" /></div>
               <div>
-                <Label>Mortality Rate (%)</Label>
-                <Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} placeholder="Rolling 12-month %" />
-                <p className="text-xs text-muted-foreground mt-0.5">Calculate from your Mortality Register: total deaths in last 12 months ÷ average herd size × 100</p>
+                <div className="flex items-center justify-between">
+                  <Label>Mortality Rate (%)</Label>
+                  {autoCalc?.mortalityRate && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setF("mortalityRate", autoCalc.mortalityRate)}>
+                      Use calculated: {autoCalc.mortalityRate}% ({autoCalc.deathCount} deaths / {autoCalc.herdSize} animals)
+                    </button>
+                  )}
+                </div>
+                <Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} placeholder={autoCalc?.mortalityRate ? `Calculated: ${autoCalc.mortalityRate}% — click above to use` : "Rolling 12-month %"} />
+                {autoCalc?.mortalityRate
+                  ? <p className="text-xs text-green-700 mt-0.5">✓ Calculated from your Mortality Register ({autoCalc.deathCount} deaths in 12 months, {autoCalc.herdSize} active animals). You can override this figure.</p>
+                  : <p className="text-xs text-muted-foreground mt-0.5">{selectedHerdId ? "No mortality records found for this herd in the last 12 months — enter manually." : "Select a herd above to auto-calculate from your Mortality Register, or enter manually."}</p>
+                }
               </div>
               <div>
-                <Label>Calving / Lambing Score</Label>
-                <Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} placeholder="% assisted births" />
-                <p className="text-xs text-muted-foreground mt-0.5">% of births requiring assistance — from your AI Reproduction / Lambing records</p>
+                <div className="flex items-center justify-between">
+                  <Label>Calving / Lambing Score</Label>
+                  {autoCalc?.calvingLambingScore && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setF("calvingLambingScore", autoCalc.calvingLambingScore)}>
+                      Use calculated: {autoCalc.calvingLambingScore}%
+                    </button>
+                  )}
+                </div>
+                <Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} placeholder={autoCalc?.calvingLambingScore ? `Calculated: ${autoCalc.calvingLambingScore}% — click above to use` : "% assisted births"} />
+                {autoCalc?.calvingLambingScore
+                  ? <p className="text-xs text-green-700 mt-0.5">✓ Calculated from your {form.species === "sheep" ? "Lambing" : "Calving"} records. You can override this figure.</p>
+                  : <p className="text-xs text-muted-foreground mt-0.5">{(form.species === "cattle" || form.species === "beef-cattle" || form.species === "sheep") ? (selectedHerdId ? "No calving/lambing records found for this herd in the last 12 months — enter manually." : "Select a herd above to auto-calculate from your Calving / Lambing records, or enter manually.") : "% of births requiring assistance — enter manually for this species."}</p>
+                }
               </div>
               <div className="col-span-2"><Label>Overall Outcome *</Label>
                 <Select value={form.overallOutcome} onValueChange={v => setF("overallOutcome", v)}>
