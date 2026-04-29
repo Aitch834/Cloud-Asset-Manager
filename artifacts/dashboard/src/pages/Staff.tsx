@@ -777,6 +777,7 @@ function MemberRow({
 export default function StaffPage() {
   const { farmId } = useAppStore();
   const [search, setSearch] = useState("");
+  const [showFormer, setShowFormer] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteMember, setInviteMember] = useState<FarmMember | null>(null);
   const [editMember, setEditMember] = useState<FarmMember | null>(null);
@@ -796,7 +797,10 @@ export default function StaffPage() {
   const allCerts = certData?.records ?? [];
   const allRtw = rtwData?.records ?? [];
 
-  const members = (data?.members ?? []).filter(m => {
+  const allMembers = data?.members ?? [];
+  const formerCount = allMembers.filter(m => !m.isActive).length;
+
+  const members = allMembers.filter(m => {
     if (!m.isActive) return false;
     const q = search.toLowerCase();
     if (!q) return true;
@@ -807,6 +811,19 @@ export default function StaffPage() {
     );
   });
 
+  const formerMembers = showFormer
+    ? allMembers.filter(m => {
+        if (m.isActive) return false;
+        const q = search.toLowerCase();
+        if (!q) return true;
+        return (
+          `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+          (m.email ?? "").toLowerCase().includes(q) ||
+          (m.jobTitle ?? "").toLowerCase().includes(q)
+        );
+      })
+    : [];
+
   const withAccess = members.filter(m => m.accessType !== "none");
   const noAccess = members.filter(m => m.accessType === "none");
 
@@ -815,14 +832,29 @@ export default function StaffPage() {
   return (
     <AppLayout title="Staff">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search staff…"
-            className="pl-9"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2 flex-1 flex-wrap">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search staff…"
+              className="pl-9"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {formerCount > 0 && (
+            <button
+              onClick={() => setShowFormer(v => !v)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
+                showFormer
+                  ? "bg-slate-100 border-slate-300 text-slate-700"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-slate-300"
+              }`}
+            >
+              <UserX className="w-3.5 h-3.5" />
+              {showFormer ? "Hide" : "Show"} former staff ({formerCount})
+            </button>
+          )}
         </div>
         <Button onClick={() => setAddOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -878,6 +910,23 @@ export default function StaffPage() {
               <p className="text-xs text-muted-foreground mt-0.5">In the records for compliance purposes. Click Invite to give system access.</p>
             </div>
             <StaffTable members={noAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
+              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Former staff section */}
+      {showFormer && formerMembers.length > 0 && (
+        <Card className="opacity-80">
+          <CardContent className="p-0">
+            <div className="px-6 py-3 border-b border-border/50 bg-slate-50">
+              <p className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+                <UserX className="w-4 h-4 text-slate-400" />
+                Former Staff ({formerMembers.length})
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Staff who have left. Shown for record-keeping and compliance purposes.</p>
+            </div>
+            <StaffTable members={formerMembers} farmId={farmId} certs={allCerts} rtw={allRtw}
               onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
           </CardContent>
         </Card>
