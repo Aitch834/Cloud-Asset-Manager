@@ -17,7 +17,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { printProReport, openPrintWindow } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -3242,7 +3242,9 @@ function AnimalQuickViewDialog({ animal, herds, farmId, onClose, onEdit, onProfi
                             : <span className="text-amber-600 font-semibold">⏳ Reading pending</span>}
                         </td>
                         <td className="px-3 py-1.5">
-                          <span className={`inline-flex text-xs font-semibold rounded-full px-1.5 py-0.5 ${OUTCOME_COLOURS[t.outcome] ?? "bg-gray-100 text-gray-700"}`}>{t.outcome.toUpperCase()}</span>
+                          {t.readingDate
+                            ? <span className={`inline-flex text-xs font-semibold rounded-full px-1.5 py-0.5 ${OUTCOME_COLOURS[t.outcome] ?? "bg-gray-100 text-gray-700"}`}>{t.outcome.toUpperCase()}</span>
+                            : <span className="text-amber-500 text-xs italic">Awaiting reading</span>}
                         </td>
                       </tr>
                     ))}
@@ -3268,7 +3270,7 @@ function AnimalQuickViewDialog({ animal, herds, farmId, onClose, onEdit, onProfi
 function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
 }) {
-  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "health" | "documents">("overview");
+  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "health" | "tb-tests" | "documents">("overview");
 
   const { data, isLoading } = useQuery<AnimalProfile>({
     queryKey: ["animal-profile", farmId, animal.id],
@@ -3288,6 +3290,22 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
     queryKey: ["animal-documents", farmId, animal.id],
     queryFn: () => fetch(`/api/farms/${farmId}/animals/${animal.id}/documents`, { credentials: "include" }).then(r => r.json()),
   });
+
+  const earTag = (animal.earTagNumber || animal.tagNumber || "").trim().toUpperCase();
+  const { data: tbData } = useQuery<{ records: { id: number; testDate: string; readingDate: string | null; testType: string; outcome: string; species: string; herdFlockRef: string | null; testingVet: string | null; reactors: number; inconclusives: number; animalEarTags: string | null }[] }>({
+    queryKey: ["tb-tests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/tb-tests`).then(r => r.json()),
+    enabled: !!earTag,
+  });
+  const animalTbHistory = (tbData?.records ?? []).filter(t => {
+    if (!earTag || !t.animalEarTags) return false;
+    try {
+      const tags: string[] = JSON.parse(t.animalEarTags);
+      return tags.map(x => x.trim().toUpperCase()).includes(earTag);
+    } catch {
+      return t.animalEarTags.split("\n").map(x => x.trim().toUpperCase()).includes(earTag);
+    }
+  }).sort((a, b) => b.testDate.localeCompare(a.testDate));
 
   const [docType, setDocType] = useState("other");
   const [docTitle, setDocTitle] = useState("");
@@ -3322,8 +3340,47 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
     { key: "movements", label: "Movements", icon: FileText, count: data?.stats.movementCount },
     ...(showBreeding ? [{ key: "breeding", label: "Calving", icon: CheckCircle2, count: data?.stats.calvingCount }] : []),
     { key: "health", label: "Health Incidents", icon: AlertTriangle, count: data?.stats.diseaseIncidentCount },
+    ...(earTag ? [{ key: "tb-tests", label: "TB Tests", icon: Stethoscope, count: animalTbHistory.length }] : []),
     { key: "documents", label: "Documents", icon: Paperclip, count: docsData?.documents.length },
   ] as const;
+
+  function printAnimalReport() {
+    if (!data) return;
+    const d = data;
+    const a = animal;
+    const fmtD = (s: string | null | undefined) => s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+    const overviewRows = [
+      ["UK Ear Tag", a.earTagNumber || "—"], ["EID Transponder", a.eidNumber || "—"],
+      ["Species / Breed", [a.species, a.breed].filter(Boolean).join(" · ") || "—"],
+      ["Sex", a.sex || "—"], ["Date of Birth", fmtD(a.dateOfBirth)],
+      ["Herd / Flock", d.herd ? `${d.herd.name}${d.herd.herdNumber ? ` (${d.herd.herdNumber})` : ""}` : "—"],
+      ["Arrived on Holding", fmtD(a.acquisitionDate)], ["Acquired From", a.acquisitionSource || "—"],
+      ["Current Status", ANIMAL_STATUS_LABELS[a.status] ?? a.status],
+    ];
+    const overviewHtml = `<div class="section-head">Animal Overview</div><table><tbody>${overviewRows.map(([k, v]) => `<tr><td style="font-weight:600;width:35%">${k}</td><td>${v}</td></tr>`).join("")}${a.notes ? `<tr><td style="font-weight:600">Notes</td><td>${a.notes}</td></tr>` : ""}</tbody></table>`;
+
+    const medicinesHtml = d.medicines.length === 0 ? "" : `<div class="section-head">Medicine Records (${d.medicines.length})</div><table><thead><tr><th>Date</th><th>Medicine</th><th>Dosage</th><th>Route</th><th>Administered By</th><th>Vet</th><th>Withdrawal Ends</th><th>Reason</th><th>Type</th></tr></thead><tbody>${d.medicines.map(m => `<tr><td>${fmtD(m.administeredDate)}</td><td>${m.medicineName}</td><td>${m.dosage || "—"}</td><td>${m.administrationRoute || "—"}</td><td>${m.administeredBy || "—"}</td><td>${m.vetName || "—"}</td><td>${fmtD(m.withdrawalEndDate)}</td><td>${m.reason || "—"}</td><td>${m._source === "herd_treatment" ? (m.treatmentScope === "group" ? "Group" : "Herd") : "Individual"}</td></tr>`).join("")}</tbody></table>`;
+
+    const movementsHtml = d.movements.length === 0 ? "" : `<div class="section-head">Movement History (${d.movements.length})</div><table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Licence No.</th><th>BCMS Ref</th><th>Reason</th></tr></thead><tbody>${d.movements.map(m => `<tr><td>${fmtD(m.movementDate)}</td><td>${MOVEMENT_TYPE_LABELS[m.movementType] ?? m.movementType}</td><td>${m.fromLocation || "—"}</td><td>${m.toLocation || "—"}</td><td>${m.licenceNumber || "—"}</td><td>${m.bcmsSubmissionRef || "—"}</td><td>${m.reason || "—"}</td></tr>`).join("")}</tbody></table>`;
+
+    const tbHtml = animalTbHistory.length === 0 ? "" : `<div class="section-head">TB Test History (${animalTbHistory.length})</div><table><thead><tr><th>Injection Date</th><th>Reading Date</th><th>Test Type</th><th>Herd / Flock</th><th>Testing Vet</th><th>Stage</th><th>Result</th><th>Reactors</th><th>Inconc.</th></tr></thead><tbody>${animalTbHistory.map(t => `<tr><td>${fmtD(t.testDate)}</td><td>${fmtD(t.readingDate)}</td><td>${t.testType.replace(/-/g, " ")}</td><td>${t.herdFlockRef || "—"}</td><td>${t.testingVet || "—"}</td><td>${t.readingDate ? "Complete" : "Reading pending"}</td><td>${t.readingDate ? t.outcome.toUpperCase() : "Awaiting"}</td><td>${t.reactors}</td><td>${t.inconclusives}</td></tr>`).join("")}</tbody></table>`;
+
+    const healthHtml = !d.diseaseIncidents || d.diseaseIncidents.length === 0 ? "" : `<div class="section-head">Health & Disease Incidents (${d.diseaseIncidents.length})</div><table><thead><tr><th>Date</th><th>Type</th><th>Status</th><th>Symptoms</th><th>Diagnosis</th><th>Vet</th><th>Treatment</th></tr></thead><tbody>${d.diseaseIncidents.map(inc => `<tr><td>${fmtD(inc.incidentDate)}</td><td style="text-transform:capitalize">${inc.incidentType?.replace(/_/g, " ") || "—"}</td><td style="text-transform:capitalize">${inc.status}${inc._involvedAs === "mortality" ? " (Mortality)" : ""}</td><td>${inc.symptomsObserved || "—"}</td><td>${inc.confirmedDiagnosis || inc.suspectedDiagnosis || "—"}</td><td>${inc.vetName || (inc.vetCalled ? "Yes" : "No")}</td><td>${inc.treatmentGiven || "—"}</td></tr>`).join("")}</tbody></table>`;
+
+    const calvingHtml = showBreeding && d.calvings.length > 0 ? `<div class="section-head">Calving Records (${d.calvings.length})</div><table><thead><tr><th>Date</th><th>Calves</th><th>Calf Sex</th><th>Calf Tag</th><th>Outcome</th><th>Ease Score</th><th>Assistance</th><th>Vet</th></tr></thead><tbody>${d.calvings.map(c => `<tr><td>${fmtD(c.calvingDate)}</td><td>${c.numberOfCalves}</td><td>${c.calfSex || "—"}</td><td>${c.calfEarTag || "—"}</td><td>${c.calfOutcome || "—"}</td><td>${c.calvingEaseScore ?? "—"}</td><td>${c.assistanceRequired ? "Yes" : "No"}</td><td>${c.vetAttended ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table>` : "";
+
+    const mortalityHtml = d.mortality ? `<div class="section-head">Mortality Record</div><table><tbody><tr><td style="font-weight:600;width:35%">Date of Death</td><td>${fmtD(d.mortality.dateOfDeath)}</td></tr><tr><td style="font-weight:600">Cause</td><td>${d.mortality.causeOfDeath}</td></tr><tr><td style="font-weight:600">Disposal</td><td>${d.mortality.disposalMethod}</td></tr></tbody></table>` : "";
+
+    const html = buildProReport({
+      title: `Animal Record — ${a.earTagNumber || a.tagNumber || `Animal #${a.id}`}`,
+      subtitle: `${a.species}${a.breed ? ` · ${a.breed}` : ""}${a.sex ? ` · ${a.sex}` : ""}`,
+      landscape: false,
+      footerNote: "This report documents the full history of this animal on the holding. Retain for a minimum of 3 years.",
+      tableHtml: overviewHtml + medicinesHtml + movementsHtml + tbHtml + healthHtml + calvingHtml + mortalityHtml,
+    });
+    openPrintWindow(html);
+  }
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
@@ -3683,7 +3740,71 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                 </div>
               )}
             </div>
+          ) : tab === "tb-tests" ? (
+            <div>
+              {animalTbHistory.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                  <Stethoscope size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                  <p>No SICCT TB tests recorded for this ear tag.</p>
+                  <p style={{ fontSize: "0.78rem" }}>Tests appear here when this animal's ear tag is listed in a TB Test entry under Livestock → TB Tests.</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {animalTbHistory.map(t => {
+                    const stageDone = !!t.readingDate;
+                    return (
+                      <div key={t.id} style={{ border: `1px solid ${stageDone ? "#bbf7d0" : "#fde68a"}`, borderRadius: 8, padding: "10px 14px", background: stageDone ? "#f0fdf4" : "#fffbeb" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                          <div>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>
+                              {t.testType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                            </p>
+                            <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>
+                              Stage 1 — Injection: {new Date(t.testDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                              {t.herdFlockRef ? `  ·  ${t.herdFlockRef}` : ""}
+                              {t.testingVet ? `  ·  Vet: ${t.testingVet}` : ""}
+                            </p>
+                            <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: stageDone ? "#166534" : "#92400e" }}>
+                              Stage 2 — Reading: {t.readingDate ? new Date(t.readingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Pending (72 h after injection)"}
+                            </p>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: 9999, background: stageDone ? "#dcfce7" : "#fef9c3", color: stageDone ? "#166534" : "#92400e", border: `1px solid ${stageDone ? "#86efac" : "#fde047"}` }}>
+                              {stageDone ? "✓ Both stages complete" : "⏳ Reading pending"}
+                            </span>
+                            {stageDone && (
+                              <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: 9999, ...(OUTCOME_COLOURS[t.outcome] ? {} : {}), background: t.outcome === "clear" ? "#f0fdf4" : t.outcome === "inconclusive" ? "#fffbeb" : "#fef2f2", color: t.outcome === "clear" ? "#166534" : t.outcome === "inconclusive" ? "#92400e" : "#991b1b", border: `1px solid ${t.outcome === "clear" ? "#bbf7d0" : t.outcome === "inconclusive" ? "#fde68a" : "#fca5a5"}` }}>
+                                {t.outcome.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {stageDone && (t.reactors > 0 || t.inconclusives > 0) && (
+                          <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#991b1b", fontWeight: 600 }}>
+                            {t.reactors > 0 ? `${t.reactors} reactor${t.reactors > 1 ? "s" : ""}` : ""}
+                            {t.reactors > 0 && t.inconclusives > 0 ? "  ·  " : ""}
+                            {t.inconclusives > 0 ? `${t.inconclusives} inconclusive${t.inconclusives > 1 ? "s" : ""}` : ""}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : null}
+        </div>
+        {/* Footer */}
+        <div style={{ padding: "12px 24px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <Button variant="outline" size="sm" onClick={printAnimalReport} disabled={!data} className="gap-1.5">
+            <Printer className="w-3.5 h-3.5" /> Print Animal Report
+          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+            <Button variant="outline" size="sm" onClick={() => { onEdit(animal); onClose(); }} className="gap-1.5">
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
