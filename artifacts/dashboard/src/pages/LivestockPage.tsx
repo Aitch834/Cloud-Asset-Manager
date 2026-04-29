@@ -3129,6 +3129,11 @@ const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   temporary: "Temporary Move", other: "Other",
 };
 
+const OUTCOME_COLOURS: Record<string, string> = {
+  clear: "bg-green-50 text-green-700", restricted: "bg-red-50 text-red-700",
+  breakdown: "bg-red-100 text-red-800", inconclusive: "bg-amber-50 text-amber-700",
+};
+
 interface AnimalDoc {
   id: number;
   animalId: number;
@@ -5854,7 +5859,6 @@ function TbTestsSection({ farmId }: { farmId: number }) {
     printProReport({ title: "TB Test Register", subtitle: `${records.length} test records`, tableHtml: `<table><thead><tr><th>Test Date</th><th>Test Type</th><th>Species</th><th>Herd/Flock</th><th>Tested</th><th>Reactors</th><th>Inconc.</th><th>Outcome</th><th>Restriction</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
   }
 
-  const OUTCOME_COLOURS: Record<string, string> = { clear: "bg-green-50 text-green-700", "restricted": "bg-red-50 text-red-700", "breakdown": "bg-red-100 text-red-800", "inconclusive": "bg-amber-50 text-amber-700" };
 
   return (
     <>
