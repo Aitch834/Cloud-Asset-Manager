@@ -7,6 +7,9 @@ export interface ApiFarmMember {
   jobTitle: string | null;
   farmRole: string | null;
   isActive: boolean;
+  departmentId: number | null;
+  departmentName: string | null;
+  departmentColour: string | null;
 }
 
 export function memberFullName(m: ApiFarmMember): string {
