@@ -197,6 +197,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [deptFilter, setDeptFilter] = useState("all");
 
   const membersQ = useFarmMembers(farmId);
   const memberNameMap = React.useMemo(() => {
@@ -210,6 +211,24 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
     return map;
   }, [membersQ.data]);
   const resolveStaffName = (uid: string) => memberNameMap.get(String(uid)) ?? memberNameMap.get(uid) ?? (uid || "—");
+
+  // Map every userId key → department name for filtering
+  const memberDeptMap = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    (membersQ.data?.members ?? []).forEach(m => {
+      const dept = m.departmentName ?? null;
+      map.set(String(m.id), dept);
+      map.set(memberFullName(m), dept);
+      if (m.linkedUserId) map.set(m.linkedUserId, dept);
+    });
+    return map;
+  }, [membersQ.data]);
+
+  const trainingDepartments = React.useMemo(() => {
+    const seen = new Set<string>();
+    (membersQ.data?.members ?? []).forEach(m => { if (m.departmentName) seen.add(m.departmentName); });
+    return Array.from(seen).sort();
+  }, [membersQ.data]);
 
   const coursesQ = useQuery<{ records: any[] }>({
     queryKey: ["training-courses", farmId],
@@ -236,11 +255,13 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
     enabled: !!farmId,
   });
 
-  const records = (q.data?.records ?? []).filter(r =>
-    isInCropYear(r.trainingDate, cropYear) && (
-      !search || r.trainingTitle.toLowerCase().includes(search.toLowerCase()) || (r.trainingProvider ?? "").toLowerCase().includes(search.toLowerCase())
-    )
-  );
+  const records = (q.data?.records ?? []).filter(r => {
+    const inYear = isInCropYear(r.trainingDate, cropYear);
+    const matchesSearch = !search || r.trainingTitle.toLowerCase().includes(search.toLowerCase()) || (r.trainingProvider ?? "").toLowerCase().includes(search.toLowerCase());
+    const memberDept = memberDeptMap.get(String(r.userId)) ?? memberDeptMap.get(r.userId) ?? null;
+    const matchesDept = deptFilter === "all" || memberDept === deptFilter;
+    return inYear && matchesSearch && matchesDept;
+  });
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/training`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -305,8 +326,18 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-        <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[280px]" />
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[240px]" />
+        {trainingDepartments.length > 0 && (
+          <select
+            value={deptFilter}
+            onChange={e => setDeptFilter(e.target.value)}
+            style={{ fontSize: "0.875rem", border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 12px", background: "#fff", outline: "none" }}
+          >
+            <option value="all">All departments</option>
+            {trainingDepartments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div style={{ flex: 1 }} />
         {expiredCount > 0 && (

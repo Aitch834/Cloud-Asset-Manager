@@ -38,7 +38,7 @@ type HistoryEntry = {
   reassignedAt: string;
 };
 
-type StaffMember = { id: number; firstName: string; lastName: string; isActive: boolean };
+type StaffMember = { id: number; firstName: string; lastName: string; isActive: boolean; departmentName?: string | null; departmentColour?: string | null; };
 
 const STATUS_CONFIG: Record<string, { label: string; colour: string; icon: React.ComponentType<{ className?: string }> }> = {
   pending:     { label: "Pending",     colour: "bg-amber-50 text-amber-700 border-amber-200",   icon: Clock },
@@ -589,6 +589,7 @@ export default function TaskBoardPage() {
 
   const [view, setView] = useState<"board" | "reports">("board");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
   const [completedWindow, setCompletedWindow] = useState("90d");
 
@@ -625,11 +626,26 @@ export default function TaskBoardPage() {
   const records = data?.records ?? [];
   const staff = staffData?.members ?? [];
 
-  // Records filtered by member only — used for stat card counts so they
-  // always reflect the selected staff member (or all staff when "all").
-  const memberFiltered = memberFilter === "all"
-    ? records
-    : records.filter(r => r.staffName === memberFilter);
+  // Unique departments from staff list
+  const departments: { name: string; colour: string | null }[] = (() => {
+    const seen = new Map<string, string | null>();
+    staff.forEach(s => { if (s.departmentName) seen.set(s.departmentName, s.departmentColour ?? null); });
+    return Array.from(seen.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([name, colour]) => ({ name, colour }));
+  })();
+
+  // Names of staff members in the selected department (null = show all)
+  const deptMemberNames: Set<string> | null = deptFilter === "all"
+    ? null
+    : new Set(staff.filter(s => s.departmentName === deptFilter).map(s => `${s.firstName} ${s.lastName}`.trim()));
+
+  // Records filtered by department then member — used for stat card counts so they
+  // always reflect the selected department/staff member (or all when "all").
+  const memberFiltered = (() => {
+    let result = records;
+    if (deptMemberNames) result = result.filter(r => deptMemberNames.has(r.staffName));
+    if (memberFilter !== "all") result = result.filter(r => r.staffName === memberFilter);
+    return result;
+  })();
 
   const filtered = memberFiltered.filter(r => {
     return statusFilter === "all" || r.status === statusFilter;
@@ -639,7 +655,10 @@ export default function TaskBoardPage() {
   const completedAll = filtered.filter(r => r.status === "completed" || r.status === "cancelled");
   const completed = applyCompletedWindow(completedAll);
 
-  const staffNames = Array.from(new Set(records.map(r => r.staffName))).sort();
+  // Staff names for the member filter dropdown — scoped to selected department
+  const staffNames = deptMemberNames
+    ? Array.from(new Set(records.filter(r => deptMemberNames.has(r.staffName)).map(r => r.staffName))).sort()
+    : Array.from(new Set(records.map(r => r.staffName))).sort();
   const totalPending = records.filter(r => r.status === "pending" || r.status === "in_progress").length;
 
   return (
@@ -706,6 +725,18 @@ export default function TaskBoardPage() {
 
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
+          {departments.length > 0 && (
+            <select
+              value={deptFilter}
+              onChange={e => { setDeptFilter(e.target.value); setMemberFilter("all"); }}
+              className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">All departments</option>
+              {departments.map(d => (
+                <option key={d.name} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          )}
           <select
             value={memberFilter}
             onChange={e => setMemberFilter(e.target.value)}
@@ -714,9 +745,9 @@ export default function TaskBoardPage() {
             <option value="all">All staff</option>
             {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
-          {(statusFilter !== "all" || memberFilter !== "all") && (
+          {(statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all") && (
             <button
-              onClick={() => { setStatusFilter("all"); setMemberFilter("all"); }}
+              onClick={() => { setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); }}
               className="text-xs text-foreground/50 hover:text-foreground underline underline-offset-2"
             >
               Clear filters

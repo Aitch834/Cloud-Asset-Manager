@@ -5,11 +5,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface FarmMember { id: number; firstName: string; lastName: string; jobTitle?: string | null; }
+interface FarmMember {
+  id: number;
+  firstName: string;
+  lastName: string;
+  jobTitle?: string | null;
+  departmentId?: number | null;
+  departmentName?: string | null;
+  departmentColour?: string | null;
+}
+
+interface DeptGroup {
+  deptId: number | null;
+  deptName: string;
+  deptColour: string | null;
+  members: FarmMember[];
+}
+
+function buildDeptGroups(members: FarmMember[]): DeptGroup[] {
+  const map = new Map<string, DeptGroup>();
+  for (const m of members) {
+    const key = m.departmentName ?? "__none__";
+    if (!map.has(key)) {
+      map.set(key, {
+        deptId: m.departmentId ?? null,
+        deptName: m.departmentName ?? "No Department",
+        deptColour: m.departmentColour ?? null,
+        members: [],
+      });
+    }
+    map.get(key)!.members.push(m);
+  }
+  const groups = Array.from(map.values());
+  groups.sort((a, b) => {
+    if (a.deptName === "No Department") return 1;
+    if (b.deptName === "No Department") return -1;
+    return a.deptName.localeCompare(b.deptName);
+  });
+  return groups;
+}
 
 interface RaiseTaskDialogProps {
   farmId: number;
@@ -42,7 +80,9 @@ export function RaiseTaskDialog({
     queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then(r => r.json()),
     enabled: open && !!farmId,
   });
-  const members = membersQ.data?.members ?? [];
+  const members = (membersQ.data?.members ?? []).filter(m => (m as any).isActive !== false);
+  const groups = buildDeptGroups(members);
+  const hasDepts = groups.some(g => g.deptName !== "No Department");
 
   const createMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -97,15 +137,45 @@ export function RaiseTaskDialog({
           <div className="space-y-1">
             <Label>Assign to <span className="text-destructive">*</span></Label>
             <Select value={assignedToMemberId} onValueChange={setAssignedToMemberId}>
-              <SelectTrigger><SelectValue placeholder={membersQ.isLoading ? "Loading staff…" : "Select staff member"} /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder={membersQ.isLoading ? "Loading staff…" : "Select staff member"} />
+              </SelectTrigger>
               <SelectContent>
-                {members.map(m => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.firstName} {m.lastName}{m.jobTitle ? ` · ${m.jobTitle}` : ""}
-                  </SelectItem>
-                ))}
                 {!membersQ.isLoading && members.length === 0 && (
                   <SelectItem value="__none__" disabled>No staff registered</SelectItem>
+                )}
+                {hasDepts ? (
+                  groups.map((g, gi) => (
+                    <SelectGroup key={g.deptName}>
+                      <SelectLabel className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                        {g.deptColour && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: g.deptColour,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        {g.deptName}
+                      </SelectLabel>
+                      {g.members.map(m => (
+                        <SelectItem key={m.id} value={String(m.id)}>
+                          {m.firstName} {m.lastName}{m.jobTitle ? ` · ${m.jobTitle}` : ""}
+                        </SelectItem>
+                      ))}
+                      {gi < groups.length - 1 && <SelectSeparator />}
+                    </SelectGroup>
+                  ))
+                ) : (
+                  members.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.firstName} {m.lastName}{m.jobTitle ? ` · ${m.jobTitle}` : ""}
+                    </SelectItem>
+                  ))
                 )}
               </SelectContent>
             </Select>
