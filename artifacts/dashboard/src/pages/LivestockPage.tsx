@@ -6527,9 +6527,10 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
 // ─── Sheep Dipping Records ─────────────────────────────────────────────────────
 
-interface SheepDippingRecord { id: number; farmId: number; dipDate: string; productName: string; mappNumber: string | null; activeIngredient: string | null; dipType: string; dipConcentrationPct: string | null; volumeOfDipLitres: string | null; sheepCount: number; herdFlockRef: string | null; operatorName: string; operatorCertNumber: string | null; operatorCertExpiry: string | null; bathFillDate: string | null; daysSinceLastUse: number | null; topUpVolumeAdded: string | null; disposalMethod: string | null; disposalQuantityLitres: string | null; disposalDate: string | null; disposalContractorName: string | null; disposalWasteTransferNoteRef: string | null; withdrawalPeriodDays: number | null; withdrawalClearDate: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+interface SheepDippingRecord { id: number; farmId: number; dipDate: string; productName: string; mappNumber: string | null; activeIngredient: string | null; dipType: string; dipConcentrationPct: string | null; volumeOfDipLitres: string | null; sheepCount: number; herdFlockRef: string | null; operatorName: string; operatorCertNumber: string | null; operatorCertExpiry: string | null; bathFillDate: string | null; daysSinceLastUse: number | null; topUpVolumeAdded: string | null; disposalMethod: string | null; disposalQuantityLitres: string | null; disposalDate: string | null; disposalContractorName: string | null; disposalWasteTransferNoteRef: string | null; withdrawalPeriodDays: number | null; withdrawalClearDate: string | null; stockItemId: number | null; quantityUsed: string | null; stockItemName: string | null; stockItemUnit: string | null; stockItemStorageLocation: string | null; documentPath: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
+interface DipStockItem { id: number; name: string; stockType: string; mappNumber: string | null; unit: string | null; storageLocation: string | null; isActive: boolean; }
 
-const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, documentUrl: null, documentName: null, notes: null };
+const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId" | "stockItemName" | "stockItemUnit" | "stockItemStorageLocation"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, stockItemId: null, quantityUsed: null, documentPath: null, documentUrl: null, documentName: null, notes: null };
 
 function SheepDippingSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -6537,18 +6538,29 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
   const { data, isLoading } = useQuery<{ records: SheepDippingRecord[] }>({ queryKey: ["sheep-dipping", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
 
+  const { data: stockData } = useQuery<{ records: DipStockItem[] }>({ queryKey: ["stock-items", farmId], queryFn: () => fetch(`/api/farms/${farmId}/stock-items`).then(r => r.json()) });
+  const chemicalItems = (stockData?.records ?? []).filter(s => s.isActive);
+
+  const { data: herdsData } = useQuery<{ herds: { id: number; name: string; species: string; herdFlockMark: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
+  const sheepHerds = (herdsData?.herds ?? []).filter(h => h.species === "sheep" || h.species === "goat");
+
   const [viewItem, setViewItem] = useState<SheepDippingRecord | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SheepDippingRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_DIP>({ ...EMPTY_DIP });
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [pendingDoc, setPendingDoc] = useState<{ path: string; name: string } | null>(null);
+  const dipDocRef = useRef<HTMLInputElement>(null);
+  const { uploadFile: uploadDipDoc, isUploading: isUploadingDipDoc } = useUpload();
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setForm({ ...EMPTY_DIP }); } });
-  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); } });
+  const selectedStockItem = chemicalItems.find(s => s.id === form.stockItemId) ?? null;
+
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); qc.invalidateQueries({ queryKey: ["stock-items", farmId] }); setShowForm(false); setForm({ ...EMPTY_DIP }); setPendingDoc(null); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_DIP & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); setPendingDoc(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setDeleteId(null); } });
 
-  function openEdit(r: SheepDippingRecord) { setEditing(r); setForm({ dipDate: r.dipDate, productName: r.productName, mappNumber: r.mappNumber ?? null, activeIngredient: r.activeIngredient ?? null, dipType: r.dipType, dipConcentrationPct: r.dipConcentrationPct ?? null, volumeOfDipLitres: r.volumeOfDipLitres ?? null, sheepCount: r.sheepCount, herdFlockRef: r.herdFlockRef ?? null, operatorName: r.operatorName, operatorCertNumber: r.operatorCertNumber ?? null, operatorCertExpiry: r.operatorCertExpiry ?? null, bathFillDate: r.bathFillDate ?? null, daysSinceLastUse: r.daysSinceLastUse, topUpVolumeAdded: r.topUpVolumeAdded ?? null, disposalMethod: r.disposalMethod ?? null, disposalQuantityLitres: r.disposalQuantityLitres ?? null, disposalDate: r.disposalDate ?? null, disposalContractorName: r.disposalContractorName ?? null, disposalWasteTransferNoteRef: r.disposalWasteTransferNoteRef ?? null, withdrawalPeriodDays: r.withdrawalPeriodDays, withdrawalClearDate: r.withdrawalClearDate ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
+  function openEdit(r: SheepDippingRecord) { setEditing(r); setPendingDoc(null); setForm({ dipDate: r.dipDate, productName: r.productName, mappNumber: r.mappNumber ?? null, activeIngredient: r.activeIngredient ?? null, dipType: r.dipType, dipConcentrationPct: r.dipConcentrationPct ?? null, volumeOfDipLitres: r.volumeOfDipLitres ?? null, sheepCount: r.sheepCount, herdFlockRef: r.herdFlockRef ?? null, operatorName: r.operatorName, operatorCertNumber: r.operatorCertNumber ?? null, operatorCertExpiry: r.operatorCertExpiry ?? null, bathFillDate: r.bathFillDate ?? null, daysSinceLastUse: r.daysSinceLastUse, topUpVolumeAdded: r.topUpVolumeAdded ?? null, disposalMethod: r.disposalMethod ?? null, disposalQuantityLitres: r.disposalQuantityLitres ?? null, disposalDate: r.disposalDate ?? null, disposalContractorName: r.disposalContractorName ?? null, disposalWasteTransferNoteRef: r.disposalWasteTransferNoteRef ?? null, withdrawalPeriodDays: r.withdrawalPeriodDays, withdrawalClearDate: r.withdrawalClearDate ?? null, stockItemId: r.stockItemId ?? null, quantityUsed: r.quantityUsed ?? null, documentPath: r.documentPath ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
     const rows = records.map(r => `<tr><td>${formatDate(r.dipDate)}</td><td>${r.productName}</td><td>${r.dipType}</td><td>${r.sheepCount}</td><td>${r.operatorName}</td><td>${r.operatorCertNumber ?? "—"}</td><td>${r.disposalMethod ?? "—"}</td><td>${r.withdrawalPeriodDays != null ? r.withdrawalPeriodDays + " days" : "—"}</td><td>${formatDate(r.withdrawalClearDate)}</td></tr>`).join("");
@@ -6612,6 +6624,7 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Sheep Dipping — {formatDate(viewItem.dipDate)}</DialogTitle><DialogDescription>{viewItem.productName} · {viewItem.sheepCount} sheep</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+              {viewItem.stockItemName && <div className="col-span-2 p-2 bg-muted/40 rounded-lg flex items-center gap-2 text-xs"><Package className="h-3.5 w-3.5 text-muted-foreground" /><span className="font-medium">{viewItem.stockItemName}</span>{viewItem.stockItemStorageLocation && <span className="text-muted-foreground">· {viewItem.stockItemStorageLocation}</span>}{viewItem.quantityUsed && <span className="ml-auto font-semibold text-destructive">−{viewItem.quantityUsed} {viewItem.stockItemUnit ?? "units"} deducted</span>}</div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dip Date</p><p className="font-medium">{formatDate(viewItem.dipDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product (MAPP)</p><p className="font-medium">{viewItem.productName}{viewItem.mappNumber && ` (${viewItem.mappNumber})`}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{viewItem.activeIngredient ?? "—"}</p></div>
@@ -6633,6 +6646,11 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
               {viewItem.disposalWasteTransferNoteRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">WTN Reference</p><p className="font-medium font-mono">{viewItem.disposalWasteTransferNoteRef}</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Period</p><p className="font-medium">{viewItem.withdrawalPeriodDays != null ? `${viewItem.withdrawalPeriodDays} days` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Clear Date</p><p className="font-medium">{formatDate(viewItem.withdrawalClearDate)}</p></div>
+              {(viewItem.documentPath || viewItem.documentName) && (
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Document</p>
+                  <a href={viewItem.documentPath ? `/api/storage${viewItem.documentPath}` : (viewItem.documentUrl ?? "#")} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.documentName || "View Document"}</a>
+                </div>
+              )}
               {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
             </div>
             <DialogFooter className="mt-4">
@@ -6648,10 +6666,52 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit Dipping Record" : "Log Sheep Dipping"}</DialogTitle><DialogDescription>Complete all fields required under Control of Pesticides Regulations and Red Tractor SAS.</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-4 mt-2">
+
+              {/* ── Chemical Store Lookup ── */}
+              <div className="col-span-2">
+                <Label>Chemical Store Product <span className="text-muted-foreground font-normal text-xs">(select to auto-fill product details &amp; deduct stock)</span></Label>
+                <Select
+                  value={form.stockItemId != null ? String(form.stockItemId) : ""}
+                  onValueChange={v => {
+                    if (!v) { setF("stockItemId", null); return; }
+                    const item = chemicalItems.find(s => s.id === Number(v));
+                    if (item) {
+                      setF("stockItemId", item.id);
+                      if (item.name) setF("productName", item.name);
+                      if (item.mappNumber) setF("mappNumber", item.mappNumber);
+                    }
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder={chemicalItems.length === 0 ? "No stock items — enter manually below" : "Select from chemical store…"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— None / enter manually —</SelectItem>
+                    {chemicalItems.map(s => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}{s.mappNumber ? ` (${s.mappNumber})` : ""}{s.storageLocation ? ` · ${s.storageLocation}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedStockItem?.storageLocation && (
+                  <p className="text-xs text-muted-foreground mt-1">Storage location: <span className="font-medium">{selectedStockItem.storageLocation}</span></p>
+                )}
+              </div>
+
+              {selectedStockItem && (
+                <div className="col-span-2">
+                  <Label>Quantity Used <span className="text-muted-foreground font-normal text-xs">({selectedStockItem.unit ?? "units"} — will be deducted from stock on save)</span></Label>
+                  <Input type="number" min={0} step="0.001" value={form.quantityUsed ?? ""} onChange={e => setF("quantityUsed", e.target.value || null)} placeholder={`Amount in ${selectedStockItem.unit ?? "units"}`} />
+                </div>
+              )}
+
               <div><Label>Dipping Date *</Label><Input type="date" value={form.dipDate ?? ""} onChange={e => setF("dipDate", e.target.value)} /></div>
-              <div><Label>Product Name (MAPP) *</Label><Input value={form.productName ?? ""} onChange={e => setF("productName", e.target.value)} placeholder="e.g. Ridect Pour-On" /></div>
+              <div>
+                <Label>Product Name (MAPP) *</Label>
+                <Input value={form.productName ?? ""} onChange={e => setF("productName", e.target.value)} placeholder="e.g. Ridect Pour-On" />
+                {form.stockItemId && <p className="text-xs text-muted-foreground mt-0.5">Auto-filled from chemical store — edit if needed</p>}
+              </div>
               <div><Label>MAPP Number</Label><Input value={form.mappNumber ?? ""} onChange={e => setF("mappNumber", e.target.value || null)} className="font-mono" /></div>
-              <div><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={e => setF("activeIngredient", e.target.value || null)} /></div>
+              <div><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={e => setF("activeIngredient", e.target.value || null)} placeholder="e.g. Cypermethrin" /></div>
               <div><Label>Dip Type</Label>
                 <Select value={form.dipType} onValueChange={v => setF("dipType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -6666,7 +6726,20 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
               <div><Label>Concentration (%)</Label><Input value={form.dipConcentrationPct ?? ""} onChange={e => setF("dipConcentrationPct", e.target.value || null)} /></div>
               <div><Label>Volume of Dip (litres)</Label><Input type="number" min={0} value={form.volumeOfDipLitres ?? ""} onChange={e => setF("volumeOfDipLitres", e.target.value || null)} /></div>
               <div><Label>Sheep Count *</Label><Input type="number" min={1} value={form.sheepCount || ""} onChange={e => setF("sheepCount", Number(e.target.value))} /></div>
-              <div><Label>Herd / Flock Ref</Label><Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} /></div>
+              <div>
+                <Label>Herd / Flock</Label>
+                {sheepHerds.length > 0 ? (
+                  <Select value={form.herdFlockRef ?? ""} onValueChange={v => setF("herdFlockRef", v || null)}>
+                    <SelectTrigger><SelectValue placeholder="Select flock…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {sheepHerds.map(h => <SelectItem key={h.id} value={h.herdFlockMark ?? h.name}>{h.name}{h.herdFlockMark ? ` (${h.herdFlockMark})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="Flock mark / reference" />
+                )}
+              </div>
               <div><Label>Operator Name *</Label><Input value={form.operatorName ?? ""} onChange={e => setF("operatorName", e.target.value)} /></div>
               <div><Label>Cert. of Competence No.</Label><Input value={form.operatorCertNumber ?? ""} onChange={e => setF("operatorCertNumber", e.target.value || null)} className="font-mono" placeholder="PA6AW / equivalent" /></div>
               <div><Label>Cert. Expiry</Label><Input type="date" value={form.operatorCertExpiry ?? ""} onChange={e => setF("operatorCertExpiry", e.target.value || null)} /></div>
@@ -6691,8 +6764,39 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
               <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Withdrawal Period</p></div>
               <div><Label>Withdrawal Period (days)</Label><Input type="number" min={0} value={form.withdrawalPeriodDays ?? ""} onChange={e => setF("withdrawalPeriodDays", e.target.value ? Number(e.target.value) : null)} /></div>
               <div><Label>Withdrawal Clear Date</Label><Input type="date" value={form.withdrawalClearDate ?? ""} onChange={e => setF("withdrawalClearDate", e.target.value || null)} /></div>
-              <div><Label>Document Name</Label><Input value={form.documentName ?? ""} onChange={e => setF("documentName", e.target.value || null)} /></div>
-              <div><Label>Document URL</Label><Input value={form.documentUrl ?? ""} onChange={e => setF("documentUrl", e.target.value || null)} placeholder="https://…" /></div>
+
+              {/* ── Document Upload ── */}
+              <div className="col-span-2">
+                <Label>Supporting Document <span className="text-muted-foreground font-normal text-xs">(MAPP label, risk assessment, waste transfer note…)</span></Label>
+                <input
+                  type="file"
+                  ref={dipDocRef}
+                  className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]; if (!file) return;
+                    const path = await uploadDipDoc({ file, prefix: `farms/${farmId}/sheep-dipping/docs` });
+                    if (path) { setPendingDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                    if (dipDocRef.current) dipDocRef.current.value = "";
+                  }}
+                />
+                {(pendingDoc || form.documentPath || form.documentName) ? (
+                  <div className="flex items-center gap-2 mt-1 p-2 border rounded text-sm">
+                    <span className="text-muted-foreground">📎</span>
+                    {form.documentPath ? (
+                      <a href={`/api/storage${form.documentPath}`} target="_blank" rel="noreferrer" className="text-primary underline truncate flex-1">{form.documentName || "Document"}</a>
+                    ) : (
+                      <span className="truncate flex-1">{form.documentName || "Document"}</span>
+                    )}
+                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setPendingDoc(null); setF("documentPath", null); setF("documentName", null); }}>×</Button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => dipDocRef.current?.click()} disabled={isUploadingDipDoc}>
+                    {isUploadingDipDoc ? "Uploading…" : "Upload Document (PDF / image)"}
+                  </Button>
+                )}
+              </div>
+
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">

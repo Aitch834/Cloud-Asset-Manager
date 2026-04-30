@@ -13,7 +13,7 @@ import {
   timestamp, numeric, date,
 } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { suppliersTable } from "./stock-suppliers";
+import { suppliersTable, stockItemsTable } from "./stock-suppliers";
 
 // ─── TB Test Register ────────────────────────────────────────────────────────
 // Statutory record for cattle and sheep holdings under APHA/TBAEngine rules.
@@ -249,8 +249,15 @@ export const sheepDippingRecordsTable = pgTable("sheep_dipping_records", {
 
   withdrawalPeriodDays: integer("withdrawal_period_days"),
   withdrawalClearDate: date("withdrawal_clear_date"),
-  documentUrl: text("document_url"),
-  documentName: text("document_name"),
+
+  // ── Chemical store link ─────────────────────────────────────────────────────
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  quantityUsed: numeric("quantity_used", { precision: 10, scale: 3 }),   // amount consumed from stock (in stock item's unit)
+
+  // ── Document ────────────────────────────────────────────────────────────────
+  documentPath: text("document_path"),   // object-storage path (preferred)
+  documentUrl: text("document_url"),     // legacy URL field (kept for existing records)
+  documentName: text("document_name"),   // display name for the document
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

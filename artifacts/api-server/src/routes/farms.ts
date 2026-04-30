@@ -20906,7 +20906,47 @@ router.post("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review-task",
 
 router.get("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
-  const records = await db.select().from(sheepDippingRecordsTable).where(eq(sheepDippingRecordsTable.farmId, farmId)).orderBy(desc(sheepDippingRecordsTable.dipDate));
+  const stockAlias = stockItemsTable;
+  const records = await db.select({
+    id: sheepDippingRecordsTable.id,
+    farmId: sheepDippingRecordsTable.farmId,
+    dipDate: sheepDippingRecordsTable.dipDate,
+    productName: sheepDippingRecordsTable.productName,
+    mappNumber: sheepDippingRecordsTable.mappNumber,
+    activeIngredient: sheepDippingRecordsTable.activeIngredient,
+    dipType: sheepDippingRecordsTable.dipType,
+    dipConcentrationPct: sheepDippingRecordsTable.dipConcentrationPct,
+    volumeOfDipLitres: sheepDippingRecordsTable.volumeOfDipLitres,
+    sheepCount: sheepDippingRecordsTable.sheepCount,
+    herdFlockRef: sheepDippingRecordsTable.herdFlockRef,
+    operatorName: sheepDippingRecordsTable.operatorName,
+    operatorCertNumber: sheepDippingRecordsTable.operatorCertNumber,
+    operatorCertExpiry: sheepDippingRecordsTable.operatorCertExpiry,
+    bathFillDate: sheepDippingRecordsTable.bathFillDate,
+    daysSinceLastUse: sheepDippingRecordsTable.daysSinceLastUse,
+    topUpVolumeAdded: sheepDippingRecordsTable.topUpVolumeAdded,
+    disposalMethod: sheepDippingRecordsTable.disposalMethod,
+    disposalQuantityLitres: sheepDippingRecordsTable.disposalQuantityLitres,
+    disposalDate: sheepDippingRecordsTable.disposalDate,
+    disposalContractorName: sheepDippingRecordsTable.disposalContractorName,
+    disposalWasteTransferNoteRef: sheepDippingRecordsTable.disposalWasteTransferNoteRef,
+    withdrawalPeriodDays: sheepDippingRecordsTable.withdrawalPeriodDays,
+    withdrawalClearDate: sheepDippingRecordsTable.withdrawalClearDate,
+    stockItemId: sheepDippingRecordsTable.stockItemId,
+    quantityUsed: sheepDippingRecordsTable.quantityUsed,
+    stockItemName: stockAlias.name,
+    stockItemUnit: stockAlias.unit,
+    stockItemStorageLocation: stockAlias.storageLocation,
+    documentPath: sheepDippingRecordsTable.documentPath,
+    documentUrl: sheepDippingRecordsTable.documentUrl,
+    documentName: sheepDippingRecordsTable.documentName,
+    notes: sheepDippingRecordsTable.notes,
+    createdAt: sheepDippingRecordsTable.createdAt,
+    updatedAt: sheepDippingRecordsTable.updatedAt,
+  }).from(sheepDippingRecordsTable)
+    .leftJoin(stockAlias, eq(sheepDippingRecordsTable.stockItemId, stockAlias.id))
+    .where(eq(sheepDippingRecordsTable.farmId, farmId))
+    .orderBy(desc(sheepDippingRecordsTable.dipDate));
   res.json({ records });
 });
 
@@ -20938,10 +20978,35 @@ router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, 
     disposalWasteTransferNoteRef: b.disposalWasteTransferNoteRef ? String(b.disposalWasteTransferNoteRef) : null,
     withdrawalPeriodDays: b.withdrawalPeriodDays != null ? Number(b.withdrawalPeriodDays) : null,
     withdrawalClearDate: b.withdrawalClearDate ? String(b.withdrawalClearDate) : null,
+    stockItemId: b.stockItemId != null ? Number(b.stockItemId) : null,
+    quantityUsed: b.quantityUsed != null ? String(b.quantityUsed) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
     documentUrl: b.documentUrl ? String(b.documentUrl) : null,
     documentName: b.documentName ? String(b.documentName) : null,
     notes: b.notes ? String(b.notes) : null,
   }).returning();
+
+  // ── Auto-deduct from chemical stock ─────────────────────────────────────────
+  if (record.stockItemId && record.quantityUsed) {
+    const qtyChange = -parseFloat(record.quantityUsed);
+    await db.insert(stockMovementsTable).values({
+      farmId,
+      stockItemId: record.stockItemId,
+      movementType: "usage",
+      quantityChange: String(qtyChange),
+      referenceType: "sheep_dipping",
+      referenceId: record.id,
+      performedBy: record.operatorName || null,
+      notes: `Auto-deducted: sheep dipping on ${record.dipDate}`,
+    });
+    const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
+    if (existing) {
+      await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+    } else {
+      await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
+    }
+  }
+
   res.json({ record });
 });
 
@@ -20950,7 +21015,7 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["dipDate","productName","mappNumber","activeIngredient","dipType","dipConcentrationPct","volumeOfDipLitres","sheepCount","herdFlockRef","operatorName","operatorCertNumber","operatorCertExpiry","bathFillDate","daysSinceLastUse","topUpVolumeAdded","disposalMethod","disposalQuantityLitres","disposalDate","disposalContractorName","disposalWasteTransferNoteRef","withdrawalPeriodDays","withdrawalClearDate","documentUrl","documentName","notes"];
+  const fields = ["dipDate","productName","mappNumber","activeIngredient","dipType","dipConcentrationPct","volumeOfDipLitres","sheepCount","herdFlockRef","operatorName","operatorCertNumber","operatorCertExpiry","bathFillDate","daysSinceLastUse","topUpVolumeAdded","disposalMethod","disposalQuantityLitres","disposalDate","disposalContractorName","disposalWasteTransferNoteRef","withdrawalPeriodDays","withdrawalClearDate","stockItemId","quantityUsed","documentPath","documentUrl","documentName","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(sheepDippingRecordsTable).set(updates).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
