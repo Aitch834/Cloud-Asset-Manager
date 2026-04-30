@@ -6529,6 +6529,7 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
 interface SheepDippingRecord { id: number; farmId: number; dipDate: string; productName: string; mappNumber: string | null; activeIngredient: string | null; dipType: string; dipConcentrationPct: string | null; volumeOfDipLitres: string | null; sheepCount: number; herdFlockRef: string | null; operatorName: string; operatorCertNumber: string | null; operatorCertExpiry: string | null; bathFillDate: string | null; daysSinceLastUse: number | null; topUpVolumeAdded: string | null; disposalMethod: string | null; disposalQuantityLitres: string | null; disposalDate: string | null; disposalContractorName: string | null; disposalWasteTransferNoteRef: string | null; withdrawalPeriodDays: number | null; withdrawalClearDate: string | null; stockItemId: number | null; quantityUsed: string | null; stockItemName: string | null; stockItemUnit: string | null; stockItemStorageLocation: string | null; documentPath: string | null; documentUrl: string | null; documentName: string | null; notes: string | null; }
 interface DipStockItem { id: number; name: string; stockType: string; mappNumber: string | null; unit: string | null; storageLocation: string | null; isActive: boolean; }
+interface DipCert { id: number; userId: string; certificateType: string; certificateNumber: string | null; expiryDate: string | null; }
 
 const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId" | "stockItemName" | "stockItemUnit" | "stockItemStorageLocation"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, stockItemId: null, quantityUsed: null, documentPath: null, documentUrl: null, documentName: null, notes: null };
 
@@ -6543,6 +6544,27 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
 
   const { data: herdsData } = useQuery<{ herds: { id: number; name: string; species: string; herdFlockMark: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
   const sheepHerds = (herdsData?.herds ?? []).filter(h => h.species === "sheep" || h.species === "goat");
+
+  const { data: certsData } = useQuery<{ records: DipCert[] }>({
+    queryKey: ["staff-certs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/certificates`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const allCerts = certsData?.records ?? [];
+  const PESTICIDE_TYPES = ["PA1", "PA2", "PA3", "PA4", "PA6", "PA6AW", "Safe use of pesticides", "Safe use of rodenticides"];
+
+  const { data: membersData } = useFarmMembers(farmId);
+  const activeMembers = (membersData?.members ?? []).filter(m => m.isActive !== false);
+  const staffNames = activeMembers.map(memberFullName);
+
+  function getCertForOperator(name: string) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const certs = allCerts.filter(c => c.userId === name && PESTICIDE_TYPES.some(t => c.certificateType.startsWith(t)));
+    if (certs.length === 0) return null;
+    const valid = certs.filter(c => !c.expiryDate || new Date(c.expiryDate) >= today);
+    return valid.length > 0
+      ? valid.sort((a, b) => (b.expiryDate ?? "").localeCompare(a.expiryDate ?? ""))[0]
+      : certs.sort((a, b) => (b.expiryDate ?? "").localeCompare(a.expiryDate ?? ""))[0];
+  }
 
   const [viewItem, setViewItem] = useState<SheepDippingRecord | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -6740,7 +6762,51 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
                   <Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="Flock mark / reference" />
                 )}
               </div>
-              <div><Label>Operator Name *</Label><Input value={form.operatorName ?? ""} onChange={e => setF("operatorName", e.target.value)} /></div>
+              <div className="col-span-2">
+                <Label>Operator Name *</Label>
+                <StaffSelect
+                  value={form.operatorName ?? ""}
+                  onChange={name => {
+                    setF("operatorName", name);
+                    if (name) {
+                      const cert = getCertForOperator(name);
+                      if (cert) {
+                        setF("operatorCertNumber", cert.certificateNumber ?? null);
+                        setF("operatorCertExpiry", cert.expiryDate ? cert.expiryDate.split("T")[0] : null);
+                      }
+                    }
+                  }}
+                  staffNames={staffNames}
+                />
+                {(() => {
+                  if (!form.operatorName) return null;
+                  const cert = getCertForOperator(form.operatorName);
+                  const today = new Date(); today.setHours(0, 0, 0, 0);
+                  if (!cert) {
+                    return (
+                      <p className="mt-1 text-xs text-amber-700 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        No pesticide certificate (PA1/PA6AW/equivalent) found for this operator in the Staff &amp; Certificates register. Add one there or enter details manually below.
+                      </p>
+                    );
+                  }
+                  const expired = cert.expiryDate && new Date(cert.expiryDate) < today;
+                  if (expired) {
+                    return (
+                      <p className="mt-1 text-xs text-red-700 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Certificate <span className="font-mono font-semibold">{cert.certificateNumber}</span> ({cert.certificateType}) expired {new Date(cert.expiryDate!).toLocaleDateString("en-GB")} — renewal required before operating.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="mt-1 text-xs text-green-700 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {cert.certificateType} — cert number &amp; expiry auto-filled from Staff &amp; Certificates register.
+                    </p>
+                  );
+                })()}
+              </div>
               <div><Label>Cert. of Competence No.</Label><Input value={form.operatorCertNumber ?? ""} onChange={e => setF("operatorCertNumber", e.target.value || null)} className="font-mono" placeholder="PA6AW / equivalent" /></div>
               <div><Label>Cert. Expiry</Label><Input type="date" value={form.operatorCertExpiry ?? ""} onChange={e => setF("operatorCertExpiry", e.target.value || null)} /></div>
               <div><Label>Bath Fill Date</Label><Input type="date" value={form.bathFillDate ?? ""} onChange={e => setF("bathFillDate", e.target.value || null)} /></div>
