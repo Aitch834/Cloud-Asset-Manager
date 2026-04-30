@@ -12,7 +12,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown, Truck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -2153,7 +2153,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="Operator name — add contractors in the Contractors tab" />
+                    <Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="Operator name — add them in Fallen Stock Collectors tab" />
                   )}
                   {selectedContractor && (
                     <div className="mt-1.5 rounded bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-800 flex items-center gap-2">
@@ -2297,16 +2297,17 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
     <>
       <div className="flex items-center justify-between mb-4 gap-4">
         <div>
-          <h3 className="font-semibold text-gray-900">Fallen Stock Contractors</h3>
-          <p className="text-sm text-gray-500 mt-0.5">Registered ABP-approved collectors and disposal operators. Only contractors listed here can be selected on mortality records.</p>
+          <h3 className="font-semibold text-gray-900">Fallen Stock Collectors &amp; Disposal Operators</h3>
+          <p className="text-sm text-gray-500 mt-0.5">APHA-approved collection and disposal operators for animal by-products only. These are not general suppliers or hauliers — add those in Trade Contacts &amp; Stock.</p>
         </div>
         <Button onClick={() => { setEditing(null); setForm({ name: "", approvalNumber: "", operatorType: "nfas-collector", contactName: "", phone: "", email: "", notes: "" }); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Contractor
+          <Plus className="h-4 w-4 mr-1" /> Add Collector
         </Button>
       </div>
 
       <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-        <strong>Regulatory note:</strong> Under the Animal By-Products Regulations, fallen stock must be collected by an APHA-approved operator. Record their official approval/registration number here to ensure your mortality records are audit-ready.
+        <strong>Regulatory note:</strong> Under the Animal By-Products Regulations, fallen stock must be collected by an APHA-approved operator. Record their official approval/registration number here so it appears automatically on every mortality record — this is the evidence inspectors will check.<br /><br />
+        <strong>If a collector also provides other services</strong> (e.g. stock haulage, feed delivery), add them separately as a Trade Contact in <em>Trade Contacts &amp; Stock</em> so that invoices and purchase orders for those services are kept distinct from fallen stock disposal records. Use exactly the same company name in both places to make reconciliation straightforward.
       </div>
 
       {isLoading ? (
@@ -2363,7 +2364,7 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Contractor" : "Add Fallen Stock Contractor"}</DialogTitle>
+              <DialogTitle>{editing ? "Edit Fallen Stock Collector" : "Add Fallen Stock Collector"}</DialogTitle>
               <DialogDescription>Record the contractor's APHA approval number for audit compliance.</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-4 mt-2">
@@ -2395,7 +2396,7 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)}
                 disabled={!form.name || !form.approvalNumber || createMut.isPending || updateMut.isPending}>
                 {(createMut.isPending || updateMut.isPending) ? <Loader2 className="animate-spin h-4 w-4 mr-1" /> : null}
-                {editing ? "Update" : "Add Contractor"}
+                {editing ? "Update" : "Add Collector"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2405,7 +2406,7 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
       {deleteId !== null && (
         <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent className="max-w-sm">
-            <DialogHeader><DialogTitle>Remove Contractor?</DialogTitle><DialogDescription>This will remove them from the register. Existing mortality records won't be affected.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Remove Fallen Stock Collector?</DialogTitle><DialogDescription>This will remove them from the register. Existing mortality records won't be affected.</DialogDescription></DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -6753,7 +6754,7 @@ export default function LivestockPage() {
           <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Mortality</span>
         </TabButton>
         <TabButton active={tab === "contractors"} onClick={() => setTab("contractors")}>
-          <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Contractors</span>
+          <span className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> Fallen Stock Collectors</span>
         </TabButton>
         <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>
           <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Feed Records</span>
