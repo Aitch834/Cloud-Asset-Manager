@@ -229,6 +229,10 @@ export const livestockMortalityTable = pgTable("livestock_mortality", {
   bcmsNotified: boolean("bcms_notified").notNull().default(false),
   bcmsNotificationRef: text("bcms_notification_ref"),
   notes: text("notes"),
+  invoiceStatus: text("invoice_status").notNull().default("none"),
+  invoiceRef: text("invoice_ref"),
+  invoiceAmount: text("invoice_amount"),
+  invoicePaidDate: text("invoice_paid_date"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

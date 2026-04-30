@@ -10854,6 +10854,10 @@ router.get("/farms/:farmId/mortality-records", requireAuth, requireTenant, requi
       bcmsNotified: livestockMortalityTable.bcmsNotified,
       bcmsNotificationRef: livestockMortalityTable.bcmsNotificationRef,
       notes: livestockMortalityTable.notes,
+      invoiceStatus: livestockMortalityTable.invoiceStatus,
+      invoiceRef: livestockMortalityTable.invoiceRef,
+      invoiceAmount: livestockMortalityTable.invoiceAmount,
+      invoicePaidDate: livestockMortalityTable.invoicePaidDate,
       createdAt: livestockMortalityTable.createdAt,
     })
     .from(livestockMortalityTable)

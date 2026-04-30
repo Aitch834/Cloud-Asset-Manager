@@ -144,6 +144,10 @@ interface MortalityRecord {
   bcmsNotified: boolean;
   bcmsNotificationRef: string | null;
   notes: string | null;
+  invoiceStatus: string;
+  invoiceRef: string | null;
+  invoiceAmount: string | null;
+  invoicePaidDate: string | null;
   createdAt: string;
 }
 
@@ -1842,6 +1846,7 @@ const EMPTY_MORTALITY = {
   causeOfDeath: "", disposalMethod: "", disposalOperator: "", disposalRef: "",
   veterinaryAttended: false, vetName: "", postMortemCarriedOut: false, postMortemFindings: "",
   bcmsNotified: false, bcmsNotificationRef: "", notes: "",
+  invoiceStatus: "none", invoiceRef: "", invoiceAmount: "", invoicePaidDate: "",
 };
 
 function MortalitySection({ farmId }: { farmId: number }) {
@@ -1888,6 +1893,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
   const [form, setForm] = useState(EMPTY_MORTALITY);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [useOtherVet, setUseOtherVet] = useState(false);
+  const [invoiceFilter, setInvoiceFilter] = useState<"all" | "awaiting" | "received" | "unpaid">("all");
 
   function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -1951,6 +1957,10 @@ function MortalitySection({ farmId }: { farmId: number }) {
       vetName: existingVet, postMortemCarriedOut: r.postMortemCarriedOut,
       postMortemFindings: r.postMortemFindings ?? "", bcmsNotified: r.bcmsNotified,
       bcmsNotificationRef: r.bcmsNotificationRef ?? "", notes: r.notes ?? "",
+      invoiceStatus: r.invoiceStatus ?? "none",
+      invoiceRef: r.invoiceRef ?? "",
+      invoiceAmount: r.invoiceAmount ?? "",
+      invoicePaidDate: r.invoicePaidDate ?? "",
     });
     setShowForm(true);
   }
@@ -1964,11 +1974,17 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
   const selectedAnimal = activeAnimals.find(a => String(a.id) === form.animalId) ?? null;
 
-  const filtered = records.filter(r =>
-    (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    r.species.toLowerCase().includes(search.toLowerCase()) ||
-    r.causeOfDeath.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = records.filter(r => {
+    const matchesSearch =
+      (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      r.species.toLowerCase().includes(search.toLowerCase()) ||
+      r.causeOfDeath.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (invoiceFilter === "awaiting") return r.invoiceStatus === "awaiting";
+    if (invoiceFilter === "received") return r.invoiceStatus === "received";
+    if (invoiceFilter === "unpaid") return r.invoiceStatus === "awaiting" || r.invoiceStatus === "received";
+    return true;
+  });
 
   return (
     <>
@@ -1986,12 +2002,30 @@ function MortalitySection({ farmId }: { farmId: number }) {
         <strong>Legal requirement:</strong> Keep mortality records for a minimum of 3 years. Cattle deaths must be notified to BCMS within 7 days. Retain disposal certificates.
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs text-muted-foreground font-medium">Invoice filter:</span>
+        {(["all", "unpaid", "awaiting", "received"] as const).map(f => {
+          const labels: Record<string, string> = { all: "All records", unpaid: "Unpaid (awaiting + received)", awaiting: "Awaiting invoice", received: "Invoice received — unpaid" };
+          const active = invoiceFilter === f;
+          const colours: Record<string, string> = { all: "bg-gray-100 text-gray-700 border-gray-200", unpaid: "bg-orange-100 text-orange-700 border-orange-300", awaiting: "bg-amber-100 text-amber-700 border-amber-300", received: "bg-blue-100 text-blue-700 border-blue-300" };
+          return (
+            <button key={f} onClick={() => setInvoiceFilter(f)}
+              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${colours[f]} ${active ? "ring-2 ring-offset-1 ring-current" : "opacity-60 hover:opacity-100"}`}>
+              {labels[f]}
+            </button>
+          );
+        })}
+        {invoiceFilter !== "all" && (
+          <span className="text-xs text-muted-foreground ml-1">— {filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-16 text-center">
           <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{search ? "No matching records found." : "No mortality records yet."}</p>
+          <p className="text-muted-foreground">{search || invoiceFilter !== "all" ? "No matching records found." : "No mortality records yet."}</p>
         </CardContent></Card>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -2002,6 +2036,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tag / Species</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cause</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Disposal</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">BCMS</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Vet</th>
                 <th className="px-4 py-3" />
@@ -2017,6 +2052,16 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   </td>
                   <td className="px-4 py-3 text-xs">{CAUSE_LABELS[r.causeOfDeath] ?? r.causeOfDeath}</td>
                   <td className="px-4 py-3 text-xs">{DISPOSAL_LABELS[r.disposalMethod] ?? r.disposalMethod}</td>
+                  <td className="px-4 py-3">
+                    {r.invoiceStatus === "none" || !r.invoiceStatus
+                      ? <span className="inline-flex items-center gap-1 text-xs text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50">No invoice</span>
+                      : r.invoiceStatus === "awaiting"
+                        ? <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200"><AlertTriangle className="h-3 w-3" /> Awaiting</span>
+                        : r.invoiceStatus === "received"
+                          ? <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200"><FileText className="h-3 w-3" /> Received</span>
+                          : <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200"><CheckCircle2 className="h-3 w-3" /> Paid</span>}
+                    {r.invoiceRef && <div className="text-xs text-muted-foreground mt-0.5">{r.invoiceRef}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     {r.bcmsNotified
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" /> Notified</span>
@@ -2059,6 +2104,27 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">BCMS Notified</p><p>{viewMortality.bcmsNotified ? "Yes" : "Pending"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet Attended</p><p>{viewMortality.veterinaryAttended ? (viewMortality.vetName || "Yes") : "No"}</p></div>
               </div>
+              {/* Invoice status */}
+              {(() => {
+                const s = viewMortality.invoiceStatus;
+                if (s === "none" || !s) return null;
+                return (
+                  <div className="border rounded-lg p-3 bg-slate-50">
+                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">Collection Invoice</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Status</p>
+                        {s === "awaiting" && <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200"><AlertTriangle className="h-3 w-3" /> Awaiting invoice</span>}
+                        {s === "received" && <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200"><FileText className="h-3 w-3" /> Received — unpaid</span>}
+                        {s === "paid" && <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200"><CheckCircle2 className="h-3 w-3" /> Paid</span>}
+                      </div>
+                      {viewMortality.invoiceRef && <div><p className="text-xs text-gray-400 mb-0.5">Invoice ref</p><p className="font-mono text-xs">{viewMortality.invoiceRef}</p></div>}
+                      {viewMortality.invoiceAmount && <div><p className="text-xs text-gray-400 mb-0.5">Amount</p><p>£{viewMortality.invoiceAmount}</p></div>}
+                      {viewMortality.invoicePaidDate && <div><p className="text-xs text-gray-400 mb-0.5">Date paid</p><p>{formatDate(viewMortality.invoicePaidDate)}</p></div>}
+                    </div>
+                  </div>
+                );
+              })()}
               {viewMortality.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewMortality.notes}</p></div>}
               <div className="border-t pt-3">
                 <RecordAttachments farmId={farmId} recordType="mortality" recordId={viewMortality.id} />
@@ -2212,6 +2278,42 @@ function MortalitySection({ farmId }: { farmId: number }) {
               {form.postMortemCarriedOut && <div><Label>Post-mortem Findings</Label><Textarea value={form.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} placeholder="Summary of PM findings..." rows={2} /></div>}
               {form.bcmsNotified && <div><Label>BCMS Notification Reference</Label><Input value={form.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} placeholder="BCMS submission reference" /></div>}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Additional circumstances or observations..." rows={2} /></div>
+
+              {/* ── Collection Invoice ── */}
+              <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
+                <p className="text-sm font-medium text-gray-700">Collection Invoice</p>
+                <div>
+                  <Label className="text-xs">Invoice status</Label>
+                  <Select value={form.invoiceStatus} onValueChange={v => setField("invoiceStatus", v)}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No invoice expected</SelectItem>
+                      <SelectItem value="awaiting">Awaiting invoice from collector</SelectItem>
+                      <SelectItem value="received">Invoice received — payment pending</SelectItem>
+                      <SelectItem value="paid">Invoice received and paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.invoiceStatus !== "none" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Invoice reference / number</Label>
+                      <Input className="mt-1" value={form.invoiceRef} onChange={e => setField("invoiceRef", e.target.value)} placeholder="e.g. INV-2024-0041" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Amount (£)</Label>
+                      <Input className="mt-1" value={form.invoiceAmount} onChange={e => setField("invoiceAmount", e.target.value)} placeholder="e.g. 45.00" />
+                    </div>
+                    {form.invoiceStatus === "paid" && (
+                      <div>
+                        <Label className="text-xs">Date paid</Label>
+                        <Input type="date" className="mt-1" value={form.invoicePaidDate} onChange={e => setField("invoicePaidDate", e.target.value)} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); setUseOtherVet(false); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending || !form.animalId}>
