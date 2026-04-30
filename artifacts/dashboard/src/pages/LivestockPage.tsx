@@ -3164,7 +3164,18 @@ interface AnimalProfile {
   movements: Array<{ id: number; movementType: string; movementDate: string; fromLocation: string | null; toLocation: string | null; licenceNumber: string | null; bcmsSubmissionRef: string | null; reason: string | null; notes: string | null }>;
   calvings: Array<{ id: number; calvingDate: string; calvingEaseScore: number | null; numberOfCalves: number; calfOutcome: string | null; calfSex: string | null; calfEarTag: string | null; sireBreed: string | null; cowComplications: string | null; assistanceRequired: boolean; vetAttended: boolean; bcmsPassportApplied: boolean; notes: string | null }>;
   mastitis: Array<{ id: number; onsetDate: string; quartersAffected: string | null; clinicalGrade: string | null; treatmentProduct: string | null; outcome: string | null; vetConsulted: boolean; notes: string | null }>;
-  mortality: { dateOfDeath: string; causeOfDeath: string; disposalMethod: string } | null;
+  mortality: {
+    dateOfDeath: string; causeOfDeath: string; disposalMethod: string;
+    disposalOperator: string | null; disposalRef: string | null;
+    veterinaryAttended: boolean; vetName: string | null;
+    postMortemCarriedOut: boolean; postMortemFindings: string | null;
+    bcmsNotified: boolean; bcmsNotificationRef: string | null;
+    notes: string | null;
+    contractorId: number | null;
+    contractorName: string | null;
+    contractorApprovalNumber: string | null;
+    contractorOperatorType: string | null;
+  } | null;
   diseaseIncidents: Array<{
     id: number; incidentDate: string; incidentType: string; symptomsObserved: string;
     suspectedDiagnosis: string | null; confirmedDiagnosis: string | null;
@@ -3370,7 +3381,20 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
 
     const calvingHtml = showBreeding && d.calvings.length > 0 ? `<div class="section-head">Calving Records (${d.calvings.length})</div><table><thead><tr><th>Date</th><th>Calves</th><th>Calf Sex</th><th>Calf Tag</th><th>Outcome</th><th>Ease Score</th><th>Assistance</th><th>Vet</th></tr></thead><tbody>${d.calvings.map(c => `<tr><td>${fmtD(c.calvingDate)}</td><td>${c.numberOfCalves}</td><td>${c.calfSex || "—"}</td><td>${c.calfEarTag || "—"}</td><td>${c.calfOutcome || "—"}</td><td>${c.calvingEaseScore ?? "—"}</td><td>${c.assistanceRequired ? "Yes" : "No"}</td><td>${c.vetAttended ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table>` : "";
 
-    const mortalityHtml = d.mortality ? `<div class="section-head">Mortality Record</div><table><tbody><tr><td style="font-weight:600;width:35%">Date of Death</td><td>${fmtD(d.mortality.dateOfDeath)}</td></tr><tr><td style="font-weight:600">Cause</td><td>${d.mortality.causeOfDeath}</td></tr><tr><td style="font-weight:600">Disposal</td><td>${d.mortality.disposalMethod}</td></tr></tbody></table>` : "";
+    const mortalityHtml = d.mortality ? `<div class="section-head">Mortality &amp; Disposal Record</div><table><tbody>
+      <tr><td style="font-weight:600;width:35%">Date of Death</td><td>${fmtD(d.mortality.dateOfDeath)}</td></tr>
+      <tr><td style="font-weight:600">Cause of Death</td><td>${d.mortality.causeOfDeath}</td></tr>
+      <tr><td style="font-weight:600">Disposal Method</td><td>${d.mortality.disposalMethod}</td></tr>
+      ${d.mortality.disposalOperator ? `<tr><td style="font-weight:600">Disposal Operator</td><td>${d.mortality.disposalOperator}</td></tr>` : ""}
+      ${d.mortality.disposalRef ? `<tr><td style="font-weight:600">Disposal Reference</td><td>${d.mortality.disposalRef}</td></tr>` : ""}
+      ${d.mortality.contractorName ? `<tr><td style="font-weight:600">Collection Contractor</td><td>${d.mortality.contractorName}</td></tr>` : ""}
+      ${d.mortality.contractorApprovalNumber ? `<tr><td style="font-weight:600">APHA Approval No.</td><td>${d.mortality.contractorApprovalNumber}</td></tr>` : ""}
+      ${d.mortality.contractorOperatorType ? `<tr><td style="font-weight:600">Operator Type</td><td>${d.mortality.contractorOperatorType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td></tr>` : ""}
+      <tr><td style="font-weight:600">Vet Attended</td><td>${d.mortality.veterinaryAttended ? (d.mortality.vetName ? `Yes — ${d.mortality.vetName}` : "Yes") : "No"}</td></tr>
+      <tr><td style="font-weight:600">Post-Mortem</td><td>${d.mortality.postMortemCarriedOut ? (d.mortality.postMortemFindings ? `Yes — ${d.mortality.postMortemFindings}` : "Yes") : "No"}</td></tr>
+      <tr><td style="font-weight:600">BCMS Notified</td><td>${d.mortality.bcmsNotified ? (d.mortality.bcmsNotificationRef ? `Yes — Ref: ${d.mortality.bcmsNotificationRef}` : "Yes") : "No"}</td></tr>
+      ${d.mortality.notes ? `<tr><td style="font-weight:600">Notes</td><td>${d.mortality.notes}</td></tr>` : ""}
+    </tbody></table>` : "";
 
     const html = buildProReport({
       title: `Animal Record — ${a.earTagNumber || a.tagNumber || `Animal #${a.id}`}`,
@@ -3407,8 +3431,20 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
 
           {/* Mortality alert */}
           {data?.mortality && (
-            <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.8rem", color: "#991b1b" }}>
-              <strong>Deceased:</strong> {formatDate(data.mortality.dateOfDeath)} · Cause: {data.mortality.causeOfDeath} · Disposal: {data.mortality.disposalMethod}
+            <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.8rem", color: "#991b1b" }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ Deceased — {formatDate(data.mortality.dateOfDeath)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px" }}>
+                <span><strong>Cause:</strong> {data.mortality.causeOfDeath}</span>
+                <span><strong>Disposal method:</strong> {data.mortality.disposalMethod}</span>
+                {data.mortality.disposalOperator && <span><strong>Disposal operator:</strong> {data.mortality.disposalOperator}</span>}
+                {data.mortality.disposalRef && <span><strong>Disposal ref:</strong> {data.mortality.disposalRef}</span>}
+                {data.mortality.contractorName && <span><strong>Collection contractor:</strong> {data.mortality.contractorName}</span>}
+                {data.mortality.contractorApprovalNumber && <span><strong>APHA approval no.:</strong> {data.mortality.contractorApprovalNumber}</span>}
+                {data.mortality.veterinaryAttended && <span><strong>Vet attended:</strong> {data.mortality.vetName || "Yes"}</span>}
+                {data.mortality.postMortemCarriedOut && <span><strong>Post-mortem:</strong> {data.mortality.postMortemFindings || "Carried out"}</span>}
+                <span><strong>BCMS notified:</strong> {data.mortality.bcmsNotified ? (data.mortality.bcmsNotificationRef ? `Yes — ref ${data.mortality.bcmsNotificationRef}` : "Yes") : "No"}</span>
+              </div>
+              {data.mortality.notes && <div style={{ marginTop: 4, color: "#7f1d1d" }}><strong>Notes:</strong> {data.mortality.notes}</div>}
             </div>
           )}
 

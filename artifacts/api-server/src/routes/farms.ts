@@ -2172,7 +2172,30 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     db.select().from(dairyMastitisRecordsTable)
       .where(and(eq(dairyMastitisRecordsTable.farmId, farmId), eq(dairyMastitisRecordsTable.animalId, recordId)))
       .orderBy(desc(dairyMastitisRecordsTable.onsetDate)),
-    db.select().from(livestockMortalityTable)
+    db.select({
+        id: livestockMortalityTable.id,
+        tagNumber: livestockMortalityTable.tagNumber,
+        species: livestockMortalityTable.species,
+        breed: livestockMortalityTable.breed,
+        dateOfDeath: livestockMortalityTable.dateOfDeath,
+        causeOfDeath: livestockMortalityTable.causeOfDeath,
+        disposalMethod: livestockMortalityTable.disposalMethod,
+        disposalOperator: livestockMortalityTable.disposalOperator,
+        disposalRef: livestockMortalityTable.disposalRef,
+        veterinaryAttended: livestockMortalityTable.veterinaryAttended,
+        vetName: livestockMortalityTable.vetName,
+        postMortemCarriedOut: livestockMortalityTable.postMortemCarriedOut,
+        postMortemFindings: livestockMortalityTable.postMortemFindings,
+        bcmsNotified: livestockMortalityTable.bcmsNotified,
+        bcmsNotificationRef: livestockMortalityTable.bcmsNotificationRef,
+        notes: livestockMortalityTable.notes,
+        contractorId: livestockMortalityTable.contractorId,
+        contractorName: fallenStockContractorsTable.name,
+        contractorApprovalNumber: fallenStockContractorsTable.approvalNumber,
+        contractorOperatorType: fallenStockContractorsTable.operatorType,
+      })
+      .from(livestockMortalityTable)
+      .leftJoin(fallenStockContractorsTable, eq(livestockMortalityTable.contractorId, fallenStockContractorsTable.id))
       .where(and(eq(livestockMortalityTable.farmId, farmId), eq(livestockMortalityTable.animalId, recordId)))
       .limit(1),
     // All disease incidents for the farm — filtered below by animal ID
