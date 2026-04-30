@@ -229,6 +229,13 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    // Prevent browser caching of Vite chunks in the Replit preview pane.
+    // optimizeDeps.force:true re-hashes chunks on every restart; without this
+    // header the preview iframe serves stale old chunks alongside new ones,
+    // creating two React instances that trigger "Invalid hook call" crashes.
+    headers: {
+      "Cache-Control": "no-store",
+    },
     proxy: {
       // Forward BASE-prefixed API calls to the API server.
       // DairyPage (and any other page using the `api()` helper with BASE_URL)
