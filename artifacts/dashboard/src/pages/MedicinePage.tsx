@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -14,7 +14,9 @@ import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
   AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
   Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck, BadgeCheck, Info, ClipboardList,
+  ChevronsUpDown, X,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -129,6 +131,197 @@ const EMPTY_FORM = {
   prescriptionId: "" as string | number,
 };
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
+
+// ─── Prescription Combobox ─────────────────────────────────────────────────────
+function PrescriptionCombobox({
+  prescriptions,
+  value,
+  onChange,
+}: {
+  prescriptions: VetPrescription[];
+  value: string | number;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = value ? prescriptions.find(p => p.id === Number(value)) : null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  function isExpired(p: VetPrescription) {
+    if (!p.expiryDate) return false;
+    return new Date(p.expiryDate) < today;
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    const matches = q
+      ? prescriptions.filter(p =>
+          (p.productName ?? "").toLowerCase().includes(q) ||
+          (p.prescriptionRef ?? "").toLowerCase().includes(q) ||
+          (p.vetName ?? "").toLowerCase().includes(q) ||
+          (p.activeIngredient ?? "").toLowerCase().includes(q) ||
+          (p.indicationOrDiagnosis ?? "").toLowerCase().includes(q)
+        )
+      : prescriptions;
+    // Valid first, then expired
+    const valid = matches.filter(p => !isExpired(p));
+    const expired = matches.filter(p => isExpired(p));
+    return { valid, expired };
+  }, [prescriptions, query]);
+
+  function selectPrescription(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function formatOption(p: VetPrescription) {
+    const date = p.prescriptionDate ? new Date(p.prescriptionDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" }) : "?";
+    const ref = p.prescriptionRef ? ` [${p.prescriptionRef}]` : "";
+    const vet = p.vetName ? ` — ${p.vetName}` : "";
+    return { date, ref, vet };
+  }
+
+  const totalResults = filtered.valid.length + filtered.expired.length;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`w-full flex items-center justify-between h-12 rounded-xl border-2 px-4 py-2 text-base transition-colors focus:outline-none ${
+            open
+              ? "border-primary ring-4 ring-primary/10 bg-white"
+              : "border-border bg-transparent hover:border-foreground/30"
+          }`}
+          onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+        >
+          {selected ? (
+            <span className="flex-1 text-left truncate">
+              <span className="font-medium">{selected.productName ?? "Unknown"}</span>
+              {selected.prescriptionRef && <span className="text-foreground/40 ml-1 text-sm">[{selected.prescriptionRef}]</span>}
+              {selected.prescriptionDate && <span className="text-foreground/40 ml-1 text-sm">· {new Date(selected.prescriptionDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}</span>}
+              {selected.vetName && <span className="text-foreground/50 ml-1 text-sm">— {selected.vetName}</span>}
+            </span>
+          ) : (
+            <span className="text-foreground/40 flex-1 text-left">Search prescriptions…</span>
+          )}
+          <div className="flex items-center gap-1 shrink-0 ml-2">
+            {selected && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="p-0.5 rounded hover:bg-black/10 text-foreground/30 hover:text-foreground/70"
+                onClick={e => { e.stopPropagation(); selectPrescription(""); }}
+                onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); selectPrescription(""); } }}
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            )}
+            <ChevronsUpDown className="w-4 h-4 text-foreground/30" />
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0 w-[var(--radix-popover-trigger-width)] max-h-[340px] overflow-hidden flex flex-col shadow-lg border border-border rounded-xl"
+        align="start"
+        sideOffset={4}
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+          <Search className="w-3.5 h-3.5 text-foreground/30 shrink-0" />
+          <input
+            ref={inputRef}
+            className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-foreground/30"
+            placeholder="Type product name, ref, vet or indication…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")} className="text-foreground/30 hover:text-foreground/70">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Results */}
+        <div className="overflow-y-auto flex-1">
+          {/* Clear option */}
+          <button
+            type="button"
+            className="w-full text-left px-3 py-2 text-sm text-foreground/40 hover:bg-black/5 italic border-b border-border/50"
+            onClick={() => selectPrescription("")}
+          >
+            — Not linked to a prescription —
+          </button>
+
+          {totalResults === 0 && (
+            <p className="px-3 py-4 text-sm text-foreground/40 text-center">No prescriptions match "{query}"</p>
+          )}
+
+          {filtered.valid.length > 0 && (
+            <>
+              {filtered.valid.map(p => {
+                const { date, ref, vet } = formatOption(p);
+                const isSelected = Number(value) === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2.5 text-sm hover:bg-primary/5 transition-colors flex items-start justify-between gap-2 ${isSelected ? "bg-primary/10" : ""}`}
+                    onClick={() => selectPrescription(String(p.id))}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{p.productName ?? "Unknown product"}{ref}</div>
+                      <div className="text-xs text-foreground/50 truncate">{date}{vet}{p.indicationOrDiagnosis ? ` · ${p.indicationOrDiagnosis}` : ""}</div>
+                    </div>
+                    {isSelected && <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {filtered.expired.length > 0 && (
+            <>
+              <div className="px-3 py-1 text-[10px] font-semibold text-foreground/30 uppercase tracking-wide border-t border-border/50 mt-1 bg-foreground/2">
+                Expired prescriptions
+              </div>
+              {filtered.expired.map(p => {
+                const { date, ref, vet } = formatOption(p);
+                const isSelected = Number(value) === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2.5 text-sm hover:bg-primary/5 transition-colors flex items-start justify-between gap-2 opacity-60 ${isSelected ? "bg-primary/10 !opacity-100" : ""}`}
+                    onClick={() => selectPrescription(String(p.id))}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate text-foreground/60">{p.productName ?? "Unknown product"}{ref}</div>
+                      <div className="text-xs text-foreground/40 truncate">{date}{vet} · Expired</div>
+                    </div>
+                    {isSelected && <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {prescriptions.length > 0 && (
+          <div className="border-t border-border/50 px-3 py-1.5 text-[10px] text-foreground/30">
+            {totalResults} of {prescriptions.length} prescriptions{query ? ` matching "${query}"` : ""}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ─── Ear Tag Validator Component ───────────────────────────────────────────────
 function EarTagValidatorPanel({
@@ -1293,20 +1486,11 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                   Link to Written Prescription
                   <span className="ml-1 text-xs font-normal text-foreground/40">— optional, creates audit trail</span>
                 </label>
-                <select
-                  className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
-                  value={String(form.prescriptionId ?? "")}
-                  onChange={e => setForm(f => ({ ...f, prescriptionId: e.target.value }))}
-                >
-                  <option value="">— Not linked to a prescription —</option>
-                  {prescriptions.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.prescriptionDate ? new Date(p.prescriptionDate).toLocaleDateString("en-GB") : "?"}{" "}
-                      · {p.productName ?? "Unknown product"}{p.prescriptionRef ? ` [${p.prescriptionRef}]` : ""}
-                      {p.vetName ? ` — ${p.vetName}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <PrescriptionCombobox
+                  prescriptions={prescriptions}
+                  value={form.prescriptionId ?? ""}
+                  onChange={id => setForm(f => ({ ...f, prescriptionId: id }))}
+                />
                 {(() => {
                   const linkedRx = form.prescriptionId ? prescriptions.find(p => p.id === Number(form.prescriptionId)) : null;
                   if (!linkedRx) return null;
