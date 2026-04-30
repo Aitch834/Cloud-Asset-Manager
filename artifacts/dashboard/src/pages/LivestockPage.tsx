@@ -1894,6 +1894,13 @@ function MortalitySection({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [useOtherVet, setUseOtherVet] = useState(false);
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "awaiting" | "received" | "unpaid">("all");
+  const { data: mortalityAttachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+
+  const mortalityAttachMap = Object.fromEntries(mortalityAttachCountsRaw.filter(c => c.recordType === "mortality").map(c => [c.recordId, c.count]));
 
   function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -1917,13 +1924,6 @@ function MortalitySection({ farmId }: { farmId: number }) {
   }
 
   const selectedContractor = activeContractors.find(c => String(c.id) === form.contractorId);
-
-  const { data: mortalityAttachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
-    queryKey: ["record-attachment-counts", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
-    staleTime: 30000,
-  });
-  const mortalityAttachMap = Object.fromEntries(mortalityAttachCountsRaw.filter(c => c.recordType === "mortality").map(c => [c.recordId, c.count]));
 
   const createMut = useMutation({
     mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -4647,6 +4647,11 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     (selectedHerdId ? a.herdId === selectedHerdId : true)
   );
 
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["ai-reproduction", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ai-reproduction-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
   const staffNames = (membersData?.members ?? []).map((m: Parameters<typeof memberFullName>[0]) => memberFullName(m));
 
   function handleSireSelect(val: string) {
@@ -4676,11 +4681,6 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
       }));
     }
   }
-
-  const { data: records = [], isLoading } = useQuery({
-    queryKey: ["ai-reproduction", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/ai-reproduction-records`, { credentials: "include" }).then(r => r.json()),
-  });
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -6247,6 +6247,14 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const [selectedHerdId, setSelectedHerdId] = useState<number | null>(null);
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  // Auto-calc: fetch mortality rate + calving/lambing score when a herd is selected
+  const { data: autoCalc } = useQuery<{ mortalityRate: string | null; calvingLambingScore: string | null; herdSize: number; deathCount: number }>({
+    queryKey: ["woa-auto-calc", farmId, selectedHerdId, form.species],
+    queryFn: () => fetch(`/api/farms/${farmId}/woa-auto-calc?herdId=${selectedHerdId}&species=${form.species}`).then(r => r.json()),
+    enabled: selectedHerdId !== null && showForm,
+    staleTime: 60_000,
+  });
+
   // Filter herds by species — herd register `type` is free-text (e.g. "Cattle", "Sheep")
   function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string): boolean {
     const s = woaSpecies.toLowerCase();
@@ -6261,14 +6269,6 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
   // If species changes and currently selected herd is now invalid, clear it
   const currentHerdStillValid = !form.herdFlockRef || filteredHerds.some(h => h.name === form.herdFlockRef);
-
-  // Auto-calc: fetch mortality rate + calving/lambing score when a herd is selected
-  const { data: autoCalc } = useQuery<{ mortalityRate: string | null; calvingLambingScore: string | null; herdSize: number; deathCount: number }>({
-    queryKey: ["woa-auto-calc", farmId, selectedHerdId, form.species],
-    queryFn: () => fetch(`/api/farms/${farmId}/woa-auto-calc?herdId=${selectedHerdId}&species=${form.species}`).then(r => r.json()),
-    enabled: selectedHerdId !== null && showForm,
-    staleTime: 60_000,
-  });
 
   const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); } });
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); } });
