@@ -97,7 +97,15 @@ interface MedicineRecord {
   treatedAnimalCount: number | null;
   source: string | null;
   vetVisitMedicineId: number | null;
+  prescriptionId: number | null;
   createdAt: string;
+}
+interface VetPrescription {
+  id: number; prescriptionDate: string | null; prescriptionRef: string | null;
+  vetName: string | null; vetPractice: string | null; productName: string | null;
+  activeIngredient: string | null; withdrawalPeriodMeat: number | null;
+  withdrawalPeriodMilk: number | null; expiryDate: string | null;
+  indicationOrDiagnosis: string | null;
 }
 interface Farm { id: number; name: string; address: string | null; postcode: string | null; cphNumber: string | null; redTractorId: string | null; }
 
@@ -117,6 +125,8 @@ const EMPTY_FORM = {
   doubledWithdrawalDays: "",
   certifierNotified: false,
   certifierNotifiedDate: "",
+  // prescription link — optional FK to vet_prescription_records
+  prescriptionId: "" as string | number,
 };
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
@@ -306,8 +316,8 @@ function treatmentTraceDetail(record: MedicineRecord, herds: Herd[], animals: An
   return "—";
 }
 
-function RecordCard({ record, herds, animals, onEdit, onDelete, onView, onRaiseTask }: {
-  record: MedicineRecord; herds: Herd[]; animals: Animal[];
+function RecordCard({ record, herds, animals, prescriptions, onEdit, onDelete, onView, onRaiseTask }: {
+  record: MedicineRecord; herds: Herd[]; animals: Animal[]; prescriptions: VetPrescription[];
   onEdit: (r: MedicineRecord) => void; onDelete: (id: number) => void; onView: (r: MedicineRecord) => void;
   onRaiseTask?: (r: MedicineRecord) => void;
 }) {
@@ -329,6 +339,15 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView, onRaiseT
                 Via Vet Ledger
               </span>
             )}
+            {(() => {
+              const rx = record.prescriptionId ? prescriptions.find(p => p.id === record.prescriptionId) : null;
+              if (!rx) return null;
+              return (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200" title={`Linked to prescription: ${rx.productName ?? "?"} — ${rx.vetName ?? "?"}`}>
+                  <ClipboardList className="w-2.5 h-2.5" />Rx linked
+                </span>
+              );
+            })()}
             {status === "in_withdrawal" && (
               <span className="text-xs text-amber-700 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</span>
             )}
@@ -376,6 +395,16 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView, onRaiseT
             <p className="text-foreground/80 font-medium">Administered {formatDate(record.administeredDate)}</p>
             {record.withdrawalEndDate && <p className="text-foreground/80 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</p>}
           </div>
+          {record.prescriptionId && (() => {
+            const rx = prescriptions.find(p => p.id === record.prescriptionId);
+            if (!rx) return null;
+            return (
+              <div className="col-span-full mt-1 p-2 rounded-lg border border-purple-200 bg-purple-50 text-xs text-purple-800">
+                <p className="font-semibold mb-0.5 flex items-center gap-1"><ClipboardList className="w-3 h-3" />Linked Prescription</p>
+                <p>{rx.productName ?? "Unknown"}{rx.prescriptionRef ? ` [${rx.prescriptionRef}]` : ""}{rx.vetName ? ` — ${rx.vetName}` : ""}{rx.prescriptionDate ? `, issued ${formatDate(rx.prescriptionDate)}` : ""}</p>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -586,10 +615,15 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     queryKey: ["vet-health-plans", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`, { credentials: "include" }).then(r => r.json()),
   });
+  const prescriptionsQ = useQuery<VetPrescription[]>({
+    queryKey: ["vet-prescriptions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-prescriptions`, { credentials: "include" }).then(r => r.json()),
+  });
 
   const farm: Farm = farmQ.data?.record ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
   const herds: Herd[] = herdsQ.data?.records ?? [];
   const animals: Animal[] = animalsQ.data?.records ?? [];
+  const prescriptions: VetPrescription[] = prescriptionsQ.data ?? [];
   const allRecords: MedicineRecord[] = medicineQ.data?.records ?? [];
 
   const uniqueVetNames = useMemo(() => {
@@ -713,6 +747,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       doubledWithdrawalDays: (r as any).doubledWithdrawalDays ? String((r as any).doubledWithdrawalDays) : "",
       certifierNotified: (r as any).certifierNotified ?? false,
       certifierNotifiedDate: (r as any).certifierNotifiedDate ? new Date((r as any).certifierNotifiedDate).toISOString().slice(0, 10) : "",
+      prescriptionId: r.prescriptionId ? String(r.prescriptionId) : "",
     };
     setForm(newForm);
     // If editing a group record that already has tags, pre-validate them
@@ -747,6 +782,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       doubledWithdrawalDays: form.doubledWithdrawalDays ? Number(form.doubledWithdrawalDays) : null,
       certifierNotified: form.certifierNotified ?? false,
       certifierNotifiedDate: form.certifierNotified && form.certifierNotifiedDate ? new Date(form.certifierNotifiedDate).toISOString() : null,
+      prescriptionId: form.prescriptionId ? Number(form.prescriptionId) : null,
     };
   }
 
@@ -850,7 +886,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           ) : (
             <div className="space-y-3">
               {filtered.map(r => (
-                <RecordCard key={r.id} record={r} herds={herds} animals={animals} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} onRaiseTask={setRaiseTaskRecord} />
+                <RecordCard key={r.id} record={r} herds={herds} animals={animals} prescriptions={prescriptions} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} onRaiseTask={setRaiseTaskRecord} />
               ))}
             </div>
           )}
@@ -925,6 +961,24 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               </div>
               {viewRecord.reason && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Reason</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.reason}</p></div>}
               {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+              {viewRecord.prescriptionId && (() => {
+                const rx = prescriptions.find(p => p.id === viewRecord.prescriptionId);
+                if (!rx) return null;
+                return (
+                  <div className="mt-2 p-3 rounded-lg border border-purple-200 bg-purple-50 text-sm text-purple-900">
+                    <p className="font-semibold mb-1 flex items-center gap-1.5 text-purple-800"><ClipboardList className="w-4 h-4" />Linked Prescription</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                      {rx.productName && <span><span className="font-medium text-purple-700">Product:</span> {rx.productName}</span>}
+                      {rx.prescriptionRef && <span><span className="font-medium text-purple-700">Ref:</span> {rx.prescriptionRef}</span>}
+                      {rx.vetName && <span><span className="font-medium text-purple-700">Vet:</span> {rx.vetName}</span>}
+                      {rx.prescriptionDate && <span><span className="font-medium text-purple-700">Issued:</span> {formatDate(rx.prescriptionDate)}</span>}
+                      {rx.expiryDate && <span><span className="font-medium text-purple-700">Expires:</span> {formatDate(rx.expiryDate)}</span>}
+                      {rx.withdrawalPeriodMeat != null && <span><span className="font-medium text-purple-700">W/D Meat:</span> {rx.withdrawalPeriodMeat}d</span>}
+                      {rx.withdrawalPeriodMilk != null && <span><span className="font-medium text-purple-700">W/D Milk:</span> {rx.withdrawalPeriodMilk}d</span>}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex justify-end gap-2 mt-2">
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
@@ -1230,6 +1284,47 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                 <Input placeholder="Any additional information..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+
+              {/* ── Linked Prescription ── */}
+              <div className="col-span-full pt-1">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block flex items-center gap-1.5">
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Link to Written Prescription
+                  <span className="ml-1 text-xs font-normal text-foreground/40">— optional, creates audit trail</span>
+                </label>
+                <select
+                  className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  value={String(form.prescriptionId ?? "")}
+                  onChange={e => setForm(f => ({ ...f, prescriptionId: e.target.value }))}
+                >
+                  <option value="">— Not linked to a prescription —</option>
+                  {prescriptions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.prescriptionDate ? new Date(p.prescriptionDate).toLocaleDateString("en-GB") : "?"}{" "}
+                      · {p.productName ?? "Unknown product"}{p.prescriptionRef ? ` [${p.prescriptionRef}]` : ""}
+                      {p.vetName ? ` — ${p.vetName}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {(() => {
+                  const linkedRx = form.prescriptionId ? prescriptions.find(p => p.id === Number(form.prescriptionId)) : null;
+                  if (!linkedRx) return null;
+                  return (
+                    <div className="mt-2 p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-900 space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-blue-800"><CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />Prescription found</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        {linkedRx.productName && <span><span className="font-medium">Product:</span> {linkedRx.productName}</span>}
+                        {linkedRx.activeIngredient && <span><span className="font-medium">Active:</span> {linkedRx.activeIngredient}</span>}
+                        {linkedRx.vetName && <span><span className="font-medium">Vet:</span> {linkedRx.vetName}</span>}
+                        {linkedRx.expiryDate && <span><span className="font-medium">Expires:</span> {new Date(linkedRx.expiryDate).toLocaleDateString("en-GB")}</span>}
+                        {linkedRx.withdrawalPeriodMeat != null && <span><span className="font-medium">W/D Meat:</span> {linkedRx.withdrawalPeriodMeat}d</span>}
+                        {linkedRx.withdrawalPeriodMilk != null && <span><span className="font-medium">W/D Milk:</span> {linkedRx.withdrawalPeriodMilk}d</span>}
+                      </div>
+                      {linkedRx.indicationOrDiagnosis && <p className="italic text-blue-700">{linkedRx.indicationOrDiagnosis}</p>}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* ── Organic compliance ── shown when organic herd selected or isOrganicTreatment is already set */}

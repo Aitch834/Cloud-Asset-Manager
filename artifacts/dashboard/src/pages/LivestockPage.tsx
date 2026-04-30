@@ -4967,17 +4967,6 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/vet-prescriptions`, { credentials: "include" }).then(r => r.json()),
   });
 
-  const { data: animalsData } = useQuery<{ records: Animal[] }>({
-    queryKey: ["animals", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/animals`).then(r => r.json()),
-  });
-  const { data: herdsData } = useQuery<{ records: Herd[] }>({
-    queryKey: ["herds", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
-  });
-  const activeAnimals = (animalsData?.records ?? []).filter(a => a.status === "active");
-  const herds = herdsData?.records ?? [];
-
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = editing ? `/api/farms/${farmId}/vet-prescriptions/${editing.id}` : `/api/farms/${farmId}/vet-prescriptions`;
@@ -4992,41 +4981,15 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   });
 
   const rows = (records as Record<string, unknown>[]);
-  const treatmentScope = String(form.treatmentScope ?? "");
-
-  function handleAnimalSelect(animalId: string) {
-    if (animalId === "__none__") {
-      setForm(f => ({ ...f, animalId: "", treatedAnimalTags: "" }));
-      return;
-    }
-    const a = activeAnimals.find(x => String(x.id) === animalId);
-    if (a) {
-      setForm(f => ({
-        ...f,
-        animalId,
-        treatedAnimalTags: a.earTagNumber ?? a.tagNumber ?? "",
-        targetSpecies: a.species,
-      }));
-    }
-  }
-
-  function handleHerdSelect(herdId: string) {
-    if (herdId === "__none__") {
-      setForm(f => ({ ...f, herdId: "", treatedAnimalCount: "" }));
-      return;
-    }
-    const h = herds.find(x => String(x.id) === herdId);
-    setForm(f => ({ ...f, herdId, treatedAnimalCount: "" }));
-  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="font-semibold">Herd Health Register — Veterinary Prescriptions &amp; Medicine Treatments</h3>
-          <p className="text-sm text-muted-foreground">Record all veterinary prescriptions and dispensed medicines. UK law requires identification of animals treated (VMR 2013).</p>
+          <h3 className="font-semibold">Prescription Register</h3>
+          <p className="text-sm text-muted-foreground">Record the written prescription or SIC issued by your vet authorising use of each product. Treatment administration is recorded separately in the Medicine module.</p>
         </div>
-        <Button onClick={() => { setEditing(null); setForm({ signedByVet: true, farmRegistered: true, treatmentScope: "individual" }); setOpen(true); }}>
+        <Button onClick={() => { setEditing(null); setForm({ signedByVet: true, farmRegistered: true }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-2" /> Add Record
         </Button>
       </div>
@@ -5037,40 +5000,49 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b">
-                  {["Rx Date", "Treatment Date", "Product", "Treated Animals", "Scope", "Withdrawal Meat", "Withdrawal Milk", "Vet / Practice", "Valid Until"].map(h => (
+                  {["Rx Date", "Product / Active Ingredient", "Indication", "Withdrawal Meat", "Withdrawal Milk", "Vet / Practice", "Valid Until", "Treatments"].map(h => (
                     <th key={h} className="text-left py-2 pr-4 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                   <th />
                 </tr></thead>
                 <tbody>{rows.map((r, i) => {
-                  const scope = String(r.treatmentScope ?? "");
-                  const animalDisplay = r.treatedAnimalTags
-                    ? <span className="inline-flex items-center gap-1 text-green-700 font-mono text-xs"><CheckCircle2 className="h-3 w-3 shrink-0" />{String(r.treatedAnimalTags)}</span>
-                    : scope === "herd"
-                    ? <span className="text-muted-foreground text-xs">Whole herd{r.treatedAnimalCount ? ` (${r.treatedAnimalCount})` : ""}</span>
-                    : <span className="text-muted-foreground text-xs italic">{String(r.animalGroupDescription ?? r.speciesAndBreed ?? r.targetSpecies ?? "—")}</span>;
+                  const treatmentsRecorded = Number((r as any).treatmentsRecorded ?? 0);
                   return (
                     <tr key={i} className="border-b last:border-0">
                       <td className="py-2 pr-4 whitespace-nowrap">{r.prescriptionDate ? new Date(r.prescriptionDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">{r.treatmentDate ? new Date(r.treatmentDate as string).toLocaleDateString("en-GB") : <span className="text-muted-foreground text-xs italic">Not recorded</span>}</td>
                       <td className="py-2 pr-4">
                         <div className="font-medium">{String(r.productName ?? "—")}</div>
                         {r.activeIngredient != null && <div className="text-xs text-muted-foreground">{String(r.activeIngredient)}</div>}
+                        {Boolean(r.isCascade) && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">Cascade</span>}
                       </td>
-                      <td className="py-2 pr-4 max-w-[160px]">{animalDisplay}</td>
-                      <td className="py-2 pr-4">
-                        {scope === "individual" && <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Individual</span>}
-                        {scope === "herd" && <span className="text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">Whole Herd</span>}
-                        {scope === "group" && <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">Group</span>}
-                        {!scope && <span className="text-xs text-muted-foreground">—</span>}
-                      </td>
+                      <td className="py-2 pr-4 max-w-[200px] text-xs text-muted-foreground">{r.indicationOrDiagnosis ? String(r.indicationOrDiagnosis).slice(0, 80) + (String(r.indicationOrDiagnosis).length > 80 ? "…" : "") : "—"}</td>
                       <td className="py-2 pr-4 whitespace-nowrap">{r.withdrawalPeriodMeat ? `${r.withdrawalPeriodMeat}d` : "—"}</td>
                       <td className="py-2 pr-4 whitespace-nowrap">{r.withdrawalPeriodMilk ? `${r.withdrawalPeriodMilk}d` : "—"}</td>
-                      <td className="py-2 pr-4">{String(r.vetName ?? "—")}</td>
-                      <td className="py-2 pr-4 whitespace-nowrap">{r.prescriptionValidUntil ? new Date(r.prescriptionValidUntil as string).toLocaleDateString("en-GB") : "—"}</td>
+                      <td className="py-2 pr-4">
+                        <div>{String(r.vetName ?? "—")}</div>
+                        {r.vrcPracticeName != null && <div className="text-xs text-muted-foreground">{String(r.vrcPracticeName)}</div>}
+                      </td>
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {r.expiryDate
+                          ? (() => {
+                              const exp = new Date(r.expiryDate as string);
+                              const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000);
+                              return daysLeft < 0
+                                ? <span className="text-xs text-red-600 font-medium">Expired</span>
+                                : daysLeft <= 30
+                                  ? <span className="text-xs text-amber-600 font-medium">{exp.toLocaleDateString("en-GB")} ({daysLeft}d)</span>
+                                  : <span className="text-xs">{exp.toLocaleDateString("en-GB")}</span>;
+                            })()
+                          : "—"}
+                      </td>
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {treatmentsRecorded > 0
+                          ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" />{treatmentsRecorded}</span>
+                          : <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"><AlertTriangle className="h-3 w-3" />None</span>}
+                      </td>
                       <td className="py-2 text-right space-x-1 whitespace-nowrap">
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this vet prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                       </td>
                     </tr>
                   );
@@ -5140,113 +5112,14 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
             )}
             <div className="col-span-2"><Label>Indication / Diagnosis</Label><Textarea value={String(form.indicationOrDiagnosis ?? "")} onChange={e => setForm(f => ({ ...f, indicationOrDiagnosis: e.target.value }))} rows={2} /></div>
 
-            {/* ── Animal traceability ── */}
-            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2 border-t">
-              Animal Traceability <span className="text-red-600 ml-1">— Required for VMR 2013 &amp; Red Tractor compliance</span>
-            </div>
-
-            <div className="col-span-2">
-              <Label>Treatment Scope</Label>
-              <div className="flex gap-2 mt-1">
-                {[
-                  { key: "individual", label: "Individual Animal(s)" },
-                  { key: "herd", label: "Whole Herd / Flock" },
-                  { key: "group", label: "Specific Group / Pen" },
-                ].map(opt => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, treatmentScope: opt.key, animalId: "", herdId: "" }))}
-                    className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                      treatmentScope === opt.key
-                        ? "bg-brand-forest text-white border-brand-forest"
-                        : "bg-white border-border text-muted-foreground hover:border-foreground/30"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Individual animal picker */}
-            {treatmentScope === "individual" && (
-              <>
-                <div className="col-span-2">
-                  <Label>Animal from Register</Label>
-                  <Select value={String(form.animalId || "__none__")} onValueChange={handleAnimalSelect}>
-                    <SelectTrigger><SelectValue placeholder="Select animal by ear tag…" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Not in register —</SelectItem>
-                      {activeAnimals.map(a => (
-                        <SelectItem key={a.id} value={String(a.id)}>
-                          {a.earTagNumber ?? a.tagNumber ?? `#${a.id}`} — {a.species}{a.breed ? ` (${a.breed})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {form.animalId && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Linked to animal register</p>}
-                </div>
-                <div className="col-span-2">
-                  <Label>Ear Tag(s) Treated</Label>
-                  <Input
-                    value={String(form.treatedAnimalTags ?? "")}
-                    onChange={e => setForm(f => ({ ...f, treatedAnimalTags: e.target.value }))}
-                    placeholder="e.g. UK123456 78901, UK123456 78902 — list all ear tags if multiple animals"
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Auto-filled from register selection. Add additional tags separated by commas for multi-animal treatments.</p>
-                </div>
-                <div><Label>Number of Animals Treated</Label><Input type="number" min="1" value={String(form.treatedAnimalCount ?? "")} onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))} /></div>
-              </>
-            )}
-
-            {/* Herd picker */}
-            {treatmentScope === "herd" && (
-              <>
-                <div className="col-span-2">
-                  <Label>Herd / Flock</Label>
-                  <Select value={String(form.herdId || "__none__")} onValueChange={handleHerdSelect}>
-                    <SelectTrigger><SelectValue placeholder="Select herd or flock…" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Select herd —</SelectItem>
-                      {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name}{h.type ? ` (${h.type})` : ""}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Number of Animals Treated</Label>
-                  <Input type="number" min="1" value={String(form.treatedAnimalCount ?? "")} onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))} placeholder="Auto-filled from herd size" />
-                </div>
-                <div>
-                  <Label>Ear Tag Range / Batch Description</Label>
-                  <Input value={String(form.treatedAnimalTags ?? "")} onChange={e => setForm(f => ({ ...f, treatedAnimalTags: e.target.value }))} placeholder="e.g. UK123456 78900–78950 or 'All ewes pen 3'" />
-                </div>
-              </>
-            )}
-
-            {/* Group picker */}
-            {treatmentScope === "group" && (
-              <>
-                <div className="col-span-2">
-                  <Label>Group / Pen Description</Label>
-                  <Input value={String(form.animalGroupDescription ?? "")} onChange={e => setForm(f => ({ ...f, animalGroupDescription: e.target.value }))} placeholder="e.g. 'Weaner pigs pen 5', 'Heifers over 12 months'" />
-                </div>
-                <div>
-                  <Label>Number of Animals Treated</Label>
-                  <Input type="number" min="1" value={String(form.treatedAnimalCount ?? "")} onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Ear Tag Range</Label>
-                  <Input value={String(form.treatedAnimalTags ?? "")} onChange={e => setForm(f => ({ ...f, treatedAnimalTags: e.target.value }))} placeholder="e.g. UK123456 78900–78910 (if known)" className="font-mono" />
-                </div>
-              </>
-            )}
-
-            <div><Label>Species</Label><Input value={String(form.targetSpecies ?? "")} onChange={e => setForm(f => ({ ...f, targetSpecies: e.target.value }))} placeholder="Auto-filled from animal if linked" /></div>
-            <div><Label>Treatment Date</Label><Input type="date" value={String(form.treatmentDate ?? "")} onChange={e => setForm(f => ({ ...f, treatmentDate: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Administered By</Label><Input value={String(form.administeredBy ?? "")} onChange={e => setForm(f => ({ ...f, administeredBy: e.target.value }))} placeholder="Name of person who administered the treatment" /></div>
+            {/* ── Target species ── */}
+            <div><Label>Target Species</Label><Input value={String(form.targetSpecies ?? "")} onChange={e => setForm(f => ({ ...f, targetSpecies: e.target.value }))} placeholder="e.g. Cattle, Sheep, Pigs" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+
+            {/* ── Separation notice ── */}
+            <div className="col-span-2 mt-1 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-800">
+              <strong>Recording actual treatments?</strong> Once medicine has been administered, record each treatment event — ear tags, date given, who administered it, batch number used — in the <strong>Medicine</strong> module (sidebar). When creating a treatment entry there, you can link it back to this prescription for a full audit trail. Keeping prescription authorisation and treatment administration in separate registers is the VMR 2013 standard.
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

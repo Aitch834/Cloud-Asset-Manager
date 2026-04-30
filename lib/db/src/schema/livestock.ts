@@ -153,6 +153,7 @@ export const livestockMedicineRecordsTable = pgTable("livestock_medicine_records
   source: text("source").default("manual"),           // 'manual' | 'vet_ledger' | 'disease_incident'
   vetVisitMedicineId: integer("vet_visit_medicine_id"), // FK to vet_visit_medicines.id (when source='vet_ledger')
   diseaseIncidentId: integer("disease_incident_id"),    // FK to disease_incident_log (when source='disease_incident')
+  prescriptionId: integer("prescription_id"),           // FK to vet_prescription_records.id — links treatment to authorising prescription
   // ─── Organic compliance ───────────────────────────────────────────────────
   // Populated automatically when the treated herd is flagged isOrganicHerd=true
   isOrganicTreatment: boolean("is_organic_treatment").notNull().default(false),

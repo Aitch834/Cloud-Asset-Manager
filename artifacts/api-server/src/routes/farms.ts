@@ -16430,7 +16430,14 @@ router.delete("/farms/:farmId/ai-reproduction-records/:id", requireAuth, require
 router.get("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(vetPrescriptionRecordsTable).where(eq(vetPrescriptionRecordsTable.farmId, farmId)).orderBy(desc(vetPrescriptionRecordsTable.prescriptionDate));
-  res.json(rows);
+  // Attach treatment count for each prescription
+  const treatmentCounts = await db
+    .select({ prescriptionId: livestockMedicineRecordsTable.prescriptionId, count: sql<number>`count(*)::int` })
+    .from(livestockMedicineRecordsTable)
+    .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.prescriptionId)))
+    .groupBy(livestockMedicineRecordsTable.prescriptionId);
+  const countMap: Record<number, number> = Object.fromEntries(treatmentCounts.map(r => [r.prescriptionId!, r.count]));
+  res.json(rows.map(r => ({ ...r, treatmentsRecorded: countMap[r.id] ?? 0 })));
 });
 router.post("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
