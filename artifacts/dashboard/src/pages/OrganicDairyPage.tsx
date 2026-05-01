@@ -36,6 +36,22 @@ import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
+const FEED_TYPES: [string, string][] = [
+  ["Concentrate", "Concentrate"],
+  ["Grass Silage", "Grass Silage"],
+  ["Maize Silage", "Maize Silage"],
+  ["Hay", "Hay"],
+  ["Haylage", "Haylage"],
+  ["Wholecrop Silage", "Wholecrop Silage"],
+  ["Grazed Grass", "Grazed Grass"],
+  ["Straw", "Straw"],
+  ["Root Crops / Beet", "Root Crops / Beet"],
+  ["Minerals & Supplements", "Minerals & Supplements"],
+  ["Other", "Other"],
+];
+
+interface FarmSupplier { id: number; name: string; }
+
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
   return new Date(date).toLocaleDateString("en-GB");
@@ -762,6 +778,7 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [editing, setEditing] = useState<DairyFeedRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<DairyFeedRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyFeedRecord>>({});
+  const [supplierId, setSupplierId] = useState<string>("");
 
   const { data } = useQuery<{ records: DairyFeedRecord[] }>({
     queryKey: ["organic-dairy-feed", farmId],
@@ -769,6 +786,13 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     enabled: !!farmId,
   });
   const records = data?.records ?? [];
+
+  const { data: suppData } = useQuery<{ suppliers: FarmSupplier[] }>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const suppliers = suppData?.suppliers ?? [];
 
   const save = useMutation({
     mutationFn: () => {
@@ -791,8 +815,14 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setOpen(true); }
-  function openEdit(r: DairyFeedRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setSupplierId(""); setOpen(true); }
+  function openEdit(r: DairyFeedRecord) {
+    setEditing(r);
+    setForm({ ...r });
+    const matched = suppliers.find(s => s.name === r.supplier);
+    setSupplierId(matched ? String(matched.id) : "");
+    setOpen(true);
+  }
 
   const f = (k: keyof DairyFeedRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -898,15 +928,42 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
             </div>
             <div className="space-y-1">
               <Label>Feed Type *</Label>
-              <Input value={form.feedType ?? ""} onChange={f("feedType")} placeholder="e.g. Concentrate, Silage" />
+              <Select value={form.feedType ?? ""} onValueChange={v => setForm(p => ({ ...p, feedType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select feed type…" /></SelectTrigger>
+                <SelectContent>
+                  {FEED_TYPES.map(([val, label]) => (
+                    <SelectItem key={val} value={val}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Feed Product Name *</Label>
               <Input value={form.feedProductName ?? ""} onChange={f("feedProductName")} />
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Supplier</Label>
-              <Input value={form.supplier ?? ""} onChange={f("supplier")} />
+              <Select
+                value={supplierId || "__text__"}
+                onValueChange={v => {
+                  if (v === "__text__") {
+                    setSupplierId("");
+                    setForm(p => ({ ...p, supplier: "" }));
+                  } else {
+                    setSupplierId(v);
+                    setForm(p => ({ ...p, supplier: suppliers.find(s => String(s.id) === v)?.name ?? "" }));
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__text__">— Type supplier name manually —</SelectItem>
+                  {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {!supplierId && (
+                <Input className="mt-2" value={form.supplier ?? ""} onChange={f("supplier")} placeholder="Supplier name (if not in register)" />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Supplier Approval No.</Label>
