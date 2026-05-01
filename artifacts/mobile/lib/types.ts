@@ -1891,18 +1891,15 @@ export interface WelfareOutcomeRecord {
 export interface PpeIssueRecord {
   id: string;
   farmId: string;
-  issueDate: string;
   staffName: string;
   ppeType: string;
-  ppeDescription: string;
+  description: string;
   size: string;
-  manufacturer: string;
-  serialOrBatchNumber: string;
-  expiryDate: string;
-  issuedBy: string;
-  returned: boolean;
-  returnDate: string;
+  supplier: string;
+  dateIssued: string;
+  conditionAtCheck: string;
   notes: string;
+  isActive: boolean;
   createdAt: string;
   synced: boolean;
 }

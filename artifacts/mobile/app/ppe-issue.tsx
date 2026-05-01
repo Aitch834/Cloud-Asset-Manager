@@ -46,9 +46,11 @@ const PPE_TYPES = [
   "Other",
 ];
 
+const CONDITION_OPTIONS = ["Good — fit for purpose", "Acceptable — minor wear", "Needs Replacement", "Condemned — taken out of use"];
+
 export default function PpeIssueScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm, user } = useFarm();
+  const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
@@ -57,23 +59,19 @@ export default function PpeIssueScreen() {
 
   const [selectedMember, setSelectedMember] = useState<ApiFarmMember | null>(null);
   const [manualName, setManualName] = useState("");
-  const [issueDate, setIssueDate] = useState(today);
+  const [dateIssued, setDateIssued] = useState(today);
   const [ppeType, setPpeType] = useState(PPE_TYPES[0]);
-  const [ppeDescription, setPpeDescription] = useState("");
+  const [description, setDescription] = useState("");
   const [size, setSize] = useState("");
-  const [manufacturer, setManufacturer] = useState("");
-  const [serialOrBatchNumber, setSerialOrBatchNumber] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [issuedBy, setIssuedBy] = useState(user?.name || "");
-  const [returned, setReturned] = useState(false);
-  const [returnDate, setReturnDate] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [conditionAtCheck, setConditionAtCheck] = useState("");
   const [notes, setNotes] = useState("");
 
   const noMembersLoaded = !membersLoading && members.length === 0;
   const resolvedStaffName = selectedMember ? memberFullName(selectedMember) : manualName.trim();
 
   const handleSave = async () => {
-    if (!resolvedStaffName || !issueDate || !ppeType) {
+    if (!resolvedStaffName || !dateIssued || !ppeType) {
       Alert.alert("Required Fields", "Please select a staff member, enter the issue date and PPE type.");
       return;
     }
@@ -83,18 +81,15 @@ export default function PpeIssueScreen() {
     const record: PpeIssueRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
-      issueDate,
       staffName: resolvedStaffName,
       ppeType,
-      ppeDescription: ppeDescription.trim(),
+      description: description.trim(),
       size: size.trim(),
-      manufacturer: manufacturer.trim(),
-      serialOrBatchNumber: serialOrBatchNumber.trim(),
-      expiryDate: expiryDate.trim(),
-      issuedBy: issuedBy.trim(),
-      returned,
-      returnDate: returnDate.trim(),
+      supplier: supplier.trim(),
+      dateIssued,
+      conditionAtCheck: conditionAtCheck.trim(),
       notes: notes.trim(),
+      isActive: true,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -102,7 +97,7 @@ export default function PpeIssueScreen() {
     await appendToList(STORAGE_KEYS.PPE_ISSUE_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "PPE issue record saved offline and queued for sync.", [
+    Alert.alert("Saved", "PPE issue record saved and queued for sync.", [
       { text: "OK", onPress: () => router.back() },
     ]);
   };
@@ -147,16 +142,10 @@ export default function PpeIssueScreen() {
 
           <Text style={styles.sectionTitle}>Issue Details</Text>
           <Input
-            label="Issue Date *"
-            value={issueDate}
-            onChangeText={setIssueDate}
+            label="Date Issued *"
+            value={dateIssued}
+            onChangeText={setDateIssued}
             placeholder="YYYY-MM-DD"
-          />
-          <Input
-            label="Issued By"
-            value={issuedBy}
-            onChangeText={setIssuedBy}
-            placeholder="Name of person issuing PPE"
           />
 
           <Text style={styles.fieldLabel}>PPE Type *</Text>
@@ -177,10 +166,10 @@ export default function PpeIssueScreen() {
 
           <Text style={styles.sectionTitle}>Equipment Details</Text>
           <Input
-            label="Description / Model"
-            value={ppeDescription}
-            onChangeText={setPpeDescription}
-            placeholder="e.g. JSP EVO2 Type 1"
+            label="Description / Model / Spec"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="e.g. JSP EVO2 Type 1, EN ISO 20345 S3"
           />
           <View style={styles.row}>
             <View style={{ flex: 1, marginRight: spacing.sm }}>
@@ -193,51 +182,36 @@ export default function PpeIssueScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Input
-                label="Expiry Date"
-                value={expiryDate}
-                onChangeText={setExpiryDate}
-                placeholder="YYYY-MM-DD"
+                label="Supplier / Brand"
+                value={supplier}
+                onChangeText={setSupplier}
+                placeholder="e.g. Portwest, 3M"
               />
             </View>
           </View>
-          <Input
-            label="Manufacturer"
-            value={manufacturer}
-            onChangeText={setManufacturer}
-            placeholder="e.g. JSP, 3M, Portwest"
-          />
-          <Input
-            label="Serial / Batch Number"
-            value={serialOrBatchNumber}
-            onChangeText={setSerialOrBatchNumber}
-            placeholder="Optional identifier"
-          />
 
-          <Text style={styles.sectionTitle}>Return</Text>
-          <Pressable
-            style={styles.toggleRow}
-            onPress={() => setReturned(!returned)}
-          >
-            <View style={[styles.checkbox, returned && styles.checkboxChecked]}>
-              {returned && <Feather name="check" size={12} color="#fff" />}
-            </View>
-            <Text style={styles.toggleLabel}>PPE has been returned</Text>
-          </Pressable>
-          {returned && (
-            <Input
-              label="Return Date"
-              value={returnDate}
-              onChangeText={setReturnDate}
-              placeholder="YYYY-MM-DD"
-            />
-          )}
+          <Text style={styles.sectionTitle}>Condition at Issue</Text>
+          <View style={styles.ppeList}>
+            {CONDITION_OPTIONS.map((c) => (
+              <Pressable
+                key={c}
+                style={[styles.ppeOption, conditionAtCheck === c && styles.ppeOptionActive]}
+                onPress={() => setConditionAtCheck(conditionAtCheck === c ? "" : c)}
+              >
+                <View style={[styles.radioOuter, conditionAtCheck === c && { borderColor: colors.primary }]}>
+                  {conditionAtCheck === c && <View style={styles.radioInner} />}
+                </View>
+                <Text style={[styles.ppeOptionText, conditionAtCheck === c && { color: colors.primary }]}>{c}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Text style={styles.sectionTitle}>Notes</Text>
           <Input
             label="Additional Notes"
             value={notes}
             onChangeText={setNotes}
-            placeholder="Condition on issue, reason for issue, etc."
+            placeholder="Any additional details about this issue"
             multiline
             numberOfLines={3}
           />
@@ -311,18 +285,6 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
-  toggleLabel: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
   clearMember: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs },
   clearMemberText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
 });

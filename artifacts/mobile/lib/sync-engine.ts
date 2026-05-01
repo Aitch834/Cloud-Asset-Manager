@@ -254,6 +254,22 @@ async function uploadSyncItem(item: {
 }
 
 function remapForApi(recordType: string, data: Record<string, unknown>): Record<string, unknown> {
+  if (recordType === "bde_ppe_issue_records") {
+    return {
+      staffName: data.staffName,
+      ppeType: data.ppeType,
+      description: data.description ?? data.ppeDescription ?? null,
+      size: data.size ?? null,
+      supplier: data.supplier ?? data.manufacturer ?? null,
+      dateIssued: data.dateIssued ?? data.issueDate ?? null,
+      conditionAtCheck: data.conditionAtCheck ?? null,
+      conditionCheckDate: data.conditionCheckDate ?? null,
+      replacedDate: data.replacedDate ?? data.returnDate ?? null,
+      replacedReason: data.replacedReason ?? (data.returned ? "Returned" : null),
+      notes: data.notes ?? null,
+      isActive: data.isActive !== undefined ? data.isActive : !data.returned,
+    };
+  }
   if (recordType === "bde_organic_fp_inputs") {
     return {
       ...data,
@@ -374,7 +390,7 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_organic_treatments: `/farms/${farmId}/organic-livestock/treatments`,
     bde_tb_tests: `/farms/${farmId}/tb-tests`,
     bde_welfare_outcome_assessments: `/farms/${farmId}/welfare-outcomes`,
-    bde_ppe_issue_records: `/farms/${farmId}/ppe-issues`,
+    bde_ppe_issue_records: `/farms/${farmId}/ppe-issue-records`,
   };
   return typeMap[recordType] || null;
 }
