@@ -154,9 +154,12 @@ const TITLES: [string, string][] = [
   ["Task Assignment — Filtering by Department & Viewing Department Tasks", "Staff & Training"],
   ["Contractor H&S File — Reviews, Compliance Tasks & Supplier Badges", "Risk & Waste"],
   ["Task Board — New Task Types & Filtering Completed Tasks by Date", "Planning"],
-  ["PPE Register — Where to Find It & How the Two Sub-Registers Work", "Staff & Training"],
+  ["PPE Register — Where to Find It & How the Three Sub-Registers Work", "Staff & Training"],
   ["PPE Stock Register — Supplier Traceability, Invoice Refs & Stock Levels", "Staff & Training"],
   ["PPE Issue Register — Issuing PPE to Staff & Recording Condition Checks", "Staff & Training"],
+  ["PPE Risk Assessments — Recording Assessments Under PPE at Work Regulations 2022", "Staff & Training"],
+  ["PPE Compliance Pack — Printing the Full PPE Register for Inspection", "Staff & Training"],
+  ["PPE Staff Record — Printing an Individual Staff Member's PPE History", "Staff & Training"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
