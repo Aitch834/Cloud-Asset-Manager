@@ -94,6 +94,9 @@ function RootLayoutNav() {
         <Stack.Screen name="organic-overview" options={{ headerShown: false }} />
         <Stack.Screen name="organic-inspection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-input" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="tb-test" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="welfare-outcome" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="ppe-issue" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>

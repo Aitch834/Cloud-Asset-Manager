@@ -145,6 +145,16 @@ const TITLES: [string, string][] = [
   ["Organic Livestock — Treatment Compliance (No Double Entry)", "Organic"],
   ["Organic Dairy — Herd Conversion & Milk Collection Records", "Organic Dairy"],
   ["Organic Dairy — Treatment Compliance & Organic Feed Records", "Organic Dairy"],
+  ["TB Testing — Enhanced Data Capture & History", "Livestock"],
+  ["Welfare Outcome Assessments — Scoring, Reporting & Mobile Recording", "Livestock"],
+  ["Fallen Stock Records — Contractor, Veterinary Details & Invoice Tracking", "Livestock"],
+  ["Sheep Dipping Records — Pesticide Certificates & Stock Usage", "Livestock"],
+  ["Vet Prescriptions — Linking Treatments to Written Authorisations", "Livestock"],
+  ["Department Management — Creating Departments & Assigning Staff", "Staff & Training"],
+  ["Task Assignment — Filtering by Department & Viewing Department Tasks", "Staff & Training"],
+  ["Contractor H&S File — Reviews, Compliance Tasks & Supplier Badges", "Risk & Waste"],
+  ["Task Board — New Task Types & Filtering Completed Tasks by Date", "Planning"],
+  ["PPE Issue Records — Logging PPE Distribution to Staff", "Risk & Waste"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
