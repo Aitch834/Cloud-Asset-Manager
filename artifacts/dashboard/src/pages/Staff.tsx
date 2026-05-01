@@ -381,10 +381,10 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
           </div>
           <div className="flex gap-3 mb-3 flex-wrap">
             <Input value={issueSearch} onChange={e => setIssueSearch(e.target.value)} placeholder="Search by name or PPE type…" style={{ maxWidth: 260 }} />
-            <Select value={staffFilter} onValueChange={setStaffFilter}>
+            <Select value={staffFilter || "__all__"} onValueChange={v => setStaffFilter(v === "__all__" ? "" : v)}>
               <SelectTrigger style={{ maxWidth: 220 }}><SelectValue placeholder="All staff members" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All staff members</SelectItem>
+                <SelectItem value="__all__">All staff members</SelectItem>
                 {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -549,10 +549,10 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               </div>
               {allStock.length > 0 && (
                 <div style={{ gridColumn: "1 / -1" }}><Label>Issue From Stock (optional)</Label>
-                  <Select value={issueForm.stockItemId || ""} onValueChange={v => selectStockItem(v)}>
+                  <Select value={issueForm.stockItemId || "__none__"} onValueChange={v => selectStockItem(v === "__none__" ? "" : v)}>
                     <SelectTrigger><SelectValue placeholder="Select stock item to auto-fill details…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">— Not from stock —</SelectItem>
+                      <SelectItem value="__none__">— Not from stock —</SelectItem>
                       {allStock.filter(s => s.quantityInStock > 0).map(s => (
                         <SelectItem key={s.id} value={String(s.id)}>{PPE_TYPES[s.ppeType] ?? s.ppeType}{s.description ? ` — ${s.description}` : ""}{s.size ? ` (${s.size})` : ""} · {s.quantityInStock} in stock</SelectItem>
                       ))}
