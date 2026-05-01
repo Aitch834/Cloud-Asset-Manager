@@ -92,6 +92,33 @@ export const welfareOutcomeAssessmentsTable = pgTable("welfare_outcome_assessmen
 export type WelfareOutcomeAssessment = typeof welfareOutcomeAssessmentsTable.$inferSelect;
 export type NewWelfareOutcomeAssessment = typeof welfareOutcomeAssessmentsTable.$inferInsert;
 
+// ─── PPE Stock Register ───────────────────────────────────────────────────────
+// Inventory of PPE items held on the farm, with supplier and invoice traceability.
+
+export const ppeStockItemsTable = pgTable("ppe_stock_items", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  ppeType: text("ppe_type").notNull(),
+  description: text("description"),
+  size: text("size"),
+  quantityReceived: integer("quantity_received").notNull().default(0),
+  quantityInStock: integer("quantity_in_stock").notNull().default(0),
+  unitCostPence: integer("unit_cost_pence"),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  supplierName: text("supplier_name"),
+  invoiceRef: text("invoice_ref"),
+  deliveryNoteRef: text("delivery_note_ref"),
+  receivedDate: date("received_date"),
+  batchNumber: text("batch_number"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PpeStockItem = typeof ppeStockItemsTable.$inferSelect;
+export type NewPpeStockItem = typeof ppeStockItemsTable.$inferInsert;
+
 // ─── PPE Issue Records ────────────────────────────────────────────────────────
 // Physical record of PPE issued to individual staff members.
 // Separate from COSHH "PPE Required" text — this is the issue register.
@@ -106,6 +133,7 @@ export const ppeIssueRecordsTable = pgTable("ppe_issue_records", {
   description: text("description"),                    // e.g. "Nitrile gloves, size L"
   size: text("size"),
   supplier: text("supplier"),
+  stockItemId: integer("stock_item_id").references(() => ppeStockItemsTable.id),
   dateIssued: date("date_issued").notNull(),
   conditionCheckDate: date("condition_check_date"),
   conditionAtCheck: text("condition_at_check"),        // "good", "worn", "damaged", "replaced"

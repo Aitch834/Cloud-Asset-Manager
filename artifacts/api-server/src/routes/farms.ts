@@ -278,6 +278,7 @@ import {
   tbTestsTable,
   welfareOutcomeAssessmentsTable,
   ppeIssueRecordsTable,
+  ppeStockItemsTable,
   contractorsTable,
   contractorContactsTable,
   contractorRamsTable,
@@ -20633,6 +20634,7 @@ router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requ
   const farmId = parseInt(req.params.farmId);
   const b = req.body as Record<string, unknown>;
   if (!b.staffName || !b.ppeType || !b.dateIssued) { res.status(400).json({ error: "staffName, ppeType and dateIssued are required" }); return; }
+  const stockItemId = b.stockItemId ? parseInt(String(b.stockItemId)) : null;
   const [record] = await db.insert(ppeIssueRecordsTable).values({
     farmId,
     staffName: String(b.staffName),
@@ -20641,6 +20643,7 @@ router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requ
     description: b.description ? String(b.description) : null,
     size: b.size ? String(b.size) : null,
     supplier: b.supplier ? String(b.supplier) : null,
+    stockItemId,
     dateIssued: String(b.dateIssued),
     conditionCheckDate: b.conditionCheckDate ? String(b.conditionCheckDate) : null,
     conditionAtCheck: b.conditionAtCheck ? String(b.conditionAtCheck) : null,
@@ -20649,6 +20652,10 @@ router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requ
     notes: b.notes ? String(b.notes) : null,
     isActive: b.isActive !== false,
   }).returning();
+  // Decrement stock quantity if issued from a stock item
+  if (stockItemId) {
+    await db.execute(sql`UPDATE ppe_stock_items SET quantity_in_stock = GREATEST(0, quantity_in_stock - 1), updated_at = NOW() WHERE id = ${stockItemId} AND farm_id = ${farmId}`);
+  }
   res.json({ record });
 });
 
@@ -20657,7 +20664,7 @@ router.put("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["staffName","staffUserId","ppeType","description","size","supplier","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive"];
+  const fields = ["staffName","staffUserId","ppeType","description","size","supplier","stockItemId","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(ppeIssueRecordsTable).set(updates).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -20668,6 +20675,81 @@ router.delete("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
   await db.delete(ppeIssueRecordsTable).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── PPE Stock Items ──────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const items = await db.select({
+    id: ppeStockItemsTable.id,
+    farmId: ppeStockItemsTable.farmId,
+    ppeType: ppeStockItemsTable.ppeType,
+    description: ppeStockItemsTable.description,
+    size: ppeStockItemsTable.size,
+    quantityReceived: ppeStockItemsTable.quantityReceived,
+    quantityInStock: ppeStockItemsTable.quantityInStock,
+    unitCostPence: ppeStockItemsTable.unitCostPence,
+    supplierId: ppeStockItemsTable.supplierId,
+    supplierName: ppeStockItemsTable.supplierName,
+    supplierRecordName: suppliersTable.name,
+    invoiceRef: ppeStockItemsTable.invoiceRef,
+    deliveryNoteRef: ppeStockItemsTable.deliveryNoteRef,
+    receivedDate: ppeStockItemsTable.receivedDate,
+    batchNumber: ppeStockItemsTable.batchNumber,
+    notes: ppeStockItemsTable.notes,
+    isActive: ppeStockItemsTable.isActive,
+    createdAt: ppeStockItemsTable.createdAt,
+  })
+    .from(ppeStockItemsTable)
+    .leftJoin(suppliersTable, eq(suppliersTable.id, ppeStockItemsTable.supplierId))
+    .where(eq(ppeStockItemsTable.farmId, farmId))
+    .orderBy(desc(ppeStockItemsTable.createdAt));
+  res.json({ items });
+});
+
+router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  if (!b.ppeType) { res.status(400).json({ error: "ppeType is required" }); return; }
+  const qty = b.quantityReceived ? parseInt(String(b.quantityReceived)) : 0;
+  const [item] = await db.insert(ppeStockItemsTable).values({
+    farmId,
+    ppeType: String(b.ppeType),
+    description: b.description ? String(b.description) : null,
+    size: b.size ? String(b.size) : null,
+    quantityReceived: qty,
+    quantityInStock: qty,
+    unitCostPence: b.unitCostPence ? parseInt(String(b.unitCostPence)) : null,
+    supplierId: b.supplierId ? parseInt(String(b.supplierId)) : null,
+    supplierName: b.supplierName ? String(b.supplierName) : null,
+    invoiceRef: b.invoiceRef ? String(b.invoiceRef) : null,
+    deliveryNoteRef: b.deliveryNoteRef ? String(b.deliveryNoteRef) : null,
+    receivedDate: b.receivedDate ? String(b.receivedDate) : null,
+    batchNumber: b.batchNumber ? String(b.batchNumber) : null,
+    notes: b.notes ? String(b.notes) : null,
+    isActive: b.isActive !== false,
+  }).returning();
+  res.json({ item });
+});
+
+router.put("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["ppeType","description","size","quantityReceived","quantityInStock","unitCostPence","supplierId","supplierName","invoiceRef","deliveryNoteRef","receivedDate","batchNumber","notes","isActive"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [item] = await db.update(ppeStockItemsTable).set(updates).where(and(eq(ppeStockItemsTable.id, id), eq(ppeStockItemsTable.farmId, farmId))).returning();
+  if (!item) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(ppeStockItemsTable).where(and(eq(ppeStockItemsTable.id, id), eq(ppeStockItemsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

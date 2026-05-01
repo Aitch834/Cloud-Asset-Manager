@@ -15,7 +15,7 @@ import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
   Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound, Eye,
-  Building2, Trash2,
+  Building2, Trash2, ShieldCheck, Package, Pencil, Loader2, Printer, HardHat,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -121,6 +121,516 @@ const ACCESS_ICONS: Record<string, React.ElementType> = {
   full: Unlock,
   limited: Smartphone,
 };
+
+// ─── PPE Types & Interfaces ────────────────────────────────────────────────────
+
+const PPE_TYPES: Record<string, string> = {
+  "safety-boots": "Safety Boots",
+  "safety-helmet": "Safety Helmet",
+  "hi-vis-vest": "Hi-Vis Vest",
+  "gloves": "Gloves (Chemical / General)",
+  "safety-glasses": "Safety Glasses / Goggles",
+  "ear-protection": "Ear Protection",
+  "dust-mask": "Dust Mask / Respirator",
+  "face-shield": "Face Shield",
+  "waterproof-suit": "Waterproof / Chemical Suit",
+  "chainsaw-ppe": "Chainsaw PPE (chaps, gloves, helmet)",
+  "apron": "Apron",
+  "other": "Other",
+};
+
+interface PpeRecord {
+  id: number;
+  farmId: number;
+  staffName: string;
+  staffUserId: string | null;
+  ppeType: string;
+  description: string | null;
+  size: string | null;
+  supplier: string | null;
+  stockItemId: number | null;
+  dateIssued: string;
+  conditionCheckDate: string | null;
+  conditionAtCheck: string | null;
+  replacedDate: string | null;
+  replacedReason: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+interface PpeStockItem {
+  id: number;
+  farmId: number;
+  ppeType: string;
+  description: string | null;
+  size: string | null;
+  quantityReceived: number;
+  quantityInStock: number;
+  unitCostPence: number | null;
+  supplierId: number | null;
+  supplierName: string | null;
+  supplierRecordName: string | null;
+  invoiceRef: string | null;
+  deliveryNoteRef: string | null;
+  receivedDate: string | null;
+  batchNumber: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface FarmSupplier { id: number; name: string; }
+
+function fmt(d: string | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB");
+}
+
+// ─── PPE Register Section ─────────────────────────────────────────────────────
+
+function PpeRegisterSection({ farmId, members }: { farmId: number; members: FarmMember[] }) {
+  const qc = useQueryClient();
+  const issueBase = `/api/farms/${farmId}/ppe-issue-records`;
+  const stockBase = `/api/farms/${farmId}/ppe-stock-items`;
+
+  const { data: issueData, isLoading: issueLoading } = useQuery<{ records: PpeRecord[] }>({
+    queryKey: ["ppe-records", farmId],
+    queryFn: () => fetch(issueBase, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const { data: stockData, isLoading: stockLoading } = useQuery<{ items: PpeStockItem[] }>({
+    queryKey: ["ppe-stock", farmId],
+    queryFn: () => fetch(stockBase, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const { data: suppData } = useQuery<{ suppliers: FarmSupplier[] }>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const allRecords = issueData?.records ?? [];
+  const allStock = stockData?.items ?? [];
+  const suppliers = suppData?.suppliers ?? [];
+
+  const [subTab, setSubTab] = useState<"stock" | "issues">("stock");
+  const [staffFilter, setStaffFilter] = useState("");
+  const [issueSearch, setIssueSearch] = useState("");
+
+  // ── Issue form
+  const EMPTY_ISSUE = { staffName: "", ppeType: "safety-boots", description: "", size: "", supplier: "", stockItemId: "" as string, dateIssued: "", conditionCheckDate: "", conditionAtCheck: "", replacedDate: "", replacedReason: "", notes: "", isActive: true };
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [editIssue, setEditIssue] = useState<PpeRecord | null>(null);
+  const [issueForm, setIssueForm] = useState({ ...EMPTY_ISSUE });
+  const [deleteIssueId, setDeleteIssueId] = useState<number | null>(null);
+  const [viewIssue, setViewIssue] = useState<PpeRecord | null>(null);
+
+  // ── Stock form
+  const EMPTY_STOCK = { ppeType: "safety-boots", description: "", size: "", quantityReceived: "1", unitCostPence: "", supplierId: "", supplierName: "", invoiceRef: "", deliveryNoteRef: "", receivedDate: "", batchNumber: "", notes: "", isActive: true };
+  const [showStockForm, setShowStockForm] = useState(false);
+  const [editStock, setEditStock] = useState<PpeStockItem | null>(null);
+  const [stockForm, setStockForm] = useState({ ...EMPTY_STOCK });
+  const [deleteStockId, setDeleteStockId] = useState<number | null>(null);
+  const [viewStock, setViewStock] = useState<PpeStockItem | null>(null);
+
+  const setIF = (k: string, v: unknown) => setIssueForm(f => ({ ...f, [k]: v }));
+  const setSF = (k: string, v: unknown) => setStockForm(f => ({ ...f, [k]: v }));
+
+  const createIssueMut = useMutation({
+    mutationFn: (b: typeof EMPTY_ISSUE) => fetch(issueBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowIssueForm(false); setIssueForm({ ...EMPTY_ISSUE }); },
+  });
+  const updateIssueMut = useMutation({
+    mutationFn: (b: typeof EMPTY_ISSUE & { id: number }) => fetch(`${issueBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setShowIssueForm(false); setEditIssue(null); },
+  });
+  const deleteIssueMut = useMutation({
+    mutationFn: (id: number) => fetch(`${issueBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setDeleteIssueId(null); },
+  });
+
+  const createStockMut = useMutation({
+    mutationFn: (b: typeof EMPTY_STOCK) => fetch(stockBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowStockForm(false); setStockForm({ ...EMPTY_STOCK }); },
+  });
+  const updateStockMut = useMutation({
+    mutationFn: (b: typeof EMPTY_STOCK & { id: number }) => fetch(`${stockBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), quantityInStock: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowStockForm(false); setEditStock(null); },
+  });
+  const deleteStockMut = useMutation({
+    mutationFn: (id: number) => fetch(`${stockBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setDeleteStockId(null); },
+  });
+
+  function openEditIssue(r: PpeRecord) {
+    setEditIssue(r);
+    setIssueForm({ staffName: r.staffName, ppeType: r.ppeType, description: r.description ?? "", size: r.size ?? "", supplier: r.supplier ?? "", stockItemId: r.stockItemId ? String(r.stockItemId) : "", dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? "", conditionAtCheck: r.conditionAtCheck ?? "", replacedDate: r.replacedDate ?? "", replacedReason: r.replacedReason ?? "", notes: r.notes ?? "", isActive: r.isActive });
+    setShowIssueForm(true);
+  }
+
+  function openEditStock(s: PpeStockItem) {
+    setEditStock(s);
+    setStockForm({ ppeType: s.ppeType, description: s.description ?? "", size: s.size ?? "", quantityReceived: String(s.quantityReceived), unitCostPence: s.unitCostPence ? String((s.unitCostPence / 100).toFixed(2)) : "", supplierId: s.supplierId ? String(s.supplierId) : "", supplierName: s.supplierName ?? "", invoiceRef: s.invoiceRef ?? "", deliveryNoteRef: s.deliveryNoteRef ?? "", receivedDate: s.receivedDate ?? "", batchNumber: s.batchNumber ?? "", notes: s.notes ?? "", isActive: s.isActive });
+    setShowStockForm(true);
+  }
+
+  // When a stock item is selected in the issue form, auto-fill type/description/size
+  function selectStockItem(sid: string) {
+    setIF("stockItemId", sid);
+    if (!sid) return;
+    const s = allStock.find(x => x.id === parseInt(sid));
+    if (s) { setIF("ppeType", s.ppeType); setIF("description", s.description ?? ""); setIF("size", s.size ?? ""); setIF("supplier", s.supplierRecordName ?? s.supplierName ?? ""); }
+  }
+
+  const filteredIssues = allRecords.filter(r => {
+    const matchStaff = !staffFilter || r.staffName.toLowerCase().includes(staffFilter.toLowerCase());
+    const matchSearch = !issueSearch || r.staffName.toLowerCase().includes(issueSearch.toLowerCase()) || (PPE_TYPES[r.ppeType] ?? r.ppeType).toLowerCase().includes(issueSearch.toLowerCase());
+    return matchStaff && matchSearch;
+  });
+
+  const staffNames = Array.from(new Set(members.filter(m => m.isActive).map(m => `${m.firstName} ${m.lastName}`))).sort();
+
+  const resolveSupplierName = (item: PpeStockItem) => item.supplierRecordName ?? item.supplierName ?? "—";
+
+  return (
+    <div className="space-y-4">
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", marginBottom: 0 }}>
+        {(["stock", "issues"] as const).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", borderBottom: subTab === t ? "2px solid #166534" : "2px solid transparent", marginBottom: -2, background: "none", border: "none", borderBottomWidth: 2, borderBottomStyle: "solid", cursor: "pointer" }}>
+            {t === "stock" ? "PPE Stock Register" : "PPE Issue Register"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── PPE Stock ── */}
+      {subTab === "stock" && (
+        <div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">PPE Stock Register</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Track PPE items held in stock with full supplier and invoice traceability.</p>
+            </div>
+            <Button onClick={() => { setEditStock(null); setStockForm({ ...EMPTY_STOCK }); setShowStockForm(true); }}>
+              <Plus className="w-4 h-4 mr-2" />Add Stock
+            </Button>
+          </div>
+          {stockLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+          ) : allStock.length === 0 ? (
+            <Card><CardContent className="py-12 text-center">
+              <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p className="font-semibold text-gray-600 mb-1">No PPE stock recorded</p>
+              <p className="text-sm text-gray-400">Add incoming PPE deliveries to maintain a stock register with supplier and invoice links.</p>
+            </CardContent></Card>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f9fafb" }}>
+                  <tr>
+                    {["PPE Type","Description","Size","Qty In Stock","Unit Cost","Supplier","Invoice Ref","Delivery Note","Received","Batch",""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {allStock.map((s, i) => (
+                    <tr key={s.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{PPE_TYPES[s.ppeType] ?? s.ppeType}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151" }}>{s.description ?? "—"}</td>
+                      <td style={{ padding: "10px 14px", color: "#6b7280" }}>{s.size ?? "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ fontWeight: 700, color: s.quantityInStock === 0 ? "#ef4444" : s.quantityInStock <= 2 ? "#d97706" : "#166534" }}>{s.quantityInStock}</span>
+                        <span style={{ color: "#9ca3af", fontSize: "0.75rem", marginLeft: 4 }}>/ {s.quantityReceived} recv</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "#374151" }}>{s.unitCostPence ? `£${(s.unitCostPence / 100).toFixed(2)}` : "—"}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151" }}>{resolveSupplierName(s)}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>{s.invoiceRef ?? "—"}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>{s.deliveryNoteRef ?? "—"}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(s.receivedDate)}</td>
+                      <td style={{ padding: "10px 14px", color: "#6b7280" }}>{s.batchNumber ?? "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => setViewStock(s)}><Eye size={13} /></Button>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => openEditStock(s)}><Pencil size={13} /></Button>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#ef4444" }} onClick={() => setDeleteStockId(s.id)}><Trash2 size={13} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PPE Issues ── */}
+      {subTab === "issues" && (
+        <div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">PPE Issue Register</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Record all PPE issued to named staff members. Required under PPE at Work Regulations 2022.</p>
+            </div>
+            <Button onClick={() => { setEditIssue(null); setIssueForm({ ...EMPTY_ISSUE }); setShowIssueForm(true); }}>
+              <Plus className="w-4 h-4 mr-2" />Issue PPE
+            </Button>
+          </div>
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: "0.875rem", color: "#1e40af" }}>
+            <strong>Legal requirement:</strong> Employers must provide PPE free of charge, keep a record of issue, and inspect condition regularly. The PPE at Work Regulations 2022 require documented risk assessments and individualised records.
+          </div>
+          <div className="flex gap-3 mb-3 flex-wrap">
+            <Input value={issueSearch} onChange={e => setIssueSearch(e.target.value)} placeholder="Search by name or PPE type…" style={{ maxWidth: 260 }} />
+            <Select value={staffFilter} onValueChange={setStaffFilter}>
+              <SelectTrigger style={{ maxWidth: 220 }}><SelectValue placeholder="All staff members" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All staff members</SelectItem>
+                {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {issueLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+          ) : filteredIssues.length === 0 ? (
+            <Card><CardContent className="py-12 text-center">
+              <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p className="font-semibold text-gray-600 mb-1">No PPE records{issueSearch || staffFilter ? " matching filter" : ""}</p>
+              <p className="text-sm text-gray-400">Issue PPE to staff members and record it here.</p>
+            </CardContent></Card>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f9fafb" }}>
+                  <tr>
+                    {["Staff Member","PPE Type","Size","Date Issued","Last Check","Condition","Status",""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIssues.map((r, i) => (
+                    <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{r.staffName}</td>
+                      <td style={{ padding: "10px 14px" }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                      <td style={{ padding: "10px 14px", color: "#6b7280" }}>{r.size ?? "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>{fmt(r.dateIssued)}</td>
+                      <td style={{ padding: "10px 14px" }}>{fmt(r.conditionCheckDate)}</td>
+                      <td style={{ padding: "10px 14px" }}>{r.conditionAtCheck ?? "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: r.isActive ? "#dcfce7" : "#f3f4f6", color: r.isActive ? "#166534" : "#6b7280" }}>{r.isActive ? "Active" : "Replaced"}</span>
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => setViewIssue(r)}><Eye size={13} /></Button>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0 }} onClick={() => openEditIssue(r)}><Pencil size={13} /></Button>
+                          <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#ef4444" }} onClick={() => setDeleteIssueId(r.id)}><Trash2 size={13} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── View Stock Dialog ── */}
+      {viewStock && (
+        <Dialog open onOpenChange={() => setViewStock(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>PPE Stock Item — {PPE_TYPES[viewStock.ppeType] ?? viewStock.ppeType}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8, fontSize: "0.875rem" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p className="font-semibold">{PPE_TYPES[viewStock.ppeType] ?? viewStock.ppeType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Description</p><p>{viewStock.description ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Size</p><p>{viewStock.size ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Received</p><p className="font-semibold">{viewStock.quantityReceived}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>In Stock</p><p className="font-semibold" style={{ color: viewStock.quantityInStock === 0 ? "#ef4444" : "#166534" }}>{viewStock.quantityInStock}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Unit Cost</p><p>{viewStock.unitCostPence ? `£${(viewStock.unitCostPence / 100).toFixed(2)}` : "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Supplier</p><p>{resolveSupplierName(viewStock)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Invoice Ref</p><p className="font-mono text-sm">{viewStock.invoiceRef ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Note</p><p className="font-mono text-sm">{viewStock.deliveryNoteRef ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Received Date</p><p>{fmt(viewStock.receivedDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Batch Number</p><p className="font-mono text-sm">{viewStock.batchNumber ?? "—"}</p></div>
+              {viewStock.notes && <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ whiteSpace: "pre-line" }}>{viewStock.notes}</p></div>}
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { openEditStock(viewStock); setViewStock(null); }}><Pencil size={13} className="mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewStock(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── View Issue Dialog ── */}
+      {viewIssue && (
+        <Dialog open onOpenChange={() => setViewIssue(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>PPE Record — {viewIssue.staffName}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8, fontSize: "0.875rem" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Staff Member</p><p className="font-semibold">{viewIssue.staffName}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p>{PPE_TYPES[viewIssue.ppeType] ?? viewIssue.ppeType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Description</p><p>{viewIssue.description ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Size</p><p>{viewIssue.size ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Supplier</p><p>{viewIssue.supplier ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Date Issued</p><p>{fmt(viewIssue.dateIssued)}</p></div>
+              {viewIssue.stockItemId && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>From Stock Batch</p><p>#{viewIssue.stockItemId} — {PPE_TYPES[allStock.find(s => s.id === viewIssue.stockItemId)?.ppeType ?? ""] ?? "—"}</p></div>}
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition Check Date</p><p>{fmt(viewIssue.conditionCheckDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition at Check</p><p>{viewIssue.conditionAtCheck ?? "—"}</p></div>
+              {viewIssue.replacedDate && <><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replaced Date</p><p>{fmt(viewIssue.replacedDate)}</p></div><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replacement Reason</p><p>{viewIssue.replacedReason ?? "—"}</p></div></>}
+              {viewIssue.notes && <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ whiteSpace: "pre-line" }}>{viewIssue.notes}</p></div>}
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { openEditIssue(viewIssue); setViewIssue(null); }}><Pencil size={13} className="mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewIssue(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Stock Form Dialog ── */}
+      {showStockForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowStockForm(false); setEditStock(null); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editStock ? "Edit Stock Item" : "Add PPE to Stock"}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
+              <div style={{ gridColumn: "1 / -1" }}><Label>PPE Type *</Label>
+                <Select value={stockForm.ppeType} onValueChange={v => setSF("ppeType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(PPE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Description / Specification</Label><Input value={stockForm.description} onChange={e => setSF("description", e.target.value)} placeholder="e.g. EN ISO 20345 S3 safety boot" /></div>
+              <div><Label>Size</Label><Input value={stockForm.size} onChange={e => setSF("size", e.target.value)} placeholder="e.g. UK 8–12, L, M" /></div>
+              <div><Label>Quantity Received *</Label><Input type="number" min="0" value={stockForm.quantityReceived} onChange={e => setSF("quantityReceived", e.target.value)} /></div>
+              <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={stockForm.unitCostPence} onChange={e => setSF("unitCostPence", e.target.value)} placeholder="e.g. 24.99" /></div>
+              <div><Label>Received Date</Label><Input type="date" value={stockForm.receivedDate} onChange={e => setSF("receivedDate", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Supplier</Label>
+                <Select value={stockForm.supplierId || "__text__"} onValueChange={v => { if (v === "__text__") { setSF("supplierId", ""); } else { setSF("supplierId", v); setSF("supplierName", suppliers.find(s => String(s.id) === v)?.name ?? ""); } }}>
+                  <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__text__">— Type supplier name manually —</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {!stockForm.supplierId && <Input className="mt-2" value={stockForm.supplierName} onChange={e => setSF("supplierName", e.target.value)} placeholder="Supplier name (if not in register)" />}
+              </div>
+              <div><Label>Invoice Reference</Label><Input value={stockForm.invoiceRef} onChange={e => setSF("invoiceRef", e.target.value)} placeholder="e.g. INV-2024-1234" /></div>
+              <div><Label>Delivery Note Ref</Label><Input value={stockForm.deliveryNoteRef} onChange={e => setSF("deliveryNoteRef", e.target.value)} placeholder="e.g. DN-4567" /></div>
+              <div><Label>Batch Number</Label><Input value={stockForm.batchNumber} onChange={e => setSF("batchNumber", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={stockForm.notes} onChange={e => setSF("notes", e.target.value)} rows={2} /></div>
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { setShowStockForm(false); setEditStock(null); }}>Cancel</Button>
+              <Button onClick={() => editStock ? updateStockMut.mutate({ ...stockForm, id: editStock.id }) : createStockMut.mutate(stockForm)} disabled={!stockForm.ppeType || createStockMut.isPending || updateStockMut.isPending}>
+                {(createStockMut.isPending || updateStockMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editStock ? "Update" : "Add to Stock"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Issue PPE Form Dialog ── */}
+      {showIssueForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowIssueForm(false); setEditIssue(null); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editIssue ? "Edit PPE Issue Record" : "Issue PPE to Staff Member"}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Staff Member *</Label>
+                <Select value={issueForm.staffName || "__text__"} onValueChange={v => setIF("staffName", v === "__text__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__text__">— Type name manually —</SelectItem>
+                    {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {(!issueForm.staffName || !staffNames.includes(issueForm.staffName)) && <Input className="mt-2" value={issueForm.staffName} onChange={e => setIF("staffName", e.target.value)} placeholder="Full name" />}
+              </div>
+              {allStock.length > 0 && (
+                <div style={{ gridColumn: "1 / -1" }}><Label>Issue From Stock (optional)</Label>
+                  <Select value={issueForm.stockItemId || ""} onValueChange={v => selectStockItem(v)}>
+                    <SelectTrigger><SelectValue placeholder="Select stock item to auto-fill details…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— Not from stock —</SelectItem>
+                      {allStock.filter(s => s.quantityInStock > 0).map(s => (
+                        <SelectItem key={s.id} value={String(s.id)}>{PPE_TYPES[s.ppeType] ?? s.ppeType}{s.description ? ` — ${s.description}` : ""}{s.size ? ` (${s.size})` : ""} · {s.quantityInStock} in stock</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div style={{ gridColumn: "1 / -1" }}><Label>PPE Type *</Label>
+                <Select value={issueForm.ppeType} onValueChange={v => setIF("ppeType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(PPE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Description / Specification</Label><Input value={issueForm.description} onChange={e => setIF("description", e.target.value)} placeholder="e.g. EN ISO 20345 S3 steel toe" /></div>
+              <div><Label>Size</Label><Input value={issueForm.size} onChange={e => setIF("size", e.target.value)} placeholder="e.g. UK 10, L" /></div>
+              <div><Label>Supplier</Label><Input value={issueForm.supplier} onChange={e => setIF("supplier", e.target.value)} /></div>
+              <div><Label>Date Issued *</Label><Input type="date" value={issueForm.dateIssued} onChange={e => setIF("dateIssued", e.target.value)} /></div>
+              <div><Label>Condition Check Date</Label><Input type="date" value={issueForm.conditionCheckDate} onChange={e => setIF("conditionCheckDate", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Condition at Last Check</Label>
+                <Select value={issueForm.conditionAtCheck || ""} onValueChange={v => setIF("conditionAtCheck", v || "")}>
+                  <SelectTrigger><SelectValue placeholder="Select condition…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Good">Good — fit for purpose</SelectItem>
+                    <SelectItem value="Acceptable">Acceptable — minor wear</SelectItem>
+                    <SelectItem value="Needs replacement">Needs Replacement</SelectItem>
+                    <SelectItem value="Condemned">Condemned — taken out of use</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Replaced Date</Label><Input type="date" value={issueForm.replacedDate} onChange={e => setIF("replacedDate", e.target.value)} /></div>
+              <div><Label>Replacement Reason</Label><Input value={issueForm.replacedReason} onChange={e => setIF("replacedReason", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={issueForm.notes} onChange={e => setIF("notes", e.target.value)} rows={2} /></div>
+              <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" id="issueActive" checked={issueForm.isActive} onChange={e => setIF("isActive", e.target.checked)} style={{ height: 16, width: 16 }} />
+                <Label htmlFor="issueActive">Item currently active / in use</Label>
+              </div>
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { setShowIssueForm(false); setEditIssue(null); }}>Cancel</Button>
+              <Button onClick={() => editIssue ? updateIssueMut.mutate({ ...issueForm, id: editIssue.id }) : createIssueMut.mutate(issueForm)} disabled={!issueForm.staffName || !issueForm.dateIssued || createIssueMut.isPending || updateIssueMut.isPending}>
+                {(createIssueMut.isPending || updateIssueMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editIssue ? "Update" : "Issue PPE"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Delete Stock Confirm ── */}
+      {deleteStockId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteStockId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove Stock Item?</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">This stock record will be permanently removed. Any issue records linked to it will retain their stock reference.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteStockId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteStockMut.mutate(deleteStockId!)} disabled={deleteStockMut.isPending}>{deleteStockMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Delete Issue Confirm ── */}
+      {deleteIssueId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteIssueId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove PPE Record?</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">This PPE issue record will be permanently removed from the register.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteIssueId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteIssueMut.mutate(deleteIssueId!)} disabled={deleteIssueMut.isPending}>{deleteIssueMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -776,6 +1286,7 @@ function MemberRow({
 
 export default function StaffPage() {
   const { farmId } = useAppStore();
+  const [pageTab, setPageTab] = useState<"team" | "ppe">("team");
   const [search, setSearch] = useState("");
   const [showFormer, setShowFormer] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -787,12 +1298,18 @@ export default function StaffPage() {
   const { data, isLoading, isError, refetch } = useMembers(farmId);
   const { data: certData } = useCerts(farmId);
   const { data: rtwData } = useRtw(farmId);
+  const { data: ppeData } = useQuery<{ records: PpeRecord[] }>({
+    queryKey: ["ppe-records", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ppe-issue-records`, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
   const { data: deptData } = useQuery<{ departments: Department[] }>({
     queryKey: ["farm-departments", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/departments`, { headers: authHeaders() }).then(r => r.json()),
     enabled: !!farmId,
   });
   const departments = deptData?.departments ?? [];
+  const allPpeRecords = ppeData?.records ?? [];
 
   const allCerts = certData?.records ?? [];
   const allRtw = rtwData?.records ?? [];
@@ -831,138 +1348,160 @@ export default function StaffPage() {
 
   return (
     <AppLayout title="Staff">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-1 flex-wrap">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search staff…"
-              className="pl-9"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          {formerCount > 0 && (
-            <button
-              onClick={() => setShowFormer(v => !v)}
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
-                showFormer
-                  ? "bg-slate-100 border-slate-300 text-slate-700"
-                  : "border-border text-muted-foreground hover:text-foreground hover:border-slate-300"
-              }`}
-            >
-              <UserX className="w-3.5 h-3.5" />
-              {showFormer ? "Hide" : "Show"} former staff ({formerCount})
-            </button>
-          )}
-        </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Staff Member
-        </Button>
+      {/* Page-level tab bar */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", marginBottom: 0 }}>
+        {([
+          { key: "team", label: "Team", icon: <Users className="w-4 h-4" /> },
+          { key: "ppe", label: "PPE Register", icon: <HardHat className="w-4 h-4" /> },
+        ] as const).map(({ key, label, icon }) => (
+          <button key={key} onClick={() => setPageTab(key)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontWeight: pageTab === key ? 700 : 500, fontSize: "0.9rem", color: pageTab === key ? "#166534" : "#6b7280", borderBottom: `2px solid ${pageTab === key ? "#166534" : "transparent"}`, marginBottom: -2, background: "none", border: "none", borderBottomWidth: 2, borderBottomStyle: "solid", cursor: "pointer" }}>
+            {icon}{label}
+          </button>
+        ))}
       </div>
 
-      {/* Summary counts */}
-      {!isLoading && !isError && (data?.members?.length ?? 0) > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(["full", "mobile_only", "web_only", "none"] as AccessType[]).map(a => {
-            const count = (data?.members ?? []).filter(m => m.isActive && m.accessType === a).length;
-            const Icon = ACCESS_ICONS[a];
-            return (
-              <div key={a} className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${count > 0 ? "" : "opacity-50"}`}>
-                <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-xl font-bold">{count}</p>
-                  <p className="text-xs text-muted-foreground">{ACCESS_LABELS[a]}</p>
-                </div>
+      {/* ── Team Tab ── */}
+      {pageTab === "team" && (
+        <>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search staff…"
+                  className="pl-9"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* System users section */}
-      {withAccess.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="px-6 py-3 border-b border-border/50 bg-black/[0.02]">
-              <p className="text-sm font-semibold flex items-center gap-2">
-                <Unlock className="w-4 h-4 text-emerald-600" />
-                System Users ({withAccess.length})
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Staff with mobile or web dashboard access</p>
+              {formerCount > 0 && (
+                <button
+                  onClick={() => setShowFormer(v => !v)}
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
+                    showFormer
+                      ? "bg-slate-100 border-slate-300 text-slate-700"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-slate-300"
+                  }`}
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  {showFormer ? "Hide" : "Show"} former staff ({formerCount})
+                </button>
+              )}
             </div>
-            <StaffTable members={withAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
-              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Records only section */}
-      {noAccess.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="px-6 py-3 border-b border-border/50 bg-black/[0.02]">
-              <p className="text-sm font-semibold flex items-center gap-2">
-                <User className="w-4 h-4 text-slate-500" />
-                Staff Records — No System Access ({noAccess.length})
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">In the records for compliance purposes. Click Invite to give system access.</p>
-            </div>
-            <StaffTable members={noAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
-              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Former staff section */}
-      {showFormer && formerMembers.length > 0 && (
-        <Card className="opacity-80">
-          <CardContent className="p-0">
-            <div className="px-6 py-3 border-b border-border/50 bg-slate-50">
-              <p className="text-sm font-semibold flex items-center gap-2 text-slate-600">
-                <UserX className="w-4 h-4 text-slate-400" />
-                Former Staff ({formerMembers.length})
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Staff who have left. Shown for record-keeping and compliance purposes.</p>
-            </div>
-            <StaffTable members={formerMembers} farmId={farmId} certs={allCerts} rtw={allRtw}
-              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Loading / error / empty states */}
-      {isLoading && (
-        <Card><CardContent className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
-          <RefreshCw className="w-4 h-4 animate-spin" />Loading staff…
-        </CardContent></Card>
-      )}
-      {isError && (
-        <Card><CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-          <p className="text-sm text-muted-foreground">Failed to load staff members.</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
-        </CardContent></Card>
-      )}
-      {!isLoading && !isError && members.length === 0 && !search && (
-        <Card><CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Users className="w-6 h-6 text-primary" />
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Staff Member
+            </Button>
           </div>
-          <p className="font-semibold text-foreground">No staff members yet</p>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Add staff members to track their training, certifications, and Right to Work status.
-            You can optionally invite them to access the system later.
-          </p>
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />Add first staff member
-          </Button>
-        </CardContent></Card>
+
+          {/* Summary counts */}
+          {!isLoading && !isError && (data?.members?.length ?? 0) > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(["full", "mobile_only", "web_only", "none"] as AccessType[]).map(a => {
+                const count = (data?.members ?? []).filter(m => m.isActive && m.accessType === a).length;
+                const Icon = ACCESS_ICONS[a];
+                return (
+                  <div key={a} className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${count > 0 ? "" : "opacity-50"}`}>
+                    <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-xl font-bold">{count}</p>
+                      <p className="text-xs text-muted-foreground">{ACCESS_LABELS[a]}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* System users section */}
+          {withAccess.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-6 py-3 border-b border-border/50 bg-black/[0.02]">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Unlock className="w-4 h-4 text-emerald-600" />
+                    System Users ({withAccess.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Staff with mobile or web dashboard access</p>
+                </div>
+                <StaffTable members={withAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
+                  onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Records only section */}
+          {noAccess.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-6 py-3 border-b border-border/50 bg-black/[0.02]">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <User className="w-4 h-4 text-slate-500" />
+                    Staff Records — No System Access ({noAccess.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">In the records for compliance purposes. Click Invite to give system access.</p>
+                </div>
+                <StaffTable members={noAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
+                  onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Former staff section */}
+          {showFormer && formerMembers.length > 0 && (
+            <Card className="opacity-80">
+              <CardContent className="p-0">
+                <div className="px-6 py-3 border-b border-border/50 bg-slate-50">
+                  <p className="text-sm font-semibold flex items-center gap-2 text-slate-600">
+                    <UserX className="w-4 h-4 text-slate-400" />
+                    Former Staff ({formerMembers.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Staff who have left. Shown for record-keeping and compliance purposes.</p>
+                </div>
+                <StaffTable members={formerMembers} farmId={farmId} certs={allCerts} rtw={allRtw}
+                  onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading / error / empty states */}
+          {isLoading && (
+            <Card><CardContent className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
+              <RefreshCw className="w-4 h-4 animate-spin" />Loading staff…
+            </CardContent></Card>
+          )}
+          {isError && (
+            <Card><CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <p className="text-sm text-muted-foreground">Failed to load staff members.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+            </CardContent></Card>
+          )}
+          {!isLoading && !isError && members.length === 0 && !search && (
+            <Card><CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="w-6 h-6 text-primary" />
+              </div>
+              <p className="font-semibold text-foreground">No staff members yet</p>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Add staff members to track their training, certifications, and Right to Work status.
+                You can optionally invite them to access the system later.
+              </p>
+              <Button onClick={() => setAddOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />Add first staff member
+              </Button>
+            </CardContent></Card>
+          )}
+          {!isLoading && !isError && members.length === 0 && search && (
+            <Card><CardContent className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              No staff matching "{search}"
+            </CardContent></Card>
+          )}
+        </>
       )}
-      {!isLoading && !isError && members.length === 0 && search && (
-        <Card><CardContent className="flex items-center justify-center py-10 text-sm text-muted-foreground">
-          No staff matching "{search}"
-        </CardContent></Card>
+
+      {/* ── PPE Register Tab ── */}
+      {pageTab === "ppe" && (
+        <PpeRegisterSection farmId={farmId} members={allMembers} />
       )}
 
       <AddMemberDialog farmId={farmId} open={addOpen} onClose={() => setAddOpen(false)} departments={departments} />
@@ -971,42 +1510,88 @@ export default function StaffPage() {
       <EditMemberDialog farmId={farmId} member={editMember} open={!!editMember}
         onClose={() => setEditMember(null)} departments={departments} />
 
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Staff Member</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.firstName} {viewRecord.lastName}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.email || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.phone || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Job Title</p><p className="font-medium">{viewRecord.jobTitle || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farm Role</p><p className="font-medium">{FARM_ROLE_LABELS[viewRecord.farmRole]}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Access Level</p><p className="font-medium">{ACCESS_LABELS[viewRecord.accessType]}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewRecord.isActive ? "Active" : "Inactive"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Employed From</p><p className="font-medium">{viewRecord.employedFrom ? new Date(viewRecord.employedFrom).toLocaleDateString("en-GB") : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">NI Number</p><p className="font-medium">{viewRecord.niNumber || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payroll Number</p><p className="font-medium">{viewRecord.payrollNumber || "—"}</p></div>
-              <div className="col-span-2 border-t pt-2 mt-2">
-                <p className="font-semibold mb-2">Emergency Contact (Next of Kin)</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.nokName || "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Relationship</p><p className="font-medium">{viewRecord.nokRelationship || "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.nokPhone || "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.nokEmail || "—"}</p></div>
+      {viewRecord && (() => {
+        const fullName = `${viewRecord.firstName} ${viewRecord.lastName}`;
+        const staffPpe = allPpeRecords.filter(r => r.staffName.toLowerCase() === fullName.toLowerCase());
+        return (
+          <Dialog open onOpenChange={() => setViewRecord(null)}>
+            <DialogContent style={{ maxWidth: "48rem", maxHeight: "90vh", overflowY: "auto" }}>
+              <DialogHeader><DialogTitle>Staff Member — {fullName}</DialogTitle></DialogHeader>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.firstName} {viewRecord.lastName}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.email || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.phone || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Job Title</p><p className="font-medium">{viewRecord.jobTitle || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farm Role</p><p className="font-medium">{FARM_ROLE_LABELS[viewRecord.farmRole]}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Access Level</p><p className="font-medium">{ACCESS_LABELS[viewRecord.accessType]}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewRecord.isActive ? "Active" : "Inactive"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Employed From</p><p className="font-medium">{viewRecord.employedFrom ? new Date(viewRecord.employedFrom).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">NI Number</p><p className="font-medium">{viewRecord.niNumber || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payroll Number</p><p className="font-medium">{viewRecord.payrollNumber || "—"}</p></div>
+                <div className="col-span-2 border-t pt-2 mt-2">
+                  <p className="font-semibold mb-2">Emergency Contact (Next of Kin)</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.nokName || "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Relationship</p><p className="font-medium">{viewRecord.nokRelationship || "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.nokPhone || "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.nokEmail || "—"}</p></div>
+                  </div>
+                </div>
+                {viewRecord.notes && (
+                  <div className="col-span-2 border-t pt-2 mt-2">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
+                    <p className="font-medium whitespace-pre-wrap">{viewRecord.notes}</p>
+                  </div>
+                )}
+                {/* PPE Issued Section */}
+                <div className="col-span-2 border-t pt-3 mt-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardHat className="w-4 h-4 text-amber-600" />
+                    <p className="font-semibold text-sm">PPE Issued</p>
+                    {staffPpe.length > 0 && <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">{staffPpe.length} item{staffPpe.length !== 1 ? "s" : ""}</span>}
+                  </div>
+                  {staffPpe.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No PPE issued to this staff member yet. Use the PPE Register tab to issue and track PPE.</p>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                        <thead style={{ background: "#f9fafb" }}>
+                          <tr>
+                            {["PPE Type","Description","Size","Date Issued","Condition","Status"].map(h => (
+                              <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "#6b7280" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {staffPpe.map((r, i) => (
+                            <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151" }}>{r.description ?? "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280" }}>{r.size ?? "—"}</td>
+                              <td style={{ padding: "8px 12px" }}>{fmt(r.dateIssued)}</td>
+                              <td style={{ padding: "8px 12px" }}>{r.conditionAtCheck ?? "—"}</td>
+                              <td style={{ padding: "8px 12px" }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", fontSize: "0.7rem", fontWeight: 600, padding: "1px 6px", borderRadius: 999, background: r.isActive ? "#dcfce7" : "#f3f4f6", color: r.isActive ? "#166534" : "#6b7280" }}>{r.isActive ? "Active" : "Replaced"}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <button className="mt-2 text-xs text-green-700 font-medium hover:underline" onClick={() => { setViewRecord(null); setPageTab("ppe"); }}>
+                    View full PPE Register →
+                  </button>
                 </div>
               </div>
-              <div className="col-span-2 border-t pt-2 mt-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
-                <p className="font-medium whitespace-pre-wrap">{viewRecord.notes || "—"}</p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setEditMember(viewRecord); setViewRecord(null); }}>Edit</Button>
-              <Button onClick={() => setViewRecord(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setEditMember(viewRecord); setViewRecord(null); }}>Edit</Button>
+                <Button onClick={() => setViewRecord(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </AppLayout>
   );
 }
