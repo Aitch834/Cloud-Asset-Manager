@@ -179,6 +179,30 @@ interface PpeStockItem {
   createdAt: string;
 }
 
+interface PpeRiskAssessment {
+  id: number;
+  farmId: number;
+  assessmentRef: string | null;
+  ppeType: string;
+  hazardIdentified: string;
+  taskOrArea: string | null;
+  riskLevel: string | null;
+  ppeSpecification: string | null;
+  fitConfirmed: boolean;
+  fitConfirmedBy: string | null;
+  fitConfirmedDate: string | null;
+  compatibilityChecked: boolean;
+  compatibilityNotes: string | null;
+  trainingProvided: boolean;
+  trainingNotes: string | null;
+  assessedBy: string;
+  assessmentDate: string;
+  reviewDate: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
 interface FarmSupplier { id: number; name: string; }
 
 function fmt(d: string | null | undefined): string {
@@ -192,6 +216,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const qc = useQueryClient();
   const issueBase = `/api/farms/${farmId}/ppe-issue-records`;
   const stockBase = `/api/farms/${farmId}/ppe-stock-items`;
+  const riskBase = `/api/farms/${farmId}/ppe-risk-assessments`;
 
   const { data: issueData, isLoading: issueLoading } = useQuery<{ records: PpeRecord[] }>({
     queryKey: ["ppe-records", farmId],
@@ -209,11 +234,18 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     enabled: !!farmId,
   });
 
+  const { data: riskData, isLoading: riskLoading } = useQuery<{ records: PpeRiskAssessment[] }>({
+    queryKey: ["ppe-risk", farmId],
+    queryFn: () => fetch(riskBase, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const allRecords = issueData?.records ?? [];
   const allStock = stockData?.items ?? [];
   const suppliers = suppData?.suppliers ?? [];
+  const allRisk = riskData?.records ?? [];
 
-  const [subTab, setSubTab] = useState<"stock" | "issues">("stock");
+  const [subTab, setSubTab] = useState<"stock" | "issues" | "risk">("stock");
   const [staffFilter, setStaffFilter] = useState("");
   const [issueSearch, setIssueSearch] = useState("");
 
@@ -262,6 +294,37 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setDeleteStockId(null); },
   });
 
+  // ── Risk Assessment form
+  const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", fitConfirmed: false, fitConfirmedBy: "", fitConfirmedDate: "", compatibilityChecked: false, compatibilityNotes: "", trainingProvided: false, trainingNotes: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" };
+  const [showRiskForm, setShowRiskForm] = useState(false);
+  const [editRisk, setEditRisk] = useState<PpeRiskAssessment | null>(null);
+  const [riskForm, setRiskForm] = useState({ ...EMPTY_RISK });
+  const [deleteRiskId, setDeleteRiskId] = useState<number | null>(null);
+  const setRF = (k: string, v: unknown) => setRiskForm(f => ({ ...f, [k]: v }));
+
+  function openEditRisk(r: PpeRiskAssessment) {
+    setEditRisk(r);
+    setRiskForm({ assessmentRef: r.assessmentRef ?? "", ppeType: r.ppeType, hazardIdentified: r.hazardIdentified, taskOrArea: r.taskOrArea ?? "", riskLevel: r.riskLevel ?? "__none__", ppeSpecification: r.ppeSpecification ?? "", fitConfirmed: r.fitConfirmed, fitConfirmedBy: r.fitConfirmedBy ?? "", fitConfirmedDate: r.fitConfirmedDate ?? "", compatibilityChecked: r.compatibilityChecked, compatibilityNotes: r.compatibilityNotes ?? "", trainingProvided: r.trainingProvided, trainingNotes: r.trainingNotes ?? "", assessedBy: r.assessedBy, assessmentDate: r.assessmentDate, reviewDate: r.reviewDate ?? "", notes: r.notes ?? "" });
+    setShowRiskForm(true);
+  }
+
+  function riskPayload(f: typeof EMPTY_RISK) {
+    return { ...f, riskLevel: f.riskLevel === "__none__" ? null : f.riskLevel };
+  }
+
+  const createRiskMut = useMutation({
+    mutationFn: (b: typeof EMPTY_RISK) => fetch(riskBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setShowRiskForm(false); setRiskForm({ ...EMPTY_RISK }); },
+  });
+  const updateRiskMut = useMutation({
+    mutationFn: (b: typeof EMPTY_RISK & { id: number }) => fetch(`${riskBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setShowRiskForm(false); setEditRisk(null); },
+  });
+  const deleteRiskMut = useMutation({
+    mutationFn: (id: number) => fetch(`${riskBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setDeleteRiskId(null); },
+  });
+
   function openEditIssue(r: PpeRecord) {
     setEditIssue(r);
     setIssueForm({ staffName: r.staffName, ppeType: r.ppeType, description: r.description ?? "", size: r.size ?? "", supplier: r.supplier ?? "", stockItemId: r.stockItemId ? String(r.stockItemId) : "", dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? "", conditionAtCheck: r.conditionAtCheck ?? "", replacedDate: r.replacedDate ?? "", replacedReason: r.replacedReason ?? "", notes: r.notes ?? "", isActive: r.isActive });
@@ -295,9 +358,9 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   return (
     <div className="space-y-4">
       <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", marginBottom: 0 }}>
-        {(["stock", "issues"] as const).map(t => (
-          <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", borderBottom: subTab === t ? "2px solid #166534" : "2px solid transparent", marginBottom: -2, background: "none", border: "none", borderBottomWidth: 2, borderBottomStyle: "solid", cursor: "pointer" }}>
-            {t === "stock" ? "PPE Stock Register" : "PPE Issue Register"}
+        {(["stock", "issues", "risk"] as const).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", marginBottom: -2, background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: subTab === t ? "#166534" : "transparent", cursor: "pointer" }}>
+            {t === "stock" ? "PPE Stock Register" : t === "issues" ? "PPE Issue Register" : "PPE Risk Assessments"}
           </button>
         ))}
       </div>
@@ -627,6 +690,180 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* ── PPE Risk Assessments ── */}
+      {subTab === "risk" && (
+        <div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">PPE Risk Assessments</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Documented risk assessments required by the PPE at Work Regulations 2022 — confirming correct PPE selection, individual fit, and compatibility.</p>
+            </div>
+            <Button onClick={() => { setEditRisk(null); setRiskForm({ ...EMPTY_RISK }); setShowRiskForm(true); }}>
+              <Plus className="w-4 h-4 mr-2" />New Assessment
+            </Button>
+          </div>
+
+          {riskLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+          ) : allRisk.length === 0 ? (
+            <Card><CardContent className="py-12 text-center">
+              <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p className="font-semibold text-gray-600 mb-1">No PPE risk assessments recorded</p>
+              <p className="text-sm text-gray-400">Create a risk assessment before issuing PPE to staff. This satisfies the PPE at Work Regulations 2022 documentation requirement.</p>
+            </CardContent></Card>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f9fafb" }}>
+                  <tr>
+                    {["Ref","PPE Type","Hazard Identified","Task / Area","Risk","Fit ✓","Compat ✓","Training ✓","Assessed By","Date","Review Due",""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRisk.map((r, i) => {
+                    const reviewDue = r.reviewDate ? new Date(r.reviewDate) : null;
+                    const today = new Date();
+                    const reviewOverdue = reviewDue && reviewDue < today;
+                    const reviewSoon = reviewDue && !reviewOverdue && (reviewDue.getTime() - today.getTime()) < 30 * 24 * 60 * 60 * 1000;
+                    return (
+                      <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                        <td style={{ padding: "10px 14px", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{r.assessmentRef ?? "—"}</td>
+                        <td style={{ padding: "10px 14px", fontWeight: 600 }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                        <td style={{ padding: "10px 14px", color: "#374151", maxWidth: 200 }}><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.hazardIdentified}</span></td>
+                        <td style={{ padding: "10px 14px", color: "#6b7280" }}>{r.taskOrArea ?? "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {r.riskLevel ? (
+                            <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700, background: r.riskLevel === "High" ? "#fee2e2" : r.riskLevel === "Medium" ? "#fef9c3" : "#dcfce7", color: r.riskLevel === "High" ? "#b91c1c" : r.riskLevel === "Medium" ? "#854d0e" : "#166534" }}>{r.riskLevel}</span>
+                          ) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.fitConfirmed ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.compatibilityChecked ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.trainingProvided ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "10px 14px", color: "#374151" }}>{r.assessedBy}</td>
+                        <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(r.assessmentDate)}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {reviewDue ? (
+                            <span style={{ color: reviewOverdue ? "#b91c1c" : reviewSoon ? "#d97706" : "#374151", fontWeight: reviewOverdue || reviewSoon ? 700 : 400 }}>
+                              {reviewOverdue ? "⚠ " : reviewSoon ? "⏰ " : ""}{fmt(r.reviewDate)}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => openEditRisk(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteRiskId(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── Add / Edit Risk Assessment Dialog ── */}
+          {showRiskForm && (
+            <Dialog open onOpenChange={o => { if (!o) { setShowRiskForm(false); setEditRisk(null); } }}>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>{editRisk ? "Edit PPE Risk Assessment" : "New PPE Risk Assessment"}</DialogTitle></DialogHeader>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div><Label>Assessment Ref (optional)</Label><Input value={riskForm.assessmentRef} onChange={e => setRF("assessmentRef", e.target.value)} placeholder="e.g. PPE-RA-001" /></div>
+                  <div><Label>PPE Type *</Label>
+                    <Select value={riskForm.ppeType} onValueChange={v => setRF("ppeType", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(PPE_TYPES).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}><Label>Hazard Identified *</Label><Textarea value={riskForm.hazardIdentified} onChange={e => setRF("hazardIdentified", e.target.value)} placeholder="Describe the hazard this PPE protects against (e.g. grain dust — risk of respiratory disease)" rows={2} /></div>
+                  <div><Label>Task or Area</Label><Input value={riskForm.taskOrArea} onChange={e => setRF("taskOrArea", e.target.value)} placeholder="e.g. Grain handling, Chemical spraying" /></div>
+                  <div><Label>Risk Level</Label>
+                    <Select value={riskForm.riskLevel} onValueChange={v => setRF("riskLevel", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select risk level…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}><Label>PPE Specification</Label><Textarea value={riskForm.ppeSpecification} onChange={e => setRF("ppeSpecification", e.target.value)} placeholder="Specific standard, EN number, manufacturer or model required (e.g. EN 149:2001+A1:2009 FFP3 respirator)" rows={2} /></div>
+
+                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Individual Fit Check</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={riskForm.fitConfirmed} onChange={e => setRF("fitConfirmed", e.target.checked)} className="w-4 h-4 accent-green-700" />
+                        Fit confirmed for individual
+                      </label>
+                      <div />
+                      <div><Label>Confirmed By</Label><Input value={riskForm.fitConfirmedBy} onChange={e => setRF("fitConfirmedBy", e.target.value)} placeholder="Name of person who confirmed fit" disabled={!riskForm.fitConfirmed} /></div>
+                      <div><Label>Confirmation Date</Label><Input type="date" value={riskForm.fitConfirmedDate} onChange={e => setRF("fitConfirmedDate", e.target.value)} disabled={!riskForm.fitConfirmed} /></div>
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Compatibility with Other PPE</p>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+                      <input type="checkbox" checked={riskForm.compatibilityChecked} onChange={e => setRF("compatibilityChecked", e.target.checked)} className="w-4 h-4 accent-green-700" />
+                      Compatibility with other PPE checked
+                    </label>
+                    <div><Label>Compatibility Notes</Label><Textarea value={riskForm.compatibilityNotes} onChange={e => setRF("compatibilityNotes", e.target.value)} placeholder="e.g. Confirmed compatible with safety glasses (EN 166) and hard hat" rows={2} disabled={!riskForm.compatibilityChecked} /></div>
+                  </div>
+
+                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Training</p>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+                      <input type="checkbox" checked={riskForm.trainingProvided} onChange={e => setRF("trainingProvided", e.target.checked)} className="w-4 h-4 accent-green-700" />
+                      PPE use and maintenance training provided
+                    </label>
+                    <div><Label>Training Notes</Label><Textarea value={riskForm.trainingNotes} onChange={e => setRF("trainingNotes", e.target.value)} placeholder="e.g. Toolbox talk held 01/05/2026 — donning/doffing, storage, inspection schedule" rows={2} disabled={!riskForm.trainingProvided} /></div>
+                  </div>
+
+                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div><Label>Assessed By *</Label><Input value={riskForm.assessedBy} onChange={e => setRF("assessedBy", e.target.value)} placeholder="Full name of assessor" /></div>
+                    <div><Label>Assessment Date *</Label><Input type="date" value={riskForm.assessmentDate} onChange={e => setRF("assessmentDate", e.target.value)} /></div>
+                    <div><Label>Review Date</Label><Input type="date" value={riskForm.reviewDate} onChange={e => setRF("reviewDate", e.target.value)} /></div>
+                    <div />
+                    <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={riskForm.notes} onChange={e => setRF("notes", e.target.value)} placeholder="Any additional notes…" rows={2} /></div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setShowRiskForm(false); setEditRisk(null); }}>Cancel</Button>
+                  <Button
+                    disabled={!riskForm.ppeType || !riskForm.hazardIdentified || !riskForm.assessedBy || !riskForm.assessmentDate || createRiskMut.isPending || updateRiskMut.isPending}
+                    onClick={() => {
+                      if (editRisk) updateRiskMut.mutate({ ...riskForm, id: editRisk.id });
+                      else createRiskMut.mutate(riskForm);
+                    }}
+                  >
+                    {createRiskMut.isPending || updateRiskMut.isPending ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+                    {editRisk ? "Save Changes" : "Save Assessment"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* ── Delete Risk Assessment Confirmation ── */}
+          {deleteRiskId !== null && (
+            <Dialog open onOpenChange={o => { if (!o) setDeleteRiskId(null); }}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>Delete Risk Assessment?</DialogTitle></DialogHeader>
+                <p className="text-sm text-muted-foreground">This PPE risk assessment record will be permanently deleted.</p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDeleteRiskId(null)}>Cancel</Button>
+                  <Button variant="destructive" onClick={() => deleteRiskMut.mutate(deleteRiskId!)} disabled={deleteRiskMut.isPending}>{deleteRiskMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Delete"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1354,7 +1591,7 @@ export default function StaffPage() {
           { key: "team", label: "Team", icon: <Users className="w-4 h-4" /> },
           { key: "ppe", label: "PPE Register", icon: <HardHat className="w-4 h-4" /> },
         ] as const).map(({ key, label, icon }) => (
-          <button key={key} onClick={() => setPageTab(key)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontWeight: pageTab === key ? 700 : 500, fontSize: "0.9rem", color: pageTab === key ? "#166534" : "#6b7280", borderBottom: `2px solid ${pageTab === key ? "#166534" : "transparent"}`, marginBottom: -2, background: "none", border: "none", borderBottomWidth: 2, borderBottomStyle: "solid", cursor: "pointer" }}>
+          <button key={key} onClick={() => setPageTab(key)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontWeight: pageTab === key ? 700 : 500, fontSize: "0.9rem", color: pageTab === key ? "#166534" : "#6b7280", marginBottom: -2, background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: pageTab === key ? "#166534" : "transparent", cursor: "pointer" }}>
             {icon}{label}
           </button>
         ))}

@@ -148,6 +148,45 @@ export const ppeIssueRecordsTable = pgTable("ppe_issue_records", {
 export type PpeIssueRecord = typeof ppeIssueRecordsTable.$inferSelect;
 export type NewPpeIssueRecord = typeof ppeIssueRecordsTable.$inferInsert;
 
+// ─── PPE Risk Assessments ─────────────────────────────────────────────────────
+// PPE at Work Regulations 2022: employers must carry out a documented risk
+// assessment before issuing PPE, confirming the correct item has been selected
+// for the hazard, that it fits the individual, and that it is compatible with
+// any other PPE being worn simultaneously.
+
+export const ppeRiskAssessmentsTable = pgTable("ppe_risk_assessments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+
+  assessmentRef: text("assessment_ref"),               // optional reference number e.g. "PPE-RA-001"
+  ppeType: text("ppe_type").notNull(),                 // which category of PPE this assessment covers
+  hazardIdentified: text("hazard_identified").notNull(), // what hazard the PPE protects against
+  taskOrArea: text("task_or_area"),                    // work task or location where PPE is required
+  riskLevel: text("risk_level"),                       // "Low" | "Medium" | "High"
+  ppeSpecification: text("ppe_specification"),         // specific standard / EN number / model
+
+  fitConfirmed: boolean("fit_confirmed").notNull().default(false),
+  fitConfirmedBy: text("fit_confirmed_by"),
+  fitConfirmedDate: date("fit_confirmed_date"),
+
+  compatibilityChecked: boolean("compatibility_checked").notNull().default(false),
+  compatibilityNotes: text("compatibility_notes"),
+
+  trainingProvided: boolean("training_provided").notNull().default(false),
+  trainingNotes: text("training_notes"),
+
+  assessedBy: text("assessed_by").notNull(),
+  assessmentDate: date("assessment_date").notNull(),
+  reviewDate: date("review_date"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PpeRiskAssessment = typeof ppeRiskAssessmentsTable.$inferSelect;
+export type NewPpeRiskAssessment = typeof ppeRiskAssessmentsTable.$inferInsert;
+
 // ─── Contractors (H&S File) ──────────────────────────────────────────────────
 // Register of external contractors who work on the farm,
 // with PLI, RAMS and method statement details.

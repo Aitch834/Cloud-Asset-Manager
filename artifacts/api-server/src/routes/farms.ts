@@ -279,6 +279,7 @@ import {
   welfareOutcomeAssessmentsTable,
   ppeIssueRecordsTable,
   ppeStockItemsTable,
+  ppeRiskAssessmentsTable,
   contractorsTable,
   contractorContactsTable,
   contractorRamsTable,
@@ -20750,6 +20751,77 @@ router.delete("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, 
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
   await db.delete(ppeStockItemsTable).where(and(eq(ppeStockItemsTable.id, id), eq(ppeStockItemsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── PPE Risk Assessments ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(ppeRiskAssessmentsTable).where(eq(ppeRiskAssessmentsTable.farmId, farmId)).orderBy(desc(ppeRiskAssessmentsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.insert(ppeRiskAssessmentsTable).values({
+    farmId,
+    assessmentRef: body.assessmentRef || null,
+    ppeType: body.ppeType,
+    hazardIdentified: body.hazardIdentified,
+    taskOrArea: body.taskOrArea || null,
+    riskLevel: body.riskLevel || null,
+    ppeSpecification: body.ppeSpecification || null,
+    fitConfirmed: body.fitConfirmed === true || body.fitConfirmed === "true",
+    fitConfirmedBy: body.fitConfirmedBy || null,
+    fitConfirmedDate: body.fitConfirmedDate || null,
+    compatibilityChecked: body.compatibilityChecked === true || body.compatibilityChecked === "true",
+    compatibilityNotes: body.compatibilityNotes || null,
+    trainingProvided: body.trainingProvided === true || body.trainingProvided === "true",
+    trainingNotes: body.trainingNotes || null,
+    assessedBy: body.assessedBy,
+    assessmentDate: body.assessmentDate,
+    reviewDate: body.reviewDate || null,
+    notes: body.notes || null,
+    isActive: body.isActive !== false,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const body = sanitiseBody(req.body);
+  const updates = {
+    assessmentRef: body.assessmentRef || null,
+    ppeType: body.ppeType,
+    hazardIdentified: body.hazardIdentified,
+    taskOrArea: body.taskOrArea || null,
+    riskLevel: body.riskLevel || null,
+    ppeSpecification: body.ppeSpecification || null,
+    fitConfirmed: body.fitConfirmed === true || body.fitConfirmed === "true",
+    fitConfirmedBy: body.fitConfirmedBy || null,
+    fitConfirmedDate: body.fitConfirmedDate || null,
+    compatibilityChecked: body.compatibilityChecked === true || body.compatibilityChecked === "true",
+    compatibilityNotes: body.compatibilityNotes || null,
+    trainingProvided: body.trainingProvided === true || body.trainingProvided === "true",
+    trainingNotes: body.trainingNotes || null,
+    assessedBy: body.assessedBy,
+    assessmentDate: body.assessmentDate,
+    reviewDate: body.reviewDate || null,
+    notes: body.notes || null,
+    isActive: body.isActive !== false,
+    updatedAt: new Date(),
+  };
+  const [record] = await db.update(ppeRiskAssessmentsTable).set(updates).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(ppeRiskAssessmentsTable).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
