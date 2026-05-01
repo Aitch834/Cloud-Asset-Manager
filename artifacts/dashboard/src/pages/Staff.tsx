@@ -15,10 +15,11 @@ import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
   Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound, Eye,
-  Building2, Trash2, ShieldCheck, Package, Pencil, Loader2, Printer, HardHat,
+  Building2, Trash2, ShieldCheck, Package, Pencil, Loader2, Printer, HardHat, FileText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { printProReport } from "@/lib/print-report";
 
 const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
 const DEV_TOKEN = import.meta.env.VITE_DEV_BYPASS_TOKEN;
@@ -239,6 +240,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     queryFn: () => fetch(riskBase, { headers: authHeaders() }).then(r => r.json()),
     enabled: !!farmId,
   });
+  const { data: farmMeta } = useQuery<{ record: { name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-record", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
 
   const allRecords = issueData?.records ?? [];
   const allStock = stockData?.items ?? [];
@@ -355,14 +361,185 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   const resolveSupplierName = (item: PpeStockItem) => item.supplierRecordName ?? item.supplierName ?? "—";
 
+  const esc = (s: string | null | undefined) => (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const tick = (v: boolean) => v ? `<span style="color:#166534;font-weight:700">✓</span>` : `<span style="color:#d1d5db">—</span>`;
+  const riskBadge = (level: string | null) => {
+    if (!level) return "—";
+    const bg = level === "High" ? "#fee2e2" : level === "Medium" ? "#fef9c3" : "#dcfce7";
+    const col = level === "High" ? "#b91c1c" : level === "Medium" ? "#854d0e" : "#166534";
+    return `<span style="padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;background:${bg};color:${col}">${level}</span>`;
+  };
+
+  function handlePrintCompliancePack() {
+    const farm = farmMeta?.record;
+    const today = new Date();
+
+    // ── Summary counts
+    const assessedTypes = new Set(allRisk.map(r => r.ppeType));
+    const issuedTypes = new Set(allRecords.filter(r => r.isActive).map(r => r.ppeType));
+    const unassessedTypes = [...issuedTypes].filter(t => !assessedTypes.has(t));
+    const reviewOverdue = allRisk.filter(r => r.reviewDate && new Date(r.reviewDate) < today).length;
+    const needsReplacement = allRecords.filter(r => r.isActive && (r.conditionAtCheck === "Needs replacement" || r.conditionAtCheck === "Condemned")).length;
+
+    const summaryHtml = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+        ${[
+          ["Risk Assessments", allRisk.length, reviewOverdue > 0 ? `${reviewOverdue} overdue for review` : "All current", reviewOverdue > 0 ? "#fef3c7" : "#dcfce7"],
+          ["Stock Items", allStock.length, "", "#f0fdf4"],
+          ["Active PPE Issues", allRecords.filter(r => r.isActive).length, needsReplacement > 0 ? `${needsReplacement} need attention` : "All good", needsReplacement > 0 ? "#fef3c7" : "#dcfce7"],
+          ["Unassessed Types", unassessedTypes.length, unassessedTypes.length > 0 ? unassessedTypes.map(t => PPE_TYPES[t] ?? t).join(", ") : "None — full coverage", unassessedTypes.length > 0 ? "#fee2e2" : "#dcfce7"],
+        ].map(([label, val, note, bg]) => `
+          <div style="background:${bg};border-radius:5px;padding:8px 10px">
+            <div style="font-size:7px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+            <div style="font-size:14px;font-weight:700;color:#111;margin:2px 0">${val}</div>
+            ${note ? `<div style="font-size:6.5px;color:#555">${note}</div>` : ""}
+          </div>`).join("")}
+      </div>`;
+
+    // ── Section 1: Risk Assessments
+    const raRows = allRisk.map(r => `<tr>
+      <td style="font-family:monospace;font-size:6.5px">${esc(r.assessmentRef)}</td>
+      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td>${esc(r.hazardIdentified)}</td>
+      <td>${esc(r.taskOrArea)}</td>
+      <td>${riskBadge(r.riskLevel)}</td>
+      <td style="text-align:center">${tick(r.fitConfirmed)}</td>
+      <td style="text-align:center">${tick(r.compatibilityChecked)}</td>
+      <td style="text-align:center">${tick(r.trainingProvided)}</td>
+      <td>${esc(r.assessedBy)}</td>
+      <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
+      <td style="white-space:nowrap${r.reviewDate && new Date(r.reviewDate) < today ? ";color:#b91c1c;font-weight:700" : ""}">${fmt(r.reviewDate)}</td>
+    </tr>`).join("");
+
+    // ── Section 2: Stock
+    const stockRows = allStock.map(s => `<tr>
+      <td><strong>${esc(PPE_TYPES[s.ppeType] ?? s.ppeType)}</strong></td>
+      <td>${esc(s.description)}</td>
+      <td>${esc(s.size)}</td>
+      <td style="font-weight:700;color:${s.quantityInStock === 0 ? "#b91c1c" : s.quantityInStock <= 2 ? "#92400e" : "#166534"}">${s.quantityInStock} / ${s.quantityReceived}</td>
+      <td>${s.unitCostPence ? `£${(s.unitCostPence / 100).toFixed(2)}` : "—"}</td>
+      <td>${esc(resolveSupplierName(s))}</td>
+      <td style="font-family:monospace;font-size:6.5px">${esc(s.invoiceRef)}</td>
+      <td style="font-family:monospace;font-size:6.5px">${esc(s.deliveryNoteRef)}</td>
+      <td style="white-space:nowrap">${fmt(s.receivedDate)}</td>
+    </tr>`).join("");
+
+    // ── Section 3: Issue Register
+    const issueRows = allRecords.map(r => `<tr>
+      <td><strong>${esc(r.staffName)}</strong></td>
+      <td>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</td>
+      <td>${esc(r.description)}</td>
+      <td>${esc(r.size)}</td>
+      <td>${esc(r.supplier)}</td>
+      <td style="white-space:nowrap">${fmt(r.dateIssued)}</td>
+      <td style="white-space:nowrap">${fmt(r.conditionCheckDate)}</td>
+      <td style="${r.conditionAtCheck === "Condemned" || r.conditionAtCheck === "Needs replacement" ? "color:#b91c1c;font-weight:700" : ""}">${esc(r.conditionAtCheck)}</td>
+      <td>${r.isActive ? `<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700">Active</span>` : `<span style="background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px;font-size:6.5px">Replaced</span>`}</td>
+    </tr>`).join("");
+
+    const tableHtml = `
+      ${summaryHtml}
+      <div class="section-head">1. PPE Risk Assessments (${allRisk.length} record${allRisk.length !== 1 ? "s" : ""})</div>
+      ${allRisk.length === 0 ? `<p style="font-size:7.5px;color:#6b7280;margin:0 0 12px">No risk assessments recorded.</p>` : `
+      <table><thead><tr>
+        <th>Ref</th><th>PPE Type</th><th>Hazard Identified</th><th>Task / Area</th><th>Risk</th>
+        <th>Fit ✓</th><th>Compat ✓</th><th>Training ✓</th><th>Assessed By</th><th>Date</th><th>Review Due</th>
+      </tr></thead><tbody>${raRows}</tbody></table>`}
+      <div class="section-head">2. PPE Stock Register (${allStock.length} item${allStock.length !== 1 ? "s" : ""})</div>
+      ${allStock.length === 0 ? `<p style="font-size:7.5px;color:#6b7280;margin:0 0 12px">No stock items recorded.</p>` : `
+      <table><thead><tr>
+        <th>PPE Type</th><th>Description</th><th>Size</th><th>In Stock / Recv'd</th><th>Unit Cost</th>
+        <th>Supplier</th><th>Invoice Ref</th><th>Delivery Note</th><th>Received</th>
+      </tr></thead><tbody>${stockRows}</tbody></table>`}
+      <div class="section-head">3. PPE Issue Register (${allRecords.length} record${allRecords.length !== 1 ? "s" : ""})</div>
+      ${allRecords.length === 0 ? `<p style="font-size:7.5px;color:#6b7280;margin:0 0 12px">No issue records.</p>` : `
+      <table><thead><tr>
+        <th>Staff Member</th><th>PPE Type</th><th>Description</th><th>Size</th><th>Supplier</th>
+        <th>Date Issued</th><th>Last Check</th><th>Condition</th><th>Status</th>
+      </tr></thead><tbody>${issueRows}</tbody></table>`}`;
+
+    printProReport({
+      title: "PPE Compliance Pack",
+      subtitle: "PPE at Work Regulations 2022 — Full traceability record",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      recordCount: allRisk.length + allStock.length + allRecords.length,
+      recordLabel: "record",
+      tableHtml,
+      footerNote: "Maintained in compliance with the PPE at Work Regulations 2022. Retain for audit by Red Tractor, HSE, or other inspecting authority.",
+      landscape: true,
+    });
+  }
+
+  function handlePrintStaffRecord(name: string) {
+    const farm = farmMeta?.record;
+    const staffIssues = allRecords.filter(r => r.staffName === name).sort((a, b) => new Date(b.dateIssued).getTime() - new Date(a.dateIssued).getTime());
+    const staffPpeTypes = new Set(staffIssues.map(r => r.ppeType));
+    const relevantRisk = allRisk.filter(r => staffPpeTypes.has(r.ppeType));
+
+    const issueRows = staffIssues.map(r => `<tr>
+      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td>${esc(r.description)}</td>
+      <td>${esc(r.size)}</td>
+      <td>${esc(r.supplier)}</td>
+      <td style="white-space:nowrap">${fmt(r.dateIssued)}</td>
+      <td style="white-space:nowrap">${fmt(r.conditionCheckDate)}</td>
+      <td style="${r.conditionAtCheck === "Condemned" || r.conditionAtCheck === "Needs replacement" ? "color:#b91c1c;font-weight:700" : ""}">${esc(r.conditionAtCheck)}</td>
+      <td>${r.isActive ? `<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700">Active</span>` : `<span style="background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px;font-size:6.5px">Replaced</span>`}</td>
+      <td>${esc(r.notes)}</td>
+    </tr>`).join("");
+
+    const raRows = relevantRisk.map(r => `<tr>
+      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td>${esc(r.hazardIdentified)}</td>
+      <td>${riskBadge(r.riskLevel)}</td>
+      <td style="text-align:center">${tick(r.fitConfirmed)}</td>
+      <td>${esc(r.fitConfirmedBy)}</td>
+      <td style="white-space:nowrap">${fmt(r.fitConfirmedDate)}</td>
+      <td style="text-align:center">${tick(r.compatibilityChecked)}</td>
+      <td style="text-align:center">${tick(r.trainingProvided)}</td>
+      <td>${esc(r.assessedBy)}</td>
+      <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
+    </tr>`).join("");
+
+    const tableHtml = `
+      <div class="section-head">PPE Issue History — ${esc(name)} (${staffIssues.length} record${staffIssues.length !== 1 ? "s" : ""})</div>
+      ${staffIssues.length === 0 ? `<p style="font-size:7.5px;color:#6b7280">No PPE records found for this staff member.</p>` : `
+      <table><thead><tr>
+        <th>PPE Type</th><th>Description</th><th>Size</th><th>Supplier</th>
+        <th>Date Issued</th><th>Last Check</th><th>Condition</th><th>Status</th><th>Notes</th>
+      </tr></thead><tbody>${issueRows}</tbody></table>`}
+      <div class="section-head">Applicable PPE Risk Assessments (${relevantRisk.length} record${relevantRisk.length !== 1 ? "s" : ""})</div>
+      ${relevantRisk.length === 0 ? `<p style="font-size:7.5px;color:#b91c1c;font-weight:600">⚠ No risk assessments found for the PPE types issued to this staff member.</p>` : `
+      <table><thead><tr>
+        <th>PPE Type</th><th>Hazard</th><th>Risk</th><th>Fit ✓</th><th>Fit By</th><th>Fit Date</th>
+        <th>Compat ✓</th><th>Training ✓</th><th>Assessed By</th><th>Date</th>
+      </tr></thead><tbody>${raRows}</tbody></table>`}`;
+
+    printProReport({
+      title: `PPE Record — ${name}`,
+      subtitle: "Individual PPE issue history and applicable risk assessments",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      tableHtml,
+      footerNote: "PPE at Work Regulations 2022 — Individual PPE record. Retain for the duration of employment and a minimum of 3 years thereafter.",
+      landscape: true,
+    });
+  }
+
   return (
     <div className="space-y-4">
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", marginBottom: 0 }}>
-        {(["stock", "issues", "risk"] as const).map(t => (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 0 }}>
+        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", flex: 1 }}>
+          {(["stock", "issues", "risk"] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", marginBottom: -2, background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: subTab === t ? "#166534" : "transparent", cursor: "pointer" }}>
             {t === "stock" ? "PPE Stock Register" : t === "issues" ? "PPE Issue Register" : "PPE Risk Assessments"}
           </button>
-        ))}
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={handlePrintCompliancePack} style={{ marginLeft: 12, whiteSpace: "nowrap" }}>
+          <Printer size={14} className="mr-2" />Print Compliance Pack
+        </Button>
       </div>
 
       {/* ── PPE Stock ── */}
@@ -442,7 +619,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
           <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: "0.875rem", color: "#1e40af" }}>
             <strong>Legal requirement:</strong> Employers must provide PPE free of charge, keep a record of issue, and inspect condition regularly. The PPE at Work Regulations 2022 require documented risk assessments and individualised records.
           </div>
-          <div className="flex gap-3 mb-3 flex-wrap">
+          <div className="flex gap-3 mb-3 flex-wrap items-center">
             <Input value={issueSearch} onChange={e => setIssueSearch(e.target.value)} placeholder="Search by name or PPE type…" style={{ maxWidth: 260 }} />
             <Select value={staffFilter || "__all__"} onValueChange={v => setStaffFilter(v === "__all__" ? "" : v)}>
               <SelectTrigger style={{ maxWidth: 220 }}><SelectValue placeholder="All staff members" /></SelectTrigger>
@@ -451,6 +628,14 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline" size="sm"
+              disabled={!staffFilter}
+              onClick={() => staffFilter && handlePrintStaffRecord(staffFilter)}
+              title={staffFilter ? `Print PPE record for ${staffFilter}` : "Select a staff member to print their individual record"}
+            >
+              <FileText size={14} className="mr-2" />Print Staff Record
+            </Button>
           </div>
           {issueLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
