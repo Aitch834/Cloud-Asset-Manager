@@ -802,7 +802,16 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                         Fit confirmed for individual
                       </label>
                       <div />
-                      <div><Label>Confirmed By</Label><Input value={riskForm.fitConfirmedBy} onChange={e => setRF("fitConfirmedBy", e.target.value)} placeholder="Name of person who confirmed fit" disabled={!riskForm.fitConfirmed} /></div>
+                      <div><Label>Confirmed By</Label>
+                        <Select value={riskForm.fitConfirmedBy || "__text__"} onValueChange={v => setRF("fitConfirmedBy", v === "__text__" ? "" : v)} disabled={!riskForm.fitConfirmed}>
+                          <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__text__">— Type name manually —</SelectItem>
+                            {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {riskForm.fitConfirmed && (!riskForm.fitConfirmedBy || !staffNames.includes(riskForm.fitConfirmedBy)) && <Input className="mt-2" value={riskForm.fitConfirmedBy} onChange={e => setRF("fitConfirmedBy", e.target.value)} placeholder="Full name" />}
+                      </div>
                       <div><Label>Confirmation Date</Label><Input type="date" value={riskForm.fitConfirmedDate} onChange={e => setRF("fitConfirmedDate", e.target.value)} disabled={!riskForm.fitConfirmed} /></div>
                     </div>
                   </div>
@@ -826,7 +835,16 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   </div>
 
                   <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><Label>Assessed By *</Label><Input value={riskForm.assessedBy} onChange={e => setRF("assessedBy", e.target.value)} placeholder="Full name of assessor" /></div>
+                    <div><Label>Assessed By *</Label>
+                      <Select value={riskForm.assessedBy || "__text__"} onValueChange={v => setRF("assessedBy", v === "__text__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__text__">— Type name manually —</SelectItem>
+                          {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {(!riskForm.assessedBy || !staffNames.includes(riskForm.assessedBy)) && <Input className="mt-2" value={riskForm.assessedBy} onChange={e => setRF("assessedBy", e.target.value)} placeholder="Full name of assessor" />}
+                    </div>
                     <div><Label>Assessment Date *</Label><Input type="date" value={riskForm.assessmentDate} onChange={e => setRF("assessmentDate", e.target.value)} /></div>
                     <div><Label>Review Date</Label><Input type="date" value={riskForm.reviewDate} onChange={e => setRF("reviewDate", e.target.value)} /></div>
                     <div />
