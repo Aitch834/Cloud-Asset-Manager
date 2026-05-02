@@ -18,6 +18,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -1456,6 +1457,23 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                 <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
+
+            {/* Attachments — only available when editing an existing record */}
+            {editing && (
+              <div className="border border-border rounded-xl p-4 mt-2">
+                <RecordAttachments
+                  farmId={farmId}
+                  recordType="cleaning-disinfection"
+                  recordId={editing.id}
+                />
+              </div>
+            )}
+            {!editing && (
+              <p className="text-xs text-foreground/40 flex items-center gap-1.5 mt-1">
+                <span>📎</span> Save the record first, then re-open it to attach photos or documents.
+              </p>
+            )}
+
             <DialogFooter className="mt-4">
               <Button type="button" variant="outline" onClick={resetCleaningDialog}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -1535,6 +1553,16 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Verified By</p><p className="font-medium">{viewCleaning.verifiedBy || "—"}</p></div>
               {viewCleaning.notes && (<div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Notes</p><p className="font-medium">{viewCleaning.notes}</p></div>)}
             </div>
+
+            {/* Attachments */}
+            <div className="border border-border rounded-xl p-4 mt-2">
+              <RecordAttachments
+                farmId={farmId}
+                recordType="cleaning-disinfection"
+                recordId={viewCleaning.id}
+              />
+            </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewCleaning); setViewCleaning(null); }}>Edit</Button>
               <Button onClick={() => setViewCleaning(null)}>Close</Button>
