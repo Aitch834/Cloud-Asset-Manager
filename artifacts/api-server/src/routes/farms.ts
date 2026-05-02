@@ -6827,6 +6827,18 @@ router.get("/help/articles", async (req: Request, res: Response): Promise<void> 
 <h3>Visitor Log</h3>
 <p>Record everyone who comes onto your farm — contractors, vets, feed merchants, agronomists, and any other visitors. Each entry captures: full name and company, purpose of visit, date and approximate arrival and departure time, whether a biosecurity declaration was signed, and whether they had visited any other livestock holdings within the previous 48–72 hours (depending on your sector standard). On mobile, visitors can sign a digital declaration directly on screen.</p>
 
+<h4>Photo and Document Attachments</h4>
+<p>From the <strong>dashboard</strong>, open any visitor record to see the <strong>Attachments</strong> panel. You can upload PDFs, images, or Word documents — for example, a scanned paper declaration, a contractor's vaccination certificate, a delivery note, or a photo of a vehicle permit. Attachments are stored in cloud storage and linked permanently to the record.</p>
+<p>On the <strong>mobile app</strong>, an <strong>Attach Photo</strong> button appears on the new visitor log form. Tap it to photograph a paper declaration or contractor document before tapping <em>Log Visitor</em> — the photo is uploaded and queued for sync alongside the record.</p>
+
+<h4>Pest Control, COSHH, and Cleaning &amp; Disinfection Attachments</h4>
+<p>All four operational tabs in the Biosecurity module now support attachments on the dashboard:</p>
+<ul>
+<li><strong>Pest Control</strong> — open any record to attach treatment reports, risk assessments, site maps, or invoices from the contracted pest controller.</li>
+<li><strong>COSHH</strong> — open any assessment to attach Safety Data Sheets (SDS), product labels, or supplier data sheets. On mobile, a dedicated <em>Attach Safety Data Sheet Photo</em> button lets you photograph the SDS when logging a new assessment.</li>
+<li><strong>Cleaning &amp; Disinfection</strong> — open any record to attach photos of the completed disinfection process, product labels, or delivery notes as additional photographic evidence.</li>
+</ul>
+
 <h3>Biosecurity Plan</h3>
 <p>The Biosecurity Plan tab holds your farm's written biosecurity plan — a Red Tractor requirement across all livestock sectors. The plan is structured into <strong>13 sections</strong>:</p>
 <ol>

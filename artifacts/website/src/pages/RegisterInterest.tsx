@@ -27,7 +27,7 @@ const MODULES = [
   { id: "crop-management", label: "Crop Management (spray records, field journal, varieties)" },
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
   { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, individual animal linking, Bluetooth RFID scanning)" },
-  { id: "biosecurity", label: "Biosecurity & Visitors" },
+  { id: "biosecurity", label: "Biosecurity & Visitors (visitor log with digital signature & photo/document attachments, pest control with attachments, COSHH with SDS photo, cleaning & disinfection with photo evidence, biosecurity plan)" },
   { id: "organic-compliance", label: "Organic Compliance (certification status, field conversion tracker, inspection log with document attachment, restricted inputs register & mobile offline recording)" },
   { id: "organic-livestock", label: "Organic Livestock (herd register linkage, treatment compliance from Medicine Register with doubled withdrawal periods, certifier notification, outdoor access / stocking density logs)" },
   { id: "organic-dairy", label: "Organic Dairy (herd conversion with milk certification date, milk collection records, treatment compliance with organic milk & meat withdrawal tracking, organic feed records)" },

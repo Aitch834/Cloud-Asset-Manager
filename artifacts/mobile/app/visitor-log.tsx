@@ -26,6 +26,8 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { VisitorLogEntry } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { visitorLogHtml } from "@/lib/printTemplates";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 const BIOSEC_TEXT =
   "I confirm that I have not visited any other livestock or agricultural premises within the last 48 hours, that I agree to comply with all biosecurity measures required on this farm (including cleaning and disinfection of footwear, wearing PPE where required, and following all instructions from farm staff), and that I will not enter restricted areas without authorisation or escort.";
@@ -39,6 +41,7 @@ export default function VisitorLogScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const [visitorName, setVisitorName] = useState("");
   const [organisation, setOrganisation] = useState("");
@@ -73,6 +76,14 @@ export default function VisitorLogScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let uploadedPhotoUri: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "visitor-photo.jpg");
+        if (objectPath) uploadedPhotoUri = objectPath;
+      } catch {}
+    }
+
     const entry: VisitorLogEntry = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -90,6 +101,7 @@ export default function VisitorLogScreen() {
       healthSignature: healthSig,
       signature: user?.name || "",
       notes: notes.trim(),
+      photoUri: uploadedPhotoUri,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -225,6 +237,13 @@ export default function VisitorLogScreen() {
           )}
 
           <View style={{ height: spacing.lg }} />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo (optional)"
+            promptTitle="Attach Photo to Visitor Record"
+          />
 
           <Button
             title="Log Visitor"

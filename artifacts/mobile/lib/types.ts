@@ -83,6 +83,7 @@ export interface VisitorLogEntry {
   healthSignature: string | null;
   signature: string;
   notes: string;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }
