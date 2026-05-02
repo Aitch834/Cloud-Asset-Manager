@@ -712,7 +712,7 @@ function BngTab({ farmId }: { farmId: number }) {
 
 const Conditions = ["Distinctly sub-optimal", "Moderate", "Fairly good", "Good", "Excellent"];
 
-type Tab = "audits" | "emissions" | "sequestration" | "actions" | "reports" | "renewable" | "bng";
+type Tab = "audits" | "emissions" | "sequestration" | "actions" | "reports" | "renewable" | "bng" | "auto-calc";
 
 export default function CarbonPage() {
   const { farmId } = useAppStore();
@@ -729,6 +729,7 @@ export default function CarbonPage() {
           <TabButton active={tab === "renewable"} onClick={() => setTab("renewable")}><SunMedium className="w-3.5 h-3.5 mr-1" />Renewable Energy</TabButton>
           <TabButton active={tab === "bng"} onClick={() => setTab("bng")}><Sprout className="w-3.5 h-3.5 mr-1" />Biodiversity Net Gain</TabButton>
           <TabButton active={tab === "reports"} onClick={() => setTab("reports")}><FileBarChart className="w-3.5 h-3.5 mr-1" />Reports</TabButton>
+          <TabButton active={tab === "auto-calc"} onClick={() => setTab("auto-calc")}><Zap className="w-3.5 h-3.5 mr-1" />Auto-Calculator</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "audits" && <AuditsTab farmId={farmId} />}
@@ -738,8 +739,118 @@ export default function CarbonPage() {
           {tab === "renewable" && <RenewableEnergyTab farmId={farmId} />}
           {tab === "bng" && <BngTab farmId={farmId} />}
           {tab === "reports" && <ReportsTab farmId={farmId} />}
+          {tab === "auto-calc" && <CarbonAutoCalcTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
+  );
+}
+
+// ─── T015: Carbon Auto-Calculator ─────────────────────────────────────────────
+const DEFRA_EF: Record<string, { label: string; unit: string; kgCo2ePerUnit: number; scope: string; category: string }> = {
+  diesel:     { label: "Red Diesel / Gas Oil",       unit: "litres",   kgCo2ePerUnit: 2.5437,  scope: "1", category: "Fuel" },
+  petrol:     { label: "Petrol",                     unit: "litres",   kgCo2ePerUnit: 2.1555,  scope: "1", category: "Fuel" },
+  lng:        { label: "LNG / Propane (heating)",    unit: "litres",   kgCo2ePerUnit: 1.1544,  scope: "1", category: "Fuel" },
+  elec:       { label: "Grid Electricity",           unit: "kWh",      kgCo2ePerUnit: 0.20705, scope: "2", category: "Energy" },
+  ammonium:   { label: "Ammonium Nitrate (34.5%N)",  unit: "kg",       kgCo2ePerUnit: 5.82,    scope: "3", category: "Fertiliser" },
+  urea:       { label: "Urea (46%N)",                unit: "kg",       kgCo2ePerUnit: 4.70,    scope: "3", category: "Fertiliser" },
+  can:        { label: "CAN (27%N)",                 unit: "kg",       kgCo2ePerUnit: 3.04,    scope: "3", category: "Fertiliser" },
+  beef_head:  { label: "Beef cattle (per head/yr)",  unit: "head",     kgCo2ePerUnit: 3200,    scope: "1", category: "Livestock" },
+  dairy_head: { label: "Dairy cows (per head/yr)",   unit: "head",     kgCo2ePerUnit: 5400,    scope: "1", category: "Livestock" },
+  sheep_head: { label: "Sheep (per head/yr)",        unit: "head",     kgCo2ePerUnit: 320,     scope: "1", category: "Livestock" },
+  pigs_head:  { label: "Pigs (per head/yr)",         unit: "head",     kgCo2ePerUnit: 310,     scope: "1", category: "Livestock" },
+  poultry_k:  { label: "Poultry (per 1,000 birds)", unit: "k birds",  kgCo2ePerUnit: 280,     scope: "1", category: "Livestock" },
+};
+
+function CarbonAutoCalcTab({ farmId: _farmId }: { farmId: number }) {
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState(false);
+  const set = (key: string, val: string) => setInputs(p => ({ ...p, [key]: val }));
+
+  const results = Object.entries(DEFRA_EF).map(([key, ef]) => {
+    const qty = parseFloat(inputs[key] ?? "0") || 0;
+    const tCo2e = (qty * ef.kgCo2ePerUnit) / 1000;
+    return { key, ...ef, qty, tCo2e };
+  });
+
+  const s1 = results.filter(r => r.scope === "1").reduce((s, r) => s + r.tCo2e, 0);
+  const s2 = results.filter(r => r.scope === "2").reduce((s, r) => s + r.tCo2e, 0);
+  const s3 = results.filter(r => r.scope === "3").reduce((s, r) => s + r.tCo2e, 0);
+  const total = s1 + s2 + s3;
+  const fmt = (t: number) => t.toFixed(3);
+  const cats = [...new Set(Object.values(DEFRA_EF).map(e => e.category))];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+        <Zap className="w-4 h-4 mt-0.5 shrink-0" />
+        <div><strong>DEFRA 2023 GHG Conversion Factors.</strong> Enter annual activity quantities — estimates update instantly. Record audited totals in the Carbon Audits tab.</div>
+      </div>
+
+      {total > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "Scope 1 (Direct)", val: s1, bg: "#fef2f2", col: "#dc2626" },
+            { label: "Scope 2 (Energy)", val: s2, bg: "#fffbeb", col: "#d97706" },
+            { label: "Scope 3 (Indirect)", val: s3, bg: "#f5f3ff", col: "#7c3aed" },
+            { label: "Total tCO₂e / yr", val: total, bg: "#f9fafb", col: "#111827" },
+          ].map(s => (
+            <div key={s.label} className="rounded-xl p-4 border text-center" style={{ background: s.bg }}>
+              <p className="text-2xl font-bold" style={{ color: s.col }}>{fmt(s.val)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {cats.map(cat => (
+        <div key={cat}>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">{cat}</h3>
+          <div className="bg-white border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs text-gray-600">
+                  <th className="text-left px-4 py-2 font-medium">Activity</th>
+                  <th className="text-left px-4 py-2 font-medium">Scope</th>
+                  <th className="text-left px-4 py-2 font-medium">Quantity / year</th>
+                  <th className="text-left px-4 py-2 font-medium">EF (kg CO₂e)</th>
+                  <th className="text-right px-4 py-2 font-medium">tCO₂e</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.filter(r => r.category === cat).map((r, i, arr) => (
+                  <tr key={r.key} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{r.label}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${r.scope === "1" ? "bg-red-100 text-red-700" : r.scope === "2" ? "bg-amber-100 text-amber-700" : "bg-violet-100 text-violet-700"}`}>S{r.scope}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" min="0" step="any" className="w-24 border rounded px-2 py-1 text-sm" value={inputs[r.key] ?? ""} onChange={e => set(r.key, e.target.value)} placeholder="0" />
+                        <span className="text-xs text-gray-400">{r.unit}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400">{r.kgCo2ePerUnit.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold">{r.tCo2e > 0 ? fmt(r.tCo2e) : <span className="text-gray-300 font-normal">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+
+      {total > 0 && (
+        <button
+          className="text-sm bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90"
+          onClick={() => {
+            const lines = [`DEFRA Auto-Calc — Total: ${fmt(total)} tCO₂e/yr`, `Scope 1: ${fmt(s1)} | Scope 2: ${fmt(s2)} | Scope 3: ${fmt(s3)}`, ``, ...results.filter(r => r.qty > 0).map(r => `  ${r.label}: ${r.qty} ${r.unit} → ${fmt(r.tCo2e)} tCO₂e`)];
+            navigator.clipboard.writeText(lines.join("\n"));
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          }}
+        >{copied ? "✓ Copied" : "Copy Results to Clipboard"}</button>
+      )}
+    </div>
   );
 }

@@ -129,8 +129,6 @@ function NBar({ value, limit, className = "" }: { value: number; limit: number; 
 }
 
 // ─── NVZ Closed Periods Tab ───────────────────────────────────────────────────
-type FieldSummary = { fieldId: number; fieldName: string; isNvz: boolean; nvzLandType?: string | null; areaHectares?: number | null; totalNKgHa: number; organicNKgHa: number; applicationCount: number };
-
 const CLOSED_PERIOD_RULES: { product: string; arableFrom: string; arableTo: string; grassFrom: string; grassTo: string; note: string }[] = [
   { product: "Slurry / Digestate (liquid)", arableFrom: "01 Aug", arableTo: "31 Jan", grassFrom: "15 Oct", grassTo: "31 Jan", note: "Nitrates Action Programme — England" },
   { product: "Poultry Manure (high-N)", arableFrom: "01 Oct", arableTo: "31 Jan", grassFrom: "01 Oct", grassTo: "31 Jan", note: "High total N from poultry" },
@@ -389,7 +387,7 @@ export default function NVZPage() {
   const appMethods = useLookupStrings("nvz_application_methods", APP_METHODS);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments" | "closed-periods">("summary");
+  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments" | "closed-periods" | "budget-calc">("summary");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
@@ -659,6 +657,7 @@ export default function NVZPage() {
             <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
             <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
             <TabButton active={tab === "closed-periods"} onClick={() => setTab("closed-periods")}>Closed Periods</TabButton>
+            <TabButton active={tab === "budget-calc"} onClick={() => setTab("budget-calc")}>N Budget Calculator</TabButton>
           </div>
           {tab !== "risk-assessments" && (
             <div className="flex items-center gap-2 pb-1">
@@ -1164,6 +1163,11 @@ export default function NVZPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── BUDGET CALC TAB ── */}
+      {tab === "budget-calc" && (
+        <NvzBudgetCalcTab fields={fields} applications={applications} selectedYear={selectedYear} />
+      )}
+
       {/* ── NVZ FIELD SETTINGS DIALOG ── */}
       <Dialog open={nvzEditField !== null} onOpenChange={(o) => { if (!o) setNvzEditField(null); }}>
         <DialogContent className="max-w-sm">
@@ -1222,5 +1226,131 @@ export default function NVZPage() {
         </DialogContent>
       </Dialog>
     </AppLayout>
+  );
+}
+
+// ─── T019: NVZ Nitrogen Budget Calculator ─────────────────────────────────────
+// DEFRA Action Programme N limits (kg N/ha/year)
+const N_LIMITS: Record<string, Record<string, number>> = {
+  arable:    { organic: 170, total: 250, syntheticMax: 150 },
+  grassland: { organic: 170, total: 300, syntheticMax: 200 },
+  mixed:     { organic: 170, total: 250, syntheticMax: 175 },
+};
+const BUDGET_ORGANIC_TYPES = new Set(["slurry","pig-slurry","poultry-manure","fym","digestate-liquid","digestate-solid","sewage-sludge","compost","other-organic"]);
+
+interface NvzBudgetCalcProps {
+  fields: { id: number; name?: string; areaHectares?: string | number | null; isNvz?: boolean; landType?: string | null; isActive?: boolean | null }[];
+  applications: { fieldId?: number | null; productType?: string | null; totalNitrogenKgHa?: number | null; applicationDate?: string | null; quantityApplied?: number | null }[];
+  selectedYear: number;
+}
+
+function NvzBudgetCalcTab({ fields, applications, selectedYear }: NvzBudgetCalcProps) {
+  const nvzFields = fields.filter(f => f.isNvz && f.isActive !== false);
+  const [extras, setExtras] = useState<Record<number, { synth: string; organic: string }>>({});
+
+  const setExtra = (fieldId: number, key: "synth" | "organic", val: string) =>
+    setExtras(p => ({ ...p, [fieldId]: { ...(p[fieldId] ?? { synth: "", organic: "" }), [key]: val } }));
+
+  if (nvzFields.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-400">
+        <Leaf className="w-8 h-8 mx-auto mb-3 opacity-30" />
+        <p className="font-medium">No NVZ fields configured</p>
+        <p className="text-sm mt-1">Mark fields as NVZ in the NVZ Summary tab to use the budget calculator.</p>
+      </div>
+    );
+  }
+
+  const yearApps = applications.filter(a => a.applicationDate?.startsWith(String(selectedYear)));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+        <Leaf className="w-4 h-4 mt-0.5 shrink-0" />
+        <div>
+          <strong>Nitrogen Budget Calculator — {selectedYear}</strong> — Shows actual N applied (from your application log) plus any manual additions, against DEFRA Action Programme limits for NVZ fields.
+          Organic N limit: <strong>170 kg N/ha/yr</strong>. Total N limit varies by land type.
+        </div>
+      </div>
+
+      <div className="bg-white border rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b text-xs text-gray-600">
+              <th className="text-left px-4 py-2.5 font-medium">Field</th>
+              <th className="text-left px-3 py-2.5 font-medium">Land type</th>
+              <th className="text-right px-3 py-2.5 font-medium">Area (ha)</th>
+              <th className="text-right px-3 py-2.5 font-medium">Logged N (kg/ha)</th>
+              <th className="text-right px-3 py-2.5 font-medium">+ Synthetic N</th>
+              <th className="text-right px-3 py-2.5 font-medium">+ Organic N</th>
+              <th className="text-right px-3 py-2.5 font-medium">Total N</th>
+              <th className="text-right px-3 py-2.5 font-medium">Limit</th>
+              <th className="text-right px-3 py-2.5 font-medium">Remaining</th>
+              <th className="text-center px-3 py-2.5 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nvzFields.map((field, i, arr) => {
+              const fid = field.id;
+              const landType = (field.landType as string) || "arable";
+              const limits = N_LIMITS[landType] ?? N_LIMITS["arable"];
+              const ha = parseFloat(String(field.areaHectares ?? "0")) || 1;
+
+              // Sum N from logged applications for this field and year
+              const fieldApps = yearApps.filter(a => a.fieldId === fid);
+              const loggedN = fieldApps.reduce((s, a) => {
+                const n = parseFloat(String(a.totalNitrogenKgHa ?? "0")) || 0;
+                return s + n;
+              }, 0);
+              const loggedOrganic = fieldApps.filter(a => BUDGET_ORGANIC_TYPES.has(a.productType ?? "")).reduce((s, a) => s + (parseFloat(String(a.totalNitrogenKgHa ?? "0")) || 0), 0);
+
+              const extraSynth = parseFloat(extras[fid]?.synth ?? "0") || 0;
+              const extraOrganic = parseFloat(extras[fid]?.organic ?? "0") || 0;
+              const totalOrganic = loggedOrganic + extraOrganic;
+              const totalN = loggedN + extraSynth + extraOrganic;
+              const remaining = limits.total - totalN;
+              const organicOk = totalOrganic <= 170;
+              const totalOk = totalN <= limits.total;
+              const status = !organicOk ? "organic-breach" : !totalOk ? "total-breach" : remaining < 30 ? "near-limit" : "ok";
+
+              const statusBadge = {
+                "ok":             { label: "Within limit", bg: "#dcfce7", col: "#15803d" },
+                "near-limit":     { label: "Near limit",   bg: "#fef9c3", col: "#92400e" },
+                "organic-breach": { label: "Organic over", bg: "#fee2e2", col: "#b91c1c" },
+                "total-breach":   { label: "Over limit",   bg: "#fee2e2", col: "#b91c1c" },
+              }[status];
+
+              return (
+                <tr key={fid} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td className="px-4 py-2.5 font-medium">{field.name ?? `Field ${fid}`}</td>
+                  <td className="px-3 py-2.5 capitalize text-gray-500 text-xs">{landType}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-600">{ha.toFixed(1)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{loggedN.toFixed(1)}</td>
+                  <td className="px-3 py-1.5 text-right">
+                    <input type="number" min="0" step="any" className="w-16 border rounded px-1.5 py-1 text-xs text-right" value={extras[fid]?.synth ?? ""} onChange={e => setExtra(fid, "synth", e.target.value)} placeholder="0" />
+                  </td>
+                  <td className="px-3 py-1.5 text-right">
+                    <input type="number" min="0" step="any" className="w-16 border rounded px-1.5 py-1 text-xs text-right" value={extras[fid]?.organic ?? ""} onChange={e => setExtra(fid, "organic", e.target.value)} placeholder="0" />
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono font-semibold">{totalN.toFixed(1)}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-500">{limits.total}</td>
+                  <td className="px-3 py-2.5 text-right font-mono" style={{ color: remaining < 0 ? "#dc2626" : remaining < 30 ? "#d97706" : "#16a34a", fontWeight: 600 }}>
+                    {remaining.toFixed(1)}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: statusBadge.bg, color: statusBadge.col }}>{statusBadge.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-xs text-gray-400 space-y-0.5">
+        <p>Logged N is taken from your NVZ Application Log for {selectedYear}. Use the +Synthetic N / +Organic N columns to add any additional applications not yet recorded.</p>
+        <p>Organic N limit: 170 kg N/ha/yr (all NVZ fields). Total N limits: arable 250, grassland 300, mixed 250 kg/ha/yr — DEFRA Action Programme for Nitrates, England.</p>
+      </div>
+    </div>
   );
 }

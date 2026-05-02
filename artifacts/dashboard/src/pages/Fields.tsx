@@ -1080,7 +1080,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure">("fields");
+  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure" | "rotation">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -1253,6 +1253,7 @@ export default function FieldsPage() {
         <TabButton active={tab === "crops"} onClick={() => setTab("crops")}>Crops Register</TabButton>
         <TabButton active={tab === "seed"} onClick={() => setTab("seed")}>Seed Records</TabButton>
         <TabButton active={tab === "tenure"} onClick={() => setTab("tenure")}>Land Tenure</TabButton>
+        <TabButton active={tab === "rotation"} onClick={() => setTab("rotation")}>Crop Rotation</TabButton>
       </TabBar>
 
       {/* ── FIELDS TAB ── */}
@@ -2670,6 +2671,9 @@ export default function FieldsPage() {
       {/* ── SEED RECORDS TAB ── */}
       {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}
 
+      {/* ── CROP ROTATION PLANNER TAB ── */}
+      {tab === "rotation" && <CropRotationPlanner farmId={farmId} fields={fields} />}
+
       {/* ── LAND TENURE REGISTER TAB ── */}
       {tab === "tenure" && (() => {
         const today = new Date().toISOString().slice(0, 10);
@@ -2961,5 +2965,112 @@ export default function FieldsPage() {
         </DialogContent>
       </Dialog>
     </AppLayout>
+  );
+}
+
+// ─── T016: Crop Rotation Planner ──────────────────────────────────────────────
+const ROTATION_CROPS = ["Wheat", "Barley (Winter)", "Barley (Spring)", "Oilseed Rape", "Beans / Peas", "Sugar Beet", "Potatoes", "Oats", "Rye / Triticale", "Linseed", "Cover Crop / Break", "Grass Ley", "Fallow / SFI", "Maize"];
+const ROTATION_COLORS: Record<string, string> = {
+  "Wheat": "#fef9c3", "Barley (Winter)": "#fef3c7", "Barley (Spring)": "#fde68a",
+  "Oilseed Rape": "#d1fae5", "Beans / Peas": "#a7f3d0", "Sugar Beet": "#fbcfe8",
+  "Potatoes": "#e0e7ff", "Oats": "#fde68a", "Rye / Triticale": "#fef3c7",
+  "Linseed": "#dbeafe", "Cover Crop / Break": "#dcfce7", "Grass Ley": "#bbf7d0",
+  "Fallow / SFI": "#f3f4f6", "Maize": "#fef9c3",
+};
+const YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027];
+
+function CropRotationPlanner({ farmId: _farmId, fields }: { farmId: number; fields: { id: number; name?: string; areaHectares?: string | number | null; isActive?: boolean | null }[] }) {
+  const activeFields = fields.filter(f => f.isActive !== false);
+  const [rotations, setRotations] = useState<Record<string, Record<number, string>>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  const setRotation = (fieldId: string, year: number, crop: string) =>
+    setRotations(p => ({ ...p, [fieldId]: { ...(p[fieldId] ?? {}), [year]: crop } }));
+
+  if (activeFields.length === 0) {
+    return <div className="text-center py-12 text-gray-400"><Sprout className="w-8 h-8 mx-auto mb-3 opacity-30" /><p>No active fields found. Add fields to plan crop rotations.</p></div>;
+  }
+
+  const allCropsOk = activeFields.every(f => {
+    const fid = String(f.id);
+    const crops = Object.values(rotations[fid] ?? {});
+    const osr = crops.filter(c => c === "Oilseed Rape").length;
+    return osr <= 1;
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+        <Sprout className="w-4 h-4 mt-0.5 shrink-0" />
+        <div><strong>Crop Rotation Planner</strong> — Plan and visualise your crop sequences for each field. Avoid continuous cropping and build in effective break crops for disease, weed and resistance management. OSR should not return to the same field more than once in 4 years.</div>
+      </div>
+
+      {!allCropsOk && (
+        <div className="flex gap-2 items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 shrink-0" /> One or more fields has OSR planned in consecutive or near-consecutive years — consider extending the break.
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse" style={{ minWidth: 900 }}>
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="text-left px-3 py-2.5 font-medium text-gray-700 sticky left-0 bg-gray-50 w-40">Field</th>
+              <th className="text-left px-2 py-2.5 font-medium text-gray-500 text-xs w-20">Area (ha)</th>
+              {YEARS.map(y => <th key={y} className="px-2 py-2.5 font-medium text-gray-700 text-center w-32">{y}</th>)}
+              <th className="text-left px-3 py-2.5 font-medium text-gray-500 text-xs">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeFields.map((field, i) => {
+              const fid = String(field.id);
+              const fieldRot = rotations[fid] ?? {};
+              const crops = Object.values(fieldRot).filter(Boolean);
+              const uniqueCrops = new Set(crops);
+              const diversity = uniqueCrops.size;
+              return (
+                <tr key={field.id} style={{ borderBottom: i < activeFields.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td className="px-3 py-2 font-medium sticky left-0 bg-white">
+                    <div>{field.name ?? `Field ${field.id}`}</div>
+                    {diversity >= 3 && <div className="text-xs text-green-600 mt-0.5">✓ Good diversity ({diversity} crops)</div>}
+                    {diversity > 0 && diversity < 3 && <div className="text-xs text-amber-600 mt-0.5">⚠ Low diversity</div>}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-400">
+                    {field.areaHectares ? `${parseFloat(String(field.areaHectares)).toFixed(1)} ha` : "—"}
+                  </td>
+                  {YEARS.map(y => {
+                    const val = fieldRot[y] ?? "";
+                    const bg = val ? (ROTATION_COLORS[val] ?? "#f9fafb") : "#fff";
+                    return (
+                      <td key={y} className="px-1 py-1" style={{ background: bg }}>
+                        <select
+                          className="w-full text-xs border-0 bg-transparent cursor-pointer rounded px-1 py-1"
+                          value={val}
+                          onChange={e => setRotation(fid, y, e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {ROTATION_CROPS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1">
+                    <input className="w-full text-xs border rounded px-2 py-1" placeholder="Rotation notes…" value={notes[fid] ?? ""} onChange={e => setNotes(p => ({ ...p, [fid]: e.target.value }))} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-2">
+        {ROTATION_CROPS.map(c => (
+          <span key={c} className="text-xs px-2 py-0.5 rounded border" style={{ background: ROTATION_COLORS[c] ?? "#f9fafb" }}>{c}</span>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400">Rotation plan is stored in-browser only. Export to PDF via your browser print function or record in the crop history fields.</p>
+    </div>
   );
 }

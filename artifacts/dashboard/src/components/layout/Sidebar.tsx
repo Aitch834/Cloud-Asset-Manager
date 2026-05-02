@@ -74,6 +74,7 @@ interface NavItem {
 
 const coreNav: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Group Overview", href: "/group-overview", icon: Building2 },
   { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
   { name: "Task Board", href: "/task-board", icon: ClipboardList },
   { name: "Staff", href: "/staff", icon: Users },

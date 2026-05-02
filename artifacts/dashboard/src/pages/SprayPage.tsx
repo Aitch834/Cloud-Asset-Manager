@@ -728,9 +728,31 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Buffer Zone Distance (m)</Label>
+                <Input type="number" step="0.5" placeholder="e.g. 5, 10, 20" value={form.bufferZoneMetres ?? ""} onChange={e => setForm((f: any) => ({ ...f, bufferZoneMetres: e.target.value }))} />
+                {form.bufferZoneMetres && (
+                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Buffer zone of {form.bufferZoneMetres}m recorded</p>
+                )}
+              </div>
+              <div>
+                <Label>Water Source Nearby</Label>
+                <Select value={form.waterSourceNearby ?? ""} onValueChange={v => setForm((f: any) => ({ ...f, waterSourceNearby: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None / Not applicable</SelectItem>
+                    <SelectItem value="ditch">Ditch / Drain</SelectItem>
+                    <SelectItem value="stream">Stream / River</SelectItem>
+                    <SelectItem value="pond">Pond / Lake</SelectItem>
+                    <SelectItem value="borehole">Borehole / Well</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div>
               <Label>Notes</Label>
-              <Textarea placeholder="Buffer zones, conditions, observations..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
+              <Textarea placeholder="Conditions, observations, non-standard buffer justification..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
           {editRecord && farmId && (

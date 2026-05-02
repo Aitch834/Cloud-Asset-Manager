@@ -95,13 +95,13 @@ export default function MoreScreen() {
               isSyncing
                 ? "Syncing..."
                 : pendingCount > 0
-                  ? `${pendingCount} record${pendingCount === 1 ? "" : "s"} pending`
+                  ? `${pendingCount} record${pendingCount === 1 ? "" : "s"} pending — tap to view`
                   : "All records synced"
             }
             icon="refresh-cw"
             iconColor={pendingCount > 0 ? colors.accent : colors.success}
             iconBgColor={pendingCount > 0 ? colors.warningBg : colors.successBg}
-            onPress={triggerSync}
+            onPress={() => router.push("/sync-status")}
             rightElement={
               pendingCount > 0 ? (
                 <View style={styles.pendingBadge}>
@@ -109,6 +109,20 @@ export default function MoreScreen() {
                 </View>
               ) : undefined
             }
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Sync Now"
+            subtitle={
+              lastSyncTime
+                ? `Last synced ${new Date(lastSyncTime).toLocaleString("en-GB")}`
+                : "Never synced"
+            }
+            icon="upload-cloud"
+            iconColor={colors.primary}
+            iconBgColor={colors.primaryBg ?? colors.primary + "15"}
+            onPress={triggerSync}
+            showChevron={false}
           />
           <View style={styles.divider} />
           <ListItem

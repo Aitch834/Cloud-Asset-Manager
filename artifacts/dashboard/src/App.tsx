@@ -89,6 +89,7 @@ import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
 import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
+import MultiFarmGroupPage from "@/pages/MultiFarmGroupPage";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 // NOTE: in dev this env var will be empty, in prod it will be automatically set
@@ -367,6 +368,7 @@ function ProtectedContent() {
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
+        <Route path="/group-overview" component={MultiFarmGroupPage} />
         <Route component={NotFound} />
       </Switch>
     </AuthGate>

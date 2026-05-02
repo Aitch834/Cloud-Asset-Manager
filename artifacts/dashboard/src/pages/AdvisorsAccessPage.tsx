@@ -411,6 +411,22 @@ export default function AdvisorsAccessPage() {
           </Card>
         )}
 
+        {/* ── Inspector Mode ── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Inspector / Compliance Officer Mode</CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Generate a filtered, read-only compliance pack link for Red Tractor inspectors, assurance body auditors, or bank compliance officers. The link shows only compliance-relevant modules for a specific date range.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <InspectorModeCard farmId={farmId!} toast={toast} />
+          </CardContent>
+        </Card>
+
       </div>
 
       {/* Add Advisor Dialog */}
@@ -539,7 +555,138 @@ export default function AdvisorsAccessPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </AppLayout>
+  );
+}
+
+// ─── Inspector Mode Card ────────────────────────────────────────────────────
+const INSPECTOR_MODULES = [
+  "sprays-inputs", "field-crop-management", "livestock-management",
+  "medicines", "movements", "biosecurity", "inspections", "risk-waste",
+  "training", "documents",
+];
+
+const INSPECTOR_PURPOSES = [
+  { value: "red-tractor-audit", label: "Red Tractor / RSPCA Assured Audit" },
+  { value: "bank-compliance", label: "Bank / Finance Compliance Review" },
+  { value: "environmental-regulator", label: "Environment Agency / NRW Inspector" },
+  { value: "apha-visit", label: "APHA / Trading Standards Visit" },
+  { value: "nhbc-survey", label: "Soil Association Organic Inspection" },
+  { value: "other-inspector", label: "Other Inspector / Auditor" },
+];
+
+function InspectorModeCard({ farmId, toast }: { farmId: number; toast: ReturnType<typeof useToast>["toast"] }) {
+  const qc = useQueryClient();
+  const defaultExpiry = () => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString().split("T")[0]; };
+  const [form, setForm] = useState({
+    accessorName: "",
+    accessorEmail: "",
+    accessorOrganisation: "",
+    purpose: "red-tractor-audit",
+    expiresAt: defaultExpiry(),
+    inspectorReference: "",
+    moduleAccess: INSPECTOR_MODULES,
+  });
+  const [created, setCreated] = useState<{ token: string } | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: async (body: typeof form) => {
+      const r = await fetch(`/api/farms/${farmId}/inspection-sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return r.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["inspection-sessions", farmId] });
+      if (data.record?.token) {
+        setCreated({ token: data.record.token });
+      } else {
+        toast({ title: "Inspector session created" });
+      }
+    },
+    onError: () => toast({ title: "Failed to create session", variant: "destructive" }),
+  });
+
+  const inspectorLink = created ? buildInspectUrl(created.token) : null;
+
+  if (created && inspectorLink) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <ShieldCheck className="w-4 h-4 text-green-700 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-green-800">Inspector access link created</p>
+            <p className="text-xs text-green-700 mt-0.5">Share this link with the inspector. It gives read-only compliance access until {new Date(form.expiresAt).toLocaleDateString("en-GB")}.</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Input value={inspectorLink} readOnly className="font-mono text-xs flex-1" />
+          <Button size="sm" onClick={() => {
+            navigator.clipboard.writeText(inspectorLink);
+            toast({ title: "Link copied" });
+          }}>
+            <Copy className="w-4 h-4 mr-1" /> Copy
+          </Button>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => { setCreated(null); setForm(f => ({ ...f, accessorName: "", accessorEmail: "", accessorOrganisation: "", inspectorReference: "", expiresAt: defaultExpiry() })); }}>
+          Create Another
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Inspector / Auditor Name *</Label>
+          <Input value={form.accessorName} onChange={e => setForm(f => ({ ...f, accessorName: e.target.value }))} placeholder="Jane Smith" />
+        </div>
+        <div className="space-y-1">
+          <Label>Organisation</Label>
+          <Input value={form.accessorOrganisation} onChange={e => setForm(f => ({ ...f, accessorOrganisation: e.target.value }))} placeholder="Red Tractor Assurance" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Inspection Purpose *</Label>
+          <Select value={form.purpose} onValueChange={v => setForm(f => ({ ...f, purpose: v }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {INSPECTOR_PURPOSES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Inspector Reference / Visit Code</Label>
+          <Input value={form.inspectorReference} onChange={e => setForm(f => ({ ...f, inspectorReference: e.target.value }))} placeholder="e.g. RT-2024-1234" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Email (optional)</Label>
+          <Input type="email" value={form.accessorEmail} onChange={e => setForm(f => ({ ...f, accessorEmail: e.target.value }))} placeholder="inspector@redtractor.org.uk" />
+        </div>
+        <div className="space-y-1">
+          <Label>Link Expires</Label>
+          <Input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
+        </div>
+      </div>
+      <div className="p-3 border rounded-lg bg-muted/40 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground mb-1">Modules included in compliance view:</p>
+        <p>Spray Records, Livestock Movements, Medicines, NVZ Applications, Training, Documents, Inspections, Risk Assessments, Biosecurity, Field & Crop Records</p>
+        <p className="mt-1 text-xs opacity-70">All access is logged. The inspector sees data in read-only mode — no editing or deletion is possible.</p>
+      </div>
+      <Button
+        onClick={() => createMut.mutate(form)}
+        disabled={!form.accessorName || !form.purpose || !form.expiresAt || createMut.isPending}
+        className="w-full"
+      >
+        <ShieldCheck className="w-4 h-4 mr-2" />
+        {createMut.isPending ? "Creating…" : "Generate Inspector Access Link"}
+      </Button>
+    </div>
   );
 }

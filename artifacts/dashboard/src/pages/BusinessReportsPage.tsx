@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Printer, Download, TrendingUp, TrendingDown, BarChart3, Package, Leaf, Tractor, PoundSterling, Calendar } from "lucide-react";
 
-type Tab = "gross-margin" | "pl" | "input-costs" | "grain-position" | "subsidies" | "year-on-year" | "assets";
+type Tab = "gross-margin" | "pl" | "input-costs" | "grain-position" | "subsidies" | "year-on-year" | "assets" | "benchmarking";
 
 const VARIABLE_COST_CATS = ["Seeds & Seed Treatments", "Fertiliser", "Pesticides & Herbicides", "Fungicides", "Insecticides", "Veterinary & Medicine", "Feed & Bedding", "Haulage"];
 const FIXED_COST_CATS = ["Labour", "Fuel", "Machinery & Equipment"];
@@ -974,6 +974,7 @@ export default function BusinessReportsPage() {
             <TabButton active={tab === "subsidies"} onClick={() => setTab("subsidies")}>Subsidies</TabButton>
             <TabButton active={tab === "year-on-year"} onClick={() => setTab("year-on-year")}>Year-on-Year</TabButton>
             <TabButton active={tab === "assets"} onClick={() => setTab("assets")}>Asset Register</TabButton>
+            <TabButton active={tab === "benchmarking"} onClick={() => setTab("benchmarking")}>Benchmarking</TabButton>
           </TabBar>
         </div>
 
@@ -1016,7 +1017,90 @@ export default function BusinessReportsPage() {
         {tab === "subsidies" && <SubsidiesTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
         {tab === "year-on-year" && <YearOnYearTab farmId={farmId} onRegisterExport={onRegisterExport} />}
         {tab === "assets" && <AssetRegisterTab farmId={farmId} onRegisterExport={onRegisterExport} />}
+        {tab === "benchmarking" && <BenchmarkingTab farmId={farmId} year={year} />}
       </div>
     </AppLayout>
+  );
+}
+
+// ─── T018: Benchmarking Tab ────────────────────────────────────────────────────
+const BENCHMARKS: { metric: string; unit: string; low: number; avg: number; top: number; description: string }[] = [
+  { metric: "Winter Wheat Yield",          unit: "t/ha",        low: 6.0,   avg: 8.2,   top: 11.0,  description: "AHDB national average 2023" },
+  { metric: "Winter Barley Yield",         unit: "t/ha",        low: 5.0,   avg: 6.8,   top: 9.5,   description: "AHDB national average 2023" },
+  { metric: "OSR Yield",                   unit: "t/ha",        low: 2.8,   avg: 3.5,   top: 5.2,   description: "AHDB national average 2023" },
+  { metric: "Wheat Variable Costs",        unit: "£/ha",        low: 850,   avg: 680,   top: 520,   description: "Lower is better — Andersons Benchmarking" },
+  { metric: "Wheat Gross Margin",          unit: "£/ha",        low: 320,   avg: 680,   top: 1200,  description: "AHDB Farmbench top third vs bottom third" },
+  { metric: "Nitrogen Use Efficiency",     unit: "kg grain/kg N",low: 28,   avg: 38,    top: 52,    description: "Sustainable use target >40 kg grain/kg N" },
+  { metric: "Spray Costs",                 unit: "£/ha",        low: 340,   avg: 230,   top: 155,   description: "Lower is better — Nix Farm Management 2023" },
+  { metric: "Diesel Consumption",          unit: "l/ha",        low: 120,   avg: 85,    top: 55,    description: "Lower is better" },
+  { metric: "Machinery Depreciation",      unit: "£/ha",        low: 190,   avg: 130,   top: 75,    description: "Lower is better" },
+  { metric: "Labour Cost",                 unit: "£/ha",        low: 210,   avg: 145,   top: 90,    description: "Lower is better" },
+];
+
+function BenchmarkingTab({ farmId, year }: { farmId: number; year: number }) {
+  const [farmValues, setFarmValues] = useState<Record<string, string>>({});
+  const fv = (k: string) => parseFloat(farmValues[k] ?? "") || null;
+
+  const position = (val: number | null, b: typeof BENCHMARKS[0]) => {
+    if (val === null) return null;
+    const lowerIsBetter = ["Variable Costs", "Costs", "Spray", "Diesel", "Machinery", "Labour"].some(k => b.metric.includes(k));
+    if (lowerIsBetter) {
+      if (val <= b.top) return "top";
+      if (val <= b.avg) return "avg";
+      return "low";
+    } else {
+      if (val >= b.top) return "top";
+      if (val >= b.avg) return "avg";
+      return "low";
+    }
+  };
+
+  const posColor = (p: string | null) => p === "top" ? "#16a34a" : p === "avg" ? "#d97706" : p === "low" ? "#dc2626" : "#9ca3af";
+  const posLabel = (p: string | null) => p === "top" ? "Top third" : p === "avg" ? "Middle" : p === "low" ? "Bottom third" : "Enter value";
+
+  return (
+    <div style={{ padding: "0.5rem 0" }}>
+      <div style={{ display: "flex", gap: 8, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: "0.85rem", color: "#1e40af", alignItems: "flex-start" }}>
+        <TrendingUp size={15} style={{ marginTop: 1, flexShrink: 0 }} />
+        <span><strong>Industry Benchmarking</strong> — Enter your farm figures to compare against AHDB and Andersons national benchmarks for {year}. Data sources: AHDB Farmbench, Nix Farm Management Pocketbook, Andersons Benchmarking.</span>
+      </div>
+      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <thead>
+            <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+              {["Metric", "Unit", "Your figure", "Bottom third", "Average", "Top third", "Position"].map(h => (
+                <th key={h} style={{ padding: "0.6rem 1rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {BENCHMARKS.map((b, i, arr) => {
+              const val = fv(b.metric);
+              const pos = position(val, b);
+              return (
+                <tr key={b.metric} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "0.6rem 1rem", fontWeight: 500 }}>
+                    <div>{b.metric}</div>
+                    <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{b.description}</div>
+                  </td>
+                  <td style={{ padding: "0.6rem 1rem", color: "#6b7280", fontSize: "0.8rem" }}>{b.unit}</td>
+                  <td style={{ padding: "0.4rem 0.75rem" }}>
+                    <input type="number" step="any" style={{ width: 80, border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 8px", fontSize: "0.85rem" }} value={farmValues[b.metric] ?? ""} onChange={e => setFarmValues(p => ({ ...p, [b.metric]: e.target.value }))} placeholder="—" />
+                  </td>
+                  <td style={{ padding: "0.6rem 1rem", fontSize: "0.8rem", color: "#dc2626" }}>{b.low}</td>
+                  <td style={{ padding: "0.6rem 1rem", fontSize: "0.8rem", color: "#d97706" }}>{b.avg}</td>
+                  <td style={{ padding: "0.6rem 1rem", fontSize: "0.8rem", color: "#16a34a" }}>{b.top}</td>
+                  <td style={{ padding: "0.6rem 1rem" }}>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 600, color: posColor(pos), background: posColor(pos) + "1a", borderRadius: 999, padding: "2px 10px", display: "inline-block" }}>
+                      {posLabel(pos)}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
