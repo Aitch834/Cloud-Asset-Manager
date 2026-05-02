@@ -798,6 +798,157 @@ export default function BiofuelPage() {
         )}
       </div>
 
+      {/* ── View: Certification ── */}
+      {viewCert && (
+        <Dialog open onOpenChange={o => { if (!o) setViewCert(null); }}>
+          <DialogContent style={{ maxWidth: 520 }}>
+            <DialogHeader><DialogTitle>Certification — {viewCert.scheme}</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Certification Scheme</span><p style={{ margin: "2px 0 0", fontWeight: 500 }}>{viewCert.scheme}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Status</span><div style={{ marginTop: 4 }}>{certStatusBadge(viewCert)}</div></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Certification Number</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewCert.certificationNumber || "—"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Issuing Body</span><p style={{ margin: "2px 0 0" }}>{viewCert.issuingBody || "—"}</p></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Issue Date</span><p style={{ margin: "2px 0 0" }}>{viewCert.issueDate ? new Date(viewCert.issueDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Expiry Date</span><p style={{ margin: "2px 0 0" }}>{viewCert.expiryDate ? new Date(viewCert.expiryDate).toLocaleDateString("en-GB") : "—"}</p></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>RTFO Operator Number</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewCert.rtfoOperatorNumber || "—"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Certification Scope</span><p style={{ margin: "2px 0 0" }}>{viewCert.scope || "—"}</p></div>
+              </div>
+              {viewCert.notes && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Notes</span><p style={{ margin: "2px 0 0" }}>{viewCert.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setViewCert(null); setEditingCert(viewCert); setCertDialog(true); }}><Edit size={13} className="mr-1" />Edit</Button>
+              <Button onClick={() => setViewCert(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── View: Field Declaration ── */}
+      {viewField && (
+        <Dialog open onOpenChange={o => { if (!o) setViewField(null); }}>
+          <DialogContent style={{ maxWidth: 540 }}>
+            <DialogHeader><DialogTitle>Field Declaration — {viewField.fieldName}</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Field Name</span><p style={{ margin: "2px 0 0", fontWeight: 500 }}>{viewField.fieldName}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Eligibility Status</span><div style={{ marginTop: 4 }}>{eligibilityBadge(viewField.eligibilityStatus)}</div></div>
+              </div>
+              <div><span style={{ color: "#6b7280", fontSize: 12 }}>Land Use in January 2008</span><p style={{ margin: "2px 0 0", textTransform: "capitalize" }}>{viewField.landUseIn2008.replace(/-/g, " ")}</p></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Converted After 2008?</span><p style={{ margin: "2px 0 0" }}>{viewField.convertedAfter2008 ? "Yes" : "No"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>High Carbon Risk?</span><p style={{ margin: "2px 0 0", color: viewField.highCarbonStockRisk ? "#dc2626" : undefined }}>{viewField.highCarbonStockRisk ? "Yes — High" : "No"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Biodiversity Risk?</span><p style={{ margin: "2px 0 0", color: viewField.highBiodiversityRisk ? "#dc2626" : undefined }}>{viewField.highBiodiversityRisk ? "Yes — High" : "No"}</p></div>
+              </div>
+              {viewField.conversionFrom && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Converted From</span><p style={{ margin: "2px 0 0" }}>{viewField.conversionFrom}</p></div>}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Declaration Date</span><p style={{ margin: "2px 0 0" }}>{viewField.declarationDate ? new Date(viewField.declarationDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><span style={{ color: "#6b7280", fontSize: 12 }}>Declared By</span><p style={{ margin: "2px 0 0" }}>{viewField.declaredBy || "—"}</p></div>
+              </div>
+              {viewField.notes && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Notes</span><p style={{ margin: "2px 0 0" }}>{viewField.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setViewField(null); setEditingField(viewField); setFieldDialog(true); }}><Edit size={13} className="mr-1" />Edit</Button>
+              <Button onClick={() => setViewField(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── View: Buyer ── */}
+      {viewBuyer && (
+        <Dialog open onOpenChange={o => { if (!o) setViewBuyer(null); }}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Buyer — {viewBuyer.companyName}</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 14 }}>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Company Identity</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#6b7280", fontSize: 12 }}>Company Name</span><p style={{ margin: "2px 0 0", fontWeight: 600, fontSize: 15 }}>{viewBuyer.companyName}{viewBuyer.isActive === false && <span style={{ fontSize: 11, marginLeft: 8, color: "#6b7280" }}>(Inactive)</span>}</p></div>
+                  {viewBuyer.tradingName && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Trading Name</span><p style={{ margin: "2px 0 0" }}>{viewBuyer.tradingName}</p></div>}
+                  {viewBuyer.rtfoObligationNumber && <div><span style={{ color: "#6b7280", fontSize: 12 }}>RTF Obligation Number</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewBuyer.rtfoObligationNumber}</p></div>}
+                  {viewBuyer.isccCertNumber && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Buyer's ISCC Cert No.</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewBuyer.isccCertNumber}</p></div>}
+                </div>
+              </div>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Contact</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Contact Name</span><p style={{ margin: "2px 0 0" }}>{viewBuyer.contactName || "—"}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Phone</span><p style={{ margin: "2px 0 0" }}>{viewBuyer.contactPhone || "—"}</p></div>
+                  <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#6b7280", fontSize: 12 }}>Email</span><p style={{ margin: "2px 0 0" }}>{viewBuyer.contactEmail || "—"}</p></div>
+                </div>
+              </div>
+              {(viewBuyer.addressLine1 || viewBuyer.town || viewBuyer.postcode) && (
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Address</p>
+                  <p style={{ margin: 0, lineHeight: 1.7 }}>
+                    {[viewBuyer.addressLine1, viewBuyer.addressLine2, viewBuyer.town, viewBuyer.county, viewBuyer.postcode?.toUpperCase()].filter(Boolean).join(", ")}
+                  </p>
+                </div>
+              )}
+              {viewBuyer.notes && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Notes</span><p style={{ margin: "2px 0 0" }}>{viewBuyer.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              {viewBuyer.isActive !== false && <Button variant="outline" onClick={() => { setViewBuyer(null); setEditingBuyer(viewBuyer); setBuyerDialog(true); }}><Edit size={13} className="mr-1" />Edit</Button>}
+              <Button onClick={() => setViewBuyer(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── View: Delivery ── */}
+      {viewDelivery && (
+        <Dialog open onOpenChange={o => { if (!o) setViewDelivery(null); }}>
+          <DialogContent style={{ maxWidth: 580, maxHeight: "90vh", overflowY: "auto" }}>
+            <DialogHeader><DialogTitle>Delivery — {viewDelivery.buyerName}</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 14 }}>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Consignment</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Delivery Date</span><p style={{ margin: "2px 0 0", fontWeight: 500 }}>{new Date(viewDelivery.deliveryDate).toLocaleDateString("en-GB")}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Quantity (tonnes)</span><p style={{ margin: "2px 0 0", fontWeight: 500 }}>{viewDelivery.quantityTonnes ? Number(viewDelivery.quantityTonnes).toFixed(2) + "t" : "—"}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Buyer</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.buyerName}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Buyer RTFO Ref</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewDelivery.buyerRtfoRef || "—"}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Crop Type</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.cropType}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Sustainability Scheme</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.sustainabilityScheme || "—"}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>GHG Saving %</span><p style={{ margin: "2px 0 0", color: viewDelivery.ghgSavingPercent ? "#16a34a" : undefined }}>{viewDelivery.ghgSavingPercent ? viewDelivery.ghgSavingPercent + "%" : "—"}</p></div>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Certification Ref</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewDelivery.certificationRef || "—"}</p></div>
+                  <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#6b7280", fontSize: 12 }}>Sustainability Declaration Ref</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewDelivery.sustainabilityDeclarationRef || "—"}</p></div>
+                </div>
+              </div>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Stock Source</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Source Type</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.sourceType === "ex_field" ? "Ex-Field (direct from harvest)" : "From Store"}</p></div>
+                  {viewDelivery.storageLocationName && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Storage Location</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.storageLocationName}</p></div>}
+                </div>
+              </div>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Transport &amp; Haulage</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><span style={{ color: "#6b7280", fontSize: 12 }}>Transported By</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.transportType === "own" ? "Own vehicle" : viewDelivery.transportType === "buyer" ? "Buyer's vehicle" : viewDelivery.transportType === "contractor" ? "3rd party contractor" : "—"}</p></div>
+                  {viewDelivery.haulierName && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Haulier Name</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.haulierName}</p></div>}
+                  {viewDelivery.haulierContact && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Haulier Contact</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.haulierContact}</p></div>}
+                  {viewDelivery.vehicleRegistration && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Vehicle Registration</span><p style={{ margin: "2px 0 0", fontFamily: "monospace", textTransform: "uppercase" }}>{viewDelivery.vehicleRegistration}</p></div>}
+                  {viewDelivery.deliveryNoteRef && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Delivery Note / Weighbridge Ref</span><p style={{ margin: "2px 0 0", fontFamily: "monospace" }}>{viewDelivery.deliveryNoteRef}</p></div>}
+                </div>
+              </div>
+              {viewDelivery.notes && <div><span style={{ color: "#6b7280", fontSize: 12 }}>Notes</span><p style={{ margin: "2px 0 0" }}>{viewDelivery.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setViewDelivery(null); setEditingDelivery(viewDelivery); setDeliveryDialog(true); }}><Edit size={13} className="mr-1" />Edit</Button>
+              <Button onClick={() => setViewDelivery(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <CertificationDialog
         open={certDialog}
         onClose={() => { setCertDialog(false); setEditingCert(null); }}
