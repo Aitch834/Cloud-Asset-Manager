@@ -21553,17 +21553,75 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
+
+  // Fetch existing record before update so we can reconcile stock
+  const [existing] = await db.select().from(sheepDippingRecordsTable).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["dipDate","productName","mappNumber","activeIngredient","dipType","dipConcentrationPct","volumeOfDipLitres","sheepCount","herdFlockRef","operatorName","operatorCertNumber","operatorCertExpiry","bathFillDate","daysSinceLastUse","topUpVolumeAdded","disposalMethod","disposalQuantityLitres","disposalDate","disposalContractorName","disposalWasteTransferNoteRef","withdrawalPeriodDays","withdrawalClearDate","stockItemId","quantityUsed","documentPath","documentUrl","documentName","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(sheepDippingRecordsTable).set(updates).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+
+  // ── Reconcile stock if stockItemId or quantityUsed changed ──────────────────
+  const oldStockId = existing.stockItemId;
+  const oldQty = existing.quantityUsed ? parseFloat(existing.quantityUsed) : 0;
+  const newStockId = record.stockItemId;
+  const newQty = record.quantityUsed ? parseFloat(record.quantityUsed) : 0;
+
+  const stockChanged = oldStockId !== newStockId || oldQty !== newQty;
+  if (stockChanged) {
+    // Reverse the old deduction if it existed
+    if (oldStockId && oldQty > 0) {
+      await db.insert(stockMovementsTable).values({
+        farmId, stockItemId: oldStockId, movementType: "adjustment",
+        quantityChange: String(oldQty), referenceType: "sheep_dipping",
+        referenceId: id, notes: `Stock reversal: sheep dipping record ${id} edited`,
+      });
+      const [oldLevel] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, oldStockId))).limit(1);
+      if (oldLevel) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(oldLevel.currentQuantity) + oldQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, oldLevel.id));
+    }
+    // Apply the new deduction if one is now set
+    if (newStockId && newQty > 0) {
+      const qtyChange = -newQty;
+      await db.insert(stockMovementsTable).values({
+        farmId, stockItemId: newStockId, movementType: "usage",
+        quantityChange: String(qtyChange), referenceType: "sheep_dipping",
+        referenceId: id, performedBy: record.operatorName || null,
+        notes: `Auto-deducted: sheep dipping on ${record.dipDate} (edited)`,
+      });
+      const [newLevel] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, newStockId))).limit(1);
+      if (newLevel) {
+        await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(newLevel.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, newLevel.id));
+      } else {
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: newStockId, currentQuantity: String(qtyChange) });
+      }
+    }
+  }
+
   res.json({ record });
 });
 
 router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const id = parseInt(req.params.id);
+
+  // Fetch record before deleting so we can reverse the stock deduction
+  const [existing] = await db.select().from(sheepDippingRecordsTable).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).limit(1);
+  if (existing?.stockItemId && existing.quantityUsed) {
+    const reversal = parseFloat(existing.quantityUsed);
+    if (reversal > 0) {
+      await db.insert(stockMovementsTable).values({
+        farmId, stockItemId: existing.stockItemId, movementType: "adjustment",
+        quantityChange: String(reversal), referenceType: "sheep_dipping",
+        referenceId: id, notes: `Stock reversal: sheep dipping record ${id} deleted`,
+      });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, existing.stockItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + reversal), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+  }
+
   await db.delete(sheepDippingRecordsTable).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
