@@ -373,6 +373,16 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
                 </div>
               </div>
             )}
+
+            {/* Attachments — scanned declarations, ID copies, contractor certificates */}
+            <div className="border border-border rounded-xl p-4 mt-2">
+              <RecordAttachments
+                farmId={farmId}
+                recordType="visitor-log"
+                recordId={viewVisitor.id}
+              />
+            </div>
+
             <DialogFooter>
               <Button variant="outline" className="gap-1.5" onClick={() => printVisitorDeclarationRecord(viewVisitor, farmName)}><Printer className="w-3.5 h-3.5" />Print Record</Button>
               <Button variant="outline" onClick={() => { openEdit(viewVisitor); setViewVisitor(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
@@ -501,6 +511,23 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
               <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
               <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
+
+            {/* Attachments — only for existing records */}
+            {editing && (
+              <div className="border border-border rounded-xl p-4">
+                <RecordAttachments
+                  farmId={farmId}
+                  recordType="visitor-log"
+                  recordId={editing.id}
+                />
+              </div>
+            )}
+            {!editing && (
+              <p className="text-xs text-foreground/40 flex items-center gap-1.5">
+                <span>📎</span> Save the record first, then re-open it to attach scanned declarations or ID copies.
+              </p>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); }}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -758,6 +785,16 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium">{String(viewPest.outcome ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewPest.notes ?? "—")}</p></div>
             </div>
+
+            {/* Attachments — treatment reports, BPCA certificates, product data sheets */}
+            <div className="border border-border rounded-xl p-4">
+              <RecordAttachments
+                farmId={farmId}
+                recordType="pest-control"
+                recordId={viewPest.id}
+              />
+            </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewPest); setViewPest(null); }}>Edit</Button>
               <Button onClick={() => setViewPest(null)}>Close</Button>
@@ -1806,6 +1843,16 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Emergency Procedures</p><p className="font-medium whitespace-pre-wrap">{String(viewCoshh.emergencyProcedures || "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewCoshh.notes ?? "—")}</p></div>
             </div>
+
+            {/* Attachments — Safety Data Sheets, label copies, risk assessment documents */}
+            <div className="border border-border rounded-xl p-4">
+              <RecordAttachments
+                farmId={farmId}
+                recordType="coshh"
+                recordId={viewCoshh.id}
+              />
+            </div>
+
             <DialogFooter>
               <Button onClick={() => setViewCoshh(null)}>Close</Button>
             </DialogFooter>
@@ -1833,6 +1880,9 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <div><Label>Assessment Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.assessmentDate} onChange={e => setForm((f: any) => ({ ...f, assessmentDate: e.target.value }))} /></div>
               <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm((f: any) => ({ ...f, reviewDate: e.target.value }))} /></div>
             </div>
+            <p className="text-xs text-foreground/40 flex items-center gap-1.5 pt-1">
+              <span>📎</span> Save the assessment first, then open it to attach the Safety Data Sheet or other documents.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
