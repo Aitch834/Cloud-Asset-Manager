@@ -67,9 +67,15 @@ export default function PigFarrowingScreen() {
   const [colostrum, setColostrum] = useState(true);
   const [sowBcs, setSowBcs] = useState<BCS>("3");
   const [attendedBy, setAttendedBy] = useState(user?.name || "");
+  const [perinatalCollectionDate, setPerinatalCollectionDate] = useState("");
+  const [perinatalCollectionRef, setPerinatalCollectionRef] = useState("");
+  const [perinatalDisposalMethod, setPerinatalDisposalMethod] = useState("");
+  const [perinatalDisposalNotes, setPerinatalDisposalNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
+
+  const hasDeadPiglets = parseInt(stillborn || "0") > 0 || parseInt(mummified || "0") > 0;
 
   const captureGPS = async () => {
     setGpsLoading(true);
@@ -120,6 +126,10 @@ export default function PigFarrowingScreen() {
       colostrum,
       sowConditionScore: sowBcs,
       attendedBy: attendedBy.trim(),
+      perinatalCollectionDate: hasDeadPiglets && perinatalCollectionDate.trim() ? perinatalCollectionDate.trim() : null,
+      perinatalCollectionRef: hasDeadPiglets && perinatalCollectionRef.trim() ? perinatalCollectionRef.trim() : null,
+      perinatalDisposalMethod: hasDeadPiglets && perinatalDisposalMethod.trim() ? perinatalDisposalMethod.trim() : null,
+      perinatalDisposalNotes: hasDeadPiglets && perinatalDisposalNotes.trim() ? perinatalDisposalNotes.trim() : null,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -264,6 +274,40 @@ export default function PigFarrowingScreen() {
               BCS {sowBcs} — {BCS_OPTIONS.find(b => b.key === sowBcs)?.label.split(" — ")[1]}
             </Text>
           </View>
+
+          {hasDeadPiglets && (
+            <View style={[styles.section, { backgroundColor: "#fef3c7", borderRadius: 8, padding: spacing.md, borderWidth: 1, borderColor: "#f59e0b" }]}>
+              <Text style={[styles.sectionTitle, { color: "#92400e" }]}>ABP Perinatal Disposal — Required</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", marginBottom: spacing.md }}>
+                Stillborn and mummified piglets are Category 3 ABP waste. Must be collected by a licensed fallen stock contractor or other authorised route. Retain collection note for 3 years. Link contractor on dashboard after sync.
+              </Text>
+              <Input
+                label="Collection Date"
+                placeholder="YYYY-MM-DD"
+                value={perinatalCollectionDate}
+                onChangeText={setPerinatalCollectionDate}
+                keyboardType="numbers-and-punctuation"
+              />
+              <Input
+                label="Consignment / NFAS Reference"
+                placeholder="e.g. NFAS-LIN-0042-240317"
+                value={perinatalCollectionRef}
+                onChangeText={setPerinatalCollectionRef}
+              />
+              <Input
+                label="Disposal Method (if no contractor)"
+                placeholder="e.g. Hunt kennels, on-farm incinerator"
+                value={perinatalDisposalMethod}
+                onChangeText={setPerinatalDisposalMethod}
+              />
+              <Input
+                label="Disposal Notes"
+                placeholder="Any additional disposal details..."
+                value={perinatalDisposalNotes}
+                onChangeText={setPerinatalDisposalNotes}
+              />
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Colostrum Management</Text>

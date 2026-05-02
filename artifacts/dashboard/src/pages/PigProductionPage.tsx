@@ -902,6 +902,11 @@ interface FarrowingRecord {
   vetAttended?: boolean | null;
   vetName?: string | null;
   colostrumManaged?: boolean | null;
+  perinatalDisposalContractorId?: number | null;
+  perinatalCollectionDate?: string | null;
+  perinatalCollectionRef?: string | null;
+  perinatalDisposalMethod?: string | null;
+  perinatalDisposalNotes?: string | null;
   notes?: string | null;
 }
 
@@ -988,6 +993,89 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   });
   const farrowingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "farrowing").map(c => [c.recordId, c.count]));
 
+  const contractorsQ = useQuery<Array<{ id: number; name: string; approvalNumber: string; operatorType: string }>>({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/fallen-stock-contractors`), { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const contractors = contractorsQ.data ?? [];
+
+  const hasDeadPiglets = (r: Partial<FarrowingRecord>) => (r.totalBornDead ?? 0) > 0 || (r.totalMummified ?? 0) > 0;
+
+  function generateFarrowingReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const fmtD = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
+    const fv2 = (v: unknown) => (v === null || v === undefined || v === "") ? "—" : String(v);
+    const yesNo = (v: boolean | null | undefined) => v === true ? "Yes" : v === false ? "No" : "—";
+
+    const totalStillborns = records.reduce((s, r) => s + (r.totalBornDead || 0), 0);
+    const totalMummifieds = records.reduce((s, r) => s + (r.totalMummified || 0), 0);
+    const totalBornAll = records.reduce((s, r) => s + totalBorn(r), 0);
+    const pctSB = totalBornAll > 0 ? ((totalStillborns / totalBornAll) * 100).toFixed(1) : "—";
+    const pctMum = totalBornAll > 0 ? ((totalMummifieds / totalBornAll) * 100).toFixed(1) : "—";
+
+    const rows = records.map(r => {
+      const dead = (r.totalBornDead || 0) + (r.totalMummified || 0);
+      const disposalCell = r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+        ? `${r.perinatalCollectionDate ? fmtD(r.perinatalCollectionDate) : "—"} · ${fv2(r.perinatalCollectionRef)} · ${fv2(r.perinatalDisposalMethod)}`
+        : (dead > 0 ? "<span style='color:#b91c1c'>NOT RECORDED</span>" : "—");
+      return `<tr>
+        <td>${fmtD(r.farrowingDate)}</td>
+        <td>${fv2(r.sowEarTag)}</td>
+        <td>${r.parityNumber === 1 ? "Gilt" : r.parityNumber ? `P${r.parityNumber}` : "—"}</td>
+        <td>${fv2(r.farrowingEase)}</td>
+        <td>${totalBorn(r)}</td>
+        <td>${r.totalBornAlive}</td>
+        <td>${r.totalBornDead}</td>
+        <td>${r.totalMummified}</td>
+        <td>${r.averageBirthWeightKg ? `${r.averageBirthWeightKg} kg` : "—"}</td>
+        <td>${yesNo(r.colostrumManaged)}</td>
+        <td>${yesNo(r.assistanceRequired)}</td>
+        <td style="font-size:9px">${disposalCell}</td>
+        <td style="color:#888;font-size:9px">${fv2(r.notes).slice(0, 60)}</td>
+      </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Farrowing Records — Red Tractor Pigs Audit</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .stats{display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap}
+  .stat{background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:6px 12px;font-size:10px}
+  .stat strong{display:block;font-size:12px}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Farrowing Records</h1><h2>Red Tractor Pigs Scheme — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b><br>Year filter: ${yearFilter}<br>Printed: ${printedDate}</div>
+</div>
+<div class="stats">
+  <div class="stat"><strong>${records.length}</strong>Farrowings recorded</div>
+  <div class="stat"><strong>${totalStillborns} (${pctSB}%)</strong>Stillbirths</div>
+  <div class="stat"><strong>${totalMummifieds} (${pctMum}%)</strong>Mummified</div>
+  <div class="stat"><strong>${totalBornAll}</strong>Total piglets born</div>
+</div>
+<table>
+  <thead><tr>
+    <th>Farrowing Date</th><th>Sow Tag</th><th>Parity</th><th>Ease</th><th>Total Born</th>
+    <th>Alive</th><th>Stillborn</th><th>Mummified</th><th>Avg Wt</th><th>Colostrum</th><th>Assisted</th>
+    <th>ABP Disposal</th><th>Notes</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<p class="note">This farrowing records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Pigs audit. Printed: ${printedDate}</p>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4 gap-3">
@@ -1000,6 +1088,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
               <SelectItem value="all">All years</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={generateFarrowingReport}><FileDown className="w-4 h-4 mr-1" />Farrowing Report</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
         </div>
       </div>
@@ -1077,6 +1166,11 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                           {r.colostrumManaged ? "Colostrum ✓" : "Colostrum not confirmed"}
                         </span>
                       )}
+                      {hasDeadPiglets(r) && (
+                        r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+                          ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">ABP disposal ✓</span>
+                          : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">⚠ ABP disposal not recorded</span>
+                      )}
                       {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Vet: {r.vetName || "attended"}</span>}
                       {r.expectedFarrowingDate && (() => {
                         const days = Math.floor((new Date(r.expectedFarrowingDate).getTime() - Date.now()) / 86400000);
@@ -1121,6 +1215,17 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fosters Out</p><p className="font-medium">{viewRecord.fostersOut}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Birth Weight</p><p className="font-medium">{viewRecord.averageBirthWeightKg ? `${viewRecord.averageBirthWeightKg} kg` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum Managed</p><p className="font-medium">{viewRecord.colostrumManaged === true ? "Yes ✓" : viewRecord.colostrumManaged === false ? "Not confirmed" : "—"}</p></div>
+              {hasDeadPiglets(viewRecord) && (
+                <div className="col-span-2 border rounded-md bg-amber-50 border-amber-200 p-3">
+                  <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">ABP Perinatal Disposal (Category 3)</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Date</p><p className="font-medium">{viewRecord.perinatalCollectionDate ? new Date(viewRecord.perinatalCollectionDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Consignment / NFAS Ref</p><p className="font-medium">{(viewRecord.perinatalCollectionRef as string) || "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Method</p><p className="font-medium">{(viewRecord.perinatalDisposalMethod as string) || "—"}</p></div>
+                    {viewRecord.perinatalDisposalNotes && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Notes</p><p className="font-medium">{viewRecord.perinatalDisposalNotes as string}</p></div>}
+                  </div>
+                </div>
+              )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Required</p><p className="font-medium">{viewRecord.assistanceRequired ? "Yes" : "No"}</p></div>
               {viewRecord.assistanceDetails && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Details</p><p className="font-medium">{viewRecord.assistanceDetails}</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetAttended ? "Yes" : "No"}</p></div>
@@ -1331,6 +1436,28 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
               </div>
             </div>
           </div>
+          {hasDeadPiglets(form) && (
+            <div className="border border-amber-300 bg-amber-50 rounded-md p-4 space-y-3 mt-2">
+              <p className="text-sm font-semibold text-amber-800">ABP Perinatal Disposal — Category 3 (Required)</p>
+              <p className="text-xs text-amber-700">Stillborn and mummified piglets are Category 3 Animal By-Product waste (Regulation (EC) 1069/2009). They must be collected by a licensed fallen stock contractor or disposed of via another approved route. Retain the collection note for at least 3 years.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Fallen Stock Contractor</Label>
+                  <Select value={form.perinatalDisposalContractorId ? String(form.perinatalDisposalContractorId) : ""} onValueChange={v => set("perinatalDisposalContractorId", v ? Number(v) : null)}>
+                    <SelectTrigger><SelectValue placeholder="Select contractor…" /></SelectTrigger>
+                    <SelectContent>
+                      {contractors.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.approvalNumber})</SelectItem>)}
+                      {contractors.length === 0 && <SelectItem value="none" disabled>No contractors set up — add in Livestock settings</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Collection Date</Label><Input type="date" value={form.perinatalCollectionDate?.slice(0, 10) || ""} onChange={e => set("perinatalCollectionDate", e.target.value)} /></div>
+                <div><Label>Consignment / NFAS Reference</Label><Input value={form.perinatalCollectionRef || ""} onChange={e => set("perinatalCollectionRef", e.target.value)} placeholder="e.g. NFAS-LIN-0042-240317" /></div>
+                <div><Label>Disposal Method (if no contractor)</Label><Input value={form.perinatalDisposalMethod || ""} onChange={e => set("perinatalDisposalMethod", e.target.value)} placeholder="e.g. Hunt kennels, on-farm incinerator" /></div>
+              </div>
+              <div><Label>Disposal Notes</Label><Input value={form.perinatalDisposalNotes || ""} onChange={e => set("perinatalDisposalNotes", e.target.value)} placeholder="Any additional disposal notes…" /></div>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button disabled={save.isPending || !form.sowEarTag || !form.farrowingDate} onClick={() => save.mutate(form)}>
@@ -2084,7 +2211,13 @@ async function generatePigAuditPDF(farmId: number) {
   if ((feed as R[]).length) addSection("Feed Consumption Records", ["Date", "Group / Pen", "Feed Type", "Quantity (kg)", "Batch / Lot No."], (feed as R[]).map(r => [fd(r.consumptionDate), fv(r.penName), fv(r.feedType), fv(r.quantityKg), fv(r.batchLotNumber)]));
   if ((vet as R[]).length) addSection("Vet Health Assessments", ["Date", "Vet", "Practice", "BCS", "Lameness", "Respiratory", "Findings", "Next Review"], (vet as R[]).map(r => [fd(r.assessmentDate), fv(r.vetName), fv(r.practiceName), fv(r.bodyConditionScore), fv(r.lameness), fv(r.respiratoryHealth), String(fv(r.findings)).slice(0, 60), fd(r.nextReviewDate)]));
   if ((tailBiting as R[]).length) addSection("Tail Biting Risk Assessments", ["Date", "Assessed By", "Risk Level", "Current Biting", "Interventions", "Next Review"], (tailBiting as R[]).map(r => [fd(r.assessmentDate), fv(r.assessedBy), fv(r.riskLevel), r.currentBiting ? "Yes" : "No", String(fv(r.interventionsTaken)).slice(0, 50), fd(r.reviewDate)]));
-  if ((farrowing as R[]).length) addSection("Farrowing Records", ["Date", "Sow Tag", "Parity", "Born Alive", "Stillborn", "Mummified", "Avg Birth Wt (kg)", "Ease", "Fosters In", "Fosters Out", "Weaning Date", "Piglets Weaned", "Colostrum"], (farrowing as R[]).map(r => [fd(r.farrowingDate), fv(r.sowEarTag), fv(r.parityNumber), fv(r.totalBornAlive), fv(r.totalBornDead), fv(r.totalMummified), fv(r.averageBirthWeightKg), fv(r.farrowingEase), fv(r.fostersIn), fv(r.fostersOut), fd(r.weaningDate), fv(r.pigletsWeanedCount), r.colostrumManaged ? "Yes" : r.colostrumManaged === false ? "No" : "—"]));
+  if ((farrowing as R[]).length) addSection("Farrowing Records", ["Date", "Sow Tag", "Parity", "Born Alive", "Stillborn", "Mummified", "Avg Birth Wt (kg)", "Ease", "Fosters In", "Fosters Out", "Weaning Date", "Piglets Weaned", "Colostrum", "ABP Disposal"], (farrowing as R[]).map(r => {
+    const dead = (r.totalBornDead || 0) + (r.totalMummified || 0);
+    const disposal = r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+      ? `${r.perinatalCollectionDate ? fd(r.perinatalCollectionDate) : "—"} · ${fv(r.perinatalCollectionRef)} · ${fv(r.perinatalDisposalMethod)}`
+      : (dead > 0 ? "NOT RECORDED" : "—");
+    return [fd(r.farrowingDate), fv(r.sowEarTag), fv(r.parityNumber), fv(r.totalBornAlive), fv(r.totalBornDead), fv(r.totalMummified), fv(r.averageBirthWeightKg), fv(r.farrowingEase), fv(r.fostersIn), fv(r.fostersOut), fd(r.weaningDate), fv(r.pigletsWeanedCount), r.colostrumManaged ? "Yes" : r.colostrumManaged === false ? "No" : "—", disposal];
+  }));
   if ((redTractor as R[]).length) addSection("Red Tractor Checklists", ["Date", "Assessor", "Overall Status", "Non-conformances", "Next Due", "Corrective Action Deadline"], (redTractor as R[]).map(r => [fd(r.assessmentDate), fv(r.assessorName), fv(r.overallStatus), fv(r.nonConformancesCount), fd(r.nextAssessmentDue), fd(r.correctiveActionDeadline)]));
   if ((killRecords as R[]).length) addSection("Abattoir Kill Records", ["Kill Date", "Processor", "Head", "Total DW (kg)", "Avg DW (kg)", "P2 (mm)", "Grade", "Net Payment", "Kill Sheet Ref"], (killRecords as R[]).map(r => [fd(r.killDate), fv(r.processor), fv(r.headCount), r.totalDeadweightKg ? parseFloat(String(r.totalDeadweightKg)).toFixed(1) : "—", r.averageDeadweightKg ? parseFloat(String(r.averageDeadweightKg)).toFixed(1) : "—", r.averageP2BackfatMm ? parseFloat(String(r.averageP2BackfatMm)).toFixed(1) : "—", fv(r.gradeOut), fp(r.netPaymentPence), fv(r.killSheetRef)]));
 

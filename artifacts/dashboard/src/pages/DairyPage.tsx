@@ -508,7 +508,13 @@ interface CalvingRecord {
   cowComplications?: string | null; assistanceRequired?: boolean; assistanceType?: string | null;
   vetAttended?: boolean; vetName?: string | null;
   conceptionMethod?: string | null; sireRegisterId?: number | null; strawInventoryId?: number | null;
-  calfDisposition?: string | null; bcmsPassportApplied?: boolean; notes?: string | null;
+  calfDisposition?: string | null; bcmsPassportApplied?: boolean;
+  perinatalDisposalContractorId?: number | null;
+  perinatalCollectionDate?: string | null;
+  perinatalCollectionRef?: string | null;
+  perinatalDisposalMethod?: string | null;
+  perinatalDisposalNotes?: string | null;
+  notes?: string | null;
 }
 
 function CalvingTab({ farmId }: { farmId: number }) {
@@ -568,6 +574,13 @@ function CalvingTab({ farmId }: { farmId: number }) {
   });
   const calvingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "calving").map(c => [c.recordId, c.count]));
 
+  const contractorsQ = useQuery<Array<{ id: number; name: string; approvalNumber: string; operatorType: string; phone?: string | null }>>({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/fallen-stock-contractors`), { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const contractors = contractorsQ.data ?? [];
+
   const save = useMutation({
     mutationFn: async (body: Partial<CalvingRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/calving-records/${editing.id}`) : api(`farms/${farmId}/dairy/calving-records`);
@@ -591,6 +604,10 @@ function CalvingTab({ farmId }: { farmId: number }) {
   }
   function set(k: keyof CalvingRecord, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
+  const hasDeadCalf = (r: Partial<CalvingRecord>) =>
+    r.calfOutcome === "stillborn" || r.calfOutcome === "died-within-24h" ||
+    r.calfOutcome2 === "stillborn" || r.calfOutcome2 === "died-within-24h";
+
   function generateCalvingReport() {
     const records = data?.records ?? [];
     const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -603,6 +620,10 @@ function CalvingTab({ farmId }: { farmId: number }) {
       const calves = r.numberOfCalves && r.numberOfCalves > 1
         ? `${r.calfOutcome ?? "—"} (${r.calfSex ?? "?"}) ${r.calfEarTag ?? ""} + ${r.calfOutcome2 ?? "—"} (${r.calfSex2 ?? "?"}) ${r.calfEarTag2 ?? ""}`
         : `${r.calfOutcome ?? "—"} · ${r.calfSex === "male" ? "Bull" : r.calfSex === "female" ? "Heifer" : r.calfSex ?? "?"} · ${r.calfEarTag ?? "no tag"}`;
+      const deadCount = (r.calfOutcome === "stillborn" || r.calfOutcome === "died-within-24h" ? 1 : 0) + (r.calfOutcome2 === "stillborn" || r.calfOutcome2 === "died-within-24h" ? 1 : 0);
+      const disposalCell = r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+        ? `${r.perinatalCollectionDate ? fmtD(r.perinatalCollectionDate) : "—"} · ${fv2(r.perinatalCollectionRef)} · ${fv2(r.perinatalDisposalMethod)}`
+        : (deadCount > 0 ? "<span style='color:#b91c1c'>NOT RECORDED</span>" : "—");
       return `<tr>
         <td>${fmtD(r.calvingDate)}</td>
         <td>${fv2(r.cowEarTag)}</td>
@@ -615,6 +636,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
         <td>${yesNo(r.assistanceRequired)}</td>
         <td>${yesNo(r.vetAttended)}</td>
         <td>${yesNo(r.bcmsPassportApplied)}</td>
+        <td style="font-size:9px">${disposalCell}</td>
         <td style="color:#888;font-size:9px">${fv2(r.notes).slice(0, 80)}</td>
       </tr>`;
     }).join("");
@@ -639,7 +661,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
 <table>
   <thead><tr>
     <th>Date</th><th>Dam Tag</th><th>Ease Score</th><th>No. Calves</th><th>Calf Outcome / Tag</th>
-    <th>Birth Wt</th><th>Colostrum ≤2h / ≤6h</th><th>Col. Volume</th><th>Assisted</th><th>Vet</th><th>BCMS Applied</th><th>Notes</th>
+    <th>Birth Wt</th><th>Colostrum ≤2h / ≤6h</th><th>Col. Volume</th><th>Assisted</th><th>Vet</th><th>BCMS Applied</th><th>ABP Disposal</th><th>Notes</th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
@@ -700,6 +722,11 @@ function CalvingTab({ farmId }: { farmId: number }) {
                           return null;
                         })()
                     }
+                    {hasDeadCalf(r) && (
+                      r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+                        ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">ABP disposal ✓</span>
+                        : <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">⚠ ABP disposal not recorded</span>
+                    )}
                     {(calvingAttachMap[r.id] ?? 0) > 0 && (
                       <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
                         <Paperclip className="w-3 h-3" />{calvingAttachMap[r.id]}
@@ -736,6 +763,17 @@ function CalvingTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetAttended ? viewRecord.vetName || "Yes" : "No"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">BCMS Passport</p><p className="font-medium">{viewRecord.bcmsPassportApplied ? "Applied ✓" : "Pending"}</p></div>
+              {hasDeadCalf(viewRecord) && (
+                <div className="col-span-2 border rounded-md bg-amber-50 border-amber-200 p-3">
+                  <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">ABP Perinatal Disposal (Category 3)</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Date</p><p className="font-medium">{viewRecord.perinatalCollectionDate ? new Date(viewRecord.perinatalCollectionDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Consignment / NFAS Ref</p><p className="font-medium">{viewRecord.perinatalCollectionRef || "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Method</p><p className="font-medium">{viewRecord.perinatalDisposalMethod || "—"}</p></div>
+                    {viewRecord.perinatalDisposalNotes && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Notes</p><p className="font-medium">{viewRecord.perinatalDisposalNotes}</p></div>}
+                  </div>
+                </div>
+              )}
               {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
               <div className="col-span-2 border-t pt-3">
                 <RecordAttachments farmId={farmId} recordType="calving" recordId={viewRecord.id} />
@@ -1090,6 +1128,28 @@ function CalvingTab({ farmId }: { farmId: number }) {
               </div>
             </div>
           </div>
+          {hasDeadCalf(form) && (
+            <div className="border border-amber-300 bg-amber-50 rounded-md p-4 space-y-3 mt-2">
+              <p className="text-sm font-semibold text-amber-800">ABP Perinatal Disposal — Category 3 (Required)</p>
+              <p className="text-xs text-amber-700">Stillborn and died-within-24h calves are Category 3 Animal By-Product waste (Regulation (EC) 1069/2009). They must be collected by a licensed fallen stock contractor or disposed of via another approved route. Retain the collection/consignment note for at least 3 years. These calves may not enter the food chain.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Fallen Stock Contractor</Label>
+                  <Select value={form.perinatalDisposalContractorId ? String(form.perinatalDisposalContractorId) : ""} onValueChange={v => set("perinatalDisposalContractorId", v ? Number(v) : null)}>
+                    <SelectTrigger><SelectValue placeholder="Select contractor…" /></SelectTrigger>
+                    <SelectContent>
+                      {contractors.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.approvalNumber})</SelectItem>)}
+                      {contractors.length === 0 && <SelectItem value="none" disabled>No contractors set up — add in Livestock settings</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Collection Date</Label><Input type="date" value={form.perinatalCollectionDate?.slice(0, 10) || ""} onChange={e => set("perinatalCollectionDate", e.target.value)} /></div>
+                <div><Label>Consignment / NFAS Reference</Label><Input value={form.perinatalCollectionRef || ""} onChange={e => set("perinatalCollectionRef", e.target.value)} placeholder="e.g. NFAS-LIN-0042-240317" /></div>
+                <div><Label>Disposal Method (if no contractor)</Label><Input value={form.perinatalDisposalMethod || ""} onChange={e => set("perinatalDisposalMethod", e.target.value)} placeholder="e.g. Hunt kennels, on-farm incinerator" /></div>
+              </div>
+              <div><Label>Disposal Notes</Label><Input value={form.perinatalDisposalNotes || ""} onChange={e => set("perinatalDisposalNotes", e.target.value)} placeholder="Any additional disposal notes…" /></div>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.calvingDate}>

@@ -159,6 +159,11 @@ export const pigFarrowingRecordsTable = pgTable("pig_farrowing_records", {
   vetAttended: boolean("vet_attended").notNull().default(false),
   vetName: text("vet_name"),
   colostrumManaged: boolean("colostrum_managed").default(true),
+  perinatalDisposalContractorId: integer("perinatal_disposal_contractor_id"),
+  perinatalCollectionDate: date("perinatal_collection_date"),
+  perinatalCollectionRef: text("perinatal_collection_ref"),
+  perinatalDisposalMethod: text("perinatal_disposal_method"),
+  perinatalDisposalNotes: text("perinatal_disposal_notes"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

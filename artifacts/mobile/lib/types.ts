@@ -644,6 +644,10 @@ export interface DairyCalvingRecord {
   cowComplications: string;
   calfDisposition: string;
   bcmsPassportApplied: boolean;
+  perinatalCollectionDate?: string | null;
+  perinatalCollectionRef?: string | null;
+  perinatalDisposalMethod?: string | null;
+  perinatalDisposalNotes?: string | null;
   notes: string;
   latitude: number | null;
   longitude: number | null;
@@ -810,6 +814,10 @@ export interface PigFarrowingRecord {
   colostrum: boolean;
   sowConditionScore: "1" | "2" | "3" | "4" | "5";
   attendedBy: string;
+  perinatalCollectionDate?: string | null;
+  perinatalCollectionRef?: string | null;
+  perinatalDisposalMethod?: string | null;
+  perinatalDisposalNotes?: string | null;
   notes: string;
   latitude?: number;
   longitude?: number;

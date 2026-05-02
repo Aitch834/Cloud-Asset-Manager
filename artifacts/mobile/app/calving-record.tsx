@@ -114,8 +114,14 @@ export default function CalvingRecordScreen() {
   const [cowComplications, setCowComplications] = useState("");
   const [calfDisposition, setCalfDisposition] = useState("");
   const [bcmsPassportApplied, setBcmsPassportApplied] = useState(false);
+  const [perinatalCollectionDate, setPerinatalCollectionDate] = useState("");
+  const [perinatalCollectionRef, setPerinatalCollectionRef] = useState("");
+  const [perinatalDisposalMethod, setPerinatalDisposalMethod] = useState("");
+  const [perinatalDisposalNotes, setPerinatalDisposalNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const hasDeadCalf = calfOutcome === "Stillbirth" || calfOutcome === "Weak — died";
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
   const handleSave = async () => {
@@ -162,6 +168,10 @@ export default function CalvingRecordScreen() {
       cowComplications: cowComplications.trim(),
       calfDisposition: calfDisposition.trim(),
       bcmsPassportApplied,
+      perinatalCollectionDate: hasDeadCalf && perinatalCollectionDate.trim() ? perinatalCollectionDate.trim() : null,
+      perinatalCollectionRef: hasDeadCalf && perinatalCollectionRef.trim() ? perinatalCollectionRef.trim() : null,
+      perinatalDisposalMethod: hasDeadCalf && perinatalDisposalMethod.trim() ? perinatalDisposalMethod.trim() : null,
+      perinatalDisposalNotes: hasDeadCalf && perinatalDisposalNotes.trim() ? perinatalDisposalNotes.trim() : null,
       notes: notes.trim(),
       latitude: null,
       longitude: null,
@@ -300,6 +310,42 @@ export default function CalvingRecordScreen() {
         <Section title="BCMS Compliance">
           <ToggleRow label="BCMS passport application submitted" value={bcmsPassportApplied} onChange={setBcmsPassportApplied} />
         </Section>
+
+        {hasDeadCalf && (
+          <Section title="ABP Perinatal Disposal — Required">
+            <View style={styles.complianceNote}>
+              <Feather name="alert-triangle" size={14} color="#92400e" style={{ marginTop: 2 }} />
+              <Text style={[styles.complianceNoteText, { color: "#92400e" }]}>
+                Stillborn and died-within-24h calves are Category 3 ABP waste. Must be collected by a licensed fallen stock contractor or other authorised route. Retain the collection note for 3 years. Link the contractor on the dashboard after sync.
+              </Text>
+            </View>
+            <Text style={styles.label}>Collection Date</Text>
+            <Input
+              placeholder="YYYY-MM-DD"
+              value={perinatalCollectionDate}
+              onChangeText={setPerinatalCollectionDate}
+              keyboardType="numbers-and-punctuation"
+            />
+            <Text style={styles.label}>Consignment / NFAS Reference</Text>
+            <Input
+              placeholder="e.g. NFAS-LIN-0042-240317"
+              value={perinatalCollectionRef}
+              onChangeText={setPerinatalCollectionRef}
+            />
+            <Text style={styles.label}>Disposal Method (if no contractor)</Text>
+            <Input
+              placeholder="e.g. Hunt kennels, on-farm incinerator"
+              value={perinatalDisposalMethod}
+              onChangeText={setPerinatalDisposalMethod}
+            />
+            <Text style={styles.label}>Disposal Notes</Text>
+            <Input
+              placeholder="Any additional disposal details..."
+              value={perinatalDisposalNotes}
+              onChangeText={setPerinatalDisposalNotes}
+            />
+          </Section>
+        )}
 
         <Section title="Notes">
           <Input
