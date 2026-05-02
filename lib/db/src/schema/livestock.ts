@@ -781,6 +781,12 @@ export const lambingRecordsTable = pgTable("lambing_records", {
   // Ewe health
   eweComplications: text("ewe_complications"),
   notes: text("notes"),
+  // Perinatal disposal — required under Animal By-Products Regulations for stillborns and died-within-24h
+  perinatalDisposalContractorId: integer("perinatal_disposal_contractor_id").references(() => fallenStockContractorsTable.id),
+  perinatalCollectionDate: date("perinatal_collection_date"),
+  perinatalCollectionRef: text("perinatal_collection_ref"),   // consignment note / NFAS certificate reference
+  perinatalDisposalMethod: text("perinatal_disposal_method"), // free-text for non-registered routes
+  perinatalDisposalNotes: text("perinatal_disposal_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

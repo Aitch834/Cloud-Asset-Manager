@@ -4832,6 +4832,11 @@ interface LambingRecord {
   fosteringRequired: boolean; fosteringDetails?: string | null;
   ramEarTag?: string | null; ramBreed?: string | null; sireRegisterId?: number | null; conceptionMethod?: string | null;
   eweComplications?: string | null; notes?: string | null;
+  perinatalDisposalContractorId?: number | null;
+  perinatalCollectionDate?: string | null;
+  perinatalCollectionRef?: string | null;
+  perinatalDisposalMethod?: string | null;
+  perinatalDisposalNotes?: string | null;
 }
 
 function LambingEaseBadge({ v }: { v?: number | null }) {
@@ -4963,6 +4968,12 @@ function LambingSection({ farmId }: { farmId: number }) {
   });
   const lambingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "lambing").map(c => [c.recordId, c.count]));
 
+  const contractorsQ = useQuery<Array<{ id: number; name: string; approvalNumber: string; operatorType: string; phone?: string | null }>>({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`, { credentials: "include" }).then(r => r.json()),
+  });
+  const contractors = contractorsQ.data ?? [];
+
   const save = useMutation({
     mutationFn: (body: Partial<LambingRecord>) => {
       const url = editing ? `/api/farms/${farmId}/lambing-records/${editing.id}` : `/api/farms/${farmId}/lambing-records`;
@@ -4988,11 +4999,26 @@ function LambingSection({ farmId }: { farmId: number }) {
   function set<K extends keyof LambingRecord>(k: K, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
   const numLambs = form.numberOfLambs ?? 1;
+  const hasDeadLambs = [form.lambOutcome1, form.lambOutcome2, form.lambOutcome3, form.lambOutcome4]
+    .slice(0, numLambs)
+    .some(o => o === "stillborn" || o === "died-within-24h");
 
   const allRecords = data?.records ?? [];
   const records = yearFilter === "all" ? allRecords : allRecords.filter(r => r.lambingDate?.startsWith(yearFilter));
   const availableYears = [...new Set(allRecords.map(r => r.lambingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
   if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
+
+  function lambSeasonStats(recs: LambingRecord[]) {
+    const totalBorn = recs.reduce((s, r) => s + (r.numberOfLambs ?? 0), 0);
+    const allOutcomes = recs.flatMap(r => [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(Boolean));
+    const stillborns = allOutcomes.filter(o => o === "stillborn").length;
+    const died24h = allOutcomes.filter(o => o === "died-within-24h").length;
+    const perinatal = stillborns + died24h;
+    const pct = (n: number) => totalBorn > 0 ? ((n / totalBorn) * 100).toFixed(1) : "—";
+    return { ewes: recs.length, totalBorn, stillborns, died24h, perinatal, pct };
+  }
+  const currentStats = lambSeasonStats(records);
+  const yearlyStats = availableYears.map(y => ({ year: y, ...lambSeasonStats(allRecords.filter(r => r.lambingDate?.startsWith(y))) }));
 
   function generateLambingReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -5001,6 +5027,11 @@ function LambingSection({ farmId }: { farmId: number }) {
     const easeLabel = (n?: number | null) => n ? ["", "1 — Unassisted", "2 — Easy assist", "3 — Hard assist", "4 — Vet/caesarean"][n] ?? String(n) : "—";
     const yesNo = (v: boolean | null | undefined) => v === true ? "Yes" : v === false ? "No" : "—";
     const litterLabel = (n?: number | null) => n === 1 ? "Single" : n === 2 ? "Twins" : n === 3 ? "Triplets" : n === 4 ? "Quads" : fv2(n);
+
+    const rptStats = lambSeasonStats(records);
+    const summaryRows = yearlyStats.map(s =>
+      `<tr><td>${s.year}</td><td>${s.ewes}</td><td>${s.totalBorn}</td><td>${s.stillborns} (${s.pct(s.stillborns)}%)</td><td>${s.died24h} (${s.pct(s.died24h)}%)</td><td style="font-weight:700">${s.perinatal} (${s.pct(s.perinatal)}%)</td></tr>`
+    ).join("");
 
     const tableRows = records.map(r => {
       const outcomes = [
@@ -5011,6 +5042,9 @@ function LambingSection({ farmId }: { farmId: number }) {
       ].filter(Boolean).join("; ");
       const liveCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "live").length;
       const deadCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "stillborn" || o === "died-within-24h").length;
+      const disposalCell = r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod
+        ? `${r.perinatalCollectionDate ? fmtD(r.perinatalCollectionDate) : "—"} · ${fv2(r.perinatalCollectionRef)} · ${fv2(r.perinatalDisposalMethod)}`
+        : (deadCount > 0 ? "<span style='color:#b91c1c'>DISPOSAL NOT RECORDED</span>" : "—");
       return `<tr>
         <td>${fmtD(r.lambingDate)}</td>
         <td>${fv2(r.eweEarTag)}</td>
@@ -5022,7 +5056,7 @@ function LambingSection({ farmId }: { farmId: number }) {
         <td>${yesNo(r.assistanceRequired)}</td>
         <td>${yesNo(r.vetAttended)}</td>
         <td>${r.fosteringRequired ? `Yes — ${fv2(r.fosteringDetails).slice(0, 40)}` : "No"}</td>
-        <td style="color:#888;font-size:9px">${fv2(r.notes).slice(0, 60)}</td>
+        <td style="font-size:9px">${disposalCell}</td>
       </tr>`;
     }).join("");
 
@@ -5030,8 +5064,13 @@ function LambingSection({ farmId }: { farmId: number }) {
 <style>
   body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
   h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  h3{font-size:11px;margin:14px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
   .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
   .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .stat-row{display:flex;gap:16px;margin-bottom:14px}
+  .stat{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;flex:1;text-align:center}
+  .stat-n{font-size:18px;font-weight:700;color:#111}
+  .stat-l{font-size:9px;color:#555;margin-top:2px}
   table{width:100%;border-collapse:collapse;margin-bottom:16px}
   th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
   td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
@@ -5041,16 +5080,29 @@ function LambingSection({ farmId }: { farmId: number }) {
 </style></head><body>
 <div class="hdr">
   <div><h1>Lambing Records</h1><h2>Red Tractor Sheep Assurance — Compliance Report</h2></div>
-  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b><br>Season: ${yearFilter === "all" ? "All years" : yearFilter}<br>Printed: ${printedDate}</div>
 </div>
+<div class="stat-row">
+  <div class="stat"><div class="stat-n">${rptStats.ewes}</div><div class="stat-l">Ewes Lambed</div></div>
+  <div class="stat"><div class="stat-n">${rptStats.totalBorn}</div><div class="stat-l">Total Lambs Born</div></div>
+  <div class="stat"><div class="stat-n">${rptStats.stillborns} (${rptStats.pct(rptStats.stillborns)}%)</div><div class="stat-l">Stillborn</div></div>
+  <div class="stat"><div class="stat-n">${rptStats.died24h} (${rptStats.pct(rptStats.died24h)}%)</div><div class="stat-l">Died Within 24h</div></div>
+  <div class="stat" style="border-color:#fca5a5;background:#fff1f2"><div class="stat-n" style="color:#b91c1c">${rptStats.perinatal} (${rptStats.pct(rptStats.perinatal)}%)</div><div class="stat-l">Perinatal Loss</div></div>
+</div>
+${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
+<table style="margin-bottom:16px">
+  <thead><tr><th>Season</th><th>Ewes Lambed</th><th>Total Born</th><th>Stillborn</th><th>Died &lt;24h</th><th>Perinatal Loss</th></tr></thead>
+  <tbody>${summaryRows}</tbody>
+</table>` : ""}
+<h3>Individual Lambing Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h3>
 <table>
   <thead><tr>
     <th>Date</th><th>Ewe Tag</th><th>Ease Score</th><th>Litter</th><th>Lamb Outcomes / Tags</th>
-    <th>Alive/Dead</th><th>Colostrum ≤2h</th><th>Assisted</th><th>Vet</th><th>Fostering</th><th>Notes</th>
+    <th>Alive/Dead</th><th>Colostrum ≤2h</th><th>Assisted</th><th>Vet</th><th>Fostering</th><th>Disposal (date · ref · method)</th>
   </tr></thead>
   <tbody>${tableRows}</tbody>
 </table>
-<p class="note">This lambing records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Sheep Assurance audit. Printed: ${printedDate}</p>
+<p class="note">Animal By-Products (Enforcement) (England) Regulations 2011: all perinatal deaths (stillborn and died within 24h) must be disposed of via an authorised route and the consignment note retained. Red Tractor Sheep Assurance: lambing performance and mortality records must be retained for a minimum of 3 years and made available at audit. Printed: ${printedDate}</p>
 </body></html>`;
     openPrintWindow(html);
   }
@@ -5074,6 +5126,72 @@ function LambingSection({ farmId }: { farmId: number }) {
           <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Lambing</Button>
         </div>
       </div>
+      {/* Season statistics panel */}
+      {allRecords.length > 0 && (
+        <div className="mb-4">
+          <div className="grid grid-cols-5 gap-2 mb-3">
+            {[
+              { label: "Ewes Lambed", value: String(currentStats.ewes), sub: yearFilter === "all" ? "all time" : yearFilter, colour: "" },
+              { label: "Total Lambs Born", value: String(currentStats.totalBorn), sub: "", colour: "" },
+              { label: "Stillborn", value: `${currentStats.stillborns}`, sub: `${currentStats.pct(currentStats.stillborns)}% of born`, colour: currentStats.stillborns > 0 ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50" },
+              { label: "Died Within 24h", value: `${currentStats.died24h}`, sub: `${currentStats.pct(currentStats.died24h)}% of born`, colour: currentStats.died24h > 0 ? "border-amber-200 bg-amber-50" : "border-green-200 bg-green-50" },
+              { label: "Perinatal Loss", value: `${currentStats.perinatal}`, sub: `${currentStats.pct(currentStats.perinatal)}% of born`, colour: currentStats.perinatal > 0 ? "border-red-300 bg-red-50" : "border-green-200 bg-green-50" },
+            ].map(s => (
+              <div key={s.label} className={`rounded-lg border p-3 text-center ${s.colour || "border-gray-200 bg-gray-50"}`}>
+                <p className={`text-xl font-bold ${s.colour.includes("red") ? "text-red-700" : s.colour.includes("amber") ? "text-amber-700" : s.colour.includes("green") ? "text-green-700" : "text-gray-900"}`}>{s.value}</p>
+                <p className="text-xs font-medium text-gray-600 mt-0.5">{s.label}</p>
+                {s.sub && <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>}
+              </div>
+            ))}
+          </div>
+          {yearlyStats.length > 1 && (
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Season-by-Season Perinatal Mortality Trend</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Season</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Ewes</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Born</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Stillborn</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Died &lt;24h</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Perinatal Loss</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Bar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearlyStats.map((s, i) => {
+                    const maxRate = Math.max(...yearlyStats.map(x => Number(x.pct(x.perinatal)) || 0), 0.1);
+                    const rate = Number(s.pct(s.perinatal)) || 0;
+                    const barWidth = Math.round((rate / maxRate) * 100);
+                    return (
+                      <tr key={s.year} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="px-3 py-2 font-medium">{s.year}</td>
+                        <td className="px-3 py-2 text-right">{s.ewes}</td>
+                        <td className="px-3 py-2 text-right">{s.totalBorn}</td>
+                        <td className="px-3 py-2 text-right">{s.stillborns} <span className="text-gray-400">({s.pct(s.stillborns)}%)</span></td>
+                        <td className="px-3 py-2 text-right">{s.died24h} <span className="text-gray-400">({s.pct(s.died24h)}%)</span></td>
+                        <td className={`px-3 py-2 text-right font-semibold ${rate > 5 ? "text-red-600" : rate > 2 ? "text-amber-600" : "text-green-700"}`}>{s.perinatal} ({s.pct(s.perinatal)}%)</td>
+                        <td className="px-3 py-2 w-32">
+                          <div className="h-3 bg-gray-100 rounded overflow-hidden">
+                            <div className={`h-full rounded ${rate > 5 ? "bg-red-400" : rate > 2 ? "bg-amber-400" : "bg-green-400"}`} style={{ width: `${barWidth}%` }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200">
+                <p className="text-xs text-gray-400">Red indicator &gt;5% perinatal loss · Amber 2–5% · Green &lt;2%. Red Tractor Sheep Assurance may query rates above 5%.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {records.length === 0 && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No lambing records yet. Add the first record above.</CardContent></Card>}
@@ -5107,6 +5225,12 @@ function LambingSection({ farmId }: { farmId: number }) {
                       {r.expectedLambingDate && (() => {
                         const days = Math.floor((new Date(r.expectedLambingDate).getTime() - Date.now()) / 86400000);
                         return <span className={`text-xs px-2 py-0.5 rounded border ${days >= 0 && days <= 7 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>Expected: {formatDate(r.expectedLambingDate)}</span>;
+                      })()}
+                      {deadCount > 0 && (() => {
+                        const hasDisposal = r.perinatalCollectionDate || r.perinatalCollectionRef || r.perinatalDisposalMethod || r.perinatalDisposalContractorId;
+                        return hasDisposal
+                          ? <span className="text-xs bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded">Disposal recorded ✓</span>
+                          : <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded">Disposal not recorded</span>;
                       })()}
                       {(lambingAttachMap[r.id] ?? 0) > 0 && (
                         <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
@@ -5158,6 +5282,32 @@ function LambingSection({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fostering Required</p><p className="font-medium">{viewRecord.fosteringRequired ? "Yes" : "No"}</p></div>
               {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+              {(() => {
+                const deadCount = [viewRecord.lambOutcome1, viewRecord.lambOutcome2, viewRecord.lambOutcome3, viewRecord.lambOutcome4].filter(o => o === "stillborn" || o === "died-within-24h").length;
+                if (deadCount === 0) return null;
+                const contractor = contractors.find(c => c.id === viewRecord.perinatalDisposalContractorId);
+                const hasDisposal = viewRecord.perinatalCollectionDate || viewRecord.perinatalCollectionRef || viewRecord.perinatalDisposalMethod || viewRecord.perinatalDisposalContractorId;
+                return (
+                  <div className={`col-span-2 rounded-md border p-3 ${hasDisposal ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-2 ${hasDisposal ? 'text-green-800' : 'text-red-700'}"
+                      style={{ color: hasDisposal ? "#166534" : "#b91c1c" }}>
+                      Perinatal Disposal ({deadCount} perinatal death{deadCount !== 1 ? "s" : ""})
+                      {hasDisposal ? " ✓" : " — NOT YET RECORDED"}
+                    </p>
+                    {hasDisposal ? (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {contractor && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Contractor</p><p className="font-medium">{contractor.name} ({contractor.approvalNumber})</p></div>}
+                        {viewRecord.perinatalCollectionDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Date</p><p className="font-medium">{formatDate(viewRecord.perinatalCollectionDate)}</p></div>}
+                        {viewRecord.perinatalCollectionRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Consignment / NFAS Ref</p><p className="font-medium font-mono">{viewRecord.perinatalCollectionRef}</p></div>}
+                        {viewRecord.perinatalDisposalMethod && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Method</p><p className="font-medium">{viewRecord.perinatalDisposalMethod}</p></div>}
+                        {viewRecord.perinatalDisposalNotes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Notes</p><p className="font-medium">{viewRecord.perinatalDisposalNotes}</p></div>}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-600">Animal By-Products Regulations require disposal documentation for all perinatal deaths. Edit this record to add contractor collection details.</p>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="col-span-2 border-t pt-3">
                 <RecordAttachments farmId={farmId} recordType="lambing" recordId={viewRecord.id} />
               </div>
@@ -5427,6 +5577,57 @@ function LambingSection({ farmId }: { farmId: number }) {
               </div>
             </div>
           </div>
+
+          {/* Perinatal disposal — shown when any lamb is stillborn or died-within-24h */}
+          {hasDeadLambs && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-3 mt-2">
+              <div>
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Perinatal Disposal — Animal By-Products Requirement</p>
+                <p className="text-xs text-amber-700 mt-1">Stillborn and died-within-24h lambs must be collected by a licensed fallen stock contractor or disposed of via another authorised route. The collection note / consignment reference must be retained for 3 years.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Fallen Stock Contractor</Label>
+                  {contractors.length > 0 ? (
+                    <Select
+                      value={form.perinatalDisposalContractorId ? String(form.perinatalDisposalContractorId) : "__none__"}
+                      onValueChange={v => set("perinatalDisposalContractorId", v === "__none__" ? null : parseInt(v))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select contractor..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not yet collected</SelectItem>
+                        {contractors.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.approvalNumber})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-xs text-amber-600 mt-1 border border-amber-200 rounded p-2 bg-white">No fallen stock contractors registered. Add one in the Fallen Stock Contractors tab, then return here to link them.</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Collection Date</Label>
+                  <Input type="date" value={form.perinatalCollectionDate?.slice(0, 10) || ""} onChange={e => set("perinatalCollectionDate", e.target.value || null)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Consignment / NFAS Ref</Label>
+                  <Input value={form.perinatalCollectionRef || ""} onChange={e => set("perinatalCollectionRef", e.target.value || null)} placeholder="e.g. NFAS-LIN-0042-240317" />
+                  <p className="text-xs text-gray-500 mt-0.5">Collection note or NFAS certificate reference</p>
+                </div>
+                <div>
+                  <Label>Disposal Method (if no contractor)</Label>
+                  <Input value={form.perinatalDisposalMethod || ""} onChange={e => set("perinatalDisposalMethod", e.target.value || null)} placeholder="e.g. Hunt kennels, on-farm incinerator" />
+                </div>
+              </div>
+              <div>
+                <Label>Disposal Notes</Label>
+                <Input value={form.perinatalDisposalNotes || ""} onChange={e => set("perinatalDisposalNotes", e.target.value || null)} placeholder="Any additional disposal details..." />
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button disabled={save.isPending || !form.lambingDate} onClick={() => save.mutate(form)}>

@@ -11933,7 +11933,9 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
     fosteringRequired, fosteringDetails,
     ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
     expectedLambingDate,
-    eweComplications, notes } = req.body;
+    eweComplications, notes,
+    perinatalDisposalContractorId, perinatalCollectionDate, perinatalCollectionRef,
+    perinatalDisposalMethod, perinatalDisposalNotes } = req.body;
   const numLambs = numberOfLambs || 1;
 
   // Auto-register live lambs in the livestock animals table
@@ -11979,6 +11981,11 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
     fosteringRequired: !!fosteringRequired, fosteringDetails: fosteringRequired ? fosteringDetails : null,
     ramEarTag, ramBreed, sireRegisterId: sireRegisterId || null, conceptionMethod,
     eweComplications, notes,
+    perinatalDisposalContractorId: perinatalDisposalContractorId || null,
+    perinatalCollectionDate: perinatalCollectionDate || null,
+    perinatalCollectionRef: perinatalCollectionRef || null,
+    perinatalDisposalMethod: perinatalDisposalMethod || null,
+    perinatalDisposalNotes: perinatalDisposalNotes || null,
   }).returning();
 
   if (vetAttended && vetName?.trim()) {
@@ -12008,7 +12015,9 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
     fosteringRequired, fosteringDetails,
     ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
     expectedLambingDate,
-    eweComplications, notes } = req.body;
+    eweComplications, notes,
+    perinatalDisposalContractorId, perinatalCollectionDate, perinatalCollectionRef,
+    perinatalDisposalMethod, perinatalDisposalNotes } = req.body;
   const numLambs = numberOfLambs ?? 1;
 
   const [existing] = await db.select({
@@ -12053,6 +12062,11 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
     fosteringDetails: fosteringRequired ? fosteringDetails : null,
     ramEarTag, ramBreed, sireRegisterId: sireRegisterId || null, conceptionMethod,
     eweComplications, notes,
+    perinatalDisposalContractorId: perinatalDisposalContractorId || null,
+    perinatalCollectionDate: perinatalCollectionDate || null,
+    perinatalCollectionRef: perinatalCollectionRef || null,
+    perinatalDisposalMethod: perinatalDisposalMethod || null,
+    perinatalDisposalNotes: perinatalDisposalNotes || null,
   }).where(and(eq(lambingRecordsTable.id, recordId), eq(lambingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
