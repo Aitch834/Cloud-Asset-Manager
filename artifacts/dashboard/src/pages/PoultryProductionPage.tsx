@@ -541,6 +541,22 @@ function MortalityTab({ farmId }: { farmId: number }) {
     .sort((a, b) => b.deaths - a.deaths);
   const showBreedBreakdown = breedSummary.length > 1 && breedSummary.some(b => b.breed !== "Not recorded");
 
+  // Hatchery / supplier breakdown
+  const hatcheryMap: Record<string, { deaths: number; culled: number; pct: number; flockIds: string[] }> = {};
+  filteredList.forEach(r => {
+    const flock = flocks.find(f => String(f.id) === String(r.flockId));
+    const hatchery = flock?.hatcheryName ? String(flock.hatcheryName) : "Not recorded";
+    if (!hatcheryMap[hatchery]) hatcheryMap[hatchery] = { deaths: 0, culled: 0, pct: 0, flockIds: [] };
+    hatcheryMap[hatchery].deaths += Number(r.mortalityCount ?? 0);
+    hatcheryMap[hatchery].culled += Number(r.culledCount ?? 0);
+    hatcheryMap[hatchery].pct = Math.max(hatcheryMap[hatchery].pct, Number(r.mortalityPercentage ?? 0));
+    if (!hatcheryMap[hatchery].flockIds.includes(String(r.flockId ?? ""))) hatcheryMap[hatchery].flockIds.push(String(r.flockId ?? ""));
+  });
+  const hatcherySummary = Object.entries(hatcheryMap)
+    .map(([hatchery, d]) => ({ hatchery, deaths: d.deaths, culled: d.culled, pct: d.pct, crops: d.flockIds.length }))
+    .sort((a, b) => b.deaths - a.deaths);
+  const showHatcheryBreakdown = hatcherySummary.length > 1 && hatcherySummary.some(h => h.hatchery !== "Not recorded");
+
   // Year-by-year stats (always computed from full recordsList for the trend table)
   function calcYearStats(recs: Record<string, unknown>[]) {
     const crops = new Set(recs.map(r => String(r.flockId ?? ""))).size;
@@ -613,6 +629,24 @@ function MortalityTab({ farmId }: { farmId: number }) {
                 ))}</tbody>
               </table>
               <p className="text-xs text-muted-foreground mt-1">Breed / strain is set on the Flock Register. Ensuring all flocks have a breed recorded gives the most accurate comparison.</p>
+            </div>
+          )}
+          {showHatcheryBreakdown && (
+            <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">By Hatchery / Supplier</p>
+              <table className="w-full text-xs">
+                <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Hatchery / Supplier</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Crops</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Peak Mort. %</th></tr></thead>
+                <tbody>{hatcherySummary.map((hs, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5 pr-4 font-medium">{hs.hatchery}</td>
+                    <td className="py-1.5 pr-4 text-right text-muted-foreground">{hs.crops}</td>
+                    <td className="py-1.5 pr-4 text-right">{hs.deaths.toLocaleString()}</td>
+                    <td className="py-1.5 pr-4 text-right">{hs.culled.toLocaleString()}</td>
+                    <td className={`py-1.5 text-right font-semibold ${hs.pct > 5 ? "text-red-600" : hs.pct > 3 ? "text-amber-600" : "text-green-700"}`}>{hs.pct.toFixed(2)}%</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-1">Hatchery name is set on the Flock Register. Flocks with no hatchery recorded show as 'Not recorded'.</p>
             </div>
           )}
           {hasMultiYearData && (
