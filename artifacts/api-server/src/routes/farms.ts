@@ -1360,7 +1360,47 @@ router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTe
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  // Fetch existing record to calculate old deduction
+  const [existing] = await db.select().from(sprayApplicationsTable).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
   const [record] = await db.update(sprayApplicationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Reconcile stock if productId, applicationRate, or areaSprayedHa changed
+  const oldRate = parseFloat(existing.applicationRate ?? "0");
+  const oldArea = parseFloat(existing.areaSprayedHa ?? "0");
+  const newRate = parseFloat(record.applicationRate ?? "0");
+  const newArea = parseFloat(record.areaSprayedHa ?? "0");
+  const oldQty = !isNaN(oldRate) && !isNaN(oldArea) ? oldRate * oldArea : 0;
+  const newQty = !isNaN(newRate) && !isNaN(newArea) ? newRate * newArea : 0;
+  const oldProdId = existing.productId;
+  const newProdId = record.productId;
+
+  const stockChanged = oldProdId !== newProdId || Math.abs(oldQty - newQty) > 0.0001;
+  if (stockChanged) {
+    // Reverse old deduction
+    if (oldProdId && oldQty > 0) {
+      const [oldProduct] = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.id, oldProdId)).limit(1);
+      if (oldProduct?.stockItemId) {
+        await db.insert(stockMovementsTable).values({ farmId, stockItemId: oldProduct.stockItemId, movementType: "adjustment", quantityChange: String(oldQty), referenceType: "spray_application", referenceId: recordId, notes: `Stock reversal: spray application ${recordId} edited` });
+        const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, oldProduct.stockItemId))).limit(1);
+        if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + oldQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+      }
+    }
+    // Apply new deduction
+    if (newProdId && newQty > 0) {
+      const [newProduct] = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.id, newProdId)).limit(1);
+      if (newProduct?.stockItemId) {
+        const qtyChange = -newQty;
+        await db.insert(stockMovementsTable).values({ farmId, stockItemId: newProduct.stockItemId, movementType: "usage", quantityChange: String(qtyChange), referenceType: "spray_application", referenceId: recordId, fieldId: record.fieldId ? Number(record.fieldId) : null, performedBy: record.operatorName || null, notes: `Auto-deducted: spray application on ${record.applicationDate} (edited)` });
+        const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, newProduct.stockItemId))).limit(1);
+        if (level) { await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id)); } else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: newProduct.stockItemId, currentQuantity: String(qtyChange) }); }
+      }
+    }
+  }
+
   res.json({ record });
 });
 
@@ -1369,6 +1409,23 @@ router.delete("/farms/:farmId/spray-applications/:recordId", requireAuth, requir
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  // Reverse stock deduction before deleting
+  const [existing] = await db.select().from(sprayApplicationsTable).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).limit(1);
+  if (existing?.productId) {
+    const rate = parseFloat(existing.applicationRate ?? "0");
+    const area = parseFloat(existing.areaSprayedHa ?? "0");
+    if (!isNaN(rate) && !isNaN(area) && rate > 0 && area > 0) {
+      const qtyUsed = rate * area;
+      const [product] = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.id, existing.productId)).limit(1);
+      if (product?.stockItemId) {
+        await db.insert(stockMovementsTable).values({ farmId, stockItemId: product.stockItemId, movementType: "adjustment", quantityChange: String(qtyUsed), referenceType: "spray_application", referenceId: recordId, notes: `Stock reversal: spray application ${recordId} deleted` });
+        const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, product.stockItemId))).limit(1);
+        if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qtyUsed), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+      }
+    }
+  }
+
   await db.delete(sprayApplicationsTable).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -5213,12 +5270,25 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
   const [record] = await db.update(cleaningDisinfectionRecordsTable).set(body).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
 
-  // Replace consumption rows (delete old, insert new) — no stock re-adjustment on edit
+  // Replace consumption rows — reverse old stock deductions, apply new ones
+  const oldConsumptions = await db.select().from(cleaningStockConsumptionsTable).where(eq(cleaningStockConsumptionsTable.cleaningRecordId, recordId));
+  if (oldConsumptions.length > 0 && !record.contractorOwnSupplies) {
+    for (const oc of oldConsumptions) {
+      const qty = parseFloat(oc.quantityUsed);
+      if (isNaN(qty) || qty <= 0) continue;
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: oc.stockItemId, movementType: "adjustment", quantityChange: String(qty), referenceType: "cleaning", referenceId: recordId, notes: `Stock reversal: C&D record ${recordId} edited` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, oc.stockItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+  }
+
   await db.delete(cleaningStockConsumptionsTable).where(eq(cleaningStockConsumptionsTable.cleaningRecordId, recordId));
   const consumptionRows: Array<{ productName: string | null; stockItemId: number; quantityUsed: string }> =
     Array.isArray(consumptions) ? consumptions.filter((c: { stockItemId: unknown; quantityUsed: unknown }) => c.stockItemId && c.quantityUsed) : [];
+
   for (const c of consumptionRows) {
     const sid = parseInt(String(c.stockItemId));
+    const qty = parseFloat(String(c.quantityUsed));
     if (isNaN(sid)) continue;
     await db.insert(cleaningStockConsumptionsTable).values({
       cleaningRecordId: recordId,
@@ -5226,6 +5296,13 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
       productName: c.productName || null,
       quantityUsed: String(c.quantityUsed),
     });
+    // Apply new stock deduction (farm supplies only)
+    if (!record.contractorOwnSupplies && !isNaN(qty) && qty > 0) {
+      const qtyChange = -qty;
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: sid, movementType: "usage", quantityChange: String(qtyChange), referenceType: "cleaning", referenceId: recordId, performedBy: record.cleanedBy || record.contractorName || null, notes: `C&D — ${record.area} — ${record.cleaningType}${c.productName ? ` (${c.productName})` : ""} (edited)` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, sid))).limit(1);
+      if (level) { await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id)); } else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: sid, currentQuantity: String(qtyChange) }); }
+    }
   }
 
   res.json({ record });
@@ -5236,6 +5313,20 @@ router.delete("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  // Reverse all stock deductions before deleting
+  const [existingRecord] = await db.select().from(cleaningDisinfectionRecordsTable).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).limit(1);
+  if (existingRecord && !existingRecord.contractorOwnSupplies) {
+    const consumptions = await db.select().from(cleaningStockConsumptionsTable).where(eq(cleaningStockConsumptionsTable.cleaningRecordId, recordId));
+    for (const c of consumptions) {
+      const qty = parseFloat(c.quantityUsed);
+      if (isNaN(qty) || qty <= 0) continue;
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: c.stockItemId, movementType: "adjustment", quantityChange: String(qty), referenceType: "cleaning", referenceId: recordId, notes: `Stock reversal: C&D record ${recordId} deleted` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, c.stockItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+  }
+
   await db.delete(cleaningDisinfectionRecordsTable).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -6061,8 +6152,35 @@ router.put("/farms/:farmId/stock-deliveries/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [existing] = await db.select().from(stockDeliveriesTable).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
   const [record] = await db.update(stockDeliveriesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Reconcile stock if stockItemId or quantity changed
+  const oldItemId = existing.stockItemId;
+  const oldQty = existing.quantity ? parseFloat(existing.quantity) : 0;
+  const newItemId = record.stockItemId;
+  const newQty = record.quantity ? parseFloat(record.quantity) : 0;
+  const stockChanged = oldItemId !== newItemId || Math.abs(oldQty - newQty) > 0.0001;
+
+  if (stockChanged) {
+    // Reverse old stock addition
+    if (oldItemId && oldQty > 0) {
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: oldItemId, movementType: "adjustment", quantityChange: String(-oldQty), referenceType: "delivery", referenceId: recordId, notes: `Stock reversal: delivery ${recordId} edited` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, oldItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) - oldQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+    // Apply new stock addition
+    if (newItemId && newQty > 0) {
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: newItemId, movementType: "received", quantityChange: String(newQty), referenceType: "delivery", referenceId: recordId, deliveryId: recordId, performedBy: record.receivedBy || null, notes: `${record.grnNumber} (edited)` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, newItemId))).limit(1);
+      if (level) { await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + newQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id)); } else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: newItemId, currentQuantity: String(newQty) }); }
+    }
+  }
+
   res.json({ record });
 });
 
@@ -6071,6 +6189,18 @@ router.delete("/farms/:farmId/stock-deliveries/:recordId", requireAuth, requireT
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  // Reverse stock addition before deleting
+  const [existing] = await db.select().from(stockDeliveriesTable).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId))).limit(1);
+  if (existing?.stockItemId && existing.quantity) {
+    const qty = parseFloat(existing.quantity);
+    if (!isNaN(qty) && qty > 0) {
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: existing.stockItemId, movementType: "adjustment", quantityChange: String(-qty), referenceType: "delivery", referenceId: recordId, notes: `Stock reversal: delivery ${existing.grnNumber} deleted` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, existing.stockItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) - qty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+  }
+
   await db.delete(stockDeliveriesTable).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -14550,6 +14680,18 @@ router.put("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTena
 router.delete("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const returnId = parseInt(req.params.returnId); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
+
+  // Reverse the outbound stock deduction before deleting
+  const [existing] = await db.select().from(workshopGoodsReturnsTable).where(and(eq(workshopGoodsReturnsTable.id, returnId), eq(workshopGoodsReturnsTable.farmId, farmId))).limit(1);
+  if (existing?.stockItemId && existing.quantity) {
+    const qty = parseFloat(existing.quantity);
+    if (!isNaN(qty) && qty > 0) {
+      await db.insert(stockMovementsTable).values({ farmId, stockItemId: existing.stockItemId, movementType: "adjustment", quantityChange: String(qty), referenceType: "workshop_return", referenceId: returnId, notes: `Stock reversal: goods return ${existing.returnRef} deleted` });
+      const [level] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, existing.stockItemId))).limit(1);
+      if (level) await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(level.currentQuantity) + qty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, level.id));
+    }
+  }
+
   await db.delete(workshopGoodsReturnsTable).where(and(eq(workshopGoodsReturnsTable.id, returnId), eq(workshopGoodsReturnsTable.farmId, farmId)));
   res.json({ success: true });
 });
