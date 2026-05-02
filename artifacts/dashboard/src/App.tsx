@@ -84,7 +84,7 @@ import OrganicPage from "@/pages/OrganicPage";
 import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
 import OrganicDairyPage from "@/pages/OrganicDairyPage";
 import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
-const CompliancePage = React.lazy(() => import("@/pages/CompliancePage"));
+import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
 
@@ -214,11 +214,7 @@ function FlyTippingPageWrapper() {
 }
 
 function CompliancePageWrapper() {
-  return (
-    <React.Suspense fallback={<div style={{ padding: 40, color: "#9ca3af" }}>Loading…</div>}>
-      <CompliancePage />
-    </React.Suspense>
-  );
+  return <CompliancePage />;
 }
 
 function VisitorsPage() {
