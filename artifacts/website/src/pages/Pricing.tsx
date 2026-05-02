@@ -28,7 +28,7 @@ const MODULES = [
   { id: "platform-addons", name: "Platform Add-ons", price: 10, note: "Includes SMS Alerts & Advisor/Inspector Access" },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
   { id: "pig-production", name: "Pig Production", price: 25 },
-  { id: "poultry-production", name: "Poultry Production", price: 25 },
+  { id: "poultry-production", name: "Poultry Production", price: 25, note: "Flock register with breed / strain, hatchery traceability, placement & depletion records, daily mortality log with year-by-year trend and breed / strain mortality breakdown, cause analysis, feed & water consumption, egg production, medicine & vaccine records, biosecurity checklist, and Red Tractor Poultry scheme records" },
   { id: "fresh-produce", name: "Fresh Produce", price: 25, note: "Growing blocks, crop records, water quality testing, harvest records, pre-cooling & intake, packhouse & despatch, allergen management and cold chain compliance" },
   { id: "farm-diversification", name: "Farm Diversification", price: 15, note: "Farm Shop management, equine & livery health records, shooting & game logs, food hygiene inspections (FHRS), accommodation bookings and diversification income tracking" },
   { id: "grain-crop-storage", name: "Grain & Crop Storage", price: 18, note: "Storage location register, stock movements (intake/dispatch/transfer/drying loss), merchant storage charges, and record drill-down linking to haulage, sales and harvest records" },

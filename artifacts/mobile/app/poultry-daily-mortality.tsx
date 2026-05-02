@@ -27,9 +27,23 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PoultryDailyMortality } from "@/lib/types";
 
 const CAUSES = [
-  "Unknown", "Heart/circulatory failure", "Respiratory disease", "Enteric disease",
-  "Leg / skeletal disorder", "Predator", "Smothering", "Culled — poor condition",
-  "Culled — injury", "Other",
+  "Natural causes (normal losses)",
+  "Sudden Death Syndrome (SDS / Flip-over)",
+  "Ascites (Waterbelly)",
+  "Cardiovascular failure",
+  "Respiratory disease",
+  "Leg / skeletal problems",
+  "Digestive disorder",
+  "Bacterial infection",
+  "Viral disease",
+  "Injury / trauma",
+  "Cannibalism / pecking injury",
+  "Heat stress",
+  "Chilling (young chicks)",
+  "Smothering / piling",
+  "Nutritional deficiency",
+  "Unknown",
+  "Other (specify in notes)",
 ];
 
 export default function PoultryDailyMortalityScreen() {

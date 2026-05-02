@@ -525,6 +525,22 @@ function MortalityTab({ farmId }: { farmId: number }) {
   });
   const flockSummary = Object.values(flockSummaryMap);
 
+  // Breed / Strain breakdown (join each record to its flock to get breed)
+  const breedMap: Record<string, { deaths: number; culled: number; pct: number; flockIds: string[] }> = {};
+  filteredList.forEach(r => {
+    const flock = flocks.find(f => String(f.id) === String(r.flockId));
+    const breed = flock?.breed ? String(flock.breed) : "Not recorded";
+    if (!breedMap[breed]) breedMap[breed] = { deaths: 0, culled: 0, pct: 0, flockIds: [] };
+    breedMap[breed].deaths += Number(r.mortalityCount ?? 0);
+    breedMap[breed].culled += Number(r.culledCount ?? 0);
+    breedMap[breed].pct = Math.max(breedMap[breed].pct, Number(r.mortalityPercentage ?? 0));
+    if (!breedMap[breed].flockIds.includes(String(r.flockId ?? ""))) breedMap[breed].flockIds.push(String(r.flockId ?? ""));
+  });
+  const breedSummary = Object.entries(breedMap)
+    .map(([breed, d]) => ({ breed, deaths: d.deaths, culled: d.culled, pct: d.pct, crops: d.flockIds.length }))
+    .sort((a, b) => b.deaths - a.deaths);
+  const showBreedBreakdown = breedSummary.length > 1 && breedSummary.some(b => b.breed !== "Not recorded");
+
   // Year-by-year stats (always computed from full recordsList for the trend table)
   function calcYearStats(recs: Record<string, unknown>[]) {
     const crops = new Set(recs.map(r => String(r.flockId ?? ""))).size;
@@ -574,10 +590,29 @@ function MortalityTab({ farmId }: { farmId: number }) {
           </div>
           {flockSummary.length > 1 && (
             <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">By Flock</p>
               <table className="w-full text-xs">
                 <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Flock</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Peak Mortality %</th></tr></thead>
                 <tbody>{flockSummary.map((fs, i) => <tr key={i} className="border-b last:border-0"><td className="py-1.5 pr-4 font-medium">{fs.label}</td><td className="py-1.5 pr-4 text-right">{fs.deaths.toLocaleString()}</td><td className="py-1.5 pr-4 text-right">{fs.culled.toLocaleString()}</td><td className={`py-1.5 text-right font-semibold ${fs.pct > 5 ? "text-red-600" : fs.pct > 3 ? "text-amber-600" : "text-green-700"}`}>{fs.pct.toFixed(2)}%</td></tr>)}</tbody>
               </table>
+            </div>
+          )}
+          {showBreedBreakdown && (
+            <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">By Breed / Strain</p>
+              <table className="w-full text-xs">
+                <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Breed / Strain</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Crops</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Peak Mort. %</th></tr></thead>
+                <tbody>{breedSummary.map((bs, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-1.5 pr-4 font-medium">{bs.breed}</td>
+                    <td className="py-1.5 pr-4 text-right text-muted-foreground">{bs.crops}</td>
+                    <td className="py-1.5 pr-4 text-right">{bs.deaths.toLocaleString()}</td>
+                    <td className="py-1.5 pr-4 text-right">{bs.culled.toLocaleString()}</td>
+                    <td className={`py-1.5 text-right font-semibold ${bs.pct > 5 ? "text-red-600" : bs.pct > 3 ? "text-amber-600" : "text-green-700"}`}>{bs.pct.toFixed(2)}%</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-1">Breed / strain is set on the Flock Register. Ensuring all flocks have a breed recorded gives the most accurate comparison.</p>
             </div>
           )}
           {hasMultiYearData && (

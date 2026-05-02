@@ -616,9 +616,10 @@ const sections: Section[] = [
         color: "bg-amber-50 text-amber-700 border-amber-100",
         badge: "module",
         features: [
-          "Flock register — broiler, layer, turkey, duck and speciality species",
+          "Flock register — broiler, layer, turkey, duck and speciality species with breed / strain recording",
           "Placement & depletion records with hatchery traceability",
-          "Daily mortality log — cumulative count & cause analysis",
+          "Daily mortality log — cumulative count, cause analysis, year filter, and year-by-year trend table",
+          "Breed / strain mortality breakdown — compare peak mortality % and total losses across Ross 308, Cobb 500, slower-growing breeds and others",
           "Feed & water consumption per flock / house",
           "Egg production records — lay rate, grading and packing",
           "Medicine & vaccine records with batch numbers",
