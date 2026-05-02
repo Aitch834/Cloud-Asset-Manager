@@ -128,6 +128,176 @@ function NBar({ value, limit, className = "" }: { value: number; limit: number; 
   );
 }
 
+// ─── NVZ Closed Periods Tab ───────────────────────────────────────────────────
+type FieldSummary = { fieldId: number; fieldName: string; isNvz: boolean; nvzLandType?: string | null; areaHectares?: number | null; totalNKgHa: number; organicNKgHa: number; applicationCount: number };
+
+const CLOSED_PERIOD_RULES: { product: string; arableFrom: string; arableTo: string; grassFrom: string; grassTo: string; note: string }[] = [
+  { product: "Slurry / Digestate (liquid)", arableFrom: "01 Aug", arableTo: "31 Jan", grassFrom: "15 Oct", grassTo: "31 Jan", note: "Nitrates Action Programme — England" },
+  { product: "Poultry Manure (high-N)", arableFrom: "01 Oct", arableTo: "31 Jan", grassFrom: "01 Oct", grassTo: "31 Jan", note: "High total N from poultry" },
+  { product: "Farm Yard Manure (solid)", arableFrom: "—", arableTo: "—", grassFrom: "15 Oct", grassTo: "31 Jan", note: "Grassland only" },
+];
+
+function nextOpenDate(landType: string | null | undefined): { date: string; daysUntil: number } | null {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1; // 1-based
+
+  if (!landType || landType === "arable" || landType === "mixed") {
+    // Arable closed 1 Aug – 31 Jan
+    if (m >= 8) {
+      const open = new Date(y + 1, 1, 1); // 1 Feb next year
+      const days = Math.ceil((open.getTime() - today.getTime()) / 86400000);
+      return { date: `1 Feb ${y + 1}`, daysUntil: days };
+    }
+  }
+  if (landType === "grassland" || landType === "mixed") {
+    // Grassland closed 15 Oct – 31 Jan
+    if (m >= 10 || m === 1) {
+      const open = new Date(y + (m === 1 ? 0 : 1), 1, 1); // 1 Feb
+      const days = Math.ceil((open.getTime() - today.getTime()) / 86400000);
+      return { date: `1 Feb ${m === 1 ? y : y + 1}`, daysUntil: days };
+    }
+  }
+  return null;
+}
+
+function NvzClosedPeriodsTab({ fields }: { fields: FieldSummary[] }) {
+  const today = new Date();
+  const nvzFields = fields.filter(f => f.isNvz);
+
+  const closedFields = nvzFields.filter(f => {
+    const check = checkTodayClosedPeriod("slurry", f.nvzLandType);
+    return check.closed;
+  });
+
+  const month = today.getMonth() + 1;
+  const isArableClosed = month >= 8 || month <= 1;
+  const isGrasslandClosed = month >= 10 || month <= 1;
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-1">NVZ Closed Spreading Periods</h3>
+        <p className="text-xs text-gray-500">Automatic calculation of closed periods for slurry and digestate based on your NVZ field land types. Based on England Nitrates Action Programme rules.</p>
+      </div>
+
+      {/* Status widget */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className={`rounded-xl border p-4 ${isArableClosed ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${isArableClosed ? "bg-red-500" : "bg-green-500"}`} />
+            <span className="text-xs font-semibold text-gray-700">Arable Land</span>
+          </div>
+          {isArableClosed ? (
+            <>
+              <p className="text-sm font-bold text-red-700">CLOSED PERIOD</p>
+              <p className="text-xs text-red-600 mt-0.5">No slurry/digestate — 1 Aug to 31 Jan</p>
+              {nextOpenDate("arable") && (
+                <p className="text-xs text-red-500 mt-1 font-medium">Opens: {nextOpenDate("arable")!.date} ({nextOpenDate("arable")!.daysUntil} days)</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-green-700">OPEN — Spreading permitted</p>
+              <p className="text-xs text-green-600 mt-0.5">Closed period starts: 1 Aug</p>
+              <p className="text-xs text-gray-500 mt-1">Days until closed: {Math.ceil((new Date(today.getFullYear(), 7, 1).getTime() - today.getTime()) / 86400000)}</p>
+            </>
+          )}
+        </div>
+        <div className={`rounded-xl border p-4 ${isGrasslandClosed ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${isGrasslandClosed ? "bg-red-500" : "bg-green-500"}`} />
+            <span className="text-xs font-semibold text-gray-700">Grassland</span>
+          </div>
+          {isGrasslandClosed ? (
+            <>
+              <p className="text-sm font-bold text-red-700">CLOSED PERIOD</p>
+              <p className="text-xs text-red-600 mt-0.5">No slurry/digestate — 15 Oct to 31 Jan</p>
+              {nextOpenDate("grassland") && (
+                <p className="text-xs text-red-500 mt-1 font-medium">Opens: {nextOpenDate("grassland")!.date} ({nextOpenDate("grassland")!.daysUntil} days)</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-green-700">OPEN — Spreading permitted</p>
+              <p className="text-xs text-green-600 mt-0.5">Closed period starts: 15 Oct</p>
+              <p className="text-xs text-gray-500 mt-1">Days until closed: {Math.ceil((new Date(today.getFullYear(), 9, 15).getTime() - today.getTime()) / 86400000)}</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Per-field closed period status */}
+      {nvzFields.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">NVZ Fields — Slurry/Digestate Status Today</h4>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">Field</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">Land Type</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600">Status Today</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-gray-600 hidden sm:table-cell">Next Open</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {nvzFields.map(f => {
+                  const cp = checkTodayClosedPeriod("slurry", f.nvzLandType);
+                  const nextOpen = nextOpenDate(f.nvzLandType);
+                  return (
+                    <tr key={f.fieldId} className={cp.closed ? "bg-red-50/50" : "hover:bg-gray-50"}>
+                      <td className="px-3 py-2 font-medium">{f.fieldName}</td>
+                      <td className="px-3 py-2 capitalize">{f.nvzLandType || "—"}</td>
+                      <td className="px-3 py-2">
+                        {cp.closed
+                          ? <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">CLOSED — No spreading</span>
+                          : <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Open</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2 hidden sm:table-cell text-xs text-gray-500">
+                        {nextOpen ? `${nextOpen.date} (${nextOpen.daysUntil}d)` : "No restriction"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Rules reference table */}
+      <div>
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Closed Period Rules Reference</h4>
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-medium">Material</th>
+                <th className="text-left px-3 py-2.5 font-medium">Arable Closed</th>
+                <th className="text-left px-3 py-2.5 font-medium">Grassland Closed</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Note</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {CLOSED_PERIOD_RULES.map(r => (
+                <tr key={r.product} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-medium">{r.product}</td>
+                  <td className="px-3 py-2">{r.arableFrom === "—" ? "No restriction" : `${r.arableFrom} – ${r.arableTo}`}</td>
+                  <td className="px-3 py-2">{r.grassFrom === "—" ? "No restriction" : `${r.grassFrom} – ${r.grassTo}`}</td>
+                  <td className="px-3 py-2 hidden md:table-cell text-gray-500">{r.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Source: The Nitrate Pollution Prevention Regulations 2015 (as amended). England only. Scotland, Wales and Northern Ireland have separate rules.</p>
+      </div>
+    </div>
+  );
+}
+
 function NvzFieldCard({ fs, onEdit }: { fs: FieldSummary; onEdit: (fs: FieldSummary) => void }) {
   const totalOver = fs.totalNKgHa > TOTAL_N_LIMIT;
   const organicOver = fs.organicNKgHa > ORGANIC_N_LIMIT;
@@ -488,6 +658,7 @@ export default function NVZPage() {
             <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>NVZ Summary</TabButton>
             <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
             <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
+            <TabButton active={tab === "closed-periods"} onClick={() => setTab("closed-periods")}>Closed Periods</TabButton>
           </div>
           {tab !== "risk-assessments" && (
             <div className="flex items-center gap-2 pb-1">
