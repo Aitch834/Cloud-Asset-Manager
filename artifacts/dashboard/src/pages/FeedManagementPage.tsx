@@ -18,7 +18,7 @@ import {
   GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp, ShoppingCart
 } from "lucide-react";
 
-type Tab = "deliveries" | "stock" | "trace" | "orders";
+type Tab = "deliveries" | "stock" | "trace" | "orders" | "medicated";
 type StockFilter = "all" | "low" | "out" | "awaiting";
 
 const FEED_TYPES = [

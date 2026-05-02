@@ -43,7 +43,7 @@ const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
 const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be185d"];
 
-type Tab = "grain" | "contracts" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports";
+type Tab = "grain" | "contracts" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports" | "settlement-notes";
 
 // ─── Grain Bin Selector ───────────────────────────────────────────────────────
 function GrainBinSelect({ farmId, value, onChange }: { farmId: number; value: number | null; onChange: (id: number | null, name: string) => void }) {
@@ -2799,6 +2799,7 @@ const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
   { id: "pigs", label: "Pig Sales", icon: PiggyBank },
   { id: "direct", label: "Direct Sales", icon: ShoppingCart },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "settlement-notes", label: "Settlement Notes", icon: FileText },
 ];
 
 export default function SalesTradingPage() {
@@ -2841,6 +2842,7 @@ export default function SalesTradingPage() {
           {tab === "pigs" && <PigSalesTab farmId={farmId} />}
           {tab === "direct" && <DirectSalesTab farmId={farmId} />}
           {tab === "reports" && <ReportsTab farmId={farmId} />}
+          {tab === "settlement-notes" && <SettlementNotesTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

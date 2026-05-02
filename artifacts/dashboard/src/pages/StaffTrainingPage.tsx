@@ -23,7 +23,7 @@ import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics";
+type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics" | "matrix";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1348,6 +1348,156 @@ ${certificates.length === 0
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }
 
+// ─── Competency Matrix Tab ────────────────────────────────────────────────────
+const KEY_CERTS = [
+  "PA1 — Safe use of pesticides",
+  "PA2 — Ground crop sprayers",
+  "PA6 — Amenity & hard surfaces",
+  "WASK/WATOK — On-farm Emergency Slaughter Certificate of Competence",
+  "Cattle Disbudding & Dehorning (NPTC/Lantra)",
+  "Bovine Artificial Insemination (AI) Certificate",
+  "Sheep Castration & Tail Docking (NPTC/Lantra)",
+  "Animal Transport Certificate — Category 1 (journeys under 8 hours)",
+  "Certificate of Competence in Agricultural Spraying (BASIS/FACTS)",
+  "First Aid at Work (HSE-approved, 3-year)",
+  "NPTC/Lantra Chainsaw Certificates",
+  "Counterbalance Forklift (ITSSAR/RTITB)",
+  "Telehandler Certificate (LANTRA/RTITB)",
+  "Safe Crop Advisor Certificate (BASIS)",
+];
+
+function certStatus(cert: CertificateRecord | undefined): "valid" | "expiring" | "expired" | "none" {
+  if (!cert) return "none";
+  if (!cert.expiryDate) return "valid";
+  const exp = new Date(cert.expiryDate);
+  const now = new Date();
+  const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  if (exp < now) return "expired";
+  if (exp < in90) return "expiring";
+  return "valid";
+}
+
+function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }: {
+  farmId: number;
+  staffNames: string[];
+  certificates: CertificateRecord[];
+  certsLoading: boolean;
+}) {
+  const [filterStaff, setFilterStaff] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const visibleStaff = staffNames.filter(n => !filterStaff || n.toLowerCase().includes(filterStaff.toLowerCase()));
+  const certsToShow = showAll ? ALL_CERT_TYPES : KEY_CERTS;
+
+  const certMap = new Map<string, Map<string, CertificateRecord>>();
+  for (const c of certificates) {
+    if (!certMap.has(c.userId)) certMap.set(c.userId, new Map());
+    certMap.get(c.userId)!.set(c.certificateType, c);
+  }
+
+  const statusCell = (status: "valid" | "expiring" | "expired" | "none") => {
+    if (status === "valid") return (
+      <div title="Valid" className="flex items-center justify-center">
+        <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">✓</span>
+      </div>
+    );
+    if (status === "expiring") return (
+      <div title="Expiring within 90 days" className="flex items-center justify-center">
+        <span className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-white text-xs font-bold">!</span>
+      </div>
+    );
+    if (status === "expired") return (
+      <div title="Expired" className="flex items-center justify-center">
+        <span className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">✗</span>
+      </div>
+    );
+    return (
+      <div title="Not held" className="flex items-center justify-center">
+        <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">–</span>
+      </div>
+    );
+  };
+
+  if (certsLoading) return <div className="flex items-center gap-2 text-sm text-gray-500 py-8"><Loader2 className="w-4 h-4 animate-spin" />Loading certificate data…</div>;
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-800">Staff Competency Matrix</h3>
+          <p className="text-xs text-gray-500">Traffic-light view of certificates held by each staff member. Green = valid, Amber = expiring within 90 days, Red = expired, Grey = not held.</p>
+        </div>
+        <div className="sm:ml-auto flex items-center gap-2 flex-shrink-0">
+          <input
+            type="text"
+            placeholder="Filter staff…"
+            value={filterStaff}
+            onChange={e => setFilterStaff(e.target.value)}
+            className="border rounded-md px-3 py-1.5 text-sm w-40"
+          />
+          <button
+            onClick={() => setShowAll(v => !v)}
+            className="text-xs text-blue-600 underline whitespace-nowrap"
+          >
+            {showAll ? "Show key certs only" : "Show all cert types"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-4 text-xs">
+        <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-green-500 inline-block" /> Valid</span>
+        <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-amber-400 inline-block" /> Expiring (&lt;90d)</span>
+        <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-red-500 inline-block" /> Expired</span>
+        <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-gray-200 inline-block" /> Not held</span>
+      </div>
+
+      {visibleStaff.length === 0 ? (
+        <div className="text-center py-10 text-gray-400 text-sm">No staff found. Add staff members first.</div>
+      ) : (
+        <div className="overflow-auto border rounded-lg">
+          <table className="text-xs w-max min-w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[160px] border-r">
+                  Certificate
+                </th>
+                {visibleStaff.map(s => (
+                  <th key={s} className="px-2 py-2.5 font-medium text-gray-600 text-center min-w-[100px] border-l">
+                    <div className="max-w-[96px] truncate" title={s}>{s.split(" ")[0]}</div>
+                    <div className="text-[10px] text-gray-400 font-normal truncate max-w-[96px]">{s.split(" ").slice(1).join(" ")}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {certsToShow.map(certType => {
+                const rowStatuses = visibleStaff.map(staffName => {
+                  const staffCerts = certMap.get(staffName);
+                  const cert = staffCerts?.get(certType);
+                  return certStatus(cert);
+                });
+                const anyIssue = rowStatuses.some(s => s === "expired" || s === "expiring");
+                return (
+                  <tr key={certType} className={anyIssue ? "bg-red-50/30" : "hover:bg-gray-50/50"}>
+                    <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white border-r max-w-[240px]">
+                      <div className="truncate" title={certType}>{certType}</div>
+                    </td>
+                    {rowStatuses.map((status, i) => (
+                      <td key={visibleStaff[i]} className="px-2 py-2 text-center border-l">
+                        {statusCell(status)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Course Register Tab ─────────────────────────────────────────────────────
 function CoursesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -1783,6 +1933,9 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "courses"} onClick={() => setTab("courses")}>
             Course Register
           </TabButton>
+          <TabButton active={tab === "matrix"} onClick={() => setTab("matrix")}>
+            Competency Matrix
+          </TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
             Analytics
           </TabButton>
@@ -1808,6 +1961,8 @@ export default function StaffTrainingPage() {
           <RightToWorkTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "rtw" ? urlMember : undefined} />
         ) : tab === "analytics" ? (
           <StaffTrainingAnalyticsTab trainingRecords={trainingRecords} certificates={certificates} />
+        ) : tab === "matrix" ? (
+          <CompetencyMatrixTab farmId={farmId} staffNames={staffNames} certificates={certificates} certsLoading={certsQ.isLoading} />
         ) : (
           <CoursesTab farmId={farmId} />
         )}
