@@ -54,6 +54,8 @@ import {
   Stethoscope,
   Zap,
   ShoppingBag,
+  Scissors,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -139,6 +141,8 @@ const biofuelNav: NavItem[] = [
 const specialistNav: NavItem[] = [
   { name: "Pig Production", href: "/pig-production", icon: PiggyBank, moduleKeys: ["pig-production"] },
   { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
+  { name: "Sheep Production", href: "/sheep-production", icon: Scissors, moduleKeys: ["sheep-production"] },
+  { name: "Beef Production", href: "/beef-production", icon: Scale, moduleKeys: ["beef-production"] },
   { name: "Fresh Produce", href: "/fresh-produce", icon: ShoppingBag, moduleKeys: ["fresh-produce"] },
   { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },

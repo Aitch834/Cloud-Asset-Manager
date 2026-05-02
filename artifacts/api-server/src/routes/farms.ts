@@ -288,6 +288,26 @@ import {
   sheepDippingRecordsTable,
   biosecurityCleaningSchedulesTable,
   cleaningStockConsumptionsTable,
+  sheepFlocksTable,
+  sheepTuppingRecordsTable,
+  sheepScanningRecordsTable,
+  sheepWeighRecordsTable,
+  sheepShearingRecordsTable,
+  sheepCullRecordsTable,
+  sheepVaccinationProgrammesTable,
+  sheepDiseaseMonitoringTable,
+  sheepRedTractorChecklistTable,
+  beefWeighRecordsTable,
+  beefAnimalWeighEntriesTable,
+  beefFinishingRecordsTable,
+  beefDeadweightSettlementsTable,
+  beefRedTractorChecklistTable,
+  grainDryingRecordsTable,
+  grainConditioningRecordsTable,
+  grainStorageAgreementsTable,
+  grainSettlementNotesTable,
+  livestockSettlementNotesTable,
+  medicatedFeedRecordsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -21501,6 +21521,532 @@ router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTe
   res.json({ success: true });
 });
 
+// ============================================================
+// SHEEP PRODUCTION
+// ============================================================
+router.get("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepFlocksTable).where(eq(sheepFlocksTable.farmId, farmId)).orderBy(desc(sheepFlocksTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepFlocksTable).values({ farmId, flockName: String(b.flockName ?? ""), breed: b.breed ? String(b.breed) : null, flockPurpose: b.flockPurpose ? String(b.flockPurpose) : null, cphNumber: b.cphNumber ? String(b.cphNumber) : null, herdFlockNumber: b.herdFlockNumber ? String(b.herdFlockNumber) : null, currentCount: b.currentCount ? parseInt(String(b.currentCount)) : null, location: b.location ? String(b.location) : null, assuranceScheme: b.assuranceScheme ? String(b.assuranceScheme) : null, assuranceMembershipNumber: b.assuranceMembershipNumber ? String(b.assuranceMembershipNumber) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ flock: row });
+});
+router.put("/farms/:farmId/sheep-flocks/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockName","breed","flockPurpose","cphNumber","herdFlockNumber","currentCount","location","assuranceScheme","assuranceMembershipNumber","status","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepFlocksTable).set(updates).where(and(eq(sheepFlocksTable.id, id), eq(sheepFlocksTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ flock: row });
+});
+router.delete("/farms/:farmId/sheep-flocks/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepFlocksTable).where(and(eq(sheepFlocksTable.id, id), eq(sheepFlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-tupping-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepTuppingRecordsTable).where(eq(sheepTuppingRecordsTable.farmId, farmId)).orderBy(desc(sheepTuppingRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-tupping-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepTuppingRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, tuppingStartDate: String(b.tuppingStartDate ?? ""), tuppingEndDate: b.tuppingEndDate ? String(b.tuppingEndDate) : null, ramBreed: b.ramBreed ? String(b.ramBreed) : null, ramTagNumber: b.ramTagNumber ? String(b.ramTagNumber) : null, ramSource: b.ramSource ? String(b.ramSource) : null, ewesExposed: b.ewesExposed ? parseInt(String(b.ewesExposed)) : null, tuppingMethod: b.tuppingMethod ? String(b.tuppingMethod) : null, harnessColour: b.harnessColour ? String(b.harnessColour) : null, progesteroneUsed: b.progesteroneUsed === true || b.progesteroneUsed === "true", expectedLambingStart: b.expectedLambingStart ? String(b.expectedLambingStart) : null, expectedLambingEnd: b.expectedLambingEnd ? String(b.expectedLambingEnd) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-tupping-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","tuppingStartDate","tuppingEndDate","ramBreed","ramTagNumber","ramSource","ewesExposed","tuppingMethod","harnessColour","progesteroneUsed","expectedLambingStart","expectedLambingEnd","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepTuppingRecordsTable).set(updates).where(and(eq(sheepTuppingRecordsTable.id, id), eq(sheepTuppingRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-tupping-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepTuppingRecordsTable).where(and(eq(sheepTuppingRecordsTable.id, id), eq(sheepTuppingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-scanning-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepScanningRecordsTable).where(eq(sheepScanningRecordsTable.farmId, farmId)).orderBy(desc(sheepScanningRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-scanning-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepScanningRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, scanDate: String(b.scanDate ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, ewesScanned: b.ewesScanned ? parseInt(String(b.ewesScanned)) : null, ewesInLamb: b.ewesInLamb ? parseInt(String(b.ewesInLamb)) : null, ewesBare: b.ewesBare ? parseInt(String(b.ewesBare)) : null, singlesCount: b.singlesCount ? parseInt(String(b.singlesCount)) : null, twinsCount: b.twinsCount ? parseInt(String(b.twinsCount)) : null, triplesCount: b.triplesCount ? parseInt(String(b.triplesCount)) : null, quadsCount: b.quadsCount ? parseInt(String(b.quadsCount)) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, expectedLambsTotal: b.expectedLambsTotal ? parseInt(String(b.expectedLambsTotal)) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","scanDate","scannerName","ewesScanned","ewesInLamb","ewesBare","singlesCount","twinsCount","triplesCount","quadsCount","scanningPercentage","expectedLambsTotal","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepScanningRecordsTable).set(updates).where(and(eq(sheepScanningRecordsTable.id, id), eq(sheepScanningRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepScanningRecordsTable).where(and(eq(sheepScanningRecordsTable.id, id), eq(sheepScanningRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-weigh-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepWeighRecordsTable).where(eq(sheepWeighRecordsTable.farmId, farmId)).orderBy(desc(sheepWeighRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-weigh-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepWeighRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, weighDate: String(b.weighDate ?? ""), weighBatchRef: b.weighBatchRef ? String(b.weighBatchRef) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, numberOfAnimalsWeighed: b.numberOfAnimalsWeighed ? parseInt(String(b.numberOfAnimalsWeighed)) : null, averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","weighDate","weighBatchRef","animalCategory","numberOfAnimalsWeighed","averageWeightKg","totalWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","bodyConditionScore","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepWeighRecordsTable).set(updates).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepWeighRecordsTable).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-shearing-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepShearingRecordsTable).where(eq(sheepShearingRecordsTable.farmId, farmId)).orderBy(desc(sheepShearingRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-shearing-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepShearingRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, shearingDate: String(b.shearingDate ?? ""), shearerName: b.shearerName ? String(b.shearerName) : null, isContractor: b.isContractor === true || b.isContractor === "true", numberOfSheepSheared: b.numberOfSheepSheared ? parseInt(String(b.numberOfSheepSheared)) : null, woolWeightKg: b.woolWeightKg ? String(b.woolWeightKg) : null, woolGrade: b.woolGrade ? String(b.woolGrade) : null, britishWoolBoardRef: b.britishWoolBoardRef ? String(b.britishWoolBoardRef) : null, woolSaleValue: b.woolSaleValue ? String(b.woolSaleValue) : null, ectoparasiteTreatmentApplied: b.ectoparasiteTreatmentApplied === true || b.ectoparasiteTreatmentApplied === "true", treatmentProductName: b.treatmentProductName ? String(b.treatmentProductName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-shearing-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","shearingDate","shearerName","isContractor","numberOfSheepSheared","woolWeightKg","woolGrade","britishWoolBoardRef","woolSaleValue","ectoparasiteTreatmentApplied","treatmentProductName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepShearingRecordsTable).set(updates).where(and(eq(sheepShearingRecordsTable.id, id), eq(sheepShearingRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-shearing-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepShearingRecordsTable).where(and(eq(sheepShearingRecordsTable.id, id), eq(sheepShearingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-cull-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepCullRecordsTable).where(eq(sheepCullRecordsTable.farmId, farmId)).orderBy(desc(sheepCullRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-cull-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepCullRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, cullDate: String(b.cullDate ?? ""), animalTagNumber: b.animalTagNumber ? String(b.animalTagNumber) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, cullReason: String(b.cullReason ?? ""), disposalMethod: b.disposalMethod ? String(b.disposalMethod) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, saleValueGbp: b.saleValueGbp ? String(b.saleValueGbp) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","cullDate","animalTagNumber","animalCategory","cullReason","disposalMethod","abattoirName","carcassWeightKg","saleValueGbp","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepCullRecordsTable).set(updates).where(and(eq(sheepCullRecordsTable.id, id), eq(sheepCullRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepCullRecordsTable).where(and(eq(sheepCullRecordsTable.id, id), eq(sheepCullRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepVaccinationProgrammesTable).where(eq(sheepVaccinationProgrammesTable.farmId, farmId)).orderBy(desc(sheepVaccinationProgrammesTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepVaccinationProgrammesTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, programmeName: String(b.programmeName ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), diseaseTargeted: b.diseaseTargeted ? String(b.diseaseTargeted) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, doseMl: b.doseMl ? String(b.doseMl) : null, vaccinationDate: String(b.vaccinationDate ?? ""), boosterDueDate: b.boosterDueDate ? String(b.boosterDueDate) : null, numberOfAnimalsVaccinated: b.numberOfAnimalsVaccinated ? parseInt(String(b.numberOfAnimalsVaccinated)) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","programmeName","vaccineProduct","diseaseTargeted","administrationRoute","doseMl","vaccinationDate","boosterDueDate","numberOfAnimalsVaccinated","batchNumber","expiryDate","administeredBy","vetPrescribed","withdrawalPeriodDays","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepVaccinationProgrammesTable).set(updates).where(and(eq(sheepVaccinationProgrammesTable.id, id), eq(sheepVaccinationProgrammesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepVaccinationProgrammesTable).where(and(eq(sheepVaccinationProgrammesTable.id, id), eq(sheepVaccinationProgrammesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepDiseaseMonitoringTable).where(eq(sheepDiseaseMonitoringTable.farmId, farmId)).orderBy(desc(sheepDiseaseMonitoringTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepDiseaseMonitoringTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, observationDate: String(b.observationDate ?? ""), condition: String(b.condition ?? ""), numberOfAnimalsAffected: b.numberOfAnimalsAffected ? parseInt(String(b.numberOfAnimalsAffected)) : null, severity: b.severity ? String(b.severity) : null, actionTaken: b.actionTaken ? String(b.actionTaken) : null, vetConsulted: b.vetConsulted === true || b.vetConsulted === "true", vetName: b.vetName ? String(b.vetName) : null, treatmentProduct: b.treatmentProduct ? String(b.treatmentProduct) : null, outcome: b.outcome ? String(b.outcome) : null, reportableDisease: b.reportableDisease === true || b.reportableDisease === "true", ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["flockId","observationDate","condition","numberOfAnimalsAffected","severity","actionTaken","vetConsulted","vetName","treatmentProduct","outcome","reportableDisease","ahrbiNotified","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepDiseaseMonitoringTable).set(updates).where(and(eq(sheepDiseaseMonitoringTable.id, id), eq(sheepDiseaseMonitoringTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepDiseaseMonitoringTable).where(and(eq(sheepDiseaseMonitoringTable.id, id), eq(sheepDiseaseMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-rt-checklists", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(sheepRedTractorChecklistTable).where(eq(sheepRedTractorChecklistTable.farmId, farmId)).orderBy(desc(sheepRedTractorChecklistTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sheep-rt-checklists", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(sheepRedTractorChecklistTable).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, flockRegisterUpToDate: b.flockRegisterUpToDate === true || b.flockRegisterUpToDate === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", welfareOutcomesRecorded: b.welfareOutcomesRecorded === true || b.welfareOutcomesRecorded === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["checkDate","checkedBy","flockRegisterUpToDate","medicineRecordsComplete","movementRecordsComplete","feedRecordsComplete","mbmFreeStatus","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent","welfareOutcomesRecorded","overallStatus","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(sheepRedTractorChecklistTable).set(updates).where(and(eq(sheepRedTractorChecklistTable.id, id), eq(sheepRedTractorChecklistTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(sheepRedTractorChecklistTable).where(and(eq(sheepRedTractorChecklistTable.id, id), eq(sheepRedTractorChecklistTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// BEEF PRODUCTION
+// ============================================================
+router.get("/farms/:farmId/beef-weigh-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(beefWeighRecordsTable).where(eq(beefWeighRecordsTable.farmId, farmId)).orderBy(desc(beefWeighRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/beef-weigh-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(beefWeighRecordsTable).values({ farmId, weighDate: String(b.weighDate ?? ""), groupRef: b.groupRef ? String(b.groupRef) : null, breed: b.breed ? String(b.breed) : null, category: b.category ? String(b.category) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, totalLiveWeightKg: b.totalLiveWeightKg ? String(b.totalLiveWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, averageBcsScore: b.averageBcsScore ? String(b.averageBcsScore) : null, location: b.location ? String(b.location) : null, weighedBy: b.weighedBy ? String(b.weighedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/beef-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["weighDate","groupRef","breed","category","numberOfAnimals","averageLiveWeightKg","totalLiveWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","averageBcsScore","location","weighedBy","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(beefWeighRecordsTable).set(updates).where(and(eq(beefWeighRecordsTable.id, id), eq(beefWeighRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/beef-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(beefWeighRecordsTable).where(and(eq(beefWeighRecordsTable.id, id), eq(beefWeighRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/beef-finishing-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(beefFinishingRecordsTable).where(eq(beefFinishingRecordsTable.farmId, farmId)).orderBy(desc(beefFinishingRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/beef-finishing-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(beefFinishingRecordsTable).values({ farmId, animalTagNumber: String(b.animalTagNumber ?? ""), breed: b.breed ? String(b.breed) : null, sex: b.sex ? String(b.sex) : null, dateOfBirth: b.dateOfBirth ? String(b.dateOfBirth) : null, dateEnteredFinishing: b.dateEnteredFinishing ? String(b.dateEnteredFinishing) : null, entryLiveWeightKg: b.entryLiveWeightKg ? String(b.entryLiveWeightKg) : null, targetSlaughterWeightKg: b.targetSlaughterWeightKg ? String(b.targetSlaughterWeightKg) : null, targetSlaughterDate: b.targetSlaughterDate ? String(b.targetSlaughterDate) : null, finishingSystem: b.finishingSystem ? String(b.finishingSystem) : null, rationsDescription: b.rationsDescription ? String(b.rationsDescription) : null, slaughterDate: b.slaughterDate ? String(b.slaughterDate) : null, slaughterLiveWeightKg: b.slaughterLiveWeightKg ? String(b.slaughterLiveWeightKg) : null, totalDaysOnFinishing: b.totalDaysOnFinishing ? parseInt(String(b.totalDaysOnFinishing)) : null, overallDlwgGPerDay: b.overallDlwgGPerDay ? String(b.overallDlwgGPerDay) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/beef-finishing-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["animalTagNumber","breed","sex","dateOfBirth","dateEnteredFinishing","entryLiveWeightKg","targetSlaughterWeightKg","targetSlaughterDate","finishingSystem","rationsDescription","slaughterDate","slaughterLiveWeightKg","totalDaysOnFinishing","overallDlwgGPerDay","status","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(beefFinishingRecordsTable).set(updates).where(and(eq(beefFinishingRecordsTable.id, id), eq(beefFinishingRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/beef-finishing-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(beefFinishingRecordsTable).where(and(eq(beefFinishingRecordsTable.id, id), eq(beefFinishingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/beef-deadweight-settlements", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(beefDeadweightSettlementsTable).where(eq(beefDeadweightSettlementsTable.farmId, farmId)).orderBy(desc(beefDeadweightSettlementsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/beef-deadweight-settlements", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(beefDeadweightSettlementsTable).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", settlementDate: b.settlementDate ? String(b.settlementDate) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/beef-deadweight-settlements/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["killDate","abattoirName","abattoirRef","numberOfHead","averageCarcassWeightKg","totalCarcassWeightKg","killingOutPercentage","dominantGrade","averagePricePerKgGbp","totalValueGbp","levyDeductionGbp","netPaymentGbp","paymentReceived","settlementDate","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(beefDeadweightSettlementsTable).set(updates).where(and(eq(beefDeadweightSettlementsTable.id, id), eq(beefDeadweightSettlementsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/beef-deadweight-settlements/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(beefDeadweightSettlementsTable).where(and(eq(beefDeadweightSettlementsTable.id, id), eq(beefDeadweightSettlementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/beef-rt-checklists", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(beefRedTractorChecklistTable).where(eq(beefRedTractorChecklistTable.farmId, farmId)).orderBy(desc(beefRedTractorChecklistTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/beef-rt-checklists", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(beefRedTractorChecklistTable).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, cattlePassportsCurrent: b.cattlePassportsCurrent === true || b.cattlePassportsCurrent === "true", herdRegisterUpToDate: b.herdRegisterUpToDate === true || b.herdRegisterUpToDate === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", tbStatusCurrent: b.tbStatusCurrent === true || b.tbStatusCurrent === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["checkDate","checkedBy","cattlePassportsCurrent","herdRegisterUpToDate","movementRecordsComplete","medicineRecordsComplete","feedRecordsComplete","mbmFreeStatus","tbStatusCurrent","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent","overallStatus","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(beefRedTractorChecklistTable).set(updates).where(and(eq(beefRedTractorChecklistTable.id, id), eq(beefRedTractorChecklistTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(beefRedTractorChecklistTable).where(and(eq(beefRedTractorChecklistTable.id, id), eq(beefRedTractorChecklistTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// GRAIN STORE — Drying, Conditioning, Storage Agreements
+// ============================================================
+router.get("/farms/:farmId/grain-drying-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(grainDryingRecordsTable).where(eq(grainDryingRecordsTable.farmId, farmId)).orderBy(desc(grainDryingRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-drying-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(grainDryingRecordsTable).values({ farmId, dryingDate: String(b.dryingDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, moistureContentInPct: b.moistureContentInPct ? String(b.moistureContentInPct) : null, targetMoistureContentPct: b.targetMoistureContentPct ? String(b.targetMoistureContentPct) : null, moistureContentOutPct: b.moistureContentOutPct ? String(b.moistureContentOutPct) : null, dryerType: b.dryerType ? String(b.dryerType) : null, fuelType: b.fuelType ? String(b.fuelType) : null, fuelUsedLitres: b.fuelUsedLitres ? String(b.fuelUsedLitres) : null, dryingTemperatureCelsius: b.dryingTemperatureCelsius ? String(b.dryingTemperatureCelsius) : null, dryingDurationHours: b.dryingDurationHours ? String(b.dryingDurationHours) : null, shrinkagePct: b.shrinkagePct ? String(b.shrinkagePct) : null, operatorName: b.operatorName ? String(b.operatorName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/grain-drying-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["dryingDate","commodity","storageBinRef","lotReference","quantityTonnes","moistureContentInPct","targetMoistureContentPct","moistureContentOutPct","dryerType","fuelType","fuelUsedLitres","dryingTemperatureCelsius","dryingDurationHours","shrinkagePct","operatorName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(grainDryingRecordsTable).set(updates).where(and(eq(grainDryingRecordsTable.id, id), eq(grainDryingRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/grain-drying-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(grainDryingRecordsTable).where(and(eq(grainDryingRecordsTable.id, id), eq(grainDryingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grain-conditioning-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(grainConditioningRecordsTable).where(eq(grainConditioningRecordsTable.farmId, farmId)).orderBy(desc(grainConditioningRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-conditioning-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(grainConditioningRecordsTable).values({ farmId, checkDate: String(b.checkDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, temperatureCelsius: b.temperatureCelsius ? String(b.temperatureCelsius) : null, moistureContentPct: b.moistureContentPct ? String(b.moistureContentPct) : null, co2LevelPpm: b.co2LevelPpm ? String(b.co2LevelPpm) : null, pesticideApplied: b.pesticideApplied === true || b.pesticideApplied === "true", pesticideProductName: b.pesticideProductName ? String(b.pesticideProductName) : null, pesticideDoseRatePerTonne: b.pesticideDoseRatePerTonne ? String(b.pesticideDoseRatePerTonne) : null, aerationUsed: b.aerationUsed === true || b.aerationUsed === "true", actionRequired: b.actionRequired ? String(b.actionRequired) : null, overallCondition: b.overallCondition ? String(b.overallCondition) : null, checkedBy: b.checkedBy ? String(b.checkedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/grain-conditioning-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["checkDate","commodity","storageBinRef","lotReference","temperatureCelsius","moistureContentPct","co2LevelPpm","pesticideApplied","pesticideProductName","pesticideDoseRatePerTonne","aerationUsed","actionRequired","overallCondition","checkedBy","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(grainConditioningRecordsTable).set(updates).where(and(eq(grainConditioningRecordsTable.id, id), eq(grainConditioningRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/grain-conditioning-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(grainConditioningRecordsTable).where(and(eq(grainConditioningRecordsTable.id, id), eq(grainConditioningRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grain-storage-agreements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(grainStorageAgreementsTable).where(eq(grainStorageAgreementsTable.farmId, farmId)).orderBy(desc(grainStorageAgreementsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-storage-agreements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(grainStorageAgreementsTable).values({ farmId, merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, agreedPricePerTonneGbp: b.agreedPricePerTonneGbp ? String(b.agreedPricePerTonneGbp) : null, pricingType: b.pricingType ? String(b.pricingType) : null, collectionDeadline: b.collectionDeadline ? String(b.collectionDeadline) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, storageChargePerTonnePerWeek: b.storageChargePerTonnePerWeek ? String(b.storageChargePerTonnePerWeek) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["merchantName","contractRef","commodity","quantityTonnes","agreedPricePerTonneGbp","pricingType","collectionDeadline","qualitySpec","storageChargePerTonnePerWeek","status","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(grainStorageAgreementsTable).set(updates).where(and(eq(grainStorageAgreementsTable.id, id), eq(grainStorageAgreementsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(grainStorageAgreementsTable).where(and(eq(grainStorageAgreementsTable.id, id), eq(grainStorageAgreementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// SETTLEMENT NOTES
+// ============================================================
+router.get("/farms/:farmId/livestock-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(livestockSettlementNotesTable).where(eq(livestockSettlementNotesTable.farmId, farmId)).orderBy(desc(livestockSettlementNotesTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/livestock-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(livestockSettlementNotesTable).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, species: String(b.species ?? ""), numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, transportCostGbp: b.transportCostGbp ? String(b.transportCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, settlementDate: b.settlementDate ? String(b.settlementDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedMovementRef: b.linkedMovementRef ? String(b.linkedMovementRef) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/livestock-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["killDate","abattoirName","abattoirRef","species","numberOfHead","averageCarcassWeightKg","totalCarcassWeightKg","killingOutPercentage","dominantGrade","averagePricePerKgGbp","totalValueGbp","levyDeductionGbp","transportCostGbp","otherDeductionsGbp","netPaymentGbp","settlementDate","paymentReceived","paymentReceivedDate","linkedMovementRef","documentPath","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(livestockSettlementNotesTable).set(updates).where(and(eq(livestockSettlementNotesTable.id, id), eq(livestockSettlementNotesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/livestock-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(livestockSettlementNotesTable).where(and(eq(livestockSettlementNotesTable.id, id), eq(livestockSettlementNotesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grain-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(grainSettlementNotesTable).where(eq(grainSettlementNotesTable.farmId, farmId)).orderBy(desc(grainSettlementNotesTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(grainSettlementNotesTable).values({ farmId, settlementDate: String(b.settlementDate ?? ""), merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, pricePerTonneGbp: b.pricePerTonneGbp ? String(b.pricePerTonneGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, premiumOrDiscountGbp: b.premiumOrDiscountGbp ? String(b.premiumOrDiscountGbp) : null, premiumOrDiscountReason: b.premiumOrDiscountReason ? String(b.premiumOrDiscountReason) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, storageCostGbp: b.storageCostGbp ? String(b.storageCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentDueDate: b.paymentDueDate ? String(b.paymentDueDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedHaulageRef: b.linkedHaulageRef ? String(b.linkedHaulageRef) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["settlementDate","merchantName","contractRef","commodity","quantityTonnes","pricePerTonneGbp","totalValueGbp","premiumOrDiscountGbp","premiumOrDiscountReason","levyDeductionGbp","storageCostGbp","otherDeductionsGbp","netPaymentGbp","paymentDueDate","paymentReceived","paymentReceivedDate","linkedHaulageRef","qualitySpec","documentPath","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(grainSettlementNotesTable).set(updates).where(and(eq(grainSettlementNotesTable.id, id), eq(grainSettlementNotesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(grainSettlementNotesTable).where(and(eq(grainSettlementNotesTable.id, id), eq(grainSettlementNotesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// MEDICATED FEED RECORDS
+// ============================================================
+router.get("/farms/:farmId/medicated-feed-records", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(medicatedFeedRecordsTable).where(eq(medicatedFeedRecordsTable.farmId, farmId)).orderBy(desc(medicatedFeedRecordsTable.createdAt));
+  res.json(rows);
+});
+router.post("/farms/:farmId/medicated-feed-records", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(medicatedFeedRecordsTable).values({ farmId, deliveryDate: String(b.deliveryDate ?? ""), productName: String(b.productName ?? ""), activeIngredient: String(b.activeIngredient ?? ""), medicinalCategory: String(b.medicinalCategory ?? ""), supplierName: b.supplierName ? String(b.supplierName) : null, batchNumber: String(b.batchNumber ?? ""), expiryDate: b.expiryDate ? String(b.expiryDate) : null, quantityDeliveredKg: String(b.quantityDeliveredKg ?? "0"), speciesTargeted: String(b.speciesTargeted ?? ""), herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, feedingStartDate: String(b.feedingStartDate ?? ""), feedingEndDate: b.feedingEndDate ? String(b.feedingEndDate) : null, feedingDurationDays: b.feedingDurationDays ? parseInt(String(b.feedingDurationDays)) : null, dailyRationKgPerAnimal: b.dailyRationKgPerAnimal ? String(b.dailyRationKgPerAnimal) : null, indicationDiagnosis: String(b.indicationDiagnosis ?? ""), prescribingVetName: b.prescribingVetName ? String(b.prescribingVetName) : null, prescribingVetPractice: b.prescribingVetPractice ? String(b.prescribingVetPractice) : null, veterinaryPrescriptionRef: b.veterinaryPrescriptionRef ? String(b.veterinaryPrescriptionRef) : null, prescriptionOnFile: b.prescriptionOnFile === true || b.prescriptionOnFile === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, withdrawalEndDate: b.withdrawalEndDate ? String(b.withdrawalEndDate) : null, stockUsedKg: b.stockUsedKg ? String(b.stockUsedKg) : null, stockRemainingKg: b.stockRemainingKg ? String(b.stockRemainingKg) : null, unusedStockDisposalMethod: b.unusedStockDisposalMethod ? String(b.unusedStockDisposalMethod) : null, unusedStockDisposalDate: b.unusedStockDisposalDate ? String(b.unusedStockDisposalDate) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["deliveryDate","productName","activeIngredient","medicinalCategory","supplierName","batchNumber","expiryDate","quantityDeliveredKg","speciesTargeted","herdFlockRef","numberOfAnimals","feedingStartDate","feedingEndDate","feedingDurationDays","dailyRationKgPerAnimal","indicationDiagnosis","prescribingVetName","prescribingVetPractice","veterinaryPrescriptionRef","prescriptionOnFile","withdrawalPeriodDays","withdrawalEndDate","stockUsedKg","stockRemainingKg","unusedStockDisposalMethod","unusedStockDisposalDate","documentPath","documentName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  const [row] = await db.update(medicatedFeedRecordsTable).set(updates).where(and(eq(medicatedFeedRecordsTable.id, id), eq(medicatedFeedRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(medicatedFeedRecordsTable).where(and(eq(medicatedFeedRecordsTable.id, id), eq(medicatedFeedRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 export default router;
-
-

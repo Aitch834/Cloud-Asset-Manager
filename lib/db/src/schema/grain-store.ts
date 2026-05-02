@@ -26,7 +26,7 @@ export const grainDryingRecordsTable = pgTable("grain_drying_records", {
 });
 
 // ─── Grain Quality Tests (Mycotoxin / Pesticide Residue / Official) ───────────
-export const grainQualityTestsTable = pgTable("grain_quality_tests", {
+export const grainStorageQualityTestsTable = pgTable("grain_quality_tests", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   testDate: date("test_date").notNull(),

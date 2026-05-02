@@ -69,6 +69,8 @@ import DairyPage from "@/pages/DairyPage";
 import WorkshopPage from "@/pages/WorkshopPage";
 import PigProductionPage from "@/pages/PigProductionPage";
 import PoultryProductionPage from "@/pages/PoultryProductionPage";
+import SheepProductionPage from "@/pages/SheepProductionPage";
+import BeefProductionPage from "@/pages/BeefProductionPage";
 import FreshProducePage from "@/pages/FreshProducePage";
 import CarbonPage from "@/pages/CarbonPage";
 import DiversificationPage from "@/pages/DiversificationPage";
@@ -348,6 +350,8 @@ function ProtectedContent() {
         <Route path="/biofuel" component={BiofuelPage} />
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
+        <Route path="/sheep-production" component={SheepProductionPage} />
+        <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
         <Route path="/fresh-produce" component={FreshProducePage} />
         <Route path="/carbon" component={CarbonPage} />
@@ -455,6 +459,8 @@ function DevBypassContent() {
         <Route path="/biofuel" component={BiofuelPage} />
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
+        <Route path="/sheep-production" component={SheepProductionPage} />
+        <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
         <Route path="/fresh-produce" component={FreshProducePage} />
         <Route path="/carbon" component={CarbonPage} />

@@ -1,0 +1,429 @@
+import { useState, type ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2 } from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { useAppStore } from "@/hooks/use-app-store";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const api = (path: string) => `/api/${path}`;
+const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+const gbp = (v: unknown) => (v == null || v === "" ? "—" : `£${parseFloat(String(v)).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`);
+
+function Empty({ msg }: { msg: string }) {
+  return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
+}
+
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DataTable({ cols, rows, onEdit, onDelete, onView }: {
+  cols: { key: string; label: string; render?: (r: Record<string, unknown>) => ReactNode }[];
+  rows: Record<string, unknown>[];
+  onEdit?: (r: Record<string, unknown>) => void;
+  onDelete?: (r: Record<string, unknown>) => void;
+  onView?: (r: Record<string, unknown>) => void;
+}) {
+  const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
+          <tbody>{rows.map((row, i) => (
+            <tr key={i} className="border-b last:border-0">
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : fmt(row[c.key])}</td>)}
+              {(onEdit || onDelete || onView) && (
+                <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                  {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
+                  {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {onDelete && <Button size="icon" variant="ghost" onClick={() => setPending(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                </td>
+              )}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <ConfirmDialog open={!!pending} title="Delete Record" message="Are you sure? This cannot be undone." onConfirm={() => { if (pending && onDelete) onDelete(pending); setPending(null); }} onCancel={() => setPending(null)} />
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="space-y-1"><Label>{label}</Label>{children}</div>;
+}
+
+// ─── WEIGH-IN TAB ─────────────────────────────────────────────────────────────
+function WeighTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-weigh-records/${editing.id}`) : api(`farms/${farmId}/beef-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }) });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Beef Weigh-in & DLWG Records</h3>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin" /> : (
+        <DataTable
+          cols={[
+            { key: "weighDate", label: "Date", render: r => fmtDate(r.weighDate) },
+            { key: "groupRef", label: "Group" },
+            { key: "breed", label: "Breed" },
+            { key: "category", label: "Category" },
+            { key: "numberOfAnimals", label: "Count" },
+            { key: "averageLiveWeightKg", label: "Avg Wt (kg)", render: r => fmtNum(r.averageLiveWeightKg) },
+            { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay) },
+            { key: "averageBcsScore", label: "BCS" },
+          ]}
+          rows={rows}
+          onView={setViewing}
+          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
+          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
+            {[["Date", fmtDate(viewing.weighDate)], ["Group Ref", fmt(viewing.groupRef)], ["Breed", fmt(viewing.breed)], ["Category", fmt(viewing.category)], ["Animals Weighed", fmt(viewing.numberOfAnimals)], ["Avg Live Weight (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Total Live Weight (kg)", fmtNum(viewing.totalLiveWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["Avg BCS", fmt(viewing.averageBcsScore)], ["Location", fmt(viewing.location)], ["Weighed By", fmt(viewing.weighedBy)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+          </div>}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Weigh Date *"><Input type="date" value={form.weighDate ?? ""} onChange={e => sf("weighDate", e.target.value)} /></Field>
+            <Field label="Group Reference"><Input value={form.groupRef ?? ""} onChange={e => sf("groupRef", e.target.value)} /></Field>
+            <Field label="Breed"><Input value={form.breed ?? ""} onChange={e => sf("breed", e.target.value)} /></Field>
+            <Field label="Category">
+              <Select value={form.category ?? ""} onValueChange={v => sf("category", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Suckler calves","Weaned calves","Store cattle","Finishing cattle","Cows","Bulls"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Number of Animals"><Input type="number" value={form.numberOfAnimals ?? ""} onChange={e => sf("numberOfAnimals", e.target.value)} /></Field>
+            <Field label="Avg Live Weight (kg)"><Input type="number" step="0.1" value={form.averageLiveWeightKg ?? ""} onChange={e => sf("averageLiveWeightKg", e.target.value)} /></Field>
+            <Field label="Total Live Weight (kg)"><Input type="number" step="0.1" value={form.totalLiveWeightKg ?? ""} onChange={e => sf("totalLiveWeightKg", e.target.value)} /></Field>
+            <Field label="Target Weight (kg)"><Input type="number" step="0.1" value={form.targetWeightKg ?? ""} onChange={e => sf("targetWeightKg", e.target.value)} /></Field>
+            <Field label="DLWG (g/day)"><Input type="number" step="1" value={form.dlwgGPerDay ?? ""} onChange={e => sf("dlwgGPerDay", e.target.value)} /></Field>
+            <Field label="Days Since Last Weigh"><Input type="number" value={form.daysSincePreviousWeigh ?? ""} onChange={e => sf("daysSincePreviousWeigh", e.target.value)} /></Field>
+            <Field label="Avg BCS (1–5)"><Input type="number" step="0.5" min="1" max="5" value={form.averageBcsScore ?? ""} onChange={e => sf("averageBcsScore", e.target.value)} /></Field>
+            <Field label="Location"><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} /></Field>
+            <Field label="Weighed By"><Input value={form.weighedBy ?? ""} onChange={e => sf("weighedBy", e.target.value)} /></Field>
+            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── FINISHING RECORDS TAB ────────────────────────────────────────────────────
+function FinishingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-finishing", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-finishing-records`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-finishing-records/${editing.id}`) : api(`farms/${farmId}/beef-finishing-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-finishing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }) });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Finishing Records</h3>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Animal</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin" /> : (
+        <DataTable
+          cols={[
+            { key: "animalTagNumber", label: "Tag No." },
+            { key: "breed", label: "Breed" },
+            { key: "sex", label: "Sex" },
+            { key: "dateEnteredFinishing", label: "Entered Finishing", render: r => fmtDate(r.dateEnteredFinishing) },
+            { key: "entryLiveWeightKg", label: "Entry Wt (kg)", render: r => fmtNum(r.entryLiveWeightKg) },
+            { key: "targetSlaughterDate", label: "Target Slaughter", render: r => fmtDate(r.targetSlaughterDate) },
+            { key: "overallDlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.overallDlwgGPerDay) },
+            { key: "status", label: "Status", render: r => <Badge variant={r.status === "active" ? "default" : "secondary"}>{fmt(r.status)}</Badge> },
+          ]}
+          rows={rows}
+          onView={setViewing}
+          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Finishing Record</DialogTitle></DialogHeader>
+          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
+            {[["Tag Number", fmt(viewing.animalTagNumber)], ["Breed", fmt(viewing.breed)], ["Sex", fmt(viewing.sex)], ["Date of Birth", fmtDate(viewing.dateOfBirth)], ["Entered Finishing", fmtDate(viewing.dateEnteredFinishing)], ["Entry Live Weight (kg)", fmtNum(viewing.entryLiveWeightKg)], ["Target Slaughter Wt (kg)", fmtNum(viewing.targetSlaughterWeightKg)], ["Target Slaughter Date", fmtDate(viewing.targetSlaughterDate)], ["Finishing System", fmt(viewing.finishingSystem)], ["Slaughter Date", fmtDate(viewing.slaughterDate)], ["Slaughter Live Wt (kg)", fmtNum(viewing.slaughterLiveWeightKg)], ["Days on Finishing", fmt(viewing.totalDaysOnFinishing)], ["Overall DLWG (g/day)", fmtNum(viewing.overallDlwgGPerDay)], ["Status", fmt(viewing.status)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+            {viewing.rationsDescription && <div className="col-span-2"><span className="text-muted-foreground">Rations:</span> {fmt(viewing.rationsDescription)}</div>}
+            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+          </div>}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Finishing Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Animal Tag No. *"><Input value={form.animalTagNumber ?? ""} onChange={e => sf("animalTagNumber", e.target.value)} /></Field>
+            <Field label="Breed"><Input value={form.breed ?? ""} onChange={e => sf("breed", e.target.value)} /></Field>
+            <Field label="Sex">
+              <Select value={form.sex ?? ""} onValueChange={v => sf("sex", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Bull","Steer","Heifer","Cow"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Date of Birth"><Input type="date" value={form.dateOfBirth ?? ""} onChange={e => sf("dateOfBirth", e.target.value)} /></Field>
+            <Field label="Date Entered Finishing"><Input type="date" value={form.dateEnteredFinishing ?? ""} onChange={e => sf("dateEnteredFinishing", e.target.value)} /></Field>
+            <Field label="Entry Live Weight (kg)"><Input type="number" step="0.1" value={form.entryLiveWeightKg ?? ""} onChange={e => sf("entryLiveWeightKg", e.target.value)} /></Field>
+            <Field label="Target Slaughter Wt (kg)"><Input type="number" step="0.1" value={form.targetSlaughterWeightKg ?? ""} onChange={e => sf("targetSlaughterWeightKg", e.target.value)} /></Field>
+            <Field label="Target Slaughter Date"><Input type="date" value={form.targetSlaughterDate ?? ""} onChange={e => sf("targetSlaughterDate", e.target.value)} /></Field>
+            <Field label="Finishing System"><Input value={form.finishingSystem ?? ""} onChange={e => sf("finishingSystem", e.target.value)} placeholder="e.g. Cereal beef, Grass finishing" /></Field>
+            <Field label="Status">
+              <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["active","slaughtered","sold-store","died"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Slaughter Date"><Input type="date" value={form.slaughterDate ?? ""} onChange={e => sf("slaughterDate", e.target.value)} /></Field>
+            <Field label="Slaughter Live Wt (kg)"><Input type="number" step="0.1" value={form.slaughterLiveWeightKg ?? ""} onChange={e => sf("slaughterLiveWeightKg", e.target.value)} /></Field>
+            <Field label="Days on Finishing"><Input type="number" value={form.totalDaysOnFinishing ?? ""} onChange={e => sf("totalDaysOnFinishing", e.target.value)} /></Field>
+            <Field label="Overall DLWG (g/day)"><Input type="number" step="1" value={form.overallDlwgGPerDay ?? ""} onChange={e => sf("overallDlwgGPerDay", e.target.value)} /></Field>
+            <div className="col-span-2"><Field label="Rations Description"><Textarea value={form.rationsDescription ?? ""} onChange={e => sf("rationsDescription", e.target.value)} rows={2} /></Field></div>
+            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── DEADWEIGHT SETTLEMENT TAB ────────────────────────────────────────────────
+function DeadweightTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-deadweight", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-deadweight-settlements`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-deadweight-settlements/${editing.id}`) : api(`farms/${farmId}/beef-deadweight-settlements`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-deadweight", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-deadweight-settlements/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-deadweight", farmId] }) });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Deadweight Settlement Notes</h3>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ paymentReceived: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Settlement</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin" /> : (
+        <DataTable
+          cols={[
+            { key: "killDate", label: "Kill Date", render: r => fmtDate(r.killDate) },
+            { key: "abattoirName", label: "Abattoir" },
+            { key: "numberOfHead", label: "Head" },
+            { key: "averageCarcassWeightKg", label: "Avg Carcass (kg)", render: r => fmtNum(r.averageCarcassWeightKg) },
+            { key: "dominantGrade", label: "Grade" },
+            { key: "netPaymentGbp", label: "Net Payment", render: r => gbp(r.netPaymentGbp) },
+            { key: "paymentReceived", label: "Paid", render: r => r.paymentReceived ? <Badge variant="default">Paid</Badge> : <Badge variant="outline">Outstanding</Badge> },
+          ]}
+          rows={rows}
+          onView={setViewing}
+          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Settlement Note</DialogTitle></DialogHeader>
+          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
+            {[["Kill Date", fmtDate(viewing.killDate)], ["Abattoir", fmt(viewing.abattoirName)], ["Ref", fmt(viewing.abattoirRef)], ["Head", fmt(viewing.numberOfHead)], ["Avg Carcass Wt (kg)", fmtNum(viewing.averageCarcassWeightKg)], ["Total Carcass Wt (kg)", fmtNum(viewing.totalCarcassWeightKg)], ["Killing Out %", fmt(viewing.killingOutPercentage)], ["Grade", fmt(viewing.dominantGrade)], ["Avg Price/kg", gbp(viewing.averagePricePerKgGbp)], ["Total Value", gbp(viewing.totalValueGbp)], ["Levy Deduction", gbp(viewing.levyDeductionGbp)], ["Net Payment", gbp(viewing.netPaymentGbp)], ["Settlement Date", fmtDate(viewing.settlementDate)], ["Payment Received", viewing.paymentReceived ? "Yes" : "No"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+          </div>}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Settlement Note</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Kill Date *"><Input type="date" value={form.killDate ?? ""} onChange={e => sf("killDate", e.target.value)} /></Field>
+            <Field label="Abattoir Name *"><Input value={form.abattoirName ?? ""} onChange={e => sf("abattoirName", e.target.value)} /></Field>
+            <Field label="Abattoir Ref"><Input value={form.abattoirRef ?? ""} onChange={e => sf("abattoirRef", e.target.value)} /></Field>
+            <Field label="Number of Head"><Input type="number" value={form.numberOfHead ?? ""} onChange={e => sf("numberOfHead", e.target.value)} /></Field>
+            <Field label="Avg Carcass Wt (kg)"><Input type="number" step="0.1" value={form.averageCarcassWeightKg ?? ""} onChange={e => sf("averageCarcassWeightKg", e.target.value)} /></Field>
+            <Field label="Total Carcass Wt (kg)"><Input type="number" step="0.1" value={form.totalCarcassWeightKg ?? ""} onChange={e => sf("totalCarcassWeightKg", e.target.value)} /></Field>
+            <Field label="Killing Out %"><Input type="number" step="0.1" value={form.killingOutPercentage ?? ""} onChange={e => sf("killingOutPercentage", e.target.value)} /></Field>
+            <Field label="Dominant Grade"><Input value={form.dominantGrade ?? ""} onChange={e => sf("dominantGrade", e.target.value)} placeholder="e.g. R4L, U3" /></Field>
+            <Field label="Avg Price per kg (£)"><Input type="number" step="0.001" value={form.averagePricePerKgGbp ?? ""} onChange={e => sf("averagePricePerKgGbp", e.target.value)} /></Field>
+            <Field label="Total Value (£)"><Input type="number" step="0.01" value={form.totalValueGbp ?? ""} onChange={e => sf("totalValueGbp", e.target.value)} /></Field>
+            <Field label="Levy Deduction (£)"><Input type="number" step="0.01" value={form.levyDeductionGbp ?? ""} onChange={e => sf("levyDeductionGbp", e.target.value)} /></Field>
+            <Field label="Net Payment (£)"><Input type="number" step="0.01" value={form.netPaymentGbp ?? ""} onChange={e => sf("netPaymentGbp", e.target.value)} /></Field>
+            <Field label="Settlement Date"><Input type="date" value={form.settlementDate ?? ""} onChange={e => sf("settlementDate", e.target.value)} /></Field>
+            <div className="flex items-center gap-2 mt-5"><Checkbox checked={form.paymentReceived === "true"} onCheckedChange={v => sf("paymentReceived", v ? "true" : "false")} id="pr" /><Label htmlFor="pr">Payment received</Label></div>
+            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── RED TRACTOR CHECKLIST TAB ────────────────────────────────────────────────
+function RTChecklistTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-rt", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-rt-checklists`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-rt-checklists/${editing.id}`) : api(`farms/${farmId}/beef-rt-checklists`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-rt-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }) });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const boolFields = ["cattlePassportsCurrent","herdRegisterUpToDate","movementRecordsComplete","medicineRecordsComplete","feedRecordsComplete","mbmFreeStatus","tbStatusCurrent","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent"];
+  const boolLabels: Record<string, string> = { cattlePassportsCurrent: "Cattle passports current & on farm", herdRegisterUpToDate: "Herd register up to date", movementRecordsComplete: "Movement records complete", medicineRecordsComplete: "Medicine records complete", feedRecordsComplete: "Feed records complete", mbmFreeStatus: "MBM-free status confirmed", tbStatusCurrent: "TB test status current", assuranceMembershipCurrent: "Assurance membership current", vetHealthPlanOnFile: "Vet health plan on file", staffTrainingCurrent: "Staff training current" };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Red Tractor Beef & Cattle Checklists</h3>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ overallStatus: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />New Check</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin" /> : (
+        <DataTable
+          cols={[
+            { key: "checkDate", label: "Date", render: r => fmtDate(r.checkDate) },
+            { key: "checkedBy", label: "Checked By" },
+            { key: "overallStatus", label: "Status", render: r => { const s = String(r.overallStatus ?? ""); return <Badge variant={s === "pass" ? "default" : s === "fail" ? "destructive" : "secondary"}>{s}</Badge>; } },
+          ]}
+          rows={rows}
+          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "New"} RT Beef & Cattle Checklist</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Check Date *"><Input type="date" value={form.checkDate ?? ""} onChange={e => sf("checkDate", e.target.value)} /></Field>
+            <Field label="Checked By"><Input value={form.checkedBy ?? ""} onChange={e => sf("checkedBy", e.target.value)} /></Field>
+            <div className="col-span-2 grid grid-cols-1 gap-2 border rounded p-3">
+              {boolFields.map(k => (
+                <div key={k} className="flex items-center gap-2">
+                  <Checkbox checked={form[k] === "true"} onCheckedChange={v => sf(k, v ? "true" : "false")} id={k} />
+                  <Label htmlFor={k} className="text-sm">{boolLabels[k]}</Label>
+                </div>
+              ))}
+            </div>
+            <Field label="Overall Status">
+              <Select value={form.overallStatus ?? "pending"} onValueChange={v => sf("overallStatus", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["pending","pass","fail","action-required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist";
+
+export default function BeefProductionPage() {
+  const farmId = useAppStore(s => s.farmId);
+  const [tab, setTab] = useState<Tab>("weigh");
+
+  if (!farmId) {
+    return (
+      <AppLayout>
+        <div className="p-8 text-center text-muted-foreground">Select a farm to view beef production records.</div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Scale className="w-6 h-6 text-amber-700" />
+          <div>
+            <h1 className="text-2xl font-bold">Beef & Cattle Production</h1>
+            <p className="text-sm text-muted-foreground">Weigh-in & DLWG, finishing records, deadweight settlements and Red Tractor cattle checklist</p>
+          </div>
+        </div>
+
+        <TabBar className="mb-6">
+          <TabButton active={tab === "weigh"} onClick={() => setTab("weigh")}>Weigh-in & DLWG</TabButton>
+          <TabButton active={tab === "finishing"} onClick={() => setTab("finishing")}>Finishing Records</TabButton>
+          <TabButton active={tab === "deadweight"} onClick={() => setTab("deadweight")}>Deadweight Settlement</TabButton>
+          <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
+        </TabBar>
+
+        {tab === "weigh" && <WeighTab farmId={farmId} />}
+        {tab === "finishing" && <FinishingTab farmId={farmId} />}
+        {tab === "deadweight" && <DeadweightTab farmId={farmId} />}
+        {tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
+      </div>
+    </AppLayout>
+  );
+}
