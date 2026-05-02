@@ -485,10 +485,14 @@ function fmtFlock(r: Record<string, unknown>): string {
 
 function MortalityTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
 
   const recordsList = (records ?? []) as Record<string, unknown>[];
+
+  // Form-related calculations always use full recordsList regardless of year filter
   const selectedFlock = flocks.find(f => String(f.id) === String(form.flockId)) ?? null;
   const flockRecords = recordsList.filter(r =>
     String(r.flockId) === String(form.flockId) && (!editing || String(r.id) !== String((editing as Record<string, unknown>).id))
@@ -499,14 +503,20 @@ function MortalityTab({ farmId }: { farmId: number }) {
   const placementCount = Number(selectedFlock?.placementCount ?? 0);
   const projectedPct = placementCount > 0 ? (projectedRunning / placementCount * 100) : null;
 
-  const totalDeaths = recordsList.reduce((s, r) => s + Number(r.mortalityCount ?? 0), 0);
-  const totalCulled = recordsList.reduce((s, r) => s + Number(r.culledCount ?? 0), 0);
-  const maxPct = recordsList.length ? Math.max(...recordsList.map(r => Number(r.mortalityPercentage ?? 0))) : 0;
+  // Year filter
+  const availableYears = [...new Set(recordsList.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(y => y.length === 4))].sort((a, b) => Number(b) - Number(a));
+  if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
+  const filteredList = yearFilter === "all" ? recordsList : recordsList.filter(r => String(r.recordDate ?? "").startsWith(yearFilter));
+
+  // Summary stats from filtered list
+  const totalDeaths = filteredList.reduce((s, r) => s + Number(r.mortalityCount ?? 0), 0);
+  const totalCulled = filteredList.reduce((s, r) => s + Number(r.culledCount ?? 0), 0);
+  const maxPct = filteredList.length ? Math.max(...filteredList.map(r => Number(r.mortalityPercentage ?? 0))) : 0;
   const causeCounts: Record<string, number> = {};
-  recordsList.forEach(r => { if (r.mainCause) { const c = String(r.mainCause); causeCounts[c] = (causeCounts[c] ?? 0) + 1; } });
+  filteredList.forEach(r => { if (r.mainCause) { const c = String(r.mainCause); causeCounts[c] = (causeCounts[c] ?? 0) + 1; } });
   const topCause = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
   const flockSummaryMap: Record<string, { label: string; deaths: number; culled: number; pct: number }> = {};
-  recordsList.forEach(r => {
+  filteredList.forEach(r => {
     const key = String(r.flockId ?? "?");
     if (!flockSummaryMap[key]) flockSummaryMap[key] = { label: r.flockNumber ? `${r.flockNumber}${r.houseName ? ` · ${r.houseName}` : ""}` : key, deaths: 0, culled: 0, pct: 0 };
     flockSummaryMap[key].deaths += Number(r.mortalityCount ?? 0);
@@ -514,6 +524,18 @@ function MortalityTab({ farmId }: { farmId: number }) {
     flockSummaryMap[key].pct = Math.max(flockSummaryMap[key].pct, Number(r.mortalityPercentage ?? 0));
   });
   const flockSummary = Object.values(flockSummaryMap);
+
+  // Year-by-year stats (always computed from full recordsList for the trend table)
+  function calcYearStats(recs: Record<string, unknown>[]) {
+    const crops = new Set(recs.map(r => String(r.flockId ?? ""))).size;
+    const deaths = recs.reduce((s, r) => s + Number(r.mortalityCount ?? 0), 0);
+    const culled = recs.reduce((s, r) => s + Number(r.culledCount ?? 0), 0);
+    const peakPct = recs.length ? Math.max(...recs.map(r => Number(r.mortalityPercentage ?? 0))) : 0;
+    return { crops, deaths, culled, peakPct };
+  }
+  const yearlyStats = availableYears.map(y => ({ year: y, ...calcYearStats(recordsList.filter(r => String(r.recordDate ?? "").startsWith(y))) }));
+  const hasMultiYearData = yearlyStats.filter(s => s.deaths > 0 || s.culled > 0).length > 1;
+
   const csvCols = [
     { key: "recordDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.recordDate) },
     { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
@@ -525,27 +547,79 @@ function MortalityTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Daily Mortality Records</h3>
+        <div>
+          <h3 className="font-semibold text-sm">Daily Mortality Records</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Broilers: daily mortality must be recorded and retained for a minimum of 3 years.</p>
+        </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(recordsList, "mortality-records.csv", csvCols)} disabled={!recordsList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              <SelectItem value="all">All years</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredList, "mortality-records.csv", csvCols)} disabled={!filteredList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button>
         </div>
       </div>
       {!isLoading && recordsList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mortality Summary — All Records</p></div>
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mortality Summary — {yearFilter === "all" ? "All Years" : yearFilter}</p></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard label="Total Deaths" value={totalDeaths.toLocaleString()} />
             <StatCard label="Total Culled" value={totalCulled.toLocaleString()} />
-            <StatCard label="Highest Mortality %" value={`${maxPct.toFixed(2)}%`} color={maxPct > 5 ? "red" : maxPct > 3 ? "amber" : "green"} />
+            <StatCard label="Peak Mortality %" value={`${maxPct.toFixed(2)}%`} color={maxPct > 5 ? "red" : maxPct > 3 ? "amber" : "green"} />
             <StatCard label="Top Cause" value={topCause.split(" (")[0]} sub={topCause.includes("(") ? topCause.split("(")[1]?.replace(")", "") : undefined} />
           </div>
           {flockSummary.length > 1 && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Flock</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Mortality %</th></tr></thead>
+                <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Flock</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Peak Mortality %</th></tr></thead>
                 <tbody>{flockSummary.map((fs, i) => <tr key={i} className="border-b last:border-0"><td className="py-1.5 pr-4 font-medium">{fs.label}</td><td className="py-1.5 pr-4 text-right">{fs.deaths.toLocaleString()}</td><td className="py-1.5 pr-4 text-right">{fs.culled.toLocaleString()}</td><td className={`py-1.5 text-right font-semibold ${fs.pct > 5 ? "text-red-600" : fs.pct > 3 ? "text-amber-600" : "text-green-700"}`}>{fs.pct.toFixed(2)}%</td></tr>)}</tbody>
               </table>
+            </div>
+          )}
+          {hasMultiYearData && (
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Year-by-Year Mortality Trend</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Year</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Crops</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Deaths</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Culled</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Peak Mort. %</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Bar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearlyStats.map((s, i) => {
+                    const maxRate = Math.max(...yearlyStats.map(x => x.peakPct), 0.1);
+                    const barWidth = Math.round((s.peakPct / maxRate) * 100);
+                    return (
+                      <tr key={s.year} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="px-3 py-2 font-medium">{s.year}</td>
+                        <td className="px-3 py-2 text-right">{s.crops}</td>
+                        <td className="px-3 py-2 text-right">{s.deaths.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">{s.culled.toLocaleString()}</td>
+                        <td className={`px-3 py-2 text-right font-semibold ${s.peakPct > 5 ? "text-red-600" : s.peakPct > 3 ? "text-amber-600" : "text-green-700"}`}>{s.peakPct.toFixed(2)}%</td>
+                        <td className="px-3 py-2 w-32">
+                          <div className="h-3 bg-gray-100 rounded overflow-hidden">
+                            <div className={`h-full rounded ${s.peakPct > 5 ? "bg-red-400" : s.peakPct > 3 ? "bg-amber-400" : "bg-green-400"}`} style={{ width: `${barWidth}%` }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200">
+                <p className="text-xs text-gray-400">Peak mortality % is the highest cumulative rate recorded in any crop in that year. Red &gt;5% · Amber 3–5% · Green &lt;3%. Red Tractor Broilers and NatureScot schemes may query rates above scheme thresholds.</p>
+              </div>
             </div>
           )}
         </div>
@@ -558,7 +632,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
         { key: "runningTotalMortality", label: "Running Total" },
         { key: "mortalityPercentage", label: "Mortality %", fmt: r => r.mortalityPercentage ? `${Number(r.mortalityPercentage).toFixed(2)}%` : "—" },
         { key: "mainCause", label: "Main Cause" },
-      ]} rows={recordsList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "38rem" }}>
