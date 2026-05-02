@@ -329,14 +329,15 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[240px]" />
         {trainingDepartments.length > 0 && (
-          <select
-            value={deptFilter}
-            onChange={e => setDeptFilter(e.target.value)}
-            style={{ fontSize: "0.875rem", border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 12px", background: "#fff", outline: "none" }}
-          >
-            <option value="all">All departments</option>
-            {trainingDepartments.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+          <Select value={deptFilter} onValueChange={setDeptFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All departments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All departments</SelectItem>
+              {trainingDepartments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
         )}
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div style={{ flex: 1 }} />
