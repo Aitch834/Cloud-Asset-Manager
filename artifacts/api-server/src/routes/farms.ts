@@ -165,6 +165,7 @@ import {
   poultryDailyMortalityTable,
   poultryTreatmentsTable,
   poultryHouseCleanoutsTable,
+  poultryCleanoutStockConsumptionsTable,
   poultryEnvironmentalLogsTable,
   poultryFciDocumentsTable,
   poultryBroilerWelfareTable,
@@ -14971,26 +14972,64 @@ router.get("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant,
     flockId: poultryHouseCleanoutsTable.flockId, cleanoutStartDate: poultryHouseCleanoutsTable.cleanoutStartDate,
     cleanoutEndDate: poultryHouseCleanoutsTable.cleanoutEndDate, litterRemovalDate: poultryHouseCleanoutsTable.litterRemovalDate,
     disinfectantUsed: poultryHouseCleanoutsTable.disinfectantUsed, disinfectantSupplier: poultryHouseCleanoutsTable.disinfectantSupplier,
-    disinfectantApprovalNumber: poultryHouseCleanoutsTable.disinfectantApprovalNumber, applicationMethod: poultryHouseCleanoutsTable.applicationMethod,
+    disinfectantApprovalNumber: poultryHouseCleanoutsTable.disinfectantApprovalNumber, dilutionRate: poultryHouseCleanoutsTable.dilutionRate,
+    applicationMethod: poultryHouseCleanoutsTable.applicationMethod,
     contactTimeMins: poultryHouseCleanoutsTable.contactTimeMins, swabsTaken: poultryHouseCleanoutsTable.swabsTaken,
     swabResults: poultryHouseCleanoutsTable.swabResults, standingTimeDays: poultryHouseCleanoutsTable.standingTimeDays,
-    completedBy: poultryHouseCleanoutsTable.completedBy, notes: poultryHouseCleanoutsTable.notes, createdAt: poultryHouseCleanoutsTable.createdAt,
+    performedByContractor: poultryHouseCleanoutsTable.performedByContractor, contractorName: poultryHouseCleanoutsTable.contractorName,
+    contractorOwnSupplies: poultryHouseCleanoutsTable.contractorOwnSupplies,
+    completedBy: poultryHouseCleanoutsTable.completedBy, verifiedBy: poultryHouseCleanoutsTable.verifiedBy,
+    costPence: poultryHouseCleanoutsTable.costPence, invoiceRef: poultryHouseCleanoutsTable.invoiceRef,
+    notes: poultryHouseCleanoutsTable.notes, createdAt: poultryHouseCleanoutsTable.createdAt,
     houseName: poultryHousesTable.houseName, flockNumber: poultryFlocksTable.flockNumber,
   }).from(poultryHouseCleanoutsTable)
     .leftJoin(poultryHousesTable, eq(poultryHouseCleanoutsTable.houseId, poultryHousesTable.id))
     .leftJoin(poultryFlocksTable, eq(poultryHouseCleanoutsTable.flockId, poultryFlocksTable.id))
     .where(eq(poultryHouseCleanoutsTable.farmId, farmId)).orderBy(desc(poultryHouseCleanoutsTable.cleanoutStartDate));
-  res.json(rows);
+  // Attach consumptions to each row
+  const ids = rows.map(r => r.id);
+  const consumptions = ids.length > 0 ? await db.select({
+    cleanoutId: poultryCleanoutStockConsumptionsTable.cleanoutId,
+    id: poultryCleanoutStockConsumptionsTable.id,
+    stockItemId: poultryCleanoutStockConsumptionsTable.stockItemId,
+    productName: poultryCleanoutStockConsumptionsTable.productName,
+    quantityUsed: poultryCleanoutStockConsumptionsTable.quantityUsed,
+    stockItemName: stockItemsTable.name, stockItemUnit: stockItemsTable.unit,
+  }).from(poultryCleanoutStockConsumptionsTable)
+    .leftJoin(stockItemsTable, eq(poultryCleanoutStockConsumptionsTable.stockItemId, stockItemsTable.id))
+    .where(eq(poultryCleanoutStockConsumptionsTable.farmId, farmId)) : [];
+  const consumptionsByCleanout: Record<number, typeof consumptions> = {};
+  for (const c of consumptions) { (consumptionsByCleanout[c.cleanoutId] ??= []).push(c); }
+  res.json(rows.map(r => ({ ...r, consumptions: consumptionsByCleanout[r.id] ?? [] })));
 });
 router.post("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const [row] = await db.insert(poultryHouseCleanoutsTable).values({ ...req.body, farmId }).returning();
+  const { consumptions: rawConsumptions, ...body } = req.body as Record<string, unknown>;
+  const [row] = await db.insert(poultryHouseCleanoutsTable).values({ ...body, farmId } as typeof poultryHouseCleanoutsTable.$inferInsert).returning();
+  if (Array.isArray(rawConsumptions) && rawConsumptions.length > 0) {
+    await db.insert(poultryCleanoutStockConsumptionsTable).values(
+      (rawConsumptions as Array<{ stockItemId?: number; productName?: string; quantityUsed: string }>)
+        .filter(c => c.quantityUsed)
+        .map(c => ({ cleanoutId: row.id, farmId, stockItemId: c.stockItemId ?? null, productName: c.productName ?? null, quantityUsed: c.quantityUsed }))
+    );
+  }
   res.json(row);
 });
 router.put("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryHouseCleanoutsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
+  const { consumptions: rawConsumptions, ...body } = req.body as Record<string, unknown>;
+  const [row] = await db.update(poultryHouseCleanoutsTable).set(sanitiseBody(body)).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
+  if (Array.isArray(rawConsumptions)) {
+    await db.delete(poultryCleanoutStockConsumptionsTable).where(eq(poultryCleanoutStockConsumptionsTable.cleanoutId, id));
+    if (rawConsumptions.length > 0) {
+      await db.insert(poultryCleanoutStockConsumptionsTable).values(
+        (rawConsumptions as Array<{ stockItemId?: number; productName?: string; quantityUsed: string }>)
+          .filter(c => c.quantityUsed)
+          .map(c => ({ cleanoutId: id, farmId, stockItemId: c.stockItemId ?? null, productName: c.productName ?? null, quantityUsed: c.quantityUsed }))
+      );
+    }
+  }
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {

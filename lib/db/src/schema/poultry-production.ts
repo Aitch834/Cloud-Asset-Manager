@@ -88,15 +88,32 @@ export const poultryHouseCleanoutsTable = pgTable("poultry_house_cleanouts", {
   disinfectantUsed: text("disinfectant_used"),
   disinfectantSupplier: text("disinfectant_supplier"),
   disinfectantApprovalNumber: text("disinfectant_approval_number"),
+  dilutionRate: text("dilution_rate"),
   applicationMethod: text("application_method"),
   contactTimeMins: integer("contact_time_mins"),
   swabsTaken: boolean("swabs_taken").default(false),
   swabResults: text("swab_results"),
   standingTimeDays: integer("standing_time_days"),
+  performedByContractor: boolean("performed_by_contractor").notNull().default(false),
+  contractorName: text("contractor_name"),
+  contractorOwnSupplies: boolean("contractor_own_supplies").notNull().default(false),
   completedBy: text("completed_by"),
+  verifiedBy: text("verified_by"),
+  costPence: integer("cost_pence"),
+  invoiceRef: text("invoice_ref"),
   notes: text("notes"),
   documentPath: text("document_path"),
   documentName: text("document_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const poultryCleanoutStockConsumptionsTable = pgTable("poultry_cleanout_stock_consumptions", {
+  id: serial("id").primaryKey(),
+  cleanoutId: integer("cleanout_id").notNull().references(() => poultryHouseCleanoutsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stockItemId: integer("stock_item_id"),
+  productName: text("product_name"),
+  quantityUsed: text("quantity_used").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
