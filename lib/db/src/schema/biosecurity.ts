@@ -65,6 +65,15 @@ export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_r
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const cleaningStockConsumptionsTable = pgTable("cleaning_stock_consumptions", {
+  id: serial("id").primaryKey(),
+  cleaningRecordId: integer("cleaning_record_id").notNull().references(() => cleaningDisinfectionRecordsTable.id, { onDelete: "cascade" }),
+  stockItemId: integer("stock_item_id").notNull().references(() => stockItemsTable.id, { onDelete: "cascade" }),
+  productName: text("product_name"),
+  quantityUsed: text("quantity_used").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const biosecurityCleaningSchedulesTable = pgTable("biosecurity_cleaning_schedules", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

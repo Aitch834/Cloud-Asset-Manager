@@ -848,13 +848,18 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
 
 // ─── Cleaning & Disinfection ──────────────────────────────────────────────────
 
+interface StockConsumptionItem {
+  id?: number; stockItemId: number; stockItemName: string | null; stockItemUnit: string | null;
+  productName: string | null; quantityUsed: string;
+}
+
 interface CleaningRecord {
   id: number; farmId: number; area: string; cleaningType: string; productsUsed: string | null;
   dilutionRate: string | null; contactTime: string | null; cleanedBy: string | null;
   cleanedDate: string; nextDueDate: string | null; verifiedBy: string | null; notes: string | null; createdAt: string;
   performedByContractor: boolean; contractorName: string | null; contractorOwnSupplies: boolean;
-  quantityUsed: string | null; stockItemId: number | null; costPence: number | null;
-  invoiceRef: string | null; ramsId: number | null;
+  costPence: number | null; invoiceRef: string | null; ramsId: number | null;
+  consumptions: StockConsumptionItem[];
 }
 
 interface CleaningSchedule {
@@ -870,7 +875,7 @@ const EMPTY_CLEANING = {
   cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "",
   verifiedBy: "", notes: "",
   performedByContractor: false, contractorName: "", contractorOwnSupplies: false,
-  quantityUsed: "", stockItemId: "" as string | number, costPence: "" as string | number,
+  costPence: "" as string | number,
   invoiceRef: "", ramsId: "" as string | number,
 };
 const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
@@ -879,16 +884,21 @@ const EMPTY_SCHEDULE = { area: "", cleaningType: "", intervalDays: "" as string 
 function printCleaningRegister(records: CleaningRecord[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
-  const rows = records.map(r => `<tr>
+  const rows = records.map(r => {
+    const consumptionStr = r.consumptions?.length
+      ? r.consumptions.map(c => `${c.productName || c.stockItemName || "Stock"}: ${c.quantityUsed}${c.stockItemUnit ? " " + c.stockItemUnit : ""}`).join("; ")
+      : "—";
+    return `<tr>
     <td>${r.area}</td><td>${r.cleaningType}</td><td>${r.productsUsed || "—"}</td>
     <td>${r.dilutionRate || "—"}</td><td>${r.contactTime || "—"}</td>
     <td style="white-space:nowrap">${fmtD(r.cleanedDate)}</td>
     <td>${r.performedByContractor ? `Contractor: ${r.contractorName || "—"}` : (r.cleanedBy || "—")}</td>
     <td style="white-space:nowrap">${fmtD(r.nextDueDate)}</td><td>${r.verifiedBy || "—"}</td>
-    <td>${r.quantityUsed || "—"}</td>
+    <td>${consumptionStr}</td>
     <td>${r.costPence ? `£${(r.costPence / 100).toFixed(2)}` : "—"}</td>
     <td>${r.notes || "—"}</td>
-  </tr>`).join("");
+  </tr>`;
+  }).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Cleaning &amp; Disinfection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Cleaning &amp; Disinfection Register · ${yearLabel} · Red Tractor Biosecurity Compliance</p></div>
 <div class="hdr-r"><b>Cleaning &amp; Disinfection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
@@ -908,6 +918,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const [form, setForm] = useState<typeof EMPTY_CLEANING>(EMPTY_CLEANING);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [stockConsumptions, setStockConsumptions] = useState<Record<string, { stockItemId: string; quantity: string }>>({});
   const [customProduct, setCustomProduct] = useState("");
   const [autoNextDue, setAutoNextDue] = useState<string>("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -978,7 +989,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
 
   function resetCleaningDialog() {
     setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING);
-    setSelectedProducts([]); setCustomProduct(""); setAutoNextDue("");
+    setSelectedProducts([]); setStockConsumptions({}); setCustomProduct(""); setAutoNextDue("");
   }
 
   const createM = useMutation({
@@ -1019,11 +1030,18 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "",
       performedByContractor: c.performedByContractor ?? false,
       contractorName: c.contractorName ?? "", contractorOwnSupplies: c.contractorOwnSupplies ?? false,
-      quantityUsed: c.quantityUsed ?? "", stockItemId: c.stockItemId ?? "",
       costPence: c.costPence ? String(c.costPence / 100) : "", invoiceRef: c.invoiceRef ?? "",
       ramsId: c.ramsId ?? "",
     });
-    setSelectedProducts(c.productsUsed ? c.productsUsed.split(",").map(s => s.trim()).filter(Boolean) : []);
+    const products = c.productsUsed ? c.productsUsed.split(",").map(s => s.trim()).filter(Boolean) : [];
+    setSelectedProducts(products);
+    // Restore per-product stock consumptions from saved data
+    const savedConsumptions: Record<string, { stockItemId: string; quantity: string }> = {};
+    for (const cons of c.consumptions ?? []) {
+      const key = cons.productName || (cons.stockItemName ?? `item-${cons.stockItemId}`);
+      savedConsumptions[key] = { stockItemId: String(cons.stockItemId), quantity: cons.quantityUsed };
+    }
+    setStockConsumptions(savedConsumptions);
     setCustomProduct(""); setAutoNextDue("");
     setFormOpen(true);
   }
@@ -1036,16 +1054,22 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     e.preventDefault();
     const productsUsed = selectedProducts.join(", ");
     const costPenceVal = form.costPence !== "" ? Math.round(parseFloat(String(form.costPence)) * 100) : null;
+    // Build consumptions array from per-product stock links
+    const consumptions = selectedProducts
+      .filter(p => stockConsumptions[p]?.stockItemId)
+      .map(p => ({
+        productName: p,
+        stockItemId: parseInt(String(stockConsumptions[p].stockItemId)),
+        quantityUsed: stockConsumptions[p].quantity || "0",
+      }));
     const body = {
-      ...form, productsUsed,
+      ...form, productsUsed, consumptions,
       cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null,
       nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null,
-      stockItemId: form.stockItemId !== "" ? parseInt(String(form.stockItemId)) : null,
       ramsId: form.ramsId !== "" ? parseInt(String(form.ramsId)) : null,
       costPence: !isNaN(costPenceVal as number) ? costPenceVal : null,
       invoiceRef: form.invoiceRef || null,
       contractorName: form.contractorName || null,
-      quantityUsed: form.quantityUsed || null,
     };
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
   }
@@ -1055,8 +1079,6 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     if (editingSchedule) { updateScheduleM.mutate({ id: editingSchedule.id, body }); } else { createScheduleM.mutate(body); }
   }
   const isSubmitting = createM.isPending || updateM.isPending;
-
-  const selectedStockItem = stockItems.find(s => s.id === Number(form.stockItemId));
 
   return (
     <>
@@ -1325,25 +1347,60 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
 
               {/* Stock consumption — only shown when NOT contractor's own supplies */}
               {!form.contractorOwnSupplies && (
-                <div className="border border-border rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 flex items-center gap-1.5 mb-1"><Package className="w-3.5 h-3.5" />Stock Used {!form.performedByContractor && <span className="font-normal text-foreground/40">— will deduct from stock on save</span>}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Stock Item</label>
-                      <select value={form.stockItemId} onChange={e => setForm(f => ({ ...f, stockItemId: e.target.value }))}
-                        className="w-full h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10">
-                        <option value="">Select stock item…</option>
-                        {stockItems.map(s => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ""}</option>)}
-                      </select>
-                      {stockItems.length === 0 && <p className="text-xs text-amber-600 mt-1">No stock items found — add items in the Stock & Suppliers module.</p>}
+                <div className="border border-border rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 flex items-center gap-1.5 mb-2">
+                    <Package className="w-3.5 h-3.5" />Stock Used — per product
+                    {!form.performedByContractor && <span className="font-normal text-foreground/40">· farm supplies deducted on save</span>}
+                  </p>
+                  {selectedProducts.length === 0 ? (
+                    <p className="text-xs text-foreground/40 italic py-1">Add products above to link stock items for each one.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {selectedProducts.map(product => {
+                        const consumption = stockConsumptions[product] ?? { stockItemId: "", quantity: "" };
+                        const norm = product.toLowerCase();
+                        const matched = stockItems.filter(s => s.name.toLowerCase().includes(norm) || norm.includes(s.name.toLowerCase()));
+                        const others = stockItems.filter(s => !matched.includes(s));
+                        const linkedItem = stockItems.find(s => s.id === Number(consumption.stockItemId));
+                        return (
+                          <div key={product} className="flex items-center gap-2 py-1.5 border-b border-border/30 last:border-0">
+                            <span className="text-xs font-medium text-foreground/70 min-w-0 w-36 truncate" title={product}>{product}</span>
+                            <span className="text-foreground/30 shrink-0">→</span>
+                            <select
+                              value={consumption.stockItemId}
+                              onChange={e => setStockConsumptions(prev => ({ ...prev, [product]: { ...prev[product] ?? { quantity: "" }, stockItemId: e.target.value } }))}
+                              className="flex-1 h-9 rounded-lg border-2 border-border bg-transparent px-2 text-xs focus:outline-none focus:border-primary min-w-0"
+                            >
+                              <option value="">Link stock item…</option>
+                              {matched.length > 0 && (
+                                <optgroup label="── Matched by name">
+                                  {matched.map(s => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ""}</option>)}
+                                </optgroup>
+                              )}
+                              {others.length > 0 && (
+                                <optgroup label={matched.length > 0 ? "── Other stock items" : "── Stock items"}>
+                                  {others.map(s => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ""}</option>)}
+                                </optgroup>
+                              )}
+                            </select>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Input
+                                className="w-20 h-9 text-xs"
+                                placeholder="Qty"
+                                value={consumption.quantity}
+                                disabled={!consumption.stockItemId}
+                                onChange={e => setStockConsumptions(prev => ({ ...prev, [product]: { ...prev[product] ?? { stockItemId: "" }, quantity: e.target.value } }))}
+                              />
+                              {linkedItem?.unit && <span className="text-xs text-foreground/40 w-8 shrink-0">{linkedItem.unit}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground/70 mb-1 block">
-                        Quantity Used {selectedStockItem?.unit && <span className="font-normal text-foreground/40">({selectedStockItem.unit})</span>}
-                      </label>
-                      <Input placeholder="e.g. 2, 0.5" value={form.quantityUsed} onChange={e => setForm(f => ({ ...f, quantityUsed: e.target.value }))} />
-                    </div>
-                  </div>
+                  )}
+                  {stockItems.length === 0 && selectedProducts.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-1">No stock items on register yet — add them in the Stock &amp; Suppliers module.</p>
+                  )}
                 </div>
               )}
 
@@ -1433,10 +1490,22 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Products Used</p><p className="font-medium">{viewCleaning.productsUsed || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Dilution Rate</p><p className="font-medium">{viewCleaning.dilutionRate || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Contact Time</p><p className="font-medium">{viewCleaning.contactTime || "—"}</p></div>
-              {(viewCleaning.quantityUsed || viewCleaning.stockItemId) && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Quantity Used</p>
-                  <p className="font-medium flex items-center gap-1"><Package className="w-3.5 h-3.5 text-foreground/40" />{viewCleaning.quantityUsed || "—"}{viewCleaning.stockItemId && <span className="text-xs text-foreground/40 ml-1">from stock</span>}</p>
+              {viewCleaning.consumptions?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Stock Used</p>
+                  <div className="space-y-1">
+                    {viewCleaning.consumptions.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <Package className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+                        <span className="font-medium">{c.stockItemName || `Item #${c.stockItemId}`}</span>
+                        <span className="text-foreground/50">—</span>
+                        <span className="font-medium">{c.quantityUsed}{c.stockItemUnit ? ` ${c.stockItemUnit}` : ""}</span>
+                        {c.productName && c.productName !== c.stockItemName && (
+                          <span className="text-xs text-foreground/40 italic">({c.productName})</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               {(viewCleaning.costPence || viewCleaning.invoiceRef) && (

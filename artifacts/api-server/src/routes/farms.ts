@@ -285,6 +285,7 @@ import {
   contractorRamsTable,
   sheepDippingRecordsTable,
   biosecurityCleaningSchedulesTable,
+  cleaningStockConsumptionsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -2752,13 +2753,34 @@ router.get("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleB
   const conditions = [eq(cleaningDisinfectionRecordsTable.farmId, farmId)];
   if (locationIdParam) conditions.push(eq(cleaningDisinfectionRecordsTable.locationId, locationIdParam));
   const records = await db.select().from(cleaningDisinfectionRecordsTable).where(and(...conditions)).orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate));
-  res.json({ records });
+
+  // Attach per-product stock consumptions
+  const recordIds = records.map(r => r.id);
+  const consumptionsMap: Record<number, Array<{ id: number; stockItemId: number; stockItemName: string | null; stockItemUnit: string | null; productName: string | null; quantityUsed: string }>> = {};
+  if (recordIds.length > 0) {
+    const consumptions = await db.select({
+      id: cleaningStockConsumptionsTable.id,
+      cleaningRecordId: cleaningStockConsumptionsTable.cleaningRecordId,
+      stockItemId: cleaningStockConsumptionsTable.stockItemId,
+      stockItemName: stockItemsTable.name,
+      stockItemUnit: stockItemsTable.unit,
+      productName: cleaningStockConsumptionsTable.productName,
+      quantityUsed: cleaningStockConsumptionsTable.quantityUsed,
+    }).from(cleaningStockConsumptionsTable)
+      .leftJoin(stockItemsTable, eq(cleaningStockConsumptionsTable.stockItemId, stockItemsTable.id))
+      .where(inArray(cleaningStockConsumptionsTable.cleaningRecordId, recordIds));
+    for (const c of consumptions) {
+      if (!consumptionsMap[c.cleaningRecordId]) consumptionsMap[c.cleaningRecordId] = [];
+      consumptionsMap[c.cleaningRecordId].push(c);
+    }
+  }
+  res.json({ records: records.map(r => ({ ...r, consumptions: consumptionsMap[r.id] ?? [] })) });
 });
 
 router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { locationId, stockItemId, quantityUsed, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
+  const { locationId, consumptions, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
 
   // Auto-compute nextDueDate from schedule rules when not manually provided
   let nextDueDate: string | null = reqNextDueDate || null;
@@ -2781,8 +2803,8 @@ router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModule
     ...rest,
     farmId,
     locationId: locationId ? parseInt(locationId) : null,
-    stockItemId: stockItemId ? parseInt(stockItemId) : null,
-    quantityUsed: quantityUsed || null,
+    stockItemId: null,
+    quantityUsed: null,
     contractorOwnSupplies: contractorOwnSupplies === true || contractorOwnSupplies === "true",
     performedByContractor: performedByContractor === true || performedByContractor === "true",
     ramsId: ramsId ? parseInt(ramsId) : null,
@@ -2790,28 +2812,53 @@ router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModule
     nextDueDate,
   }).returning();
 
-  // Deduct stock from farm's own supplies when farm staff (or contractor using farm stock) performed the clean
-  if (record.stockItemId && record.quantityUsed && !record.contractorOwnSupplies) {
-    const qty = parseFloat(record.quantityUsed);
-    if (!isNaN(qty) && qty > 0) {
+  // Insert per-product stock consumptions and deduct from stock (farm supplies only)
+  const consumptionRows: Array<{ productName: string | null; stockItemId: number; quantityUsed: string }> =
+    Array.isArray(consumptions) ? consumptions.filter((c: { stockItemId: unknown; quantityUsed: unknown }) => c.stockItemId && c.quantityUsed) : [];
+
+  if (consumptionRows.length > 0 && !record.contractorOwnSupplies) {
+    for (const c of consumptionRows) {
+      const sid = parseInt(String(c.stockItemId));
+      const qty = parseFloat(String(c.quantityUsed));
+      if (isNaN(sid) || isNaN(qty) || qty <= 0) continue;
+
+      await db.insert(cleaningStockConsumptionsTable).values({
+        cleaningRecordId: record.id,
+        stockItemId: sid,
+        productName: c.productName || null,
+        quantityUsed: String(qty),
+      });
+
       const qtyChange = -qty;
       await db.insert(stockMovementsTable).values({
         farmId,
-        stockItemId: record.stockItemId,
+        stockItemId: sid,
         movementType: "usage",
         quantityChange: String(qtyChange),
         referenceType: "cleaning",
         referenceId: record.id,
         performedBy: record.cleanedBy || record.contractorName || null,
-        notes: `C&D — ${record.area} — ${record.cleaningType}`,
+        notes: `C&D — ${record.area} — ${record.cleaningType}${c.productName ? ` (${c.productName})` : ""}`,
       });
       const [existing] = await db.select().from(stockLevelsTable)
-        .where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
+        .where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, sid))).limit(1);
       if (existing) {
         await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
       } else {
-        await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: sid, currentQuantity: String(qtyChange) });
       }
+    }
+  } else if (consumptionRows.length > 0 && record.contractorOwnSupplies) {
+    // Contractor own supplies — record consumptions but don't touch stock levels
+    for (const c of consumptionRows) {
+      const sid = parseInt(String(c.stockItemId));
+      if (isNaN(sid)) continue;
+      await db.insert(cleaningStockConsumptionsTable).values({
+        cleaningRecordId: record.id,
+        stockItemId: sid,
+        productName: c.productName || null,
+        quantityUsed: String(c.quantityUsed),
+      });
     }
   }
 
@@ -5112,7 +5159,7 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { stockItemId, quantityUsed, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
+  const { consumptions, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
 
   // Auto-compute nextDueDate from schedule rules when not manually provided
   let nextDueDate: string | null = reqNextDueDate || null;
@@ -5133,8 +5180,8 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
 
   const body = {
     ...sanitiseBody(rest as Record<string, unknown>),
-    stockItemId: stockItemId ? parseInt(stockItemId) : null,
-    quantityUsed: quantityUsed || null,
+    stockItemId: null,
+    quantityUsed: null,
     contractorOwnSupplies: contractorOwnSupplies === true || contractorOwnSupplies === "true",
     performedByContractor: performedByContractor === true || performedByContractor === "true",
     ramsId: ramsId ? parseInt(ramsId) : null,
@@ -5143,6 +5190,22 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
   };
   const [record] = await db.update(cleaningDisinfectionRecordsTable).set(body).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Replace consumption rows (delete old, insert new) — no stock re-adjustment on edit
+  await db.delete(cleaningStockConsumptionsTable).where(eq(cleaningStockConsumptionsTable.cleaningRecordId, recordId));
+  const consumptionRows: Array<{ productName: string | null; stockItemId: number; quantityUsed: string }> =
+    Array.isArray(consumptions) ? consumptions.filter((c: { stockItemId: unknown; quantityUsed: unknown }) => c.stockItemId && c.quantityUsed) : [];
+  for (const c of consumptionRows) {
+    const sid = parseInt(String(c.stockItemId));
+    if (isNaN(sid)) continue;
+    await db.insert(cleaningStockConsumptionsTable).values({
+      cleaningRecordId: recordId,
+      stockItemId: sid,
+      productName: c.productName || null,
+      quantityUsed: String(c.quantityUsed),
+    });
+  }
+
   res.json({ record });
 });
 
