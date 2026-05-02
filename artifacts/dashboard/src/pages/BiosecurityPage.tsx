@@ -867,7 +867,7 @@ interface CleaningSchedule {
   intervalDays: number; notes: string | null; isActive: boolean; createdAt: string;
 }
 
-interface StockItem { id: number; name: string; unit: string | null; }
+interface StockItem { id: number; name: string; unit: string | null; category: string | null; }
 interface RiskAssessment { id: number; title: string; area: string | null; }
 
 const EMPTY_CLEANING = {
@@ -950,6 +950,9 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const records: CleaningRecord[] = data?.records ?? [];
   const coshhSubstances: string[] = (coshhData?.records ?? []).map(r => r.substanceName).filter(Boolean);
   const stockItems: StockItem[] = stockData?.records ?? [];
+  const CLEANING_STOCK_CATEGORIES = ["disinfectant", "disinfectants", "cleaning", "sanitiser", "sanitizer", "biosecurity"];
+  const cleaningStockItems = stockItems.filter(s => s.category && CLEANING_STOCK_CATEGORIES.includes(s.category.toLowerCase()));
+  const stockForDropdown = cleaningStockItems.length > 0 ? cleaningStockItems : stockItems;
   const ramsRecords: RiskAssessment[] = ramsData?.records ?? [];
   const schedules: CleaningSchedule[] = schedulesData?.schedules ?? [];
 
@@ -1359,9 +1362,9 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                       {selectedProducts.map(product => {
                         const consumption = stockConsumptions[product] ?? { stockItemId: "", quantity: "" };
                         const norm = product.toLowerCase();
-                        const matched = stockItems.filter(s => s.name.toLowerCase().includes(norm) || norm.includes(s.name.toLowerCase()));
-                        const others = stockItems.filter(s => !matched.includes(s));
-                        const linkedItem = stockItems.find(s => s.id === Number(consumption.stockItemId));
+                        const matched = stockForDropdown.filter(s => s.name.toLowerCase().includes(norm) || norm.includes(s.name.toLowerCase()));
+                        const others = stockForDropdown.filter(s => !matched.includes(s));
+                        const linkedItem = stockForDropdown.find(s => s.id === Number(consumption.stockItemId));
                         return (
                           <div key={product} className="flex items-center gap-2 py-1.5 border-b border-border/30 last:border-0">
                             <span className="text-xs font-medium text-foreground/70 min-w-0 w-36 truncate" title={product}>{product}</span>
@@ -1400,6 +1403,9 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                   )}
                   {stockItems.length === 0 && selectedProducts.length > 0 && (
                     <p className="text-xs text-amber-600 mt-1">No stock items on register yet — add them in the Stock &amp; Suppliers module.</p>
+                  )}
+                  {stockItems.length > 0 && cleaningStockItems.length === 0 && selectedProducts.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-1">No items categorised as Disinfectant found — showing all stock items. Set the category to "Disinfectant" in Stock &amp; Suppliers to filter here.</p>
                   )}
                 </div>
               )}

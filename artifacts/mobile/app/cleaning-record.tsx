@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -23,8 +25,9 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiCoshh } from "@/lib/hooks/useApiCoshh";
+import { useApiStockItems } from "@/lib/hooks/useApiStockItems";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { CleaningRecord } from "@/lib/types";
+import type { CleaningRecord, CleaningStockConsumption } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { cleaningRecordHtml } from "@/lib/printTemplates";
 
@@ -45,6 +48,44 @@ const COMMON_AREAS = [
   "Vehicle / trailer", "Feed store", "Equipment", "Other",
 ];
 
+async function pickPhoto(label: string): Promise<string | null> {
+  return new Promise(resolve => {
+    Alert.alert(
+      label,
+      "Photograph the product label or select from library.",
+      [
+        {
+          text: "Camera",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Camera access is needed.");
+              resolve(null);
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({ quality: 0.85, allowsEditing: false });
+            resolve(!result.canceled ? result.assets[0].uri : null);
+          },
+        },
+        {
+          text: "Photo Library",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Photo library access is needed.");
+              resolve(null);
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false });
+            resolve(!result.canceled ? result.assets[0].uri : null);
+          },
+        },
+        { text: "Cancel", style: "cancel", onPress: () => resolve(null) },
+      ],
+    );
+  });
+}
+
 export default function CleaningRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
@@ -58,6 +99,7 @@ export default function CleaningRecordScreen() {
   const [cleaningType, setCleaningType] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [customProductInput, setCustomProductInput] = useState("");
+  const [stockConsumptions, setStockConsumptions] = useState<Record<string, { stockItemId: number | null; stockItemName: string; quantityUsed: string }>>({});
   const [dilutionRate, setDilutionRate] = useState("");
   const [contactTime, setContactTime] = useState("");
   const [cleanedBy, setCleanedBy] = useState(user?.name || "");
@@ -65,8 +107,12 @@ export default function CleaningRecordScreen() {
   const [nextDueDate, setNextDueDate] = useState("");
   const [verifiedBy, setVerifiedBy] = useState("");
   const [notes, setNotes] = useState("");
+  const [labelPhotoFrontUri, setLabelPhotoFrontUri] = useState<string | null>(null);
+  const [labelPhotoBackUri, setLabelPhotoBackUri] = useState<string | null>(null);
 
-  const { records: coshhRecords } = useApiCoshh(currentFarm?.id ? String(currentFarm.id) : undefined);
+  const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
+  const { records: coshhRecords } = useApiCoshh(farmIdStr);
+  const { cleaningItems, hasDisinfectantCategory } = useApiStockItems(farmIdStr);
   const coshhSubstances = coshhRecords.map(r => r.substanceName).filter(Boolean);
 
   function toggleProduct(name: string) {
@@ -88,6 +134,56 @@ export default function CleaningRecordScreen() {
   function removeProduct(name: string) {
     Haptics.selectionAsync();
     setSelectedProducts(prev => prev.filter(p => p !== name));
+    setStockConsumptions(prev => { const next = { ...prev }; delete next[name]; return next; });
+  }
+
+  function openStockPicker(product: string) {
+    const current = stockConsumptions[product];
+    const matched = cleaningItems.filter(s => {
+      const norm = product.toLowerCase();
+      return s.name.toLowerCase().includes(norm) || norm.includes(s.name.toLowerCase());
+    });
+    const others = cleaningItems.filter(s => !matched.includes(s));
+    const orderedItems = [...matched, ...others];
+
+    if (orderedItems.length === 0) {
+      Alert.alert(
+        "No Stock Items",
+        hasDisinfectantCategory
+          ? "No cleaning/disinfectant stock items found."
+          : "No stock items found. Add products in the Stock & Suppliers module.",
+      );
+      return;
+    }
+
+    const buttons = orderedItems.slice(0, 9).map(s => ({
+      text: `${matched.includes(s) ? "✓ " : ""}${s.name}${s.unit ? ` (${s.unit})` : ""}`,
+      onPress: () => {
+        Haptics.selectionAsync();
+        setStockConsumptions(prev => ({
+          ...prev,
+          [product]: { stockItemId: s.id, stockItemName: s.name, quantityUsed: prev[product]?.quantityUsed ?? "" },
+        }));
+      },
+    }));
+
+    if (current?.stockItemId) {
+      buttons.push({
+        text: "✕ Clear link",
+        onPress: () => setStockConsumptions(prev => {
+          const next = { ...prev };
+          delete next[product];
+          return next;
+        }),
+      });
+    }
+    buttons.push({ text: "Cancel", onPress: () => {} });
+
+    Alert.alert(
+      `Stock item for "${product}"`,
+      hasDisinfectantCategory ? "Showing cleaning/disinfectant products:" : "Showing all stock items:",
+      buttons,
+    );
   }
 
   const handleSave = async () => {
@@ -116,6 +212,15 @@ export default function CleaningRecordScreen() {
       console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
+    const consumptions: CleaningStockConsumption[] = selectedProducts
+      .filter(p => stockConsumptions[p]?.stockItemId)
+      .map(p => ({
+        productName: p,
+        stockItemId: stockConsumptions[p].stockItemId!,
+        stockItemName: stockConsumptions[p].stockItemName,
+        quantityUsed: stockConsumptions[p].quantityUsed || "0",
+      }));
+
     const record: CleaningRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -129,6 +234,9 @@ export default function CleaningRecordScreen() {
       nextDueDate: nextDueDate ? new Date(nextDueDate).toISOString() : "",
       verifiedBy: verifiedBy.trim(),
       notes: notes.trim(),
+      consumptions: consumptions.length > 0 ? consumptions : undefined,
+      labelPhotoFrontUri: labelPhotoFrontUri ?? undefined,
+      labelPhotoBackUri: labelPhotoBackUri ?? undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -272,6 +380,54 @@ export default function CleaningRecordScreen() {
             )}
           </View>
 
+          {/* Per-product stock links */}
+          {selectedProducts.length > 0 && (
+            <>
+              <View style={[styles.sectionLabel, { marginTop: spacing.lg }]}>
+                <Feather name="package" size={14} color={colors.textSecondary} />
+                <Text style={styles.sectionTitle}>Stock Used — per product</Text>
+              </View>
+              <Text style={styles.fieldLabel}>
+                {hasDisinfectantCategory
+                  ? "Link each product to a cleaning stock item to track usage."
+                  : "Link to a stock item to record usage. Add 'Disinfectant' category items in Stock & Suppliers for filtered suggestions."}
+              </Text>
+              {selectedProducts.map(product => {
+                const link = stockConsumptions[product];
+                return (
+                  <View key={product} style={styles.stockRow}>
+                    <Text style={styles.stockProductName} numberOfLines={1}>{product}</Text>
+                    <View style={styles.stockRowRight}>
+                      <Pressable
+                        style={[styles.stockLinkBtn, link?.stockItemId && styles.stockLinkBtnLinked]}
+                        onPress={() => openStockPicker(product)}
+                      >
+                        <Feather name="link" size={12} color={link?.stockItemId ? "#0e7490" : colors.textSecondary} />
+                        <Text style={[styles.stockLinkBtnText, link?.stockItemId && styles.stockLinkBtnTextLinked]} numberOfLines={1}>
+                          {link?.stockItemName || "Link stock…"}
+                        </Text>
+                      </Pressable>
+                      {link?.stockItemId && (
+                        <View style={styles.qtyInputWrap}>
+                          <Input
+                            placeholder="Qty"
+                            value={link.quantityUsed}
+                            onChangeText={v => setStockConsumptions(prev => ({
+                              ...prev,
+                              [product]: { ...prev[product], quantityUsed: v },
+                            }))}
+                            keyboardType="decimal-pad"
+                            style={styles.qtyInput}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </>
+          )}
+
           {/* Dilution & Contact */}
           <View style={[styles.row, { marginTop: spacing.sm }]}>
             <View style={styles.halfInput}>
@@ -332,6 +488,107 @@ export default function CleaningRecordScreen() {
                 value={nextDueDate}
                 onChangeText={setNextDueDate}
               />
+            </View>
+          </View>
+
+          {/* Product Label Photos */}
+          <View style={[styles.sectionLabel, { marginTop: spacing.lg }]}>
+            <Feather name="camera" size={14} color={colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Product Label Photos</Text>
+          </View>
+          <Text style={styles.fieldLabel}>
+            Photograph the front and back of the product label (including directions, approval numbers and dilution rates) for compliance records.
+          </Text>
+
+          <View style={styles.photoRow}>
+            <View style={styles.photoSlot}>
+              <Text style={styles.photoSlotLabel}>Front of label</Text>
+              {labelPhotoFrontUri ? (
+                <View style={styles.photoPreviewWrap}>
+                  <Image source={{ uri: labelPhotoFrontUri }} style={styles.photoPreview} resizeMode="cover" />
+                  <View style={styles.photoPreviewActions}>
+                    <Pressable
+                      style={styles.photoAction}
+                      onPress={async () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        const uri = await pickPhoto("Replace Front Label Photo");
+                        if (uri) setLabelPhotoFrontUri(uri);
+                      }}
+                    >
+                      <Feather name="camera" size={13} color={colors.primary} />
+                      <Text style={styles.photoActionText}>Retake</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.photoAction, styles.photoActionRemove]}
+                      onPress={() => {
+                        Alert.alert("Remove Photo", "Remove front label photo?", [
+                          { text: "Remove", style: "destructive", onPress: () => setLabelPhotoFrontUri(null) },
+                          { text: "Cancel", style: "cancel" },
+                        ]);
+                      }}
+                    >
+                      <Feather name="trash-2" size={13} color={colors.error} />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.photoPlaceholder}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const uri = await pickPhoto("Front Label Photo");
+                    if (uri) setLabelPhotoFrontUri(uri);
+                  }}
+                >
+                  <Feather name="camera" size={22} color={colors.textSecondary} />
+                  <Text style={styles.photoPlaceholderText}>Tap to photograph</Text>
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.photoSlot}>
+              <Text style={styles.photoSlotLabel}>Back of label</Text>
+              {labelPhotoBackUri ? (
+                <View style={styles.photoPreviewWrap}>
+                  <Image source={{ uri: labelPhotoBackUri }} style={styles.photoPreview} resizeMode="cover" />
+                  <View style={styles.photoPreviewActions}>
+                    <Pressable
+                      style={styles.photoAction}
+                      onPress={async () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        const uri = await pickPhoto("Replace Back Label Photo");
+                        if (uri) setLabelPhotoBackUri(uri);
+                      }}
+                    >
+                      <Feather name="camera" size={13} color={colors.primary} />
+                      <Text style={styles.photoActionText}>Retake</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.photoAction, styles.photoActionRemove]}
+                      onPress={() => {
+                        Alert.alert("Remove Photo", "Remove back label photo?", [
+                          { text: "Remove", style: "destructive", onPress: () => setLabelPhotoBackUri(null) },
+                          { text: "Cancel", style: "cancel" },
+                        ]);
+                      }}
+                    >
+                      <Feather name="trash-2" size={13} color={colors.error} />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.photoPlaceholder}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const uri = await pickPhoto("Back Label Photo");
+                    if (uri) setLabelPhotoBackUri(uri);
+                  }}
+                >
+                  <Feather name="camera" size={22} color={colors.textSecondary} />
+                  <Text style={styles.photoPlaceholderText}>Tap to photograph</Text>
+                </Pressable>
+              )}
             </View>
           </View>
 
@@ -452,5 +709,116 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
+  },
+  stockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  stockProductName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    flex: 1,
+    minWidth: 0,
+  },
+  stockRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flexShrink: 0,
+  },
+  stockLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxWidth: 140,
+  },
+  stockLinkBtnLinked: {
+    backgroundColor: "#cffafe",
+    borderColor: "#67e8f9",
+  },
+  stockLinkBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  stockLinkBtnTextLinked: {
+    color: "#0e7490",
+    fontFamily: fonts.semiBold,
+  },
+  qtyInputWrap: { width: 64 },
+  qtyInput: { height: 36, fontSize: fontSize.xs } as any,
+  photoRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  photoSlot: { flex: 1 },
+  photoSlotLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
+  photoPlaceholder: {
+    height: 120,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+  },
+  photoPlaceholderText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  photoPreviewWrap: {
+    borderRadius: radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  photoPreview: { width: "100%", height: 120 },
+  photoPreviewActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  photoAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  photoActionText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
+  photoActionRemove: {
+    borderColor: colors.error + "30",
+    backgroundColor: colors.error + "08",
   },
 });

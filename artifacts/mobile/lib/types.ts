@@ -445,6 +445,13 @@ export interface PestControlVisit {
   synced: boolean;
 }
 
+export interface CleaningStockConsumption {
+  productName: string;
+  stockItemId?: number;
+  stockItemName?: string;
+  quantityUsed: string;
+}
+
 export interface CleaningRecord {
   id: string;
   farmId: string;
@@ -458,6 +465,9 @@ export interface CleaningRecord {
   nextDueDate: string;
   verifiedBy: string;
   notes: string;
+  consumptions?: CleaningStockConsumption[];
+  labelPhotoFrontUri?: string;
+  labelPhotoBackUri?: string;
   latitude?: number;
   longitude?: number;
   createdAt: string;
