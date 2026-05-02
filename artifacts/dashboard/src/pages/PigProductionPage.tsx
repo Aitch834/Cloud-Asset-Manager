@@ -1002,6 +1002,18 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
 
   const hasDeadPiglets = (r: Partial<FarrowingRecord>) => (r.totalBornDead ?? 0) > 0 || (r.totalMummified ?? 0) > 0;
 
+  function farrowingSeasonStats(recs: FarrowingRecord[]) {
+    const farrowings = recs.length;
+    const totalBornAll = recs.reduce((s, r) => s + totalBorn(r), 0);
+    const stillborns = recs.reduce((s, r) => s + (r.totalBornDead || 0), 0);
+    const mummified = recs.reduce((s, r) => s + (r.totalMummified || 0), 0);
+    const perinatal = stillborns + mummified;
+    const pct = (n: number) => totalBornAll > 0 ? ((n / totalBornAll) * 100).toFixed(1) : "—";
+    return { farrowings, totalBornAll, stillborns, mummified, perinatal, pct };
+  }
+  const currentFarrowingStats = farrowingSeasonStats(records);
+  const farrowingYearlyStats = availableYears.map(y => ({ year: y, ...farrowingSeasonStats(allRecords.filter(r => r.farrowingDate?.startsWith(y))) }));
+
   function generateFarrowingReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const fmtD = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
@@ -1079,7 +1091,10 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4 gap-3">
-        <p className="text-sm text-gray-500">Litter-level farrowing records — born alive/dead, fostering, avg birth weight, weaning performance, and sow assistance. Required for Red Tractor Pigs Standard compliance.</p>
+        <div>
+          <p className="text-sm text-gray-500 mb-1">Litter-level farrowing records — born alive/dead, fostering, avg birth weight, weaning performance, and sow assistance. Required for Red Tractor Pigs Standard compliance.</p>
+          <p className="text-xs text-gray-400">Red Tractor Pigs: farrowing performance must be recorded and available at audit. Retain records for a minimum of 3 years.</p>
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -1092,6 +1107,71 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
         </div>
       </div>
+
+      {allRecords.length > 0 && (
+        <div className="mb-4">
+          <div className="grid grid-cols-5 gap-2 mb-3">
+            {[
+              { label: "Farrowings", value: String(currentFarrowingStats.farrowings), sub: yearFilter === "all" ? "all time" : yearFilter, colour: "" },
+              { label: "Total Piglets Born", value: String(currentFarrowingStats.totalBornAll), sub: "", colour: "" },
+              { label: "Stillborn", value: `${currentFarrowingStats.stillborns}`, sub: `${currentFarrowingStats.pct(currentFarrowingStats.stillborns)}% of born`, colour: currentFarrowingStats.stillborns > 0 ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50" },
+              { label: "Mummified", value: `${currentFarrowingStats.mummified}`, sub: `${currentFarrowingStats.pct(currentFarrowingStats.mummified)}% of born`, colour: currentFarrowingStats.mummified > 0 ? "border-amber-200 bg-amber-50" : "border-green-200 bg-green-50" },
+              { label: "Perinatal Loss", value: `${currentFarrowingStats.perinatal}`, sub: `${currentFarrowingStats.pct(currentFarrowingStats.perinatal)}% of born`, colour: currentFarrowingStats.perinatal > 0 ? "border-red-300 bg-red-50" : "border-green-200 bg-green-50" },
+            ].map(s => (
+              <div key={s.label} className={`rounded-lg border p-3 text-center ${s.colour || "border-gray-200 bg-gray-50"}`}>
+                <p className={`text-xl font-bold ${s.colour.includes("red") ? "text-red-700" : s.colour.includes("amber") ? "text-amber-700" : s.colour.includes("green") ? "text-green-700" : "text-gray-900"}`}>{s.value}</p>
+                <p className="text-xs font-medium text-gray-600 mt-0.5">{s.label}</p>
+                {s.sub && <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>}
+              </div>
+            ))}
+          </div>
+          {farrowingYearlyStats.length > 1 && (
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Year-by-Year Perinatal Mortality Trend</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Year</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Farrowings</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Total Born</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Stillborn</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Mummified</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500">Perinatal Loss</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500">Bar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {farrowingYearlyStats.map((s, i) => {
+                    const maxRate = Math.max(...farrowingYearlyStats.map(x => Number(x.pct(x.perinatal)) || 0), 0.1);
+                    const rate = Number(s.pct(s.perinatal)) || 0;
+                    const barWidth = Math.round((rate / maxRate) * 100);
+                    return (
+                      <tr key={s.year} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="px-3 py-2 font-medium">{s.year}</td>
+                        <td className="px-3 py-2 text-right">{s.farrowings}</td>
+                        <td className="px-3 py-2 text-right">{s.totalBornAll}</td>
+                        <td className="px-3 py-2 text-right">{s.stillborns} <span className="text-gray-400">({s.pct(s.stillborns)}%)</span></td>
+                        <td className="px-3 py-2 text-right">{s.mummified} <span className="text-gray-400">({s.pct(s.mummified)}%)</span></td>
+                        <td className={`px-3 py-2 text-right font-semibold ${rate > 8 ? "text-red-600" : rate > 4 ? "text-amber-600" : "text-green-700"}`}>{s.perinatal} ({s.pct(s.perinatal)}%)</td>
+                        <td className="px-3 py-2 w-32">
+                          <div className="h-3 bg-gray-100 rounded overflow-hidden">
+                            <div className={`h-full rounded ${rate > 8 ? "bg-red-400" : rate > 4 ? "bg-amber-400" : "bg-green-400"}`} style={{ width: `${barWidth}%` }} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200">
+                <p className="text-xs text-gray-400">Red &gt;8% perinatal loss · Amber 4–8% · Green &lt;4%. Red Tractor Pigs may query rates significantly above industry benchmarks.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5 text-gray-400" /> : (
         <div className="space-y-2">
