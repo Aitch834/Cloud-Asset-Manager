@@ -284,6 +284,7 @@ import {
   contractorContactsTable,
   contractorRamsTable,
   sheepDippingRecordsTable,
+  biosecurityCleaningSchedulesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -2757,12 +2758,63 @@ router.get("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleB
 router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { locationId, ...rest } = req.body;
+  const { locationId, stockItemId, quantityUsed, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
+
+  // Auto-compute nextDueDate from schedule rules when not manually provided
+  let nextDueDate: string | null = reqNextDueDate || null;
+  if (!nextDueDate && rest.area && rest.cleaningType && rest.cleanedDate) {
+    const [rule] = await db.select().from(biosecurityCleaningSchedulesTable)
+      .where(and(
+        eq(biosecurityCleaningSchedulesTable.farmId, farmId),
+        eq(biosecurityCleaningSchedulesTable.area, rest.area),
+        eq(biosecurityCleaningSchedulesTable.cleaningType, rest.cleaningType),
+        eq(biosecurityCleaningSchedulesTable.isActive, true),
+      )).limit(1);
+    if (rule) {
+      const d = new Date(rest.cleanedDate);
+      d.setDate(d.getDate() + rule.intervalDays);
+      nextDueDate = d.toISOString();
+    }
+  }
+
   const [record] = await db.insert(cleaningDisinfectionRecordsTable).values({
     ...rest,
     farmId,
     locationId: locationId ? parseInt(locationId) : null,
+    stockItemId: stockItemId ? parseInt(stockItemId) : null,
+    quantityUsed: quantityUsed || null,
+    contractorOwnSupplies: contractorOwnSupplies === true || contractorOwnSupplies === "true",
+    performedByContractor: performedByContractor === true || performedByContractor === "true",
+    ramsId: ramsId ? parseInt(ramsId) : null,
+    costPence: costPence ? parseInt(costPence) : null,
+    nextDueDate,
   }).returning();
+
+  // Deduct stock from farm's own supplies when farm staff (or contractor using farm stock) performed the clean
+  if (record.stockItemId && record.quantityUsed && !record.contractorOwnSupplies) {
+    const qty = parseFloat(record.quantityUsed);
+    if (!isNaN(qty) && qty > 0) {
+      const qtyChange = -qty;
+      await db.insert(stockMovementsTable).values({
+        farmId,
+        stockItemId: record.stockItemId,
+        movementType: "usage",
+        quantityChange: String(qtyChange),
+        referenceType: "cleaning",
+        referenceId: record.id,
+        performedBy: record.cleanedBy || record.contractorName || null,
+        notes: `C&D — ${record.area} — ${record.cleaningType}`,
+      });
+      const [existing] = await db.select().from(stockLevelsTable)
+        .where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
+      if (existing) {
+        await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+      } else {
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
+      }
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -5060,7 +5112,36 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
+  const { stockItemId, quantityUsed, contractorOwnSupplies, performedByContractor, ramsId, costPence, nextDueDate: reqNextDueDate, ...rest } = req.body;
+
+  // Auto-compute nextDueDate from schedule rules when not manually provided
+  let nextDueDate: string | null = reqNextDueDate || null;
+  if (!nextDueDate && rest.area && rest.cleaningType && rest.cleanedDate) {
+    const [rule] = await db.select().from(biosecurityCleaningSchedulesTable)
+      .where(and(
+        eq(biosecurityCleaningSchedulesTable.farmId, farmId),
+        eq(biosecurityCleaningSchedulesTable.area, rest.area),
+        eq(biosecurityCleaningSchedulesTable.cleaningType, rest.cleaningType),
+        eq(biosecurityCleaningSchedulesTable.isActive, true),
+      )).limit(1);
+    if (rule) {
+      const d = new Date(rest.cleanedDate);
+      d.setDate(d.getDate() + rule.intervalDays);
+      nextDueDate = d.toISOString();
+    }
+  }
+
+  const body = {
+    ...sanitiseBody(rest as Record<string, unknown>),
+    stockItemId: stockItemId ? parseInt(stockItemId) : null,
+    quantityUsed: quantityUsed || null,
+    contractorOwnSupplies: contractorOwnSupplies === true || contractorOwnSupplies === "true",
+    performedByContractor: performedByContractor === true || performedByContractor === "true",
+    ramsId: ramsId ? parseInt(ramsId) : null,
+    costPence: costPence ? parseInt(costPence) : null,
+    nextDueDate,
+  };
+  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(body).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5071,6 +5152,55 @@ router.delete("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, r
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(cleaningDisinfectionRecordsTable).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Biosecurity Cleaning Schedules (rules) ────────────────────────────────────
+router.get("/farms/:farmId/cleaning-schedules", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const schedules = await db.select().from(biosecurityCleaningSchedulesTable)
+    .where(eq(biosecurityCleaningSchedulesTable.farmId, farmId))
+    .orderBy(biosecurityCleaningSchedulesTable.area);
+  res.json({ schedules });
+});
+
+router.post("/farms/:farmId/cleaning-schedules", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { area, cleaningType, intervalDays, notes, isActive } = req.body;
+  if (!area || !cleaningType || !intervalDays) { res.status(400).json({ error: "area, cleaningType and intervalDays are required" }); return; }
+  const [schedule] = await db.insert(biosecurityCleaningSchedulesTable).values({
+    farmId, area, cleaningType,
+    intervalDays: parseInt(intervalDays),
+    notes: notes || null,
+    isActive: isActive !== false && isActive !== "false",
+  }).returning();
+  res.status(201).json({ schedule });
+});
+
+router.put("/farms/:farmId/cleaning-schedules/:scheduleId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const scheduleId = parseInt(req.params.scheduleId, 10);
+  if (isNaN(scheduleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { area, cleaningType, intervalDays, notes, isActive } = req.body;
+  const [schedule] = await db.update(biosecurityCleaningSchedulesTable).set({
+    area, cleaningType,
+    intervalDays: intervalDays ? parseInt(intervalDays) : undefined,
+    notes: notes ?? null,
+    isActive: isActive !== false && isActive !== "false",
+  }).where(and(eq(biosecurityCleaningSchedulesTable.id, scheduleId), eq(biosecurityCleaningSchedulesTable.farmId, farmId))).returning();
+  if (!schedule) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ schedule });
+});
+
+router.delete("/farms/:farmId/cleaning-schedules/:scheduleId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const scheduleId = parseInt(req.params.scheduleId, 10);
+  if (isNaN(scheduleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(biosecurityCleaningSchedulesTable).where(and(eq(biosecurityCleaningSchedulesTable.id, scheduleId), eq(biosecurityCleaningSchedulesTable.farmId, farmId)));
   res.json({ success: true });
 });
 

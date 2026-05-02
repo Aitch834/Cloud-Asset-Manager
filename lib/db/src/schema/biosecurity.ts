@@ -1,5 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { riskAssessmentsTable } from "./risk-waste";
+import { stockItemsTable } from "./stock-suppliers";
 
 export const visitorContractorLogTable = pgTable("visitor_contractor_log", {
   id: serial("id").primaryKey(),
@@ -49,6 +51,28 @@ export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_r
   nextDueDate: timestamp("next_due_date", { withTimezone: true }),
   verifiedBy: text("verified_by"),
   notes: text("notes"),
+  // Contractor vs farm staff
+  performedByContractor: boolean("performed_by_contractor").notNull().default(false),
+  contractorName: text("contractor_name"),
+  contractorOwnSupplies: boolean("contractor_own_supplies").notNull().default(false),
+  // Stock & cost
+  quantityUsed: text("quantity_used"),
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id, { onDelete: "set null" }),
+  costPence: integer("cost_pence"),
+  invoiceRef: text("invoice_ref"),
+  // RAMS reference
+  ramsId: integer("rams_id").references(() => riskAssessmentsTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const biosecurityCleaningSchedulesTable = pgTable("biosecurity_cleaning_schedules", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  area: text("area").notNull(),
+  cleaningType: text("cleaning_type").notNull(),
+  intervalDays: integer("interval_days").notNull(),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

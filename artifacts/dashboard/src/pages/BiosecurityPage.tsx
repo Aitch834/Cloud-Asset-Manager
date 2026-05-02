@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -14,7 +14,8 @@ import { Redirect, Link } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
-  Camera, File, ChevronDown, ChevronUp, Pen, X,
+  Camera, File, ChevronDown, ChevronUp, Pen, X, Clock, Package, HardHat,
+  ClipboardList,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -851,10 +852,29 @@ interface CleaningRecord {
   id: number; farmId: number; area: string; cleaningType: string; productsUsed: string | null;
   dilutionRate: string | null; contactTime: string | null; cleanedBy: string | null;
   cleanedDate: string; nextDueDate: string | null; verifiedBy: string | null; notes: string | null; createdAt: string;
+  performedByContractor: boolean; contractorName: string | null; contractorOwnSupplies: boolean;
+  quantityUsed: string | null; stockItemId: number | null; costPence: number | null;
+  invoiceRef: string | null; ramsId: number | null;
 }
 
-const EMPTY_CLEANING = { area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "", cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "", verifiedBy: "", notes: "" };
+interface CleaningSchedule {
+  id: number; farmId: number; area: string; cleaningType: string;
+  intervalDays: number; notes: string | null; isActive: boolean; createdAt: string;
+}
+
+interface StockItem { id: number; name: string; unit: string | null; }
+interface RiskAssessment { id: number; title: string; area: string | null; }
+
+const EMPTY_CLEANING = {
+  area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "",
+  cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "",
+  verifiedBy: "", notes: "",
+  performedByContractor: false, contractorName: "", contractorOwnSupplies: false,
+  quantityUsed: "", stockItemId: "" as string | number, costPence: "" as string | number,
+  invoiceRef: "", ramsId: "" as string | number,
+};
 const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
+const EMPTY_SCHEDULE = { area: "", cleaningType: "", intervalDays: "" as string | number, notes: "", isActive: true };
 
 function printCleaningRegister(records: CleaningRecord[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -862,14 +882,17 @@ function printCleaningRegister(records: CleaningRecord[], farmName: string, year
   const rows = records.map(r => `<tr>
     <td>${r.area}</td><td>${r.cleaningType}</td><td>${r.productsUsed || "—"}</td>
     <td>${r.dilutionRate || "—"}</td><td>${r.contactTime || "—"}</td>
-    <td style="white-space:nowrap">${fmtD(r.cleanedDate)}</td><td>${r.cleanedBy || "—"}</td>
+    <td style="white-space:nowrap">${fmtD(r.cleanedDate)}</td>
+    <td>${r.performedByContractor ? `Contractor: ${r.contractorName || "—"}` : (r.cleanedBy || "—")}</td>
     <td style="white-space:nowrap">${fmtD(r.nextDueDate)}</td><td>${r.verifiedBy || "—"}</td>
+    <td>${r.quantityUsed || "—"}</td>
+    <td>${r.costPence ? `£${(r.costPence / 100).toFixed(2)}` : "—"}</td>
     <td>${r.notes || "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Cleaning &amp; Disinfection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Cleaning &amp; Disinfection Register · ${yearLabel} · Red Tractor Biosecurity Compliance</p></div>
 <div class="hdr-r"><b>Cleaning &amp; Disinfection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Area / Location</th><th>Cleaning Type</th><th>Products Used</th><th>Dilution Rate</th><th>Contact Time</th><th>Cleaned Date</th><th>Cleaned By</th><th>Next Due</th><th>Verified By</th><th>Notes</th></tr></thead>
+<table><thead><tr><th>Area / Location</th><th>Cleaning Type</th><th>Products Used</th><th>Dilution Rate</th><th>Contact Time</th><th>Cleaned Date</th><th>Cleaned By</th><th>Next Due</th><th>Verified By</th><th>Qty Used</th><th>Cost</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Cleaning &amp; Disinfection Register — Red Tractor compliance record. Retain for minimum 3 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
@@ -886,6 +909,11 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [customProduct, setCustomProduct] = useState("");
+  const [autoNextDue, setAutoNextDue] = useState<string>("");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState<typeof EMPTY_SCHEDULE>(EMPTY_SCHEDULE);
+  const [editingSchedule, setEditingSchedule] = useState<CleaningSchedule | null>(null);
+  const [deleteScheduleId, setDeleteScheduleId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ records: CleaningRecord[] }>({
     queryKey: ["cleaning", farmId],
@@ -895,8 +923,25 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     queryKey: ["coshh", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/coshh`).then(r => r.json()),
   });
+  const { data: stockData } = useQuery<{ records: StockItem[] }>({
+    queryKey: ["stock-items", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-items`).then(r => r.json()),
+  });
+  const { data: ramsData } = useQuery<{ records: RiskAssessment[] }>({
+    queryKey: ["risk-assessments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/risk-assessments`).then(r => r.json()),
+  });
+  const { data: schedulesData, isLoading: schedulesLoading } = useQuery<{ schedules: CleaningSchedule[] }>({
+    queryKey: ["cleaning-schedules", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/cleaning-schedules`).then(r => r.json()),
+  });
+
   const records: CleaningRecord[] = data?.records ?? [];
   const coshhSubstances: string[] = (coshhData?.records ?? []).map(r => r.substanceName).filter(Boolean);
+  const stockItems: StockItem[] = stockData?.records ?? [];
+  const ramsRecords: RiskAssessment[] = ramsData?.records ?? [];
+  const schedules: CleaningSchedule[] = schedulesData?.schedules ?? [];
+
   const knownStaff: string[] = [...new Set([
     ...records.map(r => r.cleanedBy).filter(Boolean) as string[],
     ...records.map(r => r.verifiedBy).filter(Boolean) as string[],
@@ -906,18 +951,40 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     && (!search
       || r.area.toLowerCase().includes(search.toLowerCase())
       || r.cleaningType.toLowerCase().includes(search.toLowerCase())
-      || r.productsUsed?.toLowerCase().includes(search.toLowerCase()))
+      || r.productsUsed?.toLowerCase().includes(search.toLowerCase())
+      || r.contractorName?.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Auto-compute Next Due Date from schedule rules when area, cleaningType or cleanedDate changes
+  useEffect(() => {
+    if (!form.area || !form.cleaningType || !form.cleanedDate) { setAutoNextDue(""); return; }
+    const rule = schedules.find(s =>
+      s.isActive &&
+      s.area.toLowerCase() === form.area.toLowerCase() &&
+      s.cleaningType.toLowerCase() === form.cleaningType.toLowerCase()
+    );
+    if (rule) {
+      const d = new Date(form.cleanedDate);
+      d.setDate(d.getDate() + rule.intervalDays);
+      const computed = d.toISOString().slice(0, 10);
+      setAutoNextDue(computed);
+      // Only auto-fill if user hasn't manually set a date
+      setForm(f => ({ ...f, nextDueDate: f.nextDueDate === autoNextDue || f.nextDueDate === "" ? computed : f.nextDueDate }));
+    } else {
+      setAutoNextDue("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.area, form.cleaningType, form.cleanedDate, schedules]);
 
   function resetCleaningDialog() {
     setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING);
-    setSelectedProducts([]); setCustomProduct("");
+    setSelectedProducts([]); setCustomProduct(""); setAutoNextDue("");
   }
 
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/cleaning`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); resetCleaningDialog(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); qc.invalidateQueries({ queryKey: ["stock-items", farmId] }); resetCleaningDialog(); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
@@ -928,21 +995,68 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/cleaning/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setDeleteId(null); },
   });
+  const createScheduleM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/cleaning-schedules`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning-schedules", farmId] }); setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); },
+  });
+  const updateScheduleM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/cleaning-schedules/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning-schedules", farmId] }); setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); },
+  });
+  const deleteScheduleM = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/cleaning-schedules/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning-schedules", farmId] }); setDeleteScheduleId(null); },
+  });
 
   function openEdit(c: CleaningRecord) {
     setEditing(c);
-    setForm({ area: c.area, cleaningType: c.cleaningType, productsUsed: c.productsUsed ?? "", dilutionRate: c.dilutionRate ?? "", contactTime: c.contactTime ?? "", cleanedBy: c.cleanedBy ?? "", cleanedDate: c.cleanedDate?.slice(0, 10) ?? "", nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "" });
+    setForm({
+      area: c.area, cleaningType: c.cleaningType, productsUsed: c.productsUsed ?? "",
+      dilutionRate: c.dilutionRate ?? "", contactTime: c.contactTime ?? "",
+      cleanedBy: c.cleanedBy ?? "", cleanedDate: c.cleanedDate?.slice(0, 10) ?? "",
+      nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "",
+      performedByContractor: c.performedByContractor ?? false,
+      contractorName: c.contractorName ?? "", contractorOwnSupplies: c.contractorOwnSupplies ?? false,
+      quantityUsed: c.quantityUsed ?? "", stockItemId: c.stockItemId ?? "",
+      costPence: c.costPence ? String(c.costPence / 100) : "", invoiceRef: c.invoiceRef ?? "",
+      ramsId: c.ramsId ?? "",
+    });
     setSelectedProducts(c.productsUsed ? c.productsUsed.split(",").map(s => s.trim()).filter(Boolean) : []);
-    setCustomProduct("");
+    setCustomProduct(""); setAutoNextDue("");
     setFormOpen(true);
+  }
+  function openEditSchedule(s: CleaningSchedule) {
+    setEditingSchedule(s);
+    setScheduleForm({ area: s.area, cleaningType: s.cleaningType, intervalDays: s.intervalDays, notes: s.notes ?? "", isActive: s.isActive });
+    setScheduleOpen(true);
   }
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const productsUsed = selectedProducts.join(", ");
-    const body = { ...form, productsUsed, cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null, nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null };
+    const costPenceVal = form.costPence !== "" ? Math.round(parseFloat(String(form.costPence)) * 100) : null;
+    const body = {
+      ...form, productsUsed,
+      cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null,
+      nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null,
+      stockItemId: form.stockItemId !== "" ? parseInt(String(form.stockItemId)) : null,
+      ramsId: form.ramsId !== "" ? parseInt(String(form.ramsId)) : null,
+      costPence: !isNaN(costPenceVal as number) ? costPenceVal : null,
+      invoiceRef: form.invoiceRef || null,
+      contractorName: form.contractorName || null,
+      quantityUsed: form.quantityUsed || null,
+    };
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
   }
+  function handleScheduleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = { ...scheduleForm, intervalDays: parseInt(String(scheduleForm.intervalDays)) };
+    if (editingSchedule) { updateScheduleM.mutate({ id: editingSchedule.id, body }); } else { createScheduleM.mutate(body); }
+  }
   const isSubmitting = createM.isPending || updateM.isPending;
+
+  const selectedStockItem = stockItems.find(s => s.id === Number(form.stockItemId));
 
   return (
     <>
@@ -978,7 +1092,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {["Area", "Type", "Products", "Cleaned Date", "Cleaned By", "Next Due", "Verified By", ""].map(h => (
+                  {["Area", "Type", "Products", "Cleaned Date", "Performed By", "Next Due", "Verified By", ""].map(h => (
                     <th key={h} className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -990,7 +1104,11 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                     <td className="p-4 text-sm text-foreground/70">{c.cleaningType}</td>
                     <td className="p-4 text-sm text-foreground/70 max-w-[140px] truncate">{c.productsUsed || "—"}</td>
                     <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(c.cleanedDate)}</td>
-                    <td className="p-4 text-sm text-foreground/70">{c.cleanedBy || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">
+                      {c.performedByContractor
+                        ? <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200"><HardHat className="w-3 h-3" />{c.contractorName || "Contractor"}</span>
+                        : (c.cleanedBy || "—")}
+                    </td>
                     <td className="p-4 text-sm">
                       <div className="flex flex-col gap-1">
                         {c.nextDueDate && <span className="text-foreground/70 whitespace-nowrap">{formatDate(c.nextDueDate)}</span>}
@@ -1013,8 +1131,66 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         </Card>
       )}
 
+      {/* ── Schedule Rules Panel ─────────────────────────────────────────── */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary/60" />
+            <h3 className="text-sm font-bold text-foreground/70 uppercase tracking-wider">Cleaning Schedule Rules</h3>
+            <span className="text-xs text-foreground/40">— auto-calculate Next Due Date when area &amp; type match</span>
+          </div>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); setScheduleOpen(true); }}>
+            <Plus className="w-3.5 h-3.5" /> Add Rule
+          </Button>
+        </div>
+        {schedulesLoading ? (
+          <div className="text-sm text-foreground/40 py-2">Loading schedules…</div>
+        ) : schedules.length === 0 ? (
+          <div className="border border-dashed border-border rounded-xl p-6 text-center text-foreground/40 text-sm">
+            No schedule rules yet. Add a rule to auto-fill Next Due Date when logging a clean.
+          </div>
+        ) : (
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40 border-b border-border">
+                  <th className="text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground/50">Area</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground/50">Cleaning Type</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground/50">Interval</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground/50">Status</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-foreground/50">Notes</th>
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedules.map(s => (
+                  <tr key={s.id} className="border-b border-border/50 hover:bg-black/[0.015]">
+                    <td className="px-4 py-2.5 font-medium">{s.area}</td>
+                    <td className="px-4 py-2.5 text-foreground/70">{s.cleaningType}</td>
+                    <td className="px-4 py-2.5 text-foreground/70">Every {s.intervalDays} day{s.intervalDays !== 1 ? "s" : ""}</td>
+                    <td className="px-4 py-2.5">
+                      {s.isActive
+                        ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200"><CheckCircle2 className="w-3 h-3" />Active</span>
+                        : <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">Inactive</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-foreground/50 text-xs max-w-[160px] truncate">{s.notes || "—"}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEditSchedule(s)} className="p-1 rounded hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setDeleteScheduleId(s.id)} className="p-1 rounded hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Add / Edit Cleaning Record Dialog ────────────────────────────── */}
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) resetCleaningDialog(); }}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
+        <DialogContent style={{ maxWidth: "58rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
@@ -1022,105 +1198,202 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
             </DialogTitle>
             <DialogDescription>Record cleaning and disinfection to maintain Red Tractor biosecurity standards.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
-                <FarmLocationSelect farmId={farmId} value={form.area} onChange={v => setForm(f => ({ ...f, area: v }))} required placeholder="Select area / location…" />
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-5 pt-1 max-h-[70vh] overflow-y-auto pr-1">
+
+              {/* Core fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
+                  <FarmLocationSelect farmId={farmId} value={form.area} onChange={v => setForm(f => ({ ...f, area: v }))} required placeholder="Select area / location…" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType) ? form.cleaningType : (form.cleaningType ? "Other" : "")} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                    <option value="">Select type...</option>
+                    {CLEANING_TYPES.map(t => <option key={t} value={t}>{t === "Other" ? "Other (please specify)" : t}</option>)}
+                  </select>
+                  {(form.cleaningType === "Other" || (form.cleaningType && !CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType))) && (
+                    <Input className="mt-1.5" value={form.cleaningType === "Other" ? "" : form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value || "Other" }))} placeholder="Please specify cleaning type…" autoFocus={form.cleaningType === "Other"} />
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned Date <span className="text-red-500">*</span></label>
+                  <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                    Next Due Date
+                    {autoNextDue && <span className="ml-2 text-xs font-normal text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5"><Clock className="w-3 h-3 inline mr-0.5" />Auto from schedule</span>}
+                  </label>
+                  <Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                  {autoNextDue && !form.nextDueDate && (
+                    <p className="text-xs text-green-600 mt-1">Will auto-set to {new Date(autoNextDue).toLocaleDateString("en-GB")} on save</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType) ? form.cleaningType : (form.cleaningType ? "Other" : "")} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
-                  <option value="">Select type...</option>
-                  {CLEANING_TYPES.map(t => <option key={t} value={t}>{t === "Other" ? "Other (please specify)" : t}</option>)}
-                </select>
-                {(form.cleaningType === "Other" || (form.cleaningType && !CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType))) && (
-                  <Input className="mt-1.5" value={form.cleaningType === "Other" ? "" : form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value || "Other" }))} placeholder="Please specify cleaning type…" autoFocus={form.cleaningType === "Other"} />
+
+              {/* Performed By section */}
+              <div className="border border-border rounded-xl p-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 mb-1">Performed By</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, performedByContractor: false }))}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${!form.performedByContractor ? "border-primary bg-primary/5 text-primary" : "border-border text-foreground/50 hover:border-primary/40"}`}
+                  >
+                    <Users className="w-4 h-4" /> Farm Staff
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, performedByContractor: true }))}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${form.performedByContractor ? "border-amber-500 bg-amber-50 text-amber-700" : "border-border text-foreground/50 hover:border-amber-400"}`}
+                  >
+                    <HardHat className="w-4 h-4" /> Contractor
+                  </button>
+                </div>
+
+                {form.performedByContractor ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Contractor Name <span className="text-red-500">*</span></label>
+                      <Input placeholder="e.g. Countrywide Cleaning Ltd" value={form.contractorName} onChange={e => setForm(f => ({ ...f, contractorName: e.target.value }))} required={form.performedByContractor} />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={form.contractorOwnSupplies}
+                          onChange={e => setForm(f => ({ ...f, contractorOwnSupplies: e.target.checked }))}
+                          className="w-4 h-4 rounded accent-amber-600"
+                        />
+                        <span className="text-sm font-medium text-foreground/70">Contractor's own supplies</span>
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned By</label>
+                    <Input list="cleaning-staff-list" placeholder="Name of staff member" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
+                    <datalist id="cleaning-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
+                  </div>
                 )}
               </div>
+
+              {/* Products Used */}
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned Date <span className="text-red-500">*</span></label>
-                <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} required />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned By</label>
-                <Input
-                  list="cleaning-staff-list"
-                  placeholder="Name or contractor"
-                  value={form.cleanedBy}
-                  onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))}
-                />
-                <datalist id="cleaning-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
-              </div>
-              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Products Used</label>
                 <div className="flex flex-wrap gap-1.5 min-h-[2rem] mb-2">
                   {selectedProducts.map(p => (
                     <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                       {p}
-                      <button type="button" onClick={() => setSelectedProducts(pp => pp.filter(x => x !== p))} className="ml-0.5 hover:text-red-500 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
+                      <button type="button" onClick={() => setSelectedProducts(pp => pp.filter(x => x !== p))} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
                     </span>
                   ))}
                   {selectedProducts.length === 0 && <span className="text-sm text-foreground/40 italic self-center">No products selected yet</span>}
                 </div>
                 <div className="flex gap-2">
-                  <select
-                    value=""
-                    onChange={e => { const v = e.target.value; if (v) setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); }}
-                    className="flex-1 h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1.5 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
-                  >
+                  <select value="" onChange={e => { const v = e.target.value; if (v) setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); }}
+                    className="flex-1 h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1.5 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10">
                     <option value="">+ Add from COSHH register…</option>
                     {coshhSubstances.filter(s => !selectedProducts.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <Input
-                    placeholder="Or type unlisted product name…"
-                    value={customProduct}
-                    onChange={e => setCustomProduct(e.target.value)}
+                  <Input placeholder="Or type unlisted product name…" value={customProduct} onChange={e => setCustomProduct(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const v = customProduct.trim(); if (v) { setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); setCustomProduct(""); } } }}
-                    className="flex-1 text-sm h-10"
-                  />
-                  <Button
-                    type="button" variant="outline" className="h-10 px-3 shrink-0"
-                    disabled={!customProduct.trim()}
-                    onClick={() => { const v = customProduct.trim(); if (v) { setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); setCustomProduct(""); } }}
-                  >Add</Button>
+                    className="flex-1 text-sm h-10" />
+                  <Button type="button" variant="outline" className="h-10 px-3 shrink-0" disabled={!customProduct.trim()}
+                    onClick={() => { const v = customProduct.trim(); if (v) { setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); setCustomProduct(""); } }}>Add</Button>
                 </div>
                 {coshhSubstances.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1.5">No COSHH substances on register yet — type products manually above.</p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Dilution Rate</label>
-                <Input placeholder="e.g. 1:100, 1%" value={form.dilutionRate} onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))} />
+
+              {/* Application details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Dilution Rate</label>
+                  <Input placeholder="e.g. 1:100, 1%" value={form.dilutionRate} onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Contact Time</label>
+                  <Input placeholder="e.g. 30 minutes, overnight" value={form.contactTime} onChange={e => setForm(f => ({ ...f, contactTime: e.target.value }))} />
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Contact Time</label>
-                <Input placeholder="e.g. 30 minutes, overnight" value={form.contactTime} onChange={e => setForm(f => ({ ...f, contactTime: e.target.value }))} />
+
+              {/* Stock consumption — only shown when NOT contractor's own supplies */}
+              {!form.contractorOwnSupplies && (
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 flex items-center gap-1.5 mb-1"><Package className="w-3.5 h-3.5" />Stock Used {!form.performedByContractor && <span className="font-normal text-foreground/40">— will deduct from stock on save</span>}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Stock Item</label>
+                      <select value={form.stockItemId} onChange={e => setForm(f => ({ ...f, stockItemId: e.target.value }))}
+                        className="w-full h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10">
+                        <option value="">Select stock item…</option>
+                        {stockItems.map(s => <option key={s.id} value={s.id}>{s.name}{s.unit ? ` (${s.unit})` : ""}</option>)}
+                      </select>
+                      {stockItems.length === 0 && <p className="text-xs text-amber-600 mt-1">No stock items found — add items in the Stock & Suppliers module.</p>}
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                        Quantity Used {selectedStockItem?.unit && <span className="font-normal text-foreground/40">({selectedStockItem.unit})</span>}
+                      </label>
+                      <Input placeholder="e.g. 2, 0.5" value={form.quantityUsed} onChange={e => setForm(f => ({ ...f, quantityUsed: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cost / invoice — shown when contractor */}
+              {form.performedByContractor && (
+                <div className="border border-border rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 mb-1">Cost &amp; Invoice</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Cost (£)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-foreground/50">£</span>
+                        <Input className="pl-7" type="number" step="0.01" min="0" placeholder="0.00" value={form.costPence} onChange={e => setForm(f => ({ ...f, costPence: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-foreground/70 mb-1 block">Invoice / PO Reference</label>
+                      <Input placeholder="e.g. INV-2024-001" value={form.invoiceRef} onChange={e => setForm(f => ({ ...f, invoiceRef: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* RAMS reference */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                    <ClipboardList className="w-3.5 h-3.5 inline mr-1 text-foreground/40" />
+                    RAMS / Risk Assessment Reference
+                  </label>
+                  <select value={form.ramsId} onChange={e => setForm(f => ({ ...f, ramsId: e.target.value }))}
+                    className="w-full h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10">
+                    <option value="">None / not applicable</option>
+                    {ramsRecords.map(r => <option key={r.id} value={r.id}>{r.title}{r.area ? ` — ${r.area}` : ""}</option>)}
+                  </select>
+                  {ramsRecords.length === 0 && <p className="text-xs text-foreground/40 mt-1">No risk assessments on file. Add them in the Risk &amp; Waste module.</p>}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Verified By</label>
+                  <Input list="verified-staff-list" placeholder="Supervisor / farm manager" value={form.verifiedBy} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} />
+                  <datalist id="verified-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
+                </div>
               </div>
+
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Next Due Date</label>
-                <Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Verified By</label>
-                <Input
-                  list="verified-staff-list"
-                  placeholder="Supervisor / farm manager"
-                  value={form.verifiedBy}
-                  onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))}
-                />
-                <datalist id="verified-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
-              <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-            </div>
-            <DialogFooter>
+            <DialogFooter className="mt-4">
               <Button type="button" variant="outline" onClick={resetCleaningDialog}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
@@ -1131,9 +1404,10 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         </DialogContent>
       </Dialog>
 
+      {/* ── View Cleaning Record Dialog ───────────────────────────────────── */}
       {viewCleaning && (
         <Dialog open onOpenChange={() => setViewCleaning(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogContent style={{ maxWidth: "48rem" }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-primary" />
@@ -1141,48 +1415,50 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               </DialogTitle>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Area / Location</p><p className="font-medium">{viewCleaning.area}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaning Type</p><p className="font-medium">{viewCleaning.cleaningType}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaned Date</p><p className="font-medium">{formatDate(viewCleaning.cleanedDate)}</p></div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Area / Location</p>
-                <p className="font-medium">{viewCleaning.area}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Performed By</p>
+                {viewCleaning.performedByContractor
+                  ? <p className="font-medium flex items-center gap-1"><HardHat className="w-3.5 h-3.5 text-amber-600" /><span className="text-amber-700">Contractor</span>{viewCleaning.contractorName && <span className="text-foreground/70 font-normal"> — {viewCleaning.contractorName}</span>}</p>
+                  : <p className="font-medium">{viewCleaning.cleanedBy || "—"}</p>}
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaning Type</p>
-                <p className="font-medium">{viewCleaning.cleaningType}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaned Date</p>
-                <p className="font-medium">{formatDate(viewCleaning.cleanedDate)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaned By</p>
-                <p className="font-medium">{viewCleaning.cleanedBy || "—"}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Products Used</p>
-                <p className="font-medium">{viewCleaning.productsUsed || "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Dilution Rate</p>
-                <p className="font-medium">{viewCleaning.dilutionRate || "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Contact Time</p>
-                <p className="font-medium">{viewCleaning.contactTime || "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Next Due Date</p>
-                <p className="font-medium">{viewCleaning.nextDueDate ? formatDate(viewCleaning.nextDueDate) : "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Verified By</p>
-                <p className="font-medium">{viewCleaning.verifiedBy || "—"}</p>
-              </div>
-              {viewCleaning.notes && (
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Notes</p>
-                  <p className="font-medium">{viewCleaning.notes}</p>
+              {viewCleaning.performedByContractor && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Contractor's Own Supplies</p>
+                  <p className="font-medium">{viewCleaning.contractorOwnSupplies ? "Yes" : "No — farm supplies used"}</p>
                 </div>
               )}
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Products Used</p><p className="font-medium">{viewCleaning.productsUsed || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Dilution Rate</p><p className="font-medium">{viewCleaning.dilutionRate || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Contact Time</p><p className="font-medium">{viewCleaning.contactTime || "—"}</p></div>
+              {(viewCleaning.quantityUsed || viewCleaning.stockItemId) && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Quantity Used</p>
+                  <p className="font-medium flex items-center gap-1"><Package className="w-3.5 h-3.5 text-foreground/40" />{viewCleaning.quantityUsed || "—"}{viewCleaning.stockItemId && <span className="text-xs text-foreground/40 ml-1">from stock</span>}</p>
+                </div>
+              )}
+              {(viewCleaning.costPence || viewCleaning.invoiceRef) && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cost / Invoice</p>
+                  <p className="font-medium">
+                    {viewCleaning.costPence ? `£${(viewCleaning.costPence / 100).toFixed(2)}` : "—"}
+                    {viewCleaning.invoiceRef && <span className="text-foreground/50 font-normal ml-2 text-xs">{viewCleaning.invoiceRef}</span>}
+                  </p>
+                </div>
+              )}
+              {viewCleaning.ramsId && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">RAMS Reference</p>
+                  <p className="font-medium flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5 text-foreground/40" />
+                    {ramsRecords.find(r => r.id === viewCleaning.ramsId)?.title ?? `RA-${viewCleaning.ramsId}`}
+                  </p>
+                </div>
+              )}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Next Due Date</p><p className="font-medium">{viewCleaning.nextDueDate ? formatDate(viewCleaning.nextDueDate) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Verified By</p><p className="font-medium">{viewCleaning.verifiedBy || "—"}</p></div>
+              {viewCleaning.notes && (<div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Notes</p><p className="font-medium">{viewCleaning.notes}</p></div>)}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewCleaning); setViewCleaning(null); }}>Edit</Button>
@@ -1192,6 +1468,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         </Dialog>
       )}
 
+      {/* ── Delete Record Dialog ──────────────────────────────────────────── */}
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Cleaning Record</DialogTitle></DialogHeader>
@@ -1200,6 +1477,70 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
               {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit Schedule Rule Dialog ──────────────────────────────── */}
+      <Dialog open={scheduleOpen} onOpenChange={o => { if (!o) { setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); } }}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" />{editingSchedule ? "Edit Schedule Rule" : "Add Schedule Rule"}</DialogTitle>
+            <DialogDescription>Define recurring cleaning intervals. When you log a clean that matches an active rule, the Next Due Date is calculated automatically.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleScheduleSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
+                <FarmLocationSelect farmId={farmId} value={scheduleForm.area} onChange={v => setScheduleForm(f => ({ ...f, area: v }))} required placeholder="Select area…" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={scheduleForm.cleaningType} onChange={e => setScheduleForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                  <option value="">Select type...</option>
+                  {CLEANING_TYPES.filter(t => t !== "Other").map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Interval (days) <span className="text-red-500">*</span></label>
+                <Input type="number" min="1" max="3650" placeholder="e.g. 7, 14, 28, 90" value={scheduleForm.intervalDays} onChange={e => setScheduleForm(f => ({ ...f, intervalDays: e.target.value }))} required />
+                {scheduleForm.intervalDays && !isNaN(Number(scheduleForm.intervalDays)) && Number(scheduleForm.intervalDays) > 0 && (
+                  <p className="text-xs text-foreground/50 mt-1">Every {Number(scheduleForm.intervalDays) === 7 ? "week" : Number(scheduleForm.intervalDays) === 14 ? "fortnight" : Number(scheduleForm.intervalDays) === 28 || Number(scheduleForm.intervalDays) === 30 ? "month" : `${scheduleForm.intervalDays} days`}</p>
+                )}
+              </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={scheduleForm.isActive} onChange={e => setScheduleForm(f => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 rounded accent-green-600" />
+                  <span className="text-sm font-medium text-foreground/70">Active (used for auto-date)</span>
+                </label>
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                <Input placeholder="Optional — e.g. Red Tractor requirement, quarterly inspection" value={scheduleForm.notes} onChange={e => setScheduleForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); }}>Cancel</Button>
+              <Button type="submit" disabled={createScheduleM.isPending || updateScheduleM.isPending}>
+                {(createScheduleM.isPending || updateScheduleM.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                {editingSchedule ? "Update Rule" : "Save Rule"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Schedule Rule Dialog ───────────────────────────────────── */}
+      <Dialog open={deleteScheduleId !== null} onOpenChange={() => setDeleteScheduleId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Schedule Rule</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">This rule will no longer auto-calculate Next Due Date. Existing records are not affected.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteScheduleId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteScheduleId && deleteScheduleM.mutate(deleteScheduleId)} disabled={deleteScheduleM.isPending}>
+              {deleteScheduleM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
             </Button>
           </DialogFooter>
         </DialogContent>
