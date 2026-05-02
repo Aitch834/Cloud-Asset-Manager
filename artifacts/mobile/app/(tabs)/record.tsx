@@ -1126,6 +1126,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["staff-training"],
   },
   {
+    id: "labour-timesheet",
+    title: "Labour Timesheet Entry",
+    description: "Log staff hours against operations, fields and dates — syncs to dashboard Timesheets tab; working time is checked against the 48-hour WTR rolling average",
+    icon: "clock",
+    color: "#4f46e5",
+    bgColor: "#ede9fe",
+    route: "/labour-timesheet",
+    moduleKeys: ["staff-training"],
+  },
+  {
     id: "grain-sale",
     title: "Grain Sale",
     description: "Record a grain sale — commodity, buyer, tonnage, price, moisture and quality results",
