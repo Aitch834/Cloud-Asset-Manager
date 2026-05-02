@@ -166,6 +166,10 @@ export default function LambingRecordScreen() {
   const [fosteringDetails, setFosteringDetails] = useState("");
   const [attendedBy, setAttendedBy] = useState("");
   const [notes, setNotes] = useState("");
+  const [perinatalCollectionDate, setPerinatalCollectionDate] = useState("");
+  const [perinatalCollectionRef, setPerinatalCollectionRef] = useState("");
+  const [perinatalDisposalMethod, setPerinatalDisposalMethod] = useState("");
+  const [perinatalDisposalNotes, setPerinatalDisposalNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
 
@@ -222,6 +226,10 @@ export default function LambingRecordScreen() {
         fosteringDetails: fosteringDetails.trim(),
         attendedBy: attendedBy.trim(),
         notes: notes.trim(),
+        perinatalCollectionDate: perinatalCollectionDate.trim() || undefined,
+        perinatalCollectionRef: perinatalCollectionRef.trim() || undefined,
+        perinatalDisposalMethod: perinatalDisposalMethod.trim() || undefined,
+        perinatalDisposalNotes: perinatalDisposalNotes.trim() || undefined,
         latitude: null,
         longitude: null,
         createdAt: new Date().toISOString(),
@@ -239,6 +247,10 @@ export default function LambingRecordScreen() {
       setSaving(false);
     }
   }
+
+  const hasDeadLambs = Array.from({ length: numberOfLambs }).some(
+    (_, i) => lambs[i]?.outcome === "stillborn" || lambs[i]?.outcome === "died-within-24h"
+  );
 
   const selectedEase = EASE_OPTIONS.find((e) => e.key === easeScore);
 
@@ -360,6 +372,43 @@ export default function LambingRecordScreen() {
           />
         </Section>
 
+        {hasDeadLambs && (
+          <Section title="Perinatal Disposal (ABP Required)">
+            <View style={styles.disposalBanner}>
+              <Feather name="alert-triangle" size={13} color="#92400e" />
+              <Text style={styles.disposalBannerText}>
+                Stillborn / died-within-24h lambs must be disposed of by an approved Animal By-Products contractor. Record the collection details below. You can link to a registered contractor on the dashboard.
+              </Text>
+            </View>
+            <Text style={styles.fieldLabel}>Collection Date (YYYY-MM-DD)</Text>
+            <Input
+              placeholder="e.g. 2026-03-15"
+              value={perinatalCollectionDate}
+              onChangeText={setPerinatalCollectionDate}
+              keyboardType="numeric"
+            />
+            <Text style={styles.fieldLabel}>Consignment / NFAS Certificate Ref</Text>
+            <Input
+              placeholder="Contractor consignment note reference"
+              value={perinatalCollectionRef}
+              onChangeText={setPerinatalCollectionRef}
+            />
+            <Text style={styles.fieldLabel}>Disposal Method</Text>
+            <Input
+              placeholder="e.g. NFAS collection, hunt kennels, on-farm incinerator"
+              value={perinatalDisposalMethod}
+              onChangeText={setPerinatalDisposalMethod}
+            />
+            <Text style={styles.fieldLabel}>Disposal Notes</Text>
+            <Input
+              placeholder="Any additional disposal details"
+              value={perinatalDisposalNotes}
+              onChangeText={setPerinatalDisposalNotes}
+              multiline
+            />
+          </Section>
+        )}
+
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Record Summary</Text>
           <Text style={styles.summaryLine}>Ease score: {selectedEase?.label ?? "—"}</Text>
@@ -370,6 +419,11 @@ export default function LambingRecordScreen() {
             Live: {Array.from({ length: numberOfLambs }).filter((_, i) => lambs[i]?.outcome === "live").length}
           </Text>
           <Text style={styles.summaryLine}>Colostrum ≤2h: {colostrum2h ? "Yes" : "No"}</Text>
+          {hasDeadLambs && (
+            <Text style={[styles.summaryLine, { color: perinatalCollectionRef || perinatalCollectionDate ? "#166534" : "#b91c1c" }]}>
+              Perinatal disposal: {perinatalCollectionRef || perinatalCollectionDate ? "Details recorded ✓" : "Not yet recorded"}
+            </Text>
+          )}
         </View>
 
         <PhotoAttachButton
@@ -498,4 +552,16 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: "#fff" },
+  disposalBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+    backgroundColor: "#fef3c7",
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  disposalBannerText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", flex: 1, lineHeight: 16 },
 });

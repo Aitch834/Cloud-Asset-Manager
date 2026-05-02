@@ -1761,6 +1761,10 @@ export interface LambingRecord {
   fosteringDetails: string;
   attendedBy: string;
   notes: string;
+  perinatalCollectionDate?: string;
+  perinatalCollectionRef?: string;
+  perinatalDisposalMethod?: string;
+  perinatalDisposalNotes?: string;
   latitude: number | null;
   longitude: number | null;
   createdAt: string;

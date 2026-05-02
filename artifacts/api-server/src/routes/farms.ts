@@ -9371,14 +9371,37 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Assistance and Vet Attendance</h3>
 <p>Use the <em>Assistance required</em> and <em>Vet attended</em> toggles to record interventions. Ewes that required score 3 or 4 assistance should be flagged for veterinary health plan review — especially if they are repeat offenders. High rates of difficult lambings may indicate poor ewe body condition, over-fat ewes, or breed selection issues.</p>
 
+<h3>Perinatal Disposal — Animal By-Products Compliance</h3>
+<p>Under the <strong>Animal By-Products (Enforcement) (England) Regulations 2011</strong>, stillborn lambs and lambs that die within 24 hours of birth are classified as Category 3 Animal By-Products (ABP) and must be disposed of by an approved contractor. The documentation must be retained for audit.</p>
+<p>When any lamb on a record is set to <em>Stillborn</em> or <em>Died within 24 hours</em>, an amber <strong>Perinatal Disposal</strong> panel automatically appears in the Add/Edit form. Complete the following:</p>
+<ul>
+<li><strong>Fallen Stock Contractor:</strong> Select from your registered contractors (Settings &gt; Fallen Stock Contractors). NFAS scheme providers such as NFU Mutual Fallen Stock and hunt kennels registered under the Fallen Stock Company are shown here.</li>
+<li><strong>Collection Date:</strong> The date the contractor collected the carcase(s).</li>
+<li><strong>Consignment / NFAS Certificate Reference:</strong> The unique reference on the contractor's consignment note or NFAS collection certificate. This is the document you must retain for three years under the Regulations.</li>
+<li><strong>Disposal Method:</strong> Free text — use this for disposal methods without a registered contractor (on-farm licensed incinerator, hunt kennels using own collection, etc.).</li>
+<li><strong>Disposal Notes:</strong> Any additional detail for the record.</li>
+</ul>
+<p>Each lambing record card in the list shows a <span style="color:#166534;font-weight:600;">Disposal recorded ✓</span> badge in green, or a <span style="color:#b91c1c;font-weight:600;">Disposal not recorded</span> badge in red, so non-compliant records are immediately visible without opening each one. The view dialog shows either a green confirmation panel with the contractor name, collection date, and reference, or a red warning prompting you to edit the record.</p>
+
+<h3>Perinatal Mortality Analytics</h3>
+<p>Above the records list, a <strong>Perinatal Mortality Analytics</strong> panel shows live KPIs for the currently selected lambing season:</p>
+<ul>
+<li>Ewes Lambed</li>
+<li>Total Lambs Born</li>
+<li>Stillborn — count and % of lambs born</li>
+<li>Died Within 24h — count and % of lambs born</li>
+<li>Perinatal Loss — combined count and % (colour-coded: green below 2%, amber 2–5%, red above 5%)</li>
+</ul>
+<p>When two or more seasons of lambing data are present, a <strong>Season-by-Season Perinatal Mortality Trend</strong> table appears beneath the KPIs, comparing each season side by side with an inline bar chart visualising the combined loss rate over time. This analysis is reproduced in the Audit Report printout.</p>
+
 <h3>Audit Report</h3>
-<p>Click the <strong>Audit Report</strong> button at the top of the Lambing tab to generate a printable PDF-ready lambing records report. The report is formatted for Red Tractor audit evidence and includes all ease scores, litter outcomes, colostrum management, fostering, and assistance data. Retain printed copies alongside your digital records.</p>
+<p>Click the <strong>Audit Report</strong> button at the top of the Lambing tab to generate a printable PDF-ready lambing records report. The report includes all ease scores, litter outcomes, colostrum management, fostering, and assistance data, plus the perinatal mortality KPI summary, the season-by-season trend table, and a disposal status column that highlights any records where perinatal deaths were recorded but no disposal documentation has been entered. Retain printed copies alongside your digital records.</p>
 
 <h3>Mobile App</h3>
-<p>The <strong>Lambing Record</strong> form in the mobile app's Record tab lets you capture all lambing data at the lambing pen or field, immediately after birth. Data saves offline and syncs to the dashboard once you have a connection.</p>
+<p>The <strong>Lambing Record</strong> form in the mobile app's Record tab lets you capture all lambing data at the lambing pen or field, immediately after birth. Data saves offline and syncs to the dashboard once you have a connection. If any lamb is recorded as stillborn or died within 24 hours, a <strong>Perinatal Disposal</strong> section automatically appears in the mobile form — capture the collection date, consignment or NFAS certificate reference, and disposal method in the field. You can link the record to a registered Fallen Stock Contractor from the dashboard after syncing.</p>
 
 <h3>Red Tractor Context</h3>
-<p>Red Tractor Sheep Assurance assessors review lambing records to confirm that ease scores are being recorded, that colostrum protocols are documented, and that veterinary interventions are noted. BDE Farm Trac's lambing records provide a timestamped, auditable log of every birth event with full litter, welfare, and management evidence attached.</p>`,
+<p>Red Tractor Sheep Assurance assessors review lambing records to confirm that ease scores are being recorded, that colostrum protocols are documented, and that veterinary interventions are noted. They will also check that perinatal deaths have corresponding Animal By-Products disposal documentation — missing disposal records are a specific audit non-conformance. BDE Farm Trac's lambing records provide a timestamped, auditable log of every birth event with full litter, welfare, management, and ABP disposal evidence attached.</p>`,
     },
     {
       id: 10027,
