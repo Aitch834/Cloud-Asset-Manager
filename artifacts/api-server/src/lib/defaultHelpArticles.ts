@@ -89,6 +89,7 @@ const TITLES: [string, string][] = [
   ["Tail Biting Risk Assessments — Pig Production", "Pig Production"],
   ["Farrowing & Sow Records — Pig Production", "Pig Production"],
   ["Broiler Welfare Indicators (BWI) — Poultry Production", "Poultry Production"],
+  ["House Cleanout Records — Contractor Tracking, Disinfectant and Cost", "Poultry Production"],
   ["Right to Work Checks for Farm Employers", "Staff & Training"],
   ["Staff Management & System Access", "Staff & Training"],
   ["Thinning Records — Poultry Production", "Poultry Production"],

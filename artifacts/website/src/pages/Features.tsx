@@ -625,6 +625,7 @@ const sections: Section[] = [
           "Egg production records — lay rate, grading and packing",
           "Medicine & vaccine records with batch numbers",
           "Biosecurity checklist with down-time between placements",
+          "House cleanout records — farm staff or contractor, DEFRA-approved disinfectant with approval number and dilution rate, multi-product stock consumption tracking, cost and invoice reference, photo evidence attachments, and swab testing results",
           "Red Tractor Poultry & Lion Quality scheme records",
         ],
       },

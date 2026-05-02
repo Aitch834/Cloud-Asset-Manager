@@ -126,7 +126,15 @@ export default function PoultryBiosecurityCleanoutScreen() {
 
   const [houseName, setHouseName] = useState("");
   const [flockRef, setFlockRef] = useState("");
-  const [supervisedBy, setSupervisedBy] = useState(user?.name || "");
+  const [isContractor, setIsContractor] = useState(false);
+  const [contractorName, setContractorName] = useState("");
+  const [contractorOwnSupplies, setContractorOwnSupplies] = useState(false);
+  const [completedBy, setCompletedBy] = useState(user?.name || "");
+  const [verifiedBy, setVerifiedBy] = useState("");
+  const [primaryDisinfectant, setPrimaryDisinfectant] = useState("");
+  const [disinfectantApprovalNumber, setDisinfectantApprovalNumber] = useState("");
+  const [dilutionRate, setDilutionRate] = useState("");
+  const [contactTimeMinutes, setContactTimeMinutes] = useState("");
   const [downtime, setDowntime] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -161,8 +169,12 @@ export default function PoultryBiosecurityCleanoutScreen() {
       Alert.alert("Required", "Please enter the house name or number.");
       return;
     }
-    if (!supervisedBy.trim()) {
-      Alert.alert("Required", "Please enter who supervised the cleanout.");
+    if (!isContractor && !completedBy.trim()) {
+      Alert.alert("Required", "Please enter who completed the cleanout.");
+      return;
+    }
+    if (isContractor && !contractorName.trim()) {
+      Alert.alert("Required", "Please enter the contractor company name.");
       return;
     }
 
@@ -175,7 +187,16 @@ export default function PoultryBiosecurityCleanoutScreen() {
       houseName: houseName.trim(),
       cleanoutDate: new Date().toISOString(),
       flockRef: flockRef.trim(),
-      supervisedBy: supervisedBy.trim(),
+      supervisedBy: completedBy.trim(),
+      completedBy: completedBy.trim(),
+      verifiedBy: verifiedBy.trim(),
+      isContractor,
+      contractorName: contractorName.trim(),
+      contractorOwnSupplies,
+      primaryDisinfectant: primaryDisinfectant.trim(),
+      disinfectantApprovalNumber: disinfectantApprovalNumber.trim(),
+      dilutionRate: dilutionRate.trim(),
+      contactTimeMinutes: contactTimeMinutes.trim(),
       litterRemoval: !!checks["litterRemoval"],
       dryClean: !!checks["dryClean"],
       prewash: !!checks["prewash"],
@@ -229,6 +250,7 @@ export default function PoultryBiosecurityCleanoutScreen() {
             {completedCount} of {totalCount} steps completed
           </Text>
 
+          {/* House Details */}
           <View style={styles.sectionLabel}>
             <Feather name="home" size={14} color={colors.accent} />
             <Text style={styles.sectionTitle}>House Details</Text>
@@ -249,24 +271,136 @@ export default function PoultryBiosecurityCleanoutScreen() {
               containerStyle={styles.flex}
             />
           </View>
-          <View style={styles.row}>
-            <Input
-              label="Supervised By"
-              value={supervisedBy}
-              onChangeText={setSupervisedBy}
-              placeholder="Name"
-              containerStyle={styles.flex}
-            />
+
+          {/* Carried Out By toggle */}
+          <View style={styles.sectionLabel}>
+            <Feather name="users" size={14} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Carried Out By</Text>
+          </View>
+          <View style={styles.toggleRow}>
+            <Pressable
+              style={[styles.toggleBtn, !isContractor && styles.toggleBtnActiveGreen]}
+              onPress={() => { Haptics.selectionAsync(); setIsContractor(false); }}
+            >
+              <Feather name="user" size={14} color={!isContractor ? "#fff" : colors.textSecondary} />
+              <Text style={[styles.toggleBtnText, !isContractor && styles.toggleBtnTextActive]}>Farm Staff</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.toggleBtn, isContractor && styles.toggleBtnActiveAmber]}
+              onPress={() => { Haptics.selectionAsync(); setIsContractor(true); }}
+            >
+              <Feather name="tool" size={14} color={isContractor ? "#fff" : colors.textSecondary} />
+              <Text style={[styles.toggleBtnText, isContractor && styles.toggleBtnTextActive]}>Contractor</Text>
+            </Pressable>
+          </View>
+
+          {isContractor ? (
+            <>
+              <Input
+                label="Contractor Company Name"
+                placeholder="e.g. AgriClean Services Ltd"
+                value={contractorName}
+                onChangeText={setContractorName}
+              />
+              <Pressable
+                style={[styles.checkboxRow, contractorOwnSupplies && styles.checkboxRowActive]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setContractorOwnSupplies(!contractorOwnSupplies); }}
+              >
+                <View style={[styles.smallCheckbox, contractorOwnSupplies && styles.smallCheckboxDone]}>
+                  {contractorOwnSupplies && <Feather name="check" size={12} color="#fff" />}
+                </View>
+                <View style={styles.checkboxTextWrap}>
+                  <Text style={styles.checkboxLabel}>Contractor supplied their own materials</Text>
+                  <Text style={styles.checkboxSub}>Disinfectants, chemicals and PPE supplied by the contractor</Text>
+                </View>
+              </Pressable>
+              <View style={styles.row}>
+                <Input
+                  label="Verified By"
+                  placeholder="Farm supervisor name"
+                  value={verifiedBy}
+                  onChangeText={setVerifiedBy}
+                  containerStyle={styles.flex}
+                />
+                <Input
+                  label="Downtime (days)"
+                  placeholder="e.g. 14"
+                  value={downtime}
+                  onChangeText={setDowntime}
+                  keyboardType="number-pad"
+                  containerStyle={styles.flex}
+                />
+              </View>
+            </>
+          ) : (
+            <View style={styles.row}>
+              <Input
+                label="Completed By"
+                value={completedBy}
+                onChangeText={setCompletedBy}
+                placeholder="Name"
+                containerStyle={styles.flex}
+              />
+              <Input
+                label="Verified By"
+                placeholder="Supervisor name"
+                value={verifiedBy}
+                onChangeText={setVerifiedBy}
+                containerStyle={styles.flex}
+              />
+            </View>
+          )}
+
+          {!isContractor && (
             <Input
               label="Downtime (days)"
               placeholder="e.g. 14"
               value={downtime}
               onChangeText={setDowntime}
               keyboardType="number-pad"
+            />
+          )}
+
+          {/* Disinfectant Details */}
+          <View style={styles.sectionLabel}>
+            <Feather name="shield" size={14} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Primary Disinfectant</Text>
+          </View>
+          <View style={styles.row}>
+            <Input
+              label="Disinfectant Used"
+              placeholder="e.g. Virkon S, Stalosan F"
+              value={primaryDisinfectant}
+              onChangeText={setPrimaryDisinfectant}
+              containerStyle={styles.flex}
+            />
+            <Input
+              label="DEFRA Approval No."
+              placeholder="e.g. UK-BA-2019-0012"
+              value={disinfectantApprovalNumber}
+              onChangeText={setDisinfectantApprovalNumber}
+              containerStyle={styles.flex}
+            />
+          </View>
+          <View style={styles.row}>
+            <Input
+              label="Dilution Rate"
+              placeholder="e.g. 1:100"
+              value={dilutionRate}
+              onChangeText={setDilutionRate}
+              containerStyle={styles.flex}
+            />
+            <Input
+              label="Contact Time (mins)"
+              placeholder="e.g. 30"
+              value={contactTimeMinutes}
+              onChangeText={setContactTimeMinutes}
+              keyboardType="number-pad"
               containerStyle={styles.flex}
             />
           </View>
 
+          {/* Biosecurity Checklist */}
           <View style={styles.sectionLabel}>
             <Feather name="check-square" size={14} color={colors.primary} />
             <Text style={styles.sectionTitle}>Biosecurity Checklist</Text>
@@ -291,6 +425,7 @@ export default function PoultryBiosecurityCleanoutScreen() {
             );
           })}
 
+          {/* Notes */}
           <View style={styles.sectionLabel}>
             <Feather name="edit-3" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Notes</Text>
@@ -364,6 +499,80 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   row: { flexDirection: "row", gap: spacing.md },
+  toggleRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  toggleBtnActiveGreen: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  toggleBtnActiveAmber: {
+    backgroundColor: "#d97706",
+    borderColor: "#d97706",
+  },
+  toggleBtnText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  toggleBtnTextActive: {
+    color: "#fff",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.sm,
+  },
+  checkboxRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: "#eff6ff",
+  },
+  smallCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  smallCheckboxDone: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxTextWrap: { flex: 1 },
+  checkboxLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  checkboxSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   checkRow: {
     flexDirection: "row",
     alignItems: "flex-start",

@@ -1289,6 +1289,15 @@ export interface PoultryBiosecurityCleanout {
   cleanoutDate: string;
   flockRef: string;
   supervisedBy: string;
+  completedBy: string;
+  verifiedBy: string;
+  isContractor: boolean;
+  contractorName: string;
+  contractorOwnSupplies: boolean;
+  primaryDisinfectant: string;
+  disinfectantApprovalNumber: string;
+  dilutionRate: string;
+  contactTimeMinutes: string;
   litterRemoval: boolean;
   dryClean: boolean;
   prewash: boolean;
