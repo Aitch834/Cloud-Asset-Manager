@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,6 +148,46 @@ const PRODUCTION_SYSTEMS = [
   "Label Rouge",
 ];
 
+const SPECIES_LABEL_MAP: Record<string, string> = {
+  broiler_chicken: "Broiler (Meat Chicken)",
+  broiler: "Broiler (Meat Chicken)",
+  meat_chicken: "Broiler (Meat Chicken)",
+  layer_hen: "Layer (Laying Hen)",
+  layer: "Layer (Laying Hen)",
+  laying_hen: "Layer (Laying Hen)",
+  turkey: "Turkey",
+  duck: "Duck",
+  goose: "Goose",
+  guinea_fowl: "Guinea Fowl",
+  pheasant: "Pheasant / Game Bird",
+  game_bird: "Pheasant / Game Bird",
+  mixed: "Mixed / Other",
+  other: "Mixed / Other",
+};
+const SYSTEM_LABEL_MAP: Record<string, string> = {
+  indoor_intensive: "Conventional",
+  conventional: "Conventional",
+  barn: "Barn",
+  free_range: "Free Range",
+  organic: "Organic",
+  rspca_assured: "RSPCA Assured",
+  rspca: "RSPCA Assured",
+  higher_welfare: "Higher Welfare",
+  label_rouge: "Label Rouge",
+};
+function fmtSpecies(v: unknown): string {
+  if (!v || v === "") return "—";
+  const s = String(v);
+  if (POULTRY_SPECIES.includes(s)) return s;
+  return SPECIES_LABEL_MAP[s] ?? SPECIES_LABEL_MAP[s.toLowerCase()] ?? s;
+}
+function fmtSystem(v: unknown): string {
+  if (!v || v === "") return "—";
+  const s = String(v);
+  if (PRODUCTION_SYSTEMS.includes(s)) return s;
+  return SYSTEM_LABEL_MAP[s] ?? SYSTEM_LABEL_MAP[s.toLowerCase()] ?? s;
+}
+
 type DensityInfo = {
   schemeUnit: "birds/m²" | "kg/m²";
   schemeLimit: number;
@@ -255,9 +295,9 @@ function HousesTab({ farmId }: { farmId: number }) {
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "houseName", label: "House Name" },
-        { key: "species", label: "Species" },
+        { key: "species", label: "Species", fmt: (r: Record<string, unknown>) => fmtSpecies(r.species) },
         { key: "houseType", label: "House Type" },
-        { key: "productionSystem", label: "Production System" },
+        { key: "productionSystem", label: "Production System", fmt: (r: Record<string, unknown>) => fmtSystem(r.productionSystem) },
         { key: "approvedCapacity", label: "Capacity (birds)" },
         { key: "floorArea", label: "Floor Area", fmt: r => (r.lengthM && r.widthM) ? `${(Number(r.lengthM) * Number(r.widthM)).toFixed(0)} m²` : "—" },
         { key: "density", label: "Density (birds/m²)", fmt: r => (r.lengthM && r.widthM && r.approvedCapacity) ? (Number(r.approvedCapacity) / (Number(r.lengthM) * Number(r.widthM))).toFixed(1) : "—" },
@@ -269,9 +309,9 @@ function HousesTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 py-2">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House Name</p><p className="font-medium">{String(viewRecord.houseName ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved Capacity (birds)</p><p className="font-medium">{String(viewRecord.approvedCapacity ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewRecord.species ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{fmtSpecies(viewRecord.species)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House Type</p><p className="font-medium">{String(viewRecord.houseType ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{String(viewRecord.productionSystem ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{fmtSystem(viewRecord.productionSystem)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Length (m)</p><p className="font-medium">{viewRecord.lengthM ? `${viewRecord.lengthM} m` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Width (m)</p><p className="font-medium">{viewRecord.widthM ? `${viewRecord.widthM} m` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Floor Area</p><p className="font-medium">{(viewRecord.lengthM && viewRecord.widthM) ? `${(Number(viewRecord.lengthM) * Number(viewRecord.widthM)).toFixed(0)} m²` : "—"}</p></div>
@@ -352,8 +392,14 @@ function FlocksTab({ farmId }: { farmId: number }) {
   const houseList = houses as Record<string, unknown>[];
   const selectedHouse = houseList.find(h => String(h.id) === String(form.houseId)) ?? null;
 
-  const speciesMismatch = selectedHouse && form.species && String(form.species) !== String(selectedHouse.species ?? "");
-  const systemMismatch = selectedHouse && form.productionSystem && String(form.productionSystem) !== String(selectedHouse.productionSystem ?? "");
+  const { data: hatcherySuppData = [] } = useQuery({
+    queryKey: ["suppliers", farmId, "hatchery"],
+    queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => r.json()).catch(() => []),
+  });
+  const hatcherySuppliers = (Array.isArray(hatcherySuppData) ? hatcherySuppData as Record<string, unknown>[] : []).filter(s => s.supplierType === "hatchery");
+
+  const speciesMismatch = selectedHouse && form.species && fmtSpecies(String(form.species)) !== fmtSpecies(String(selectedHouse.species ?? ""));
+  const systemMismatch = selectedHouse && form.productionSystem && fmtSystem(String(form.productionSystem)) !== fmtSystem(String(selectedHouse.productionSystem ?? ""));
 
   function selectHouse(houseId: string) {
     const h = houseList.find(x => String(x.id) === houseId);
@@ -371,8 +417,8 @@ function FlocksTab({ farmId }: { farmId: number }) {
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "flockNumber", label: "Flock No." },
         { key: "houseName", label: "House" },
-        { key: "species", label: "Species" },
-        { key: "productionSystem", label: "System" },
+        { key: "species", label: "Species", fmt: (r: Record<string, unknown>) => fmtSpecies(r.species) },
+        { key: "productionSystem", label: "System", fmt: (r: Record<string, unknown>) => fmtSystem(r.productionSystem) },
         { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) },
         { key: "placementCount", label: "Placed" },
         { key: "status", label: "Status" },
@@ -384,8 +430,8 @@ function FlocksTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 py-2">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock Number</p><p className="font-medium">{String(viewRecord.flockNumber ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House</p><p className="font-medium">{String(viewRecord.houseName ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewRecord.species ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{String(viewRecord.productionSystem ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{fmtSpecies(viewRecord.species)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production System</p><p className="font-medium">{fmtSystem(viewRecord.productionSystem)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Placement Date</p><p className="font-medium">{fmtDate(viewRecord.placementDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Placement Count (birds)</p><p className="font-medium">{String(viewRecord.placementCount ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Breed / Strain</p><p className="font-medium">{String(viewRecord.breed ?? "—")}</p></div>
@@ -441,8 +487,25 @@ function FlocksTab({ farmId }: { farmId: number }) {
             <div><Label>Placement Date *</Label><Input type="date" value={String(form.placementDate ?? "")} onChange={e => setForm(f => ({ ...f, placementDate: e.target.value }))} /></div>
             <div><Label>Placement Count *</Label><Input type="number" value={String(form.placementCount ?? "")} onChange={e => setForm(f => ({ ...f, placementCount: e.target.value }))} /></div>
             <div><Label>Breed / Strain</Label><Input value={String(form.breed ?? "")} onChange={e => setForm(f => ({ ...f, breed: e.target.value }))} /></div>
-            <div><Label>Hatchery Name</Label><Input value={String(form.hatcheryName ?? "")} onChange={e => setForm(f => ({ ...f, hatcheryName: e.target.value }))} /></div>
-            <div><Label>Hatchery Approval No.</Label><Input value={String(form.hatcheryApprovalNumber ?? "")} onChange={e => setForm(f => ({ ...f, hatcheryApprovalNumber: e.target.value }))} /></div>
+            <div className="col-span-2">
+              <Label>Hatchery / Chick Supplier</Label>
+              <Select value={String(form._hatcherySuppId ?? "__none__")} onValueChange={v => {
+                if (v === "__none__") { setForm(f => ({ ...f, _hatcherySuppId: "" })); return; }
+                const s = hatcherySuppliers.find(h => String(h.id) === v);
+                setForm(f => ({ ...f, _hatcherySuppId: v, hatcheryName: s ? String(s.name ?? f.hatcheryName) : f.hatcheryName, hatcheryApprovalNumber: f.hatcheryApprovalNumber || String(s?.accountNumber ?? "") }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select from registered hatcheries..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not in list / type manually below —</SelectItem>
+                  {hatcherySuppliers.map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.name ?? "")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Or type hatchery details manually:</p>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div><Label>Hatchery Name</Label><Input value={String(form.hatcheryName ?? "")} onChange={e => setForm(f => ({ ...f, hatcheryName: e.target.value }))} /></div>
+                <div><Label>Hatchery Approval No.</Label><Input value={String(form.hatcheryApprovalNumber ?? "")} onChange={e => setForm(f => ({ ...f, hatcheryApprovalNumber: e.target.value }))} /></div>
+              </div>
+            </div>
             <div><Label>Status</Label>
               <Select value={String(form.status ?? "active")} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -481,6 +544,144 @@ function FlockSelect({ flocks, value, onChange }: { flocks: Record<string, unkno
 function fmtFlock(r: Record<string, unknown>): string {
   if (r.flockNumber) return String(r.flockNumber) + (r.houseName ? ` · ${r.houseName}` : "");
   return r.flockId ? String(r.flockId) : "—";
+}
+
+function ChickPurchasesTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: flockData = [] } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
+  const flockList = (flockData as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const { data: supplierData = [] } = useQuery({ queryKey: ["suppliers", farmId, "hatchery"], queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => r.json()).catch(() => []) });
+  const hatcherySuppliers = (Array.isArray(supplierData) ? supplierData as Record<string, unknown>[] : []).filter(s => s.supplierType === "hatchery");
+  const { data: raw, isLoading, open, setOpen, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-chick-purchases", "poultry-chick-purchases");
+  const records = (raw ?? []) as Record<string, unknown>[];
+
+  function fmtGBP(pence: unknown): string {
+    const p = Number(pence ?? 0); if (!p) return "—";
+    return `£${(p / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  function fmtFlockLabel(flockId: unknown): string {
+    const f = flockList.find(fl => String(fl.id) === String(flockId));
+    if (!f) return flockId ? String(flockId) : "—";
+    return String(f.flockNumber ?? f.id) + (f.houseName ? ` · ${f.houseName}` : "");
+  }
+  const payStatusClass = (s: unknown) => s === "paid" ? "text-green-700" : s === "overdue" ? "text-red-600" : s === "part-paid" ? "text-amber-600" : "text-muted-foreground";
+
+  const birdsReceived = parseInt(String(form.numberOfBirdsReceived ?? "")) || 0;
+  const pricePerBird = parseInt(String(form.pricePerBirdPence ?? "")) || 0;
+  const autoTotal = birdsReceived > 0 && pricePerBird > 0 ? birdsReceived * pricePerBird : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div><h3 className="font-semibold text-sm">Chick Purchases</h3><p className="text-xs text-muted-foreground mt-0.5">Track purchase orders, chick receipts, invoices and payment status for each flock placement.</p></div>
+        <Button size="sm" onClick={() => openAdd({ paymentStatus: "unpaid", paymentTermsDays: "30" })}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "flockId", label: "Flock", fmt: r => fmtFlockLabel(r.flockId) },
+        { key: "supplierName", label: "Hatchery / Supplier" },
+        { key: "poReference", label: "PO Ref" },
+        { key: "orderDate", label: "Order Date", fmt: r => fmtDate(r.orderDate) },
+        { key: "numberOfBirdsOrdered", label: "Ordered" },
+        { key: "numberOfBirdsReceived", label: "Received" },
+        { key: "pricePerBirdPence", label: "Price/Bird", fmt: r => r.pricePerBirdPence ? `£${(Number(r.pricePerBirdPence) / 100).toFixed(4)}` : "—" },
+        { key: "totalCostPence", label: "Total Cost", fmt: r => fmtGBP(r.totalCostPence) },
+        { key: "invoiceReference", label: "Invoice Ref" },
+        { key: "paymentStatus", label: "Status", render: r => <span className={`capitalize font-medium text-xs ${payStatusClass(r.paymentStatus)}`}>{String(r.paymentStatus ?? "—")}</span> },
+      ]} rows={records} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Chick Purchase — {String(viewRecord.poReference ?? fmtFlockLabel(viewRecord.flockId))}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock</p><p className="font-medium">{fmtFlockLabel(viewRecord.flockId)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hatchery / Supplier</p><p className="font-medium">{String(viewRecord.supplierName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hatchery Approval No.</p><p className="font-medium">{String(viewRecord.hatcheryApprovalNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PO Reference</p><p className="font-medium">{String(viewRecord.poReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Order Date</p><p className="font-medium">{fmtDate(viewRecord.orderDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birds Ordered</p><p className="font-medium">{String(viewRecord.numberOfBirdsOrdered ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birds Received</p><p className="font-medium">{String(viewRecord.numberOfBirdsReceived ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Price per Bird</p><p className="font-medium">{viewRecord.pricePerBirdPence ? `£${(Number(viewRecord.pricePerBirdPence) / 100).toFixed(4)}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Cost</p><p className="font-medium">{fmtGBP(viewRecord.totalCostPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Reference</p><p className="font-medium">{String(viewRecord.invoiceReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Date</p><p className="font-medium">{fmtDate(viewRecord.invoiceDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Terms</p><p className="font-medium">{viewRecord.paymentTermsDays ? `${viewRecord.paymentTermsDays} days` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Status</p><p className={`font-medium capitalize ${payStatusClass(viewRecord.paymentStatus)}`}>{String(viewRecord.paymentStatus ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewRecord.paymentDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "46rem" }}>
+          <DialogHeader><DialogTitle>Chick Purchase Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Flock</Label>
+              <Select value={String(form.flockId ?? "")} onValueChange={v => setForm(f => ({ ...f, flockId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select flock..." /></SelectTrigger>
+                <SelectContent>{flockList.map(fl => <SelectItem key={String(fl.id)} value={String(fl.id)}>{String(fl.flockNumber ?? fl.id)}{fl.houseName ? ` · ${fl.houseName}` : ""}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Hatchery / Supplier</Label>
+              <Select value={String(form._suppId ?? "__none__")} onValueChange={v => {
+                if (v === "__none__") { setForm(f => ({ ...f, _suppId: "" })); return; }
+                const s = hatcherySuppliers.find(h => String(h.id) === v);
+                setForm(f => ({ ...f, _suppId: v, supplierId: v, supplierName: s ? String(s.name ?? "") : f.supplierName, hatcheryApprovalNumber: f.hatcheryApprovalNumber || String(s?.accountNumber ?? "") }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select hatchery..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Type name below —</SelectItem>
+                  {hatcherySuppliers.map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.name ?? "")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Hatchery Name</Label><Input placeholder="If not in list above" value={String(form.supplierName ?? "")} onChange={e => setForm(f => ({ ...f, supplierName: e.target.value }))} /></div>
+            <div><Label>Hatchery Approval No.</Label><Input value={String(form.hatcheryApprovalNumber ?? "")} onChange={e => setForm(f => ({ ...f, hatcheryApprovalNumber: e.target.value }))} /></div>
+            <div><Label>PO Reference</Label><Input placeholder="e.g. PO-2025-001" value={String(form.poReference ?? "")} onChange={e => setForm(f => ({ ...f, poReference: e.target.value }))} /></div>
+            <div><Label>Order Date</Label><Input type="date" value={String(form.orderDate ?? "")} onChange={e => setForm(f => ({ ...f, orderDate: e.target.value }))} /></div>
+            <div><Label>Birds Ordered</Label><Input type="number" value={String(form.numberOfBirdsOrdered ?? "")} onChange={e => setForm(f => ({ ...f, numberOfBirdsOrdered: e.target.value }))} /></div>
+            <div><Label>Birds Received (actual)</Label><Input type="number" value={String(form.numberOfBirdsReceived ?? "")} onChange={e => setForm(f => ({ ...f, numberOfBirdsReceived: e.target.value }))} /></div>
+            <div>
+              <Label>Price per Bird (£)</Label>
+              <Input type="number" step="0.0001" placeholder="e.g. 0.4200" value={form.pricePerBirdPence ? String(Number(form.pricePerBirdPence) / 100) : ""} onChange={e => { const p = e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : ""; setForm(f => ({ ...f, pricePerBirdPence: p })); }} />
+            </div>
+            <div>
+              <Label>Total Cost (£)</Label>
+              {autoTotal !== null && !form.totalCostPence && <p className="text-xs text-muted-foreground mb-1">Auto: £{(autoTotal / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}</p>}
+              <Input type="number" step="0.01" placeholder="Auto-calculated from above" value={form.totalCostPence ? String(Number(form.totalCostPence) / 100) : ""} onChange={e => { const p = e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : ""; setForm(f => ({ ...f, totalCostPence: p })); }} />
+            </div>
+            <div><Label>Invoice Reference</Label><Input value={String(form.invoiceReference ?? "")} onChange={e => setForm(f => ({ ...f, invoiceReference: e.target.value }))} /></div>
+            <div><Label>Invoice Date</Label><Input type="date" value={String(form.invoiceDate ?? "")} onChange={e => setForm(f => ({ ...f, invoiceDate: e.target.value }))} /></div>
+            <div><Label>Payment Terms (days)</Label><Input type="number" value={String(form.paymentTermsDays ?? "30")} onChange={e => setForm(f => ({ ...f, paymentTermsDays: e.target.value }))} /></div>
+            <div>
+              <Label>Payment Status</Label>
+              <Select value={String(form.paymentStatus ?? "unpaid")} onValueChange={v => setForm(f => ({ ...f, paymentStatus: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["unpaid", "part-paid", "paid", "overdue"].map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Payment Date</Label><Input type="date" value={String(form.paymentDate ?? "")} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              const tc = autoTotal && !form.totalCostPence ? String(autoTotal) : form.totalCostPence;
+              save.mutate({ ...form, totalCostPence: tc });
+            }} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
 function MortalityTab({ farmId }: { farmId: number }) {
@@ -2371,11 +2572,11 @@ async function generateAuditPDF(farmId: number) {
   doc.save(`poultry-audit-report-farm${safeFarmId}-${today.replace(/\//g, "-")}.pdf`);
 }
 
-type Tab = "overview" | "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
+type Tab = "overview" | "houses" | "flocks" | "purchases" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","purchases","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -2392,6 +2593,7 @@ export default function PoultryProductionPage() {
             <TabButton active={tab === "overview"} onClick={() => setTab("overview")}><LayoutDashboard className="w-3.5 h-3.5 mr-1" />Overview</TabButton>
             <TabButton active={tab === "houses"} onClick={() => setTab("houses")}><Home className="w-3.5 h-3.5 mr-1" />Houses</TabButton>
             <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><Bird className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
+            <TabButton active={tab === "purchases"} onClick={() => setTab("purchases")}><Receipt className="w-3.5 h-3.5 mr-1" />Chick Purchases</TabButton>
             <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}><BarChart3 className="w-3.5 h-3.5 mr-1" />Mortality</TabButton>
             <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}><Pill className="w-3.5 h-3.5 mr-1" />Treatments</TabButton>
             <TabButton active={tab === "cleanouts"} onClick={() => setTab("cleanouts")}><SprayCan className="w-3.5 h-3.5 mr-1" />Cleanouts</TabButton>
@@ -2412,6 +2614,7 @@ export default function PoultryProductionPage() {
           {tab === "overview" && <OverviewTab farmId={farmId} onGoto={t => setTab(t as Tab)} />}
           {tab === "houses" && <HousesTab farmId={farmId} />}
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
+          {tab === "purchases" && <ChickPurchasesTab farmId={farmId} />}
           {tab === "mortality" && <MortalityTab farmId={farmId} />}
           {tab === "treatments" && <TreatmentsTab farmId={farmId} />}
           {tab === "cleanouts" && <CleanoutsTab farmId={farmId} />}

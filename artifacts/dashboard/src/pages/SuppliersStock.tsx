@@ -1304,6 +1304,7 @@ const SUPPLIER_TYPES = [
   { value: "milk_buyer", label: "Milk Buyer / Processor" },
   { value: "livestock_processor", label: "Livestock Processor / Abattoir" },
   { value: "livestock_mart", label: "Livestock Mart / Auction" },
+  { value: "hatchery", label: "Hatchery / Chick Supplier" },
   { value: "poultry_integrator", label: "Poultry Integrator" },
   { value: "egg_packer", label: "Egg Packing Station" },
   { value: "pig_processor", label: "Pig Processor" },
@@ -1522,7 +1523,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
                 <Input type="email" value={form.email} onChange={e => setForm((f: any) => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
-                <Label>{form.supplierType === "waste" ? "EA Carrier Reg No." : "Account Number"}</Label>
+                <Label>{form.supplierType === "waste" ? "EA Carrier Reg No." : form.supplierType === "hatchery" ? "Hatchery Approval No." : "Account Number"}</Label>
                 <Input
                   value={form.accountNumber}
                   onChange={e => setForm((f: any) => ({ ...f, accountNumber: e.target.value }))}

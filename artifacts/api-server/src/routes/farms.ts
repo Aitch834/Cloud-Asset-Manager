@@ -169,6 +169,7 @@ import {
   poultryFciDocumentsTable,
   poultryBroilerWelfareTable,
   poultryThinningRecordsTable,
+  poultryChickPurchasesTable,
   horticultureBlocksTable,
   horticultureBlockBoundariesTable,
   horticultureCropsTable,
@@ -18370,6 +18371,29 @@ router.patch("/farms/:farmId/poultry-fci-documents/:id/document", requireAuth, r
 router.patch("/farms/:farmId/poultry-broiler-welfare/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryBroilerWelfareTable));
 router.patch("/farms/:farmId/poultry-biosecurity-checklists/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryBiosecurityChecklistTable));
 router.patch("/farms/:farmId/poultry-scheme-records/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultrySchemeRecordsTable));
+
+// --- Poultry Chick Purchases ---
+router.get("/farms/:farmId/poultry-chick-purchases", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(poultryChickPurchasesTable).where(eq(poultryChickPurchasesTable.farmId, farmId)).orderBy(desc(poultryChickPurchasesTable.createdAt));
+  res.json(records);
+});
+router.post("/farms/:farmId/poultry-chick-purchases", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(poultryChickPurchasesTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.json(record);
+});
+router.put("/farms/:farmId/poultry-chick-purchases/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(poultryChickPurchasesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id)), eq(poultryChickPurchasesTable.farmId, farmId))).returning();
+  res.json(record);
+});
+router.delete("/farms/:farmId/poultry-chick-purchases/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(poultryChickPurchasesTable).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id)), eq(poultryChickPurchasesTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
 // Pig
 router.patch("/farms/:farmId/pig-movements/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigMovementsTable));
 router.patch("/farms/:farmId/pig-fci-documents/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigFciDocumentsTable));

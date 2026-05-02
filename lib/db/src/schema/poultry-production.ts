@@ -226,6 +226,28 @@ export const poultryBiosecurityChecklistTable = pgTable("poultry_biosecurity_che
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const poultryChickPurchasesTable = pgTable("poultry_chick_purchases", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => poultryFlocksTable.id),
+  supplierId: integer("supplier_id"),
+  supplierName: text("supplier_name"),
+  hatcheryApprovalNumber: text("hatchery_approval_number"),
+  poReference: text("po_reference"),
+  orderDate: date("order_date"),
+  numberOfBirdsOrdered: integer("number_of_birds_ordered"),
+  numberOfBirdsReceived: integer("number_of_birds_received"),
+  pricePerBirdPence: integer("price_per_bird_pence"),
+  totalCostPence: integer("total_cost_pence"),
+  invoiceReference: text("invoice_reference"),
+  invoiceDate: date("invoice_date"),
+  paymentTermsDays: integer("payment_terms_days").default(30),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  paymentDate: date("payment_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const poultrySchemeRecordsTable = pgTable("poultry_scheme_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
