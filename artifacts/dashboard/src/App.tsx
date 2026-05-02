@@ -478,6 +478,7 @@ function DevBypassContent() {
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
+        <Route path="/group-overview" component={MultiFarmGroupPage} />
         <Route component={NotFound} />
       </Switch>
     </RouteErrorBoundary>
