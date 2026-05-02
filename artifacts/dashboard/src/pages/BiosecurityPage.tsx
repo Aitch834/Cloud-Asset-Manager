@@ -1131,6 +1131,67 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         </DialogContent>
       </Dialog>
 
+      {viewCleaning && (
+        <Dialog open onOpenChange={() => setViewCleaning(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+                Cleaning Record — {viewCleaning.area}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Area / Location</p>
+                <p className="font-medium">{viewCleaning.area}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaning Type</p>
+                <p className="font-medium">{viewCleaning.cleaningType}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaned Date</p>
+                <p className="font-medium">{formatDate(viewCleaning.cleanedDate)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Cleaned By</p>
+                <p className="font-medium">{viewCleaning.cleanedBy || "—"}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Products Used</p>
+                <p className="font-medium">{viewCleaning.productsUsed || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Dilution Rate</p>
+                <p className="font-medium">{viewCleaning.dilutionRate || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Contact Time</p>
+                <p className="font-medium">{viewCleaning.contactTime || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Next Due Date</p>
+                <p className="font-medium">{viewCleaning.nextDueDate ? formatDate(viewCleaning.nextDueDate) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Verified By</p>
+                <p className="font-medium">{viewCleaning.verifiedBy || "—"}</p>
+              </div>
+              {viewCleaning.notes && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Notes</p>
+                  <p className="font-medium">{viewCleaning.notes}</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewCleaning); setViewCleaning(null); }}>Edit</Button>
+              <Button onClick={() => setViewCleaning(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Cleaning Record</DialogTitle></DialogHeader>
