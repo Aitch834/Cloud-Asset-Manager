@@ -1,8 +1,19 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useLocation } from "wouter";
-import { FlaskConical, CheckCircle2, AlertTriangle, Clock, ChevronRight, Info } from "lucide-react";
+import { FlaskConical, CheckCircle2, AlertTriangle, Clock, ChevronRight, Info, TrendingUp } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 function daysSince(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
@@ -14,6 +25,11 @@ function daysSince(dateStr: string | null | undefined): number | null {
 function fmt(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtShort(d: string | null | undefined) {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 }
 
 function TestAgeBadge({ days }: { days: number | null }) {
@@ -53,9 +69,25 @@ function NutrientPill({ label, value, status }: { label: string; value: string |
   );
 }
 
+const FIELD_COLORS = [
+  "#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626",
+  "#0891b2", "#c2410c", "#65a30d", "#db2777", "#0f766e",
+  "#7c3aed", "#b45309", "#059669", "#e11d48", "#0369a1",
+];
+
+const NUTRIENT_OPTIONS = [
+  { key: "ph", label: "pH", domain: [3, 8] as [number, number] },
+  { key: "phosphorus", label: "Phosphorus (P Index)", domain: [0, 4] as [number, number] },
+  { key: "potassium", label: "Potassium (K Index)", domain: [0, 4] as [number, number] },
+  { key: "magnesium", label: "Magnesium (Mg Index)", domain: [0, 4] as [number, number] },
+  { key: "organicMatter", label: "Organic Matter %", domain: [0, 10] as [number, number] },
+];
+
 export default function SoilDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
+  const [viewTab, setViewTab] = useState<"overview" | "trends">("overview");
+  const [selectedNutrient, setSelectedNutrient] = useState("ph");
 
   const fieldsQ = useQuery({
     queryKey: ["fields", farmId],
@@ -92,7 +124,7 @@ export default function SoilDashboard() {
     const p = getResult("phosphorus");
     const k = getResult("potassium");
     const mg = getResult("magnesium");
-    return { field: f, latest, days, ph, p, k, mg, testCount: tests.length };
+    return { field: f, latest, days, ph, p, k, mg, testCount: tests.length, allTests: tests };
   });
 
   const neverTested = fieldSummaries.filter(s => s.days === null).length;
@@ -106,6 +138,40 @@ export default function SoilDashboard() {
     if (a.days === null && b.days === null) return a.field.name.localeCompare(b.field.name);
     return b.days! - a.days!;
   });
+
+  const nutrientConfig = NUTRIENT_OPTIONS.find(n => n.key === selectedNutrient) ?? NUTRIENT_OPTIONS[0];
+
+  const trendData = useMemo(() => {
+    const allDates = new Set<string>();
+    fieldSummaries.forEach(s => {
+      s.allTests.forEach((t: any) => {
+        if (t.sampleDate) allDates.add(t.sampleDate.slice(0, 10));
+      });
+    });
+    const sorted = Array.from(allDates).sort();
+    return sorted.map(date => {
+      const point: any = { date, label: fmtShort(date) };
+      fieldSummaries.forEach(s => {
+        const test = s.allTests.find((t: any) => t.sampleDate?.slice(0, 10) === date);
+        if (test) {
+          const results: any[] = test.results || [];
+          const match = results.find((r: any) => r.nutrient?.toLowerCase().includes(selectedNutrient.toLowerCase()));
+          if (match) {
+            const val = parseFloat(match.index ?? match.value ?? "");
+            if (!isNaN(val)) point[`field_${s.field.id}`] = val;
+          }
+        }
+      });
+      return point;
+    });
+  }, [fieldSummaries, selectedNutrient]);
+
+  const fieldsWithTrendData = fieldSummaries.filter(s =>
+    s.allTests.some((t: any) => {
+      const results: any[] = t.results || [];
+      return results.some((r: any) => r.nutrient?.toLowerCase().includes(selectedNutrient.toLowerCase()) && (r.index ?? r.value));
+    })
+  );
 
   if (!farmId) {
     return (
@@ -130,13 +196,36 @@ export default function SoilDashboard() {
           </button>
         </div>
 
+        {/* Tab switcher */}
+        <div style={{ display: "flex", gap: 2, background: "#f3f4f6", borderRadius: 10, padding: 3, marginBottom: "1.5rem", width: "fit-content" }}>
+          {[
+            { key: "overview", label: "Overview", icon: <FlaskConical size={14} /> },
+            { key: "trends", label: "Nutrient Trends", icon: <TrendingUp size={14} /> },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setViewTab(t.key as any)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "0.4rem 1rem", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: "0.82rem", fontWeight: 600,
+                background: viewTab === t.key ? "#fff" : "transparent",
+                color: viewTab === t.key ? "#111827" : "#6b7280",
+                boxShadow: viewTab === t.key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} style={{ height: 88, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10 }} />
             ))}
           </div>
-        ) : (
+        ) : viewTab === "overview" ? (
           <>
             {(neverTested + overdue) > 0 && (
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "1rem 1.25rem", marginBottom: "1.25rem", display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -192,7 +281,7 @@ export default function SoilDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map((s, i) => {
+                    {sorted.map((s) => {
                       const rowBg = s.days === null || s.days > 365 * 5 ? "#fff8f8"
                         : s.days > 365 * 3 ? "#fffef5"
                         : "transparent";
@@ -225,6 +314,139 @@ export default function SoilDashboard() {
               )}
             </div>
           </>
+        ) : (
+          /* ── TRENDS TAB ── */
+          <div className="space-y-5">
+            {/* Nutrient selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Show:</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {NUTRIENT_OPTIONS.map(n => (
+                  <button
+                    key={n.key}
+                    onClick={() => setSelectedNutrient(n.key)}
+                    style={{
+                      padding: "0.3rem 0.85rem", borderRadius: 999, border: "1.5px solid",
+                      fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                      borderColor: selectedNutrient === n.key ? "#2563eb" : "#e5e7eb",
+                      background: selectedNutrient === n.key ? "#dbeafe" : "#fff",
+                      color: selectedNutrient === n.key ? "#1d4ed8" : "#6b7280",
+                    }}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {fieldsWithTrendData.length === 0 ? (
+              <div style={{ background: "#f9fafb", border: "1px dashed #e5e7eb", borderRadius: 12, padding: "3rem 2rem", textAlign: "center", color: "#9ca3af" }}>
+                <TrendingUp size={32} style={{ margin: "0 auto 0.75rem", opacity: 0.3 }} />
+                <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#6b7280" }}>No trend data available</p>
+                <p style={{ fontSize: "0.8rem", marginTop: 4 }}>Add multiple soil test records with {nutrientConfig.label} results to see trends over time.</p>
+              </div>
+            ) : (
+              <>
+                {/* Trend chart */}
+                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                    <TrendingUp size={15} color="#374151" />
+                    <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>{nutrientConfig.label} — All Fields Over Time</span>
+                    <span style={{ marginLeft: "auto", fontSize: "0.72rem", color: "#9ca3af" }}>{fieldsWithTrendData.length} field{fieldsWithTrendData.length !== 1 ? "s" : ""} with data</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={trendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6b7280" }} />
+                      <YAxis domain={nutrientConfig.domain} tick={{ fontSize: 11, fill: "#6b7280" }} width={35} />
+                      <Tooltip
+                        contentStyle={{ fontSize: "0.8rem", borderRadius: 8, border: "1px solid #e5e7eb" }}
+                        formatter={(val: any, name: string) => {
+                          const fieldId = parseInt(name.replace("field_", ""));
+                          const field = fields.find((f: any) => f.id === fieldId);
+                          return [val, field?.name ?? name];
+                        }}
+                      />
+                      <Legend
+                        formatter={(value: string) => {
+                          const fieldId = parseInt(value.replace("field_", ""));
+                          const field = fields.find((f: any) => f.id === fieldId);
+                          return field?.name ?? value;
+                        }}
+                        wrapperStyle={{ fontSize: "0.78rem" }}
+                      />
+                      {fieldsWithTrendData.map((s, i) => (
+                        <Line
+                          key={s.field.id}
+                          type="monotone"
+                          dataKey={`field_${s.field.id}`}
+                          stroke={FIELD_COLORS[i % FIELD_COLORS.length]}
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                          connectNulls={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Per-field sparkline summary */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+                  {fieldsWithTrendData.map((s, i) => {
+                    const color = FIELD_COLORS[i % FIELD_COLORS.length];
+                    const fieldTests = s.allTests
+                      .map((t: any) => {
+                        const results: any[] = t.results || [];
+                        const match = results.find((r: any) => r.nutrient?.toLowerCase().includes(selectedNutrient.toLowerCase()));
+                        if (!match) return null;
+                        const val = parseFloat(match.index ?? match.value ?? "");
+                        return isNaN(val) ? null : { date: t.sampleDate?.slice(0, 10), val };
+                      })
+                      .filter(Boolean)
+                      .sort((a: any, b: any) => a.date.localeCompare(b.date));
+                    if (fieldTests.length === 0) return null;
+                    const latest = fieldTests[fieldTests.length - 1] as any;
+                    const first = fieldTests[0] as any;
+                    const change = fieldTests.length > 1 ? latest.val - first.val : null;
+                    return (
+                      <div key={s.field.id} style={{ background: "#fff", border: `1px solid ${color}30`, borderRadius: 10, padding: "0.875rem 1rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827" }}>{s.field.name}</div>
+                            {s.field.fieldReference && <div style={{ fontSize: "0.72rem", color: "#9ca3af" }}>{s.field.fieldReference}</div>}
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "1.1rem", fontWeight: 700, color }}>{latest.val}</div>
+                            {change !== null && (
+                              <div style={{ fontSize: "0.72rem", fontWeight: 600, color: change > 0 ? "#16a34a" : change < 0 ? "#dc2626" : "#6b7280" }}>
+                                {change > 0 ? "▲" : change < 0 ? "▼" : "—"} {Math.abs(change).toFixed(2)} since first test
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <ResponsiveContainer width="100%" height={60}>
+                          <LineChart data={fieldTests as any[]}>
+                            <Line type="monotone" dataKey="val" stroke={color} strokeWidth={2} dot={false} />
+                            <YAxis domain={nutrientConfig.domain} hide />
+                            <XAxis dataKey="date" hide />
+                            <Tooltip
+                              contentStyle={{ fontSize: "0.75rem", borderRadius: 6, border: "1px solid #e5e7eb", padding: "4px 8px" }}
+                              formatter={(v: any) => [v, nutrientConfig.label]}
+                              labelFormatter={(l: string) => fmtShort(l)}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                        <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 4 }}>
+                          {fieldTests.length} test{fieldTests.length !== 1 ? "s" : ""} · First: {fmtShort(first.date)} · Latest: {fmtShort(latest.date)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </AppLayout>

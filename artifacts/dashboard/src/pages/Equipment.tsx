@@ -35,6 +35,9 @@ interface EquipmentRecord {
   serialNumber?: string;
   registrationNumber?: string;
   yearOfManufacture?: number;
+  purchaseDate?: string | null;
+  purchasePricePence?: number | null;
+  currentValuePence?: number | null;
   location?: string;
   status?: string;
   notes?: string;
@@ -49,6 +52,17 @@ interface EquipmentRecord {
   disposalBuyerOrContractor?: string | null;
   wasteTransferNoteRef?: string | null;
   disposalNotes?: string | null;
+  puwerLastAssessmentDate?: string | null;
+  puwerNextReviewDate?: string | null;
+  puwerAssessor?: string | null;
+  puwerOutcome?: string | null;
+  puwerNotes?: string | null;
+  insurerName?: string | null;
+  insurancePolicyRef?: string | null;
+  insuranceRenewalDate?: string | null;
+  insurancePremiumPence?: number | null;
+  depreciationMethod?: string | null;
+  depreciationRatePct?: number | null;
 }
 
 const DISPOSAL_METHODS = [
@@ -528,7 +542,9 @@ export default function EquipmentPage() {
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
-  const [manageTab, setManageTab] = useState<"details" | "service">("details");
+  const [manageTab, setManageTab] = useState<"details" | "service" | "compliance">("details");
+  const [compForm, setCompForm] = useState<any>({});
+  const [compSaving, setCompSaving] = useState(false);
   const [addPhotos, setAddPhotos] = useState<string[]>([]);
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [printOpen, setPrintOpen] = useState(false);
@@ -1081,6 +1097,9 @@ export default function EquipmentPage() {
             <TabButton active={manageTab === "service"} onClick={() => setManageTab("service")}>
               <span className="flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5" /> Service &amp; MOT History</span>
             </TabButton>
+            <TabButton active={manageTab === "compliance"} onClick={() => { setManageTab("compliance"); if (managingItem) setCompForm({ puwerLastAssessmentDate: managingItem.puwerLastAssessmentDate?.slice(0,10) ?? "", puwerNextReviewDate: managingItem.puwerNextReviewDate?.slice(0,10) ?? "", puwerAssessor: managingItem.puwerAssessor ?? "", puwerOutcome: managingItem.puwerOutcome ?? "", puwerNotes: managingItem.puwerNotes ?? "", insurerName: managingItem.insurerName ?? "", insurancePolicyRef: managingItem.insurancePolicyRef ?? "", insuranceRenewalDate: managingItem.insuranceRenewalDate?.slice(0,10) ?? "", insurancePremiumPence: managingItem.insurancePremiumPence != null ? String(managingItem.insurancePremiumPence / 100) : "", depreciationMethod: managingItem.depreciationMethod ?? "none", depreciationRatePct: managingItem.depreciationRatePct != null ? String(managingItem.depreciationRatePct) : "", purchasePricePence: managingItem.purchasePricePence != null ? String(managingItem.purchasePricePence / 100) : "", purchaseDate: managingItem.purchaseDate?.slice(0,10) ?? "" }); }}>
+              <span className="flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5" /> Compliance</span>
+            </TabButton>
           </TabBar>
 
           {/* ── DETAILS TAB ── */}
@@ -1331,6 +1350,177 @@ export default function EquipmentPage() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── COMPLIANCE TAB ── */}
+          {managingItem && manageTab === "compliance" && (
+            <div className="space-y-6 mt-2" style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+
+              {/* PUWER Assessment */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                  <ClipboardList size={16} style={{ color: "#2563eb" }} />
+                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>PUWER Assessment</span>
+                  <span style={{ fontSize: "0.72rem", background: "#dbeafe", color: "#1d4ed8", borderRadius: 999, padding: "1px 8px", fontWeight: 600 }}>Provision and Use of Work Equipment Regulations 1998</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Last Assessment Date</label>
+                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerLastAssessmentDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerLastAssessmentDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Next Review Date</label>
+                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerNextReviewDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNextReviewDate: e.target.value }))} />
+                    {compForm.puwerNextReviewDate && (() => { const d = dueStatus(compForm.puwerNextReviewDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Assessor Name / Company</label>
+                    <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. Health & Safety Manager, external consultant" value={compForm.puwerAssessor ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerAssessor: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Assessment Outcome</label>
+                    <select className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" value={compForm.puwerOutcome ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerOutcome: e.target.value }))}>
+                      <option value="">— Select outcome —</option>
+                      <option value="pass">Pass — No defects found</option>
+                      <option value="advisory">Advisory — Defects noted, not immediate risk</option>
+                      <option value="fail">Fail — Equipment must not be used</option>
+                    </select>
+                    {compForm.puwerOutcome === "fail" && (
+                      <p style={{ fontSize: "0.72rem", color: "#dc2626", marginTop: 3 }}>&#9888; Equipment must be taken out of service until defects are rectified.</p>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Assessment Notes</label>
+                  <textarea className="w-full border border-border rounded-md px-3 py-2 text-sm" rows={3} placeholder="Defects found, actions required, guarding condition, operator training requirements..." value={compForm.puwerNotes ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNotes: e.target.value }))} />
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 8, padding: "8px 12px", background: "#eff6ff", borderRadius: 6 }}>
+                  PUWER requires all work equipment to be maintained in an efficient state, efficient working order and in good repair. Thorough examination records must be kept and made available for inspection.
+                </p>
+              </div>
+
+              {/* Insurance */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                  <ClipboardList size={16} style={{ color: "#0891b2" }} />
+                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Insurance</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Insurer Name</label>
+                    <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. NFU Mutual" value={compForm.insurerName ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, insurerName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Policy Reference</label>
+                    <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. NFU-12345-M" value={compForm.insurancePolicyRef ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, insurancePolicyRef: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Renewal Date</label>
+                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.insuranceRenewalDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, insuranceRenewalDate: e.target.value }))} />
+                    {compForm.insuranceRenewalDate && (() => { const d = dueStatus(compForm.insuranceRenewalDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Annual Premium (£)</label>
+                    <input type="number" step="0.01" min="0" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="0.00" value={compForm.insurancePremiumPence ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, insurancePremiumPence: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Depreciation */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                  <ClipboardList size={16} style={{ color: "#7c3aed" }} />
+                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Depreciation & Valuation</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Purchase Date</label>
+                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.purchaseDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, purchaseDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Purchase Price (£)</label>
+                    <input type="number" step="0.01" min="0" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="0.00" value={compForm.purchasePricePence ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, purchasePricePence: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Depreciation Method</label>
+                    <select className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" value={compForm.depreciationMethod ?? "none"} onChange={e => setCompForm((f: any) => ({ ...f, depreciationMethod: e.target.value }))}>
+                      <option value="none">None / Not tracked</option>
+                      <option value="straight_line">Straight Line</option>
+                      <option value="reducing_balance">Reducing Balance</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Depreciation Rate (%/year)</label>
+                    <input type="number" step="1" min="0" max="100" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. 20" value={compForm.depreciationRatePct ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, depreciationRatePct: e.target.value }))} disabled={!compForm.depreciationMethod || compForm.depreciationMethod === "none"} />
+                  </div>
+                </div>
+                {compForm.depreciationMethod && compForm.depreciationMethod !== "none" && compForm.purchasePricePence && compForm.purchaseDate && compForm.depreciationRatePct && (() => {
+                  const cost = parseFloat(compForm.purchasePricePence);
+                  const rate = parseFloat(compForm.depreciationRatePct) / 100;
+                  const years = (Date.now() - new Date(compForm.purchaseDate).getTime()) / (365.25 * 86400000);
+                  let currentVal = 0;
+                  if (compForm.depreciationMethod === "straight_line") {
+                    currentVal = Math.max(0, cost * (1 - rate * years));
+                  } else {
+                    currentVal = cost * Math.pow(1 - rate, years);
+                  }
+                  return (
+                    <div style={{ marginTop: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 24 }}>
+                      <div>
+                        <p style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Estimated Current Value</p>
+                        <p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#166534" }}>£{currentVal.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Depreciation</p>
+                        <p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#dc2626" }}>£{(cost - currentVal).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Age</p>
+                        <p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#166534" }}>{years.toFixed(1)} yrs</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Save Button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 4 }}>
+                <Button variant="outline" onClick={() => setManageTab("details")}>Cancel</Button>
+                <Button
+                  disabled={compSaving}
+                  onClick={async () => {
+                    setCompSaving(true);
+                    try {
+                      const body: any = {
+                        puwerLastAssessmentDate: compForm.puwerLastAssessmentDate || null,
+                        puwerNextReviewDate: compForm.puwerNextReviewDate || null,
+                        puwerAssessor: compForm.puwerAssessor || null,
+                        puwerOutcome: compForm.puwerOutcome || null,
+                        puwerNotes: compForm.puwerNotes || null,
+                        insurerName: compForm.insurerName || null,
+                        insurancePolicyRef: compForm.insurancePolicyRef || null,
+                        insuranceRenewalDate: compForm.insuranceRenewalDate || null,
+                        insurancePremiumPence: compForm.insurancePremiumPence ? Math.round(parseFloat(compForm.insurancePremiumPence) * 100) : null,
+                        depreciationMethod: compForm.depreciationMethod || null,
+                        depreciationRatePct: compForm.depreciationRatePct ? parseInt(compForm.depreciationRatePct) : null,
+                        purchaseDate: compForm.purchaseDate || null,
+                        purchasePricePence: compForm.purchasePricePence ? Math.round(parseFloat(compForm.purchasePricePence) * 100) : null,
+                      };
+                      const res = await fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                      if (!res.ok) throw new Error("Save failed");
+                      toast({ title: "Compliance record saved" });
+                      queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) });
+                    } catch {
+                      toast({ title: "Save failed", variant: "destructive" });
+                    } finally {
+                      setCompSaving(false);
+                    }
+                  }}
+                >
+                  {compSaving ? "Saving…" : "Save Compliance Record"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
