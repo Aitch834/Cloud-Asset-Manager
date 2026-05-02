@@ -40,6 +40,7 @@ import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
 import DepartmentsPage from "@/pages/DepartmentsPage";
 import StaffTrainingPage from "@/pages/StaffTrainingPage";
+import LabourPage from "@/pages/LabourPage";
 import NotFound from "@/pages/not-found";
 import SoilTestsPage from "@/pages/SoilTestsPage";
 import BiosecurityPage from "@/pages/BiosecurityPage";
@@ -318,6 +319,7 @@ function ProtectedContent() {
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />
         <Route path="/training" component={TrainingPage} />
+        <Route path="/labour" component={() => <React.Suspense fallback={null}><LabourPage /></React.Suspense>} />
         <Route path="/stock" component={StockPage} />
         <Route path="/financial" component={FinancialPage} />
         <Route path="/sales-trading" component={SalesTradingPage} />
@@ -428,6 +430,7 @@ function DevBypassContent() {
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />
         <Route path="/training" component={TrainingPage} />
+        <Route path="/labour" component={() => <React.Suspense fallback={null}><LabourPage /></React.Suspense>} />
         <Route path="/stock" component={StockPage} />
         <Route path="/financial" component={FinancialPage} />
         <Route path="/sales-trading" component={SalesTradingPage} />

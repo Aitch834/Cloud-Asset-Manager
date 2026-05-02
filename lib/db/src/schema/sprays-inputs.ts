@@ -44,6 +44,8 @@ export const sprayApplicationsTable = pgTable("spray_applications", {
   batchNumber: text("batch_number"),
   lotNumber: text("lot_number"),
   stockDeliveryId: integer("stock_delivery_id").references(() => stockDeliveriesTable.id),
+  bufferZoneMetres: numeric("buffer_zone_metres", { precision: 6, scale: 1 }),
+  waterSourceNearby: text("water_source_nearby"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

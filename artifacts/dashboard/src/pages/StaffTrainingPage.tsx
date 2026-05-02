@@ -23,7 +23,7 @@ import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics" | "matrix" | "timesheet";
+type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics" | "matrix";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1940,9 +1940,6 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
             Analytics
           </TabButton>
-          <TabButton active={tab === "timesheet"} onClick={() => setTab("timesheet")}>
-            Timesheet
-          </TabButton>
         </TabBar>
 
         {!farmId && (
@@ -1967,217 +1964,10 @@ export default function StaffTrainingPage() {
           <StaffTrainingAnalyticsTab trainingRecords={trainingRecords} certificates={certificates} />
         ) : tab === "matrix" ? (
           <CompetencyMatrixTab farmId={farmId} staffNames={staffNames} certificates={certificates} certsLoading={certsQ.isLoading} />
-        ) : tab === "timesheet" ? (
-          <TimesheetTab farmId={farmId!} staffNames={staffNames} staffLoading={staffLoading} />
         ) : (
           <CoursesTab farmId={farmId} />
         )}
       </div>
     </AppLayout>
-  );
-}
-
-// ─── T017: Labour / Timesheet Tab ─────────────────────────────────────────────
-type TimesheetEntry = {
-  id: string;
-  staffName: string;
-  date: string;
-  task: string;
-  hoursRegular: string;
-  hoursOvertime: string;
-  notes: string;
-};
-
-const TASK_TYPES = [
-  "General Farm Work", "Crop Spraying", "Drilling / Planting", "Harvesting",
-  "Livestock Handling", "Machinery Maintenance", "Irrigation", "Fencing / Hedging",
-  "Grain Handling / Store", "Record Keeping / Admin", "Other",
-];
-
-const EMPTY_ENTRY = (): Omit<TimesheetEntry, "id"> => ({
-  staffName: "", date: new Date().toISOString().slice(0, 10),
-  task: "", hoursRegular: "", hoursOvertime: "", notes: "",
-});
-
-function TimesheetTab({ farmId: _farmId, staffNames, staffLoading }: { farmId: number; staffNames: string[]; staffLoading: boolean }) {
-  const [entries, setEntries] = useState<TimesheetEntry[]>([]);
-  const [form, setForm] = useState(EMPTY_ENTRY());
-  const [filterStaff, setFilterStaff] = useState<string>("all");
-  const [filterMonth, setFilterMonth] = useState<string>("");
-  const [editId, setEditId] = useState<string | null>(null);
-
-  const sf = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }));
-
-  const save = () => {
-    if (!form.staffName || !form.date || !form.task) return;
-    if (editId) {
-      setEntries(p => p.map(e => e.id === editId ? { ...form, id: editId } : e));
-      setEditId(null);
-    } else {
-      setEntries(p => [...p, { ...form, id: Date.now().toString() }]);
-    }
-    setForm(EMPTY_ENTRY());
-  };
-
-  const startEdit = (e: TimesheetEntry) => { setForm({ staffName: e.staffName, date: e.date, task: e.task, hoursRegular: e.hoursRegular, hoursOvertime: e.hoursOvertime, notes: e.notes }); setEditId(e.id); };
-  const deleteEntry = (id: string) => setEntries(p => p.filter(e => e.id !== id));
-  const cancel = () => { setForm(EMPTY_ENTRY()); setEditId(null); };
-
-  const filtered = entries.filter(e => {
-    if (filterStaff !== "all" && e.staffName !== filterStaff) return false;
-    if (filterMonth && !e.date.startsWith(filterMonth)) return false;
-    return true;
-  });
-
-  const totalHours = filtered.reduce((s, e) => s + (parseFloat(e.hoursRegular) || 0), 0);
-  const totalOT = filtered.reduce((s, e) => s + (parseFloat(e.hoursOvertime) || 0), 0);
-
-  // Summary by staff
-  const byStaff = filtered.reduce<Record<string, { reg: number; ot: number }>>((acc, e) => {
-    if (!acc[e.staffName]) acc[e.staffName] = { reg: 0, ot: 0 };
-    acc[e.staffName].reg += parseFloat(e.hoursRegular) || 0;
-    acc[e.staffName].ot += parseFloat(e.hoursOvertime) || 0;
-    return acc;
-  }, {});
-
-  const months: string[] = [];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-
-  const fmtDate = (d: string) => {
-    try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
-  };
-
-  return (
-    <div className="space-y-5">
-      {/* Add / Edit form */}
-      <div className="bg-gray-50 border rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">{editId ? "Edit Entry" : "Add Timesheet Entry"}</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <div>
-            <Label className="text-xs">Staff member</Label>
-            {staffLoading ? <div className="h-9 bg-gray-100 rounded animate-pulse" /> : (
-              <Select value={form.staffName} onValueChange={v => sf("staffName", v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>{staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
-              </Select>
-            )}
-          </div>
-          <div>
-            <Label className="text-xs">Date</Label>
-            <Input type="date" className="h-9 text-sm" value={form.date} onChange={e => sf("date", e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs">Task</Label>
-            <Select value={form.task} onValueChange={v => sf("task", v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
-              <SelectContent>{TASK_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Regular hrs</Label>
-            <Input type="number" min="0" step="0.25" className="h-9 text-sm" value={form.hoursRegular} onChange={e => sf("hoursRegular", e.target.value)} placeholder="8" />
-          </div>
-          <div>
-            <Label className="text-xs">Overtime hrs</Label>
-            <Input type="number" min="0" step="0.25" className="h-9 text-sm" value={form.hoursOvertime} onChange={e => sf("hoursOvertime", e.target.value)} placeholder="0" />
-          </div>
-          <div>
-            <Label className="text-xs">Notes</Label>
-            <Input className="h-9 text-sm" value={form.notes} onChange={e => sf("notes", e.target.value)} placeholder="Optional…" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={save} disabled={!form.staffName || !form.date || !form.task}>
-            <Plus className="w-3.5 h-3.5 mr-1" />{editId ? "Update" : "Add Entry"}
-          </Button>
-          {editId && <Button size="sm" variant="outline" onClick={cancel}>Cancel</Button>}
-        </div>
-      </div>
-
-      {/* Filters + summary */}
-      {entries.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Staff:</Label>
-            <Select value={filterStaff} onValueChange={setFilterStaff}>
-              <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All staff</SelectItem>
-                {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Month:</Label>
-            <Select value={filterMonth || "all"} onValueChange={v => setFilterMonth(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="All months" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All months</SelectItem>
-                {months.map(m => <SelectItem key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="ml-auto flex gap-4 text-sm">
-            <span className="text-gray-500">Regular: <strong className="text-gray-900">{totalHours.toFixed(1)} hrs</strong></span>
-            <span className="text-gray-500">Overtime: <strong className="text-amber-700">{totalOT.toFixed(1)} hrs</strong></span>
-          </div>
-        </div>
-      )}
-
-      {/* Staff summary cards */}
-      {Object.keys(byStaff).length > 1 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {Object.entries(byStaff).map(([name, hrs]) => (
-            <div key={name} className="border rounded-xl p-3 bg-white">
-              <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">{hrs.reg.toFixed(1)} <span className="text-xs font-normal text-gray-400">reg hrs</span></p>
-              {hrs.ot > 0 && <p className="text-xs text-amber-600">+ {hrs.ot.toFixed(1)} OT hrs</p>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Timesheet table */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <GraduationCap className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p>{entries.length === 0 ? "No timesheet entries yet — add your first entry above." : "No entries match the current filters."}</p>
-        </div>
-      ) : (
-        <div className="bg-white border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b text-xs text-gray-600">
-                {["Date", "Staff", "Task", "Reg hrs", "OT hrs", "Notes", ""].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e, i, arr) => (
-                <tr key={e.id} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(e.date)}</td>
-                  <td className="px-4 py-2.5 font-medium">{e.staffName}</td>
-                  <td className="px-4 py-2.5">{e.task}</td>
-                  <td className="px-4 py-2.5 font-mono">{e.hoursRegular || "—"}</td>
-                  <td className="px-4 py-2.5 font-mono">{e.hoursOvertime ? <span className="text-amber-700">{e.hoursOvertime}</span> : "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-400 text-xs">{e.notes || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-1.5">
-                      <button onClick={() => startEdit(e)} className="text-gray-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteEntry(e.id)} className="text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   );
 }

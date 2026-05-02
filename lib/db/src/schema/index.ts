@@ -9,6 +9,7 @@ export * from "./equipment";
 export * from "./livestock";
 export * from "./biosecurity";
 export * from "./staff-training";
+export * from "./labour";
 export * from "./risk-waste";
 export * from "./inspections";
 export * from "./environmental";

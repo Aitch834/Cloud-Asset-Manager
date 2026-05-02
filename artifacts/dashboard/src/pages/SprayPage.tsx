@@ -254,7 +254,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
+  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
   const [deliveryStockItemId, setDeliveryStockItemId] = useState<string | null>(null);
@@ -284,6 +284,8 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       batchNumber: r.batchNumber || "",
       lotNumber: r.lotNumber || "",
       stockDeliveryId: r.stockDeliveryId ? String(r.stockDeliveryId) : "",
+      bufferZoneMetres: r.bufferZoneMetres != null ? String(r.bufferZoneMetres) : "",
+      waterSourceNearby: r.waterSourceNearby || "",
       notes: r.notes || "",
     });
   }

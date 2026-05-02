@@ -56,6 +56,7 @@ import {
   ShoppingBag,
   Scissors,
   Scale,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -79,6 +80,7 @@ const coreNav: NavItem[] = [
   { name: "Task Board", href: "/task-board", icon: ClipboardList },
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
+  { name: "Labour", href: "/labour", icon: Clock },
   { name: "Training", href: "/training", icon: GraduationCap },
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },

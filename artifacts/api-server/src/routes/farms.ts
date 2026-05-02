@@ -308,6 +308,11 @@ import {
   grainSettlementNotesTable,
   livestockSettlementNotesTable,
   medicatedFeedRecordsTable,
+  labourTimesheetEntriesTable,
+  labourRotaTable,
+  labourAbsencesTable,
+  labourLeaveEntitlementTable,
+  labourHourlyRatesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -1307,6 +1312,8 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
       batchNumber: sprayApplicationsTable.batchNumber,
       lotNumber: sprayApplicationsTable.lotNumber,
       stockDeliveryId: sprayApplicationsTable.stockDeliveryId,
+      bufferZoneMetres: sprayApplicationsTable.bufferZoneMetres,
+      waterSourceNearby: sprayApplicationsTable.waterSourceNearby,
       notes: sprayApplicationsTable.notes,
       createdAt: sprayApplicationsTable.createdAt,
     })
@@ -22293,6 +22300,133 @@ router.put("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTena
 router.delete("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
   await db.delete(medicatedFeedRecordsTable).where(and(eq(medicatedFeedRecordsTable.id, id), eq(medicatedFeedRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Labour Management Routes ──────────────────────────────────────────────────
+
+// Timesheet entries
+router.get("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(labourTimesheetEntriesTable).where(eq(labourTimesheetEntriesTable.farmId, farmId)).orderBy(desc(labourTimesheetEntriesTable.date));
+  res.json({ entries: rows });
+});
+router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(labourTimesheetEntriesTable).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
+  res.json({ entry: row });
+});
+router.put("/farms/:farmId/labour/timesheets/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(labourTimesheetEntriesTable).set({ staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, approvedAt: b.approvedBy ? new Date() : null }).where(and(eq(labourTimesheetEntriesTable.id, id), eq(labourTimesheetEntriesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ entry: row });
+});
+router.delete("/farms/:farmId/labour/timesheets/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(labourTimesheetEntriesTable).where(and(eq(labourTimesheetEntriesTable.id, id), eq(labourTimesheetEntriesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Rota
+router.get("/farms/:farmId/labour/rota", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(labourRotaTable).where(eq(labourRotaTable.farmId, farmId)).orderBy(desc(labourRotaTable.weekStartDate));
+  res.json({ rota: rows });
+});
+router.post("/farms/:farmId/labour/rota", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(labourRotaTable).values({ farmId, weekStartDate: String(b.weekStartDate ?? ""), staffName: String(b.staffName ?? ""), monShift: b.monShift ? String(b.monShift) : null, tueShift: b.tueShift ? String(b.tueShift) : null, wedShift: b.wedShift ? String(b.wedShift) : null, thuShift: b.thuShift ? String(b.thuShift) : null, friShift: b.friShift ? String(b.friShift) : null, satShift: b.satShift ? String(b.satShift) : null, sunShift: b.sunShift ? String(b.sunShift) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ entry: row });
+});
+router.put("/farms/:farmId/labour/rota/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(labourRotaTable).set({ monShift: b.monShift ? String(b.monShift) : null, tueShift: b.tueShift ? String(b.tueShift) : null, wedShift: b.wedShift ? String(b.wedShift) : null, thuShift: b.thuShift ? String(b.thuShift) : null, friShift: b.friShift ? String(b.friShift) : null, satShift: b.satShift ? String(b.satShift) : null, sunShift: b.sunShift ? String(b.sunShift) : null, notes: b.notes ? String(b.notes) : null }).where(and(eq(labourRotaTable.id, id), eq(labourRotaTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ entry: row });
+});
+router.delete("/farms/:farmId/labour/rota/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(labourRotaTable).where(and(eq(labourRotaTable.id, id), eq(labourRotaTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Absences
+router.get("/farms/:farmId/labour/absences", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(labourAbsencesTable).where(eq(labourAbsencesTable.farmId, farmId)).orderBy(desc(labourAbsencesTable.startDate));
+  res.json({ absences: rows });
+});
+router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(labourAbsencesTable).values({ farmId, staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).returning();
+  res.json({ absence: row });
+});
+router.put("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(labourAbsencesTable).set({ staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ absence: row });
+});
+router.delete("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(labourAbsencesTable).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Leave entitlements
+router.get("/farms/:farmId/labour/entitlements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(labourLeaveEntitlementTable).where(eq(labourLeaveEntitlementTable.farmId, farmId)).orderBy(desc(labourLeaveEntitlementTable.year), labourLeaveEntitlementTable.staffName);
+  res.json({ entitlements: rows });
+});
+router.post("/farms/:farmId/labour/entitlements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(labourLeaveEntitlementTable).values({ farmId, staffName: String(b.staffName ?? ""), year: parseInt(String(b.year ?? new Date().getFullYear())), entitlementDays: String(b.entitlementDays ?? "28"), carriedOverDays: String(b.carriedOverDays ?? "0"), wtrOptOut: b.wtrOptOut === true || b.wtrOptOut === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ entitlement: row });
+});
+router.put("/farms/:farmId/labour/entitlements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(labourLeaveEntitlementTable).set({ entitlementDays: String(b.entitlementDays ?? "28"), carriedOverDays: String(b.carriedOverDays ?? "0"), wtrOptOut: b.wtrOptOut === true || b.wtrOptOut === "true", notes: b.notes ? String(b.notes) : null }).where(and(eq(labourLeaveEntitlementTable.id, id), eq(labourLeaveEntitlementTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ entitlement: row });
+});
+router.delete("/farms/:farmId/labour/entitlements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(labourLeaveEntitlementTable).where(and(eq(labourLeaveEntitlementTable.id, id), eq(labourLeaveEntitlementTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Hourly rates
+router.get("/farms/:farmId/labour/rates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const rows = await db.select().from(labourHourlyRatesTable).where(eq(labourHourlyRatesTable.farmId, farmId)).orderBy(labourHourlyRatesTable.staffName, desc(labourHourlyRatesTable.effectiveFrom));
+  res.json({ rates: rows });
+});
+router.post("/farms/:farmId/labour/rates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(labourHourlyRatesTable).values({ farmId, staffName: String(b.staffName ?? ""), regularRatePence: parseInt(String(b.regularRatePence ?? "0")), overtimeRatePence: parseInt(String(b.overtimeRatePence ?? "0")), effectiveFrom: String(b.effectiveFrom ?? ""), notes: b.notes ? String(b.notes) : null }).returning();
+  res.json({ rate: row });
+});
+router.put("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(labourHourlyRatesTable).set({ regularRatePence: parseInt(String(b.regularRatePence ?? "0")), overtimeRatePence: parseInt(String(b.overtimeRatePence ?? "0")), effectiveFrom: String(b.effectiveFrom ?? ""), notes: b.notes ? String(b.notes) : null }).where(and(eq(labourHourlyRatesTable.id, id), eq(labourHourlyRatesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ rate: row });
+});
+router.delete("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.delete(labourHourlyRatesTable).where(and(eq(labourHourlyRatesTable.id, id), eq(labourHourlyRatesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
