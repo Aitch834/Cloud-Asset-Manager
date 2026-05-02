@@ -282,8 +282,15 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
       {/* Add/Edit dialog */}
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editItem ? "Edit Timesheet Entry" : "Add Timesheet Entry"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 mt-2">
+          <DialogHeader>
+            <DialogTitle>{editItem ? "Edit Timesheet Entry" : "Add Timesheet Entry"}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Each entry records <strong>one task type</strong> for one staff member on one date.
+            To record multiple tasks in the same day (e.g. cultivation in the morning, livestock care in the afternoon),
+            save this entry then click <strong>Add Entry</strong> again with the same staff member and date.
+          </p>
+          <div className="space-y-4 mt-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Staff Member *</Label>
@@ -304,31 +311,37 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
                 </Select>
               </div>
               <div>
-                <Label>Regular Hours</Label>
-                <Input type="number" min="0" step="0.25" className="mt-1" value={form.hoursRegular} onChange={e => sf("hoursRegular", e.target.value)} placeholder="e.g. 8" />
+                <Label>Regular Hours <span className="text-muted-foreground font-normal text-xs">(for this task)</span></Label>
+                <Input type="number" min="0" step="0.25" className="mt-1" value={form.hoursRegular} onChange={e => sf("hoursRegular", e.target.value)} placeholder="e.g. 4" />
               </div>
               <div>
-                <Label>Overtime Hours</Label>
+                <Label>Overtime Hours <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
                 <Input type="number" min="0" step="0.25" className="mt-1" value={form.hoursOvertime} onChange={e => sf("hoursOvertime", e.target.value)} placeholder="0" />
               </div>
-              <div>
-                <Label>Approved By</Label>
-                <Input className="mt-1" value={form.approvedBy} onChange={e => sf("approvedBy", e.target.value)} placeholder="Supervisor name" />
+              <div className="col-span-2">
+                <Label>Approved By <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Select value={form.approvedBy || "none"} onValueChange={v => sf("approvedBy", v === "none" ? "" : v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select supervisor…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Not yet approved —</SelectItem>
+                    {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="col-span-2">
-                <Label>Notes</Label>
+                <Label>Notes <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
                 <textarea
-                  className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[72px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.notes}
                   onChange={e => sf("notes", e.target.value)}
-                  placeholder="Optional details…"
+                  placeholder="e.g. North block, worked to 18:00 due to weather"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setForm(emptyForm()); }}>Cancel</Button>
               <Button onClick={save} disabled={!form.staffName || !form.date || !form.taskType || addMut.isPending || editMut.isPending}>
-                {editItem ? "Update Entry" : "Add Entry"}
+                {editItem ? "Update Entry" : "Save Entry"}
               </Button>
             </div>
           </div>
@@ -1082,13 +1095,20 @@ export default function LabourPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<LabourTab>("timesheets");
 
-  const staffQ = useQuery<{ members: Array<{ id: string; name: string | null; departmentName?: string | null }> }>({
+  const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean }> }>({
     queryKey: ["staff-members", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/staff`).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
     enabled: !!farmId,
   });
 
-  const staffNames = useMemo(() => (staffQ.data?.members ?? []).map(m => m.name ?? "").filter(Boolean).sort(), [staffQ.data]);
+  const staffNames = useMemo(
+    () => (staffQ.data?.members ?? [])
+      .filter(m => m.isActive !== false)
+      .map(m => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim())
+      .filter(Boolean)
+      .sort(),
+    [staffQ.data],
+  );
 
   if (!farmId) {
     return (
