@@ -36,6 +36,61 @@ import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
+const CERTIFIERS = [
+  "Soil Association",
+  "OF&G (Organic Farmers & Growers)",
+  "Biodynamic Association (BDOCA)",
+  "Other",
+];
+
+const LIVESTOCK_SPECIES = [
+  "Cattle",
+  "Sheep",
+  "Pigs",
+  "Poultry (Layers)",
+  "Poultry (Broilers)",
+  "Goats",
+  "Deer",
+  "Other",
+];
+
+const FEED_TYPES: [string, string][] = [
+  ["Concentrate", "Concentrate"],
+  ["Grass Silage", "Grass Silage"],
+  ["Maize Silage", "Maize Silage"],
+  ["Hay", "Hay"],
+  ["Haylage", "Haylage"],
+  ["Wholecrop Silage", "Wholecrop Silage"],
+  ["Grazed Grass", "Grazed Grass"],
+  ["Straw", "Straw"],
+  ["Root Crops / Beet", "Root Crops / Beet"],
+  ["Minerals & Supplements", "Minerals & Supplements"],
+  ["Fishmeal", "Fishmeal"],
+  ["Other", "Other"],
+];
+
+const PRODUCT_CATEGORIES = [
+  "Antibiotic",
+  "NSAID",
+  "Anthelmintic",
+  "Antiparasitic",
+  "Vaccine",
+  "Homeopathic",
+  "Other",
+];
+
+const ROUTES_OF_ADMINISTRATION = [
+  "Intramuscular (IM)",
+  "Subcutaneous (SC)",
+  "Intravenous (IV)",
+  "Oral",
+  "Intramammary",
+  "Topical",
+  "Other",
+];
+
+interface FarmSupplier { id: number; name: string; }
+
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
   return new Date(date).toLocaleDateString("en-GB");
@@ -489,7 +544,15 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Species *</Label>
-              <Input value={form.species ?? ""} onChange={f("species")} placeholder="e.g. Cattle, Sheep" />
+              <Select
+                value={form.species ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, species: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
+                <SelectContent>
+                  {LIVESTOCK_SPECIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Herd / Flock Name *</Label>
@@ -525,7 +588,23 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Certifier</Label>
-              <Input value={form.certifier ?? ""} onChange={f("certifier")} placeholder="e.g. Soil Association" />
+              <Select
+                value={CERTIFIERS.includes(form.certifier ?? "") ? (form.certifier ?? "") : (form.certifier ? "Other" : "")}
+                onValueChange={(v) => setForm((p) => ({ ...p, certifier: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select certifier…" /></SelectTrigger>
+                <SelectContent>
+                  {CERTIFIERS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {(form.certifier === "Other" || (!!form.certifier && !CERTIFIERS.slice(0, -1).includes(form.certifier))) && (
+                <Input
+                  className="mt-1"
+                  value={form.certifier === "Other" ? "" : (form.certifier ?? "")}
+                  onChange={(e) => setForm((p) => ({ ...p, certifier: e.target.value || "Other" }))}
+                  placeholder="Please specify certifying body…"
+                />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Certification Ref</Label>
@@ -565,6 +644,7 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const [editing, setEditing] = useState<FeedRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<FeedRecord | null>(null);
   const [form, setForm] = useState<Partial<FeedRecord>>({});
+  const [supplierId, setSupplierId] = useState<number | null>(null);
 
   const { data } = useQuery<{ records: FeedRecord[] }>({
     queryKey: ["organic-livestock-feed", farmId],
@@ -572,6 +652,13 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
     enabled: !!farmId,
   });
   const records = data?.records ?? [];
+
+  const { data: suppliersData } = useQuery<{ records: FarmSupplier[] }>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const suppliers: FarmSupplier[] = suppliersData?.records ?? [];
 
   const save = useMutation({
     mutationFn: () => {
@@ -594,8 +681,14 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setOpen(true); }
-  function openEdit(r: FeedRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setSupplierId(null); setOpen(true); }
+  function openEdit(r: FeedRecord) {
+    setEditing(r);
+    setForm({ ...r });
+    const matched = suppliers.find((s) => s.name === (r.supplier ?? ""));
+    setSupplierId(matched?.id ?? null);
+    setOpen(true);
+  }
 
   const f = (k: keyof FeedRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -702,7 +795,15 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </div>
             <div className="space-y-1">
               <Label>Species *</Label>
-              <Input value={form.species ?? ""} onChange={f("species")} placeholder="e.g. Cattle" />
+              <Select
+                value={form.species ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, species: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
+                <SelectContent>
+                  {LIVESTOCK_SPECIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Herd / Flock</Label>
@@ -710,15 +811,55 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </div>
             <div className="space-y-1">
               <Label>Feed Type *</Label>
-              <Input value={form.feedType ?? ""} onChange={f("feedType")} placeholder="e.g. Concentrate, Forage" />
+              <Select
+                value={form.feedType ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, feedType: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                <SelectContent>
+                  {FEED_TYPES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Feed Product Name *</Label>
               <Input value={form.feedProductName ?? ""} onChange={f("feedProductName")} />
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Supplier</Label>
-              <Input value={form.supplier ?? ""} onChange={f("supplier")} />
+              {suppliers.length > 0 ? (
+                <>
+                  <Select
+                    value={supplierId ? String(supplierId) : "__manual__"}
+                    onValueChange={(v) => {
+                      if (v === "__manual__") {
+                        setSupplierId(null);
+                        setForm((p) => ({ ...p, supplier: "" }));
+                      } else {
+                        const s = suppliers.find((s) => String(s.id) === v);
+                        setSupplierId(s?.id ?? null);
+                        setForm((p) => ({ ...p, supplier: s?.name ?? "" }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__manual__">— Enter manually —</SelectItem>
+                      {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {supplierId === null && (
+                    <Input
+                      className="mt-1"
+                      value={form.supplier ?? ""}
+                      onChange={f("supplier")}
+                      placeholder="Supplier name (not in register)"
+                    />
+                  )}
+                </>
+              ) : (
+                <Input value={form.supplier ?? ""} onChange={f("supplier")} />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Supplier Approval No.</Label>
@@ -912,7 +1053,15 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
             </div>
             <div className="space-y-1">
               <Label>Species *</Label>
-              <Input value={form.species ?? ""} onChange={f("species")} placeholder="e.g. Cattle" />
+              <Select
+                value={form.species ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, species: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
+                <SelectContent>
+                  {LIVESTOCK_SPECIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Herd / Flock</Label>
@@ -1180,7 +1329,15 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Species *</Label>
-              <Input value={form.species ?? ""} onChange={f("species")} placeholder="e.g. Cattle" />
+              <Select
+                value={form.species ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, species: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
+                <SelectContent>
+                  {LIVESTOCK_SPECIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Animal IDs</Label>
@@ -1196,7 +1353,15 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Product Category</Label>
-              <Input value={form.productCategory ?? ""} onChange={f("productCategory")} placeholder="e.g. Antibiotic" />
+              <Select
+                value={form.productCategory ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, productCategory: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Active Ingredient</Label>
@@ -1208,7 +1373,15 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Route of Administration</Label>
-              <Input value={form.routeOfAdministration ?? ""} onChange={f("routeOfAdministration")} placeholder="e.g. IM, SC" />
+              <Select
+                value={form.routeOfAdministration ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, routeOfAdministration: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select route…" /></SelectTrigger>
+                <SelectContent>
+                  {ROUTES_OF_ADMINISTRATION.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Vet Name</Label>

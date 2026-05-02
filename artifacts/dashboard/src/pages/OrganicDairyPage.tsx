@@ -50,6 +50,48 @@ const FEED_TYPES: [string, string][] = [
   ["Other", "Other"],
 ];
 
+const CERTIFIERS = [
+  "Soil Association",
+  "OF&G (Organic Farmers & Growers)",
+  "Biodynamic Association (BDOCA)",
+  "Other",
+];
+
+const DAIRY_BREEDS = [
+  "Holstein Friesian",
+  "Jersey",
+  "Ayrshire",
+  "Guernsey",
+  "British Friesian",
+  "Brown Swiss",
+  "Shorthorn (Dairy)",
+  "Montbéliarde",
+  "Norwegian Red",
+  "Mixed / Cross-breed",
+  "Other",
+];
+
+const PRODUCT_CATEGORIES = [
+  "Antibiotic",
+  "NSAID",
+  "Anthelmintic",
+  "Antiparasitic",
+  "Vaccine",
+  "Teat Sealant",
+  "Homeopathic",
+  "Other",
+];
+
+const ROUTES_OF_ADMINISTRATION = [
+  "Intramuscular (IM)",
+  "Subcutaneous (SC)",
+  "Intravenous (IV)",
+  "Oral",
+  "Intramammary",
+  "Topical",
+  "Other",
+];
+
 interface FarmSupplier { id: number; name: string; }
 
 function fmt(date: string | null | undefined) {
@@ -487,7 +529,15 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
             </div>
             <div className="space-y-1">
               <Label>Breed</Label>
-              <Input value={form.breed ?? ""} onChange={f("breed")} placeholder="e.g. Holstein Friesian" />
+              <Select
+                value={form.breed ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, breed: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select breed…" /></SelectTrigger>
+                <SelectContent>
+                  {DAIRY_BREEDS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Number of Cows</Label>
@@ -519,7 +569,23 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
             </div>
             <div className="space-y-1">
               <Label>Certifier</Label>
-              <Input value={form.certifier ?? ""} onChange={f("certifier")} placeholder="e.g. Soil Association" />
+              <Select
+                value={CERTIFIERS.includes(form.certifier ?? "") ? (form.certifier ?? "") : (form.certifier ? "Other" : "")}
+                onValueChange={(v) => setForm((p) => ({ ...p, certifier: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select certifier…" /></SelectTrigger>
+                <SelectContent>
+                  {CERTIFIERS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {(form.certifier === "Other" || (!!form.certifier && !CERTIFIERS.slice(0, -1).includes(form.certifier))) && (
+                <Input
+                  className="mt-1"
+                  value={form.certifier === "Other" ? "" : (form.certifier ?? "")}
+                  onChange={(e) => setForm((p) => ({ ...p, certifier: e.target.value || "Other" }))}
+                  placeholder="Please specify certifying body…"
+                />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Certification Ref</Label>
@@ -1263,7 +1329,15 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Product Category</Label>
-              <Input value={form.productCategory ?? ""} onChange={f("productCategory")} placeholder="e.g. Antibiotic, NSAID" />
+              <Select
+                value={form.productCategory ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, productCategory: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Active Ingredient</Label>
@@ -1275,7 +1349,15 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             </div>
             <div className="space-y-1">
               <Label>Route of Administration</Label>
-              <Input value={form.routeOfAdministration ?? ""} onChange={f("routeOfAdministration")} placeholder="e.g. IM, intramammary" />
+              <Select
+                value={form.routeOfAdministration ?? ""}
+                onValueChange={(v) => setForm((p) => ({ ...p, routeOfAdministration: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select route…" /></SelectTrigger>
+                <SelectContent>
+                  {ROUTES_OF_ADMINISTRATION.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Vet Name</Label>
