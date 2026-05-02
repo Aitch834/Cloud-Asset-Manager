@@ -17,7 +17,7 @@ import {
   Eye, Receipt, ExternalLink,
 } from "lucide-react";
 
-type Tab = "biosecurity" | "contingency" | "disease" | "recalls";
+type Tab = "biosecurity" | "contingency" | "disease" | "recalls" | "audit-pack";
 
 function parseAltSuppliers(raw: unknown): Array<{ name: string; phone?: string; notes?: string }> | null {
   if (!raw) return null;
@@ -942,6 +942,7 @@ export default function CompliancePage() {
         <TabButton active={tab === "contingency"} onClick={() => setTab("contingency")}><Package className="w-3.5 h-3.5 mr-1 inline" />Feed Contingency Plan</TabButton>
         <TabButton active={tab === "disease"} onClick={() => setTab("disease")}><Bug className="w-3.5 h-3.5 mr-1 inline" />Disease &amp; Incident Log ({diseases.length})</TabButton>
         <TabButton active={tab === "recalls"} onClick={() => setTab("recalls")}><AlertTriangle className="w-3.5 h-3.5 mr-1 inline" />Feed Recalls ({recalls.length})</TabButton>
+        <TabButton active={tab === "audit-pack"} onClick={() => setTab("audit-pack")}><Printer className="w-3.5 h-3.5 mr-1 inline" />RT Audit Pack</TabButton>
       </TabBar>
 
       {/* ══ TAB 1: BIOSECURITY PLAN ══════════════════════════════════════════ */}
@@ -2369,6 +2370,200 @@ export default function CompliancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ══ TAB 5: RT AUDIT PACK ══════════════════════════════════════════════ */}
+      {tab === "audit-pack" && farmId && <RedTractorAuditPack farmId={farmId} />}
+
     </AppLayout>
+  );
+}
+
+// ─── Red Tractor Audit Pack ───────────────────────────────────────────────────
+function RedTractorAuditPack({ farmId }: { farmId: number }) {
+  const today = new Date();
+  const oneYearAgo = new Date(today); oneYearAgo.setFullYear(today.getFullYear() - 1);
+  const [dateFrom, setDateFrom] = useState(oneYearAgo.toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(today.toISOString().slice(0, 10));
+  const [sections, setSections] = useState({
+    spray: true, movements: true, medicines: true, training: true,
+    nvz: true, biosecurity: true, documents: true, risk: true,
+  });
+
+  const farmQ = useQuery<{ record: any }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farm = farmQ.data?.record;
+
+  const sprayQ = useQuery<{ records: any[] }>({
+    queryKey: ["spray-records-audit", farmId, dateFrom, dateTo],
+    queryFn: () => fetch(`/api/farms/${farmId}/spray-records?dateFrom=${dateFrom}&dateTo=${dateTo}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.spray,
+  });
+  const movementsQ = useQuery<{ records: any[] }>({
+    queryKey: ["movements-audit", farmId, dateFrom, dateTo],
+    queryFn: () => fetch(`/api/farms/${farmId}/movements?dateFrom=${dateFrom}&dateTo=${dateTo}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.movements,
+  });
+  const medicinesQ = useQuery<{ records: any[] }>({
+    queryKey: ["medicines-audit", farmId, dateFrom, dateTo],
+    queryFn: () => fetch(`/api/farms/${farmId}/medicines?dateFrom=${dateFrom}&dateTo=${dateTo}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.medicines,
+  });
+  const trainingQ = useQuery<{ records: any[] }>({
+    queryKey: ["training-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/training`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.training,
+  });
+  const certsQ = useQuery<{ records: any[] }>({
+    queryKey: ["certs-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/certificates`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.training,
+  });
+
+  const sprayRecords = Array.isArray(sprayQ.data?.records) ? sprayQ.data!.records : [];
+  const movements = Array.isArray(movementsQ.data?.records) ? movementsQ.data!.records : [];
+  const medicines = Array.isArray(medicinesQ.data?.records) ? medicinesQ.data!.records : [];
+  const training = Array.isArray(trainingQ.data?.records) ? trainingQ.data!.records : [];
+  const certs = Array.isArray(certsQ.data?.records) ? certsQ.data!.records : [];
+
+  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+
+  const handlePrint = () => {
+    const printedDate = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const tableStyle = `border-collapse:collapse;width:100%;margin-bottom:20px;font-size:9px`;
+    const thStyle = `border:1px solid #d1d5db;padding:5px 8px;text-align:left;background:#f3f4f6;font-weight:700`;
+    const tdStyle = `border:1px solid #e5e7eb;padding:4px 8px`;
+    const sectionH = `font-size:13px;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #16a34a;padding-bottom:4px;color:#15803d`;
+
+    const sprayRows = sections.spray ? sprayRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.applicationDate)}</td><td style="${tdStyle}">${r.productName||"—"}</td><td style="${tdStyle}">${r.fieldName||r.fieldId||"—"}</td><td style="${tdStyle}">${r.operator||"—"}</td><td style="${tdStyle}">${r.totalArea||"—"}</td></tr>`
+    ).join("") : "";
+
+    const mvtRows = sections.movements ? movements.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.movementDate)}</td><td style="${tdStyle}">${r.movementType||"—"}</td><td style="${tdStyle}">${r.species||"—"}</td><td style="${tdStyle}">${r.numberOfAnimals||"—"}</td><td style="${tdStyle}">${r.licenceNumber||"—"}</td></tr>`
+    ).join("") : "";
+
+    const medRows = sections.medicines ? medicines.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.treatmentDate||r.administrationDate)}</td><td style="${tdStyle}">${r.productName||"—"}</td><td style="${tdStyle}">${r.species||"—"}</td><td style="${tdStyle}">${r.withdrawalPeriodDays||"—"}</td><td style="${tdStyle}">${r.administeredBy||"—"}</td></tr>`
+    ).join("") : "";
+
+    const trainRows = sections.training ? training.map(r =>
+      `<tr><td style="${tdStyle}">${r.userId||"—"}</td><td style="${tdStyle}">${r.trainingTitle||"—"}</td><td style="${tdStyle}">${fmtD(r.trainingDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
+    ).join("") : "";
+
+    const certRows = sections.training ? certs.map(r =>
+      `<tr><td style="${tdStyle}">${r.userId||"—"}</td><td style="${tdStyle}">${r.certificateType||"—"}</td><td style="${tdStyle}">${fmtD(r.issueDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
+    ).join("") : "";
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>RT Audit Pack — ${farm?.name||"Farm"}</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0;padding:24px}h1{font-size:18px;font-weight:800;color:#15803d;margin:0 0 2px}h2{font-size:14px;font-weight:700;margin:0 0 4px}p{margin:0 0 4px;font-size:10px}@media print{@page{margin:1.5cm}}</style>
+</head><body>
+<div style="border-bottom:3px solid #16a34a;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div><h1>Red Tractor Audit Pack</h1><h2>${farm?.name||"Farm"}</h2><p>CPH: ${farm?.cphNumber||"—"} &nbsp;|&nbsp; RT ID: ${farm?.redTractorId||"—"}</p></div>
+  <div style="text-align:right;font-size:9px;color:#555"><p>Printed: ${printedDate}</p><p>Period: ${dateFrom} to ${dateTo}</p></div>
+</div>
+
+${sections.spray ? `<p style="${sectionH}">1. Spray & Input Application Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Field</th><th style="${thStyle}">Operator</th><th style="${thStyle}">Area (ha)</th></tr></thead><tbody>${sprayRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+
+${sections.movements ? `<p style="${sectionH}">2. Livestock Movement Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Type</th><th style="${thStyle}">Species</th><th style="${thStyle}">No.</th><th style="${thStyle}">Licence Ref</th></tr></thead><tbody>${mvtRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+
+${sections.medicines ? `<p style="${sectionH}">3. Medicine Treatment Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Species</th><th style="${thStyle}">Withdrawal (days)</th><th style="${thStyle}">Administered by</th></tr></thead><tbody>${medRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+
+${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Training</th><th style="${thStyle}">Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${trainRows||"<tr><td colspan=4 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records</td></tr>"}</tbody></table>
+<p style="${sectionH}">4b. Certificates & Qualifications</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Certificate</th><th style="${thStyle}">Issue Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${certRows||"<tr><td colspan=4 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records</td></tr>"}</tbody></table>` : ""}
+
+<div style="margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px;font-size:9px;color:#6b7280">
+<p>This document was generated by BDE Farm Trac on ${printedDate}. It is an on-farm compliance record for Red Tractor and regulatory audit purposes. Records must be kept for a minimum of 3 years.</p>
+</div></body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); }
+  };
+
+  const sectionToggle = (k: keyof typeof sections) => setSections(p => ({ ...p, [k]: !p[k] }));
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
+        <div className="flex-1">
+          <h3 className="font-semibold text-gray-800">Red Tractor Audit Pack Generator</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Select a date range and the sections to include, then click Generate to open a print-ready PDF-style view with all selected records.</p>
+        </div>
+        <Button onClick={handlePrint} className="bg-green-700 hover:bg-green-800 text-white flex-shrink-0">
+          <Printer className="w-4 h-4 mr-2" />Generate &amp; Print Audit Pack
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-5 p-4 border rounded-xl bg-gray-50">
+        <div>
+          <label className="text-xs font-semibold text-gray-600 block mb-1">Date From</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="border rounded-md px-3 py-1.5 text-sm w-full bg-white" />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-600 block mb-1">Date To</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="border rounded-md px-3 py-1.5 text-sm w-full bg-white" />
+        </div>
+      </div>
+
+      <div className="mb-5">
+        <p className="text-xs font-semibold text-gray-600 mb-2">Sections to include</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            ["spray", "Spray & Input Records"],
+            ["movements", "Livestock Movements"],
+            ["medicines", "Medicine Records"],
+            ["training", "Staff Training & Certs"],
+            ["nvz", "NVZ Applications"],
+            ["biosecurity", "Biosecurity Plan"],
+            ["documents", "Document Register"],
+            ["risk", "Risk Assessments"],
+          ] as [keyof typeof sections, string][]).map(([k, label]) => (
+            <label key={k} className="flex items-center gap-2 cursor-pointer text-sm">
+              <input type="checkbox" checked={sections[k]} onChange={() => sectionToggle(k)}
+                className="w-4 h-4 accent-green-700 rounded" />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="border rounded-xl p-4 bg-white space-y-3">
+        <p className="text-xs font-semibold text-gray-600">Preview — Record Counts</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {sections.spray && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{sprayRecords.length}</p>
+              <p className="text-xs text-gray-500">Spray records</p>
+            </div>
+          )}
+          {sections.movements && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{movements.length}</p>
+              <p className="text-xs text-gray-500">Movements</p>
+            </div>
+          )}
+          {sections.medicines && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{medicines.length}</p>
+              <p className="text-xs text-gray-500">Medicine records</p>
+            </div>
+          )}
+          {sections.training && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{training.length + certs.length}</p>
+              <p className="text-xs text-gray-500">Training &amp; certs</p>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-gray-400">Click "Generate &amp; Print Audit Pack" to open a print-ready view. Use your browser's print dialog to save as PDF.</p>
+      </div>
+    </div>
   );
 }

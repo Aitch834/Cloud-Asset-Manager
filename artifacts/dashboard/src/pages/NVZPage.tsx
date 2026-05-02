@@ -219,7 +219,7 @@ export default function NVZPage() {
   const appMethods = useLookupStrings("nvz_application_methods", APP_METHODS);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments">("summary");
+  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments" | "closed-periods">("summary");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
@@ -536,6 +536,9 @@ export default function NVZPage() {
             )}
           </div>
         )}
+
+        {/* ── CLOSED PERIODS TAB ── */}
+        {tab === "closed-periods" && <NvzClosedPeriodsTab fields={yearSummary} />}
 
         {/* ── LOG TAB ── */}
         {tab === "log" && (
