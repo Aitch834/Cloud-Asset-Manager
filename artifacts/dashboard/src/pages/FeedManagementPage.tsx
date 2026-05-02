@@ -544,6 +544,10 @@ export default function FeedManagementPage() {
               <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 min-w-[1.25rem]">{activeFpos.length}</span>
             )}
           </TabButton>
+          <TabButton active={tab === "medicated"} onClick={() => setTab("medicated")}>
+            <ShieldCheck className="w-3.5 h-3.5 mr-1 inline" />
+            Medicated Feed
+          </TabButton>
         </TabBar>
 
         {/* ── STOCK TAB ── */}
@@ -1697,6 +1701,223 @@ export default function FeedManagementPage() {
         </DialogContent>
       </Dialog>
 
+        {/* ── MEDICATED FEED TAB ── */}
+        {tab === "medicated" && farmId && <MedicatedFeedTab farmId={farmId} />}
+
     </AppLayout>
+  );
+}
+
+// ─── Medicated Feed Tab ───────────────────────────────────────────────────────
+function MedicatedFeedTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const emptyForm = {
+    startDate: "", endDate: "", species: "", medicament: "", activeIngredient: "",
+    withdrawalDays: "", dosageKgPerTonne: "", quantityKg: "", supplierName: "",
+    batchNumber: "", prescribingVet: "", animalGroup: "", notes: ""
+  };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const q = useQuery<{ records: any[] }>({
+    queryKey: ["medicated-feed", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/medicated-feed`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const records: any[] = Array.isArray(q.data?.records) ? q.data!.records : [];
+
+  const today = new Date();
+  const activeRecords = records.filter(r => {
+    if (!r.endDate || !r.withdrawalDays) return false;
+    const endPlus = new Date(r.endDate);
+    endPlus.setDate(endPlus.getDate() + Number(r.withdrawalDays));
+    return endPlus >= today;
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (data: any) => {
+      const id = editItem?.id;
+      return fetch(id ? `/api/farms/${farmId}/medicated-feed/${id}` : `/api/farms/${farmId}/medicated-feed`, {
+        method: id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicated-feed", farmId] }); setOpen(false); toast({ title: "Record saved" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicated-feed/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicated-feed", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+  });
+
+  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };
+  const openEdit = (r: any) => {
+    setEditItem(r);
+    setForm({
+      startDate: r.startDate?.slice(0,10) ?? "", endDate: r.endDate?.slice(0,10) ?? "",
+      species: r.species ?? "", medicament: r.medicament ?? "", activeIngredient: r.activeIngredient ?? "",
+      withdrawalDays: r.withdrawalDays ?? "", dosageKgPerTonne: r.dosageKgPerTonne ?? "", quantityKg: r.quantityKg ?? "",
+      supplierName: r.supplierName ?? "", batchNumber: r.batchNumber ?? "", prescribingVet: r.prescribingVet ?? "",
+      animalGroup: r.animalGroup ?? "", notes: r.notes ?? ""
+    });
+    setOpen(true);
+  };
+  const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  const withdrawalStatus = (r: any) => {
+    if (!r.endDate || !r.withdrawalDays) return null;
+    const clearDate = new Date(r.endDate);
+    clearDate.setDate(clearDate.getDate() + Number(r.withdrawalDays));
+    const daysLeft = Math.ceil((clearDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 0) return <span className="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Clear</span>;
+    if (daysLeft <= 3) return <span className="text-xs text-red-700 bg-red-100 px-2 py-0.5 rounded-full font-semibold">{daysLeft}d left — HOLD</span>;
+    return <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">{daysLeft}d withdrawal</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div>
+          <h3 className="font-semibold text-gray-800">Medicated Feed Records</h3>
+          <p className="text-xs text-gray-500">Track medicated compound feeds — includes withdrawal period status for food safety compliance.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Record</Button>
+      </div>
+
+      {activeRecords.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4" /> {activeRecords.length} active withdrawal period{activeRecords.length !== 1 ? "s" : ""} in progress
+          </p>
+          <p className="text-xs text-amber-700 mt-0.5">Do not send affected animals for slaughter until withdrawal period is complete.</p>
+        </div>
+      )}
+
+      {q.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
+      {!q.isLoading && records.length === 0 && (
+        <div className="border-2 border-dashed rounded-xl p-10 text-center text-gray-400">
+          <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No medicated feed records yet</p>
+          <p className="text-xs mt-1">Record medicated compound feeds and track withdrawal periods.</p>
+        </div>
+      )}
+
+      {records.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600">Start</th>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600">End</th>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600">Species</th>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600 hidden sm:table-cell">Medicament</th>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600 hidden md:table-cell">Animal Group</th>
+                <th className="text-left px-3 py-2.5 font-medium text-gray-600">Withdrawal</th>
+                <th className="px-3 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtD(r.startDate)}</td>
+                  <td className="px-3 py-2">{fmtD(r.endDate)}</td>
+                  <td className="px-3 py-2 font-medium">{r.species}</td>
+                  <td className="px-3 py-2 hidden sm:table-cell">{r.medicament}</td>
+                  <td className="px-3 py-2 hidden md:table-cell">{r.animalGroup || "—"}</td>
+                  <td className="px-3 py-2">{withdrawalStatus(r)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" onClick={() => setViewItem(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)} title="Edit"><Edit2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(r.id)} title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+        <DialogContent className="max-w-xl" aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Medicated Feed Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div><Label>Start Date *</Label><Input type="date" value={form.startDate} onChange={e => f("startDate")(e.target.value)} /></div>
+            <div><Label>End Date</Label><Input type="date" value={form.endDate} onChange={e => f("endDate")(e.target.value)} /></div>
+            <div><Label>Species *</Label>
+              <Select value={form.species} onValueChange={v => f("species")(v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  {["Cattle", "Sheep", "Pigs", "Poultry", "Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Animal Group</Label><Input value={form.animalGroup} onChange={e => f("animalGroup")(e.target.value)} placeholder="e.g. Finishers shed 2" /></div>
+            <div className="col-span-2"><Label>Medicament Name *</Label><Input value={form.medicament} onChange={e => f("medicament")(e.target.value)} placeholder="Product name" /></div>
+            <div className="col-span-2"><Label>Active Ingredient</Label><Input value={form.activeIngredient} onChange={e => f("activeIngredient")(e.target.value)} /></div>
+            <div><Label>Withdrawal Period (days)</Label><Input type="number" value={form.withdrawalDays} onChange={e => f("withdrawalDays")(e.target.value)} /></div>
+            <div><Label>Dosage (kg/tonne)</Label><Input type="number" step="0.001" value={form.dosageKgPerTonne} onChange={e => f("dosageKgPerTonne")(e.target.value)} /></div>
+            <div><Label>Quantity Used (kg)</Label><Input type="number" step="0.1" value={form.quantityKg} onChange={e => f("quantityKg")(e.target.value)} /></div>
+            <div><Label>Supplier</Label><Input value={form.supplierName} onChange={e => f("supplierName")(e.target.value)} /></div>
+            <div><Label>Batch Number</Label><Input value={form.batchNumber} onChange={e => f("batchNumber")(e.target.value)} /></div>
+            <div><Label>Prescribing Vet</Label><Input value={form.prescribingVet} onChange={e => f("prescribingVet")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={!form.startDate || !form.species || !form.medicament || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
+              {saveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Medicated Feed Record</DialogTitle></DialogHeader>
+          {viewItem && (
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1 max-h-[70vh] overflow-y-auto pr-1">
+              <div><p className="text-xs text-gray-500">Start Date</p><p className="font-medium">{fmtD(viewItem.startDate)}</p></div>
+              <div><p className="text-xs text-gray-500">End Date</p><p className="font-medium">{fmtD(viewItem.endDate)}</p></div>
+              <div><p className="text-xs text-gray-500">Species</p><p>{viewItem.species}</p></div>
+              <div><p className="text-xs text-gray-500">Animal Group</p><p>{viewItem.animalGroup || "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Medicament</p><p className="font-medium">{viewItem.medicament}</p></div>
+              <div><p className="text-xs text-gray-500">Active Ingredient</p><p>{viewItem.activeIngredient || "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Withdrawal (days)</p><p>{viewItem.withdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Dosage (kg/t)</p><p>{viewItem.dosageKgPerTonne ?? "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Quantity (kg)</p><p>{viewItem.quantityKg ?? "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Supplier</p><p>{viewItem.supplierName || "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Batch Number</p><p>{viewItem.batchNumber || "—"}</p></div>
+              <div><p className="text-xs text-gray-500">Prescribing Vet</p><p>{viewItem.prescribingVet || "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-gray-500">Withdrawal Status</p><p>{withdrawalStatus(viewItem)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-gray-500">Notes</p><p>{viewItem.notes || "—"}</p></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>
+              {deleteMut.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

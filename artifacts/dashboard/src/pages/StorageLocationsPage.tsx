@@ -5,6 +5,7 @@ import {
   Warehouse, Plus, Pencil, Trash2, Eye, CheckCircle, XCircle, MapPin, QrCode,
   Loader2, Printer, Thermometer, FlaskConical, ChevronDown, ChevronUp,
   Banknote, Receipt, Calculator, Building2, Layers, Link2, Truck, ShoppingCart, Wheat,
+  Flame, Wind,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1189,12 +1190,312 @@ const emptyTempLog = () => ({
   notes: "",
 });
 
+// ─── Grain Drying Tab ────────────────────────────────────────────────────────
+function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const emptyForm = { dryingDate: "", cropType: "", moistureIn: "", moistureOut: "", tempC: "", durationHours: "", fuelLitres: "", operatorName: "", notes: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const q = useQuery<{ records: any[] }>({
+    queryKey: ["grain-drying", farmId, locationId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-drying?locationId=${locationId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const records: any[] = Array.isArray(q.data?.records) ? q.data!.records : [];
+
+  const saveMut = useMutation({
+    mutationFn: (data: any) => {
+      const id = editItem?.id;
+      return fetch(id ? `/api/farms/${farmId}/grain-drying/${id}` : `/api/farms/${farmId}/grain-drying`, {
+        method: id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, locationId }),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setOpen(false); toast({ title: "Drying record saved" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-drying/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+  });
+
+  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };
+  const openEdit = (r: any) => { setEditItem(r); setForm({ dryingDate: r.dryingDate?.slice(0,10) ?? "", cropType: r.cropType ?? "", moistureIn: r.moistureIn ?? "", moistureOut: r.moistureOut ?? "", tempC: r.tempC ?? "", durationHours: r.durationHours ?? "", fuelLitres: r.fuelLitres ?? "", operatorName: r.operatorName ?? "", notes: r.notes ?? "" }); setOpen(true); };
+
+  const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={openAdd} className="gap-2"><Plus className="h-3.5 w-3.5" />Log Drying Run</Button>
+      </div>
+      {q.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!q.isLoading && records.length === 0 && (
+        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+          <Flame className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No drying records for this location yet.</p>
+        </div>
+      )}
+      {records.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-medium">Date</th>
+                <th className="text-left px-3 py-2.5 font-medium">Crop</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Moisture In</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Moisture Out</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Temp (°C)</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Hours</th>
+                <th className="px-3 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => (
+                <tr key={r.id} className="hover:bg-muted/20">
+                  <td className="px-3 py-2">{fmtD(r.dryingDate)}</td>
+                  <td className="px-3 py-2 font-medium">{r.cropType}</td>
+                  <td className="px-3 py-2 hidden sm:table-cell">{r.moistureIn != null ? `${r.moistureIn}%` : "—"}</td>
+                  <td className="px-3 py-2 hidden sm:table-cell">{r.moistureOut != null ? `${r.moistureOut}%` : "—"}</td>
+                  <td className="px-3 py-2 hidden md:table-cell">{r.tempC ?? "—"}</td>
+                  <td className="px-3 py-2 hidden md:table-cell">{r.durationHours ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" onClick={() => setViewItem(r)} title="View"><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(r.id)} title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Drying Run</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2"><Label>Date *</Label><Input type="date" value={form.dryingDate} onChange={e => f("dryingDate")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Crop Type *</Label><Input value={form.cropType} onChange={e => f("cropType")(e.target.value)} placeholder="e.g. Winter Wheat" /></div>
+            <div><Label>Moisture In (%)</Label><Input type="number" step="0.1" value={form.moistureIn} onChange={e => f("moistureIn")(e.target.value)} /></div>
+            <div><Label>Moisture Out (%)</Label><Input type="number" step="0.1" value={form.moistureOut} onChange={e => f("moistureOut")(e.target.value)} /></div>
+            <div><Label>Drying Temp (°C)</Label><Input type="number" step="0.5" value={form.tempC} onChange={e => f("tempC")(e.target.value)} /></div>
+            <div><Label>Duration (hours)</Label><Input type="number" step="0.5" value={form.durationHours} onChange={e => f("durationHours")(e.target.value)} /></div>
+            <div><Label>Fuel Used (litres)</Label><Input type="number" step="0.1" value={form.fuelLitres} onChange={e => f("fuelLitres")(e.target.value)} /></div>
+            <div><Label>Operator</Label><Input value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={!form.dryingDate || !form.cropType || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
+              {saveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
+        <DialogContent style={{ maxWidth: 500 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Drying Record</DialogTitle></DialogHeader>
+          {viewItem && (
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1">
+              <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{fmtD(viewItem.dryingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Crop</p><p className="font-medium">{viewItem.cropType}</p></div>
+              <div><p className="text-xs text-muted-foreground">Moisture In</p><p>{viewItem.moistureIn != null ? `${viewItem.moistureIn}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Moisture Out</p><p>{viewItem.moistureOut != null ? `${viewItem.moistureOut}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Temp (°C)</p><p>{viewItem.tempC ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Duration (hrs)</p><p>{viewItem.durationHours ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Fuel (litres)</p><p>{viewItem.fuelLitres ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Operator</p><p>{viewItem.operatorName || "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewItem.notes || "—"}</p></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Drying Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>
+              {deleteMut.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Grain Conditioning Tab ───────────────────────────────────────────────────
+function GrainConditioningTab({ farmId, locationId }: { farmId: number; locationId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const emptyForm = { conditioningDate: "", cropType: "", treatmentType: "", productUsed: "", rateKgT: "", totalKg: "", targetMoisture: "", operatorName: "", notes: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const q = useQuery<{ records: any[] }>({
+    queryKey: ["grain-conditioning", farmId, locationId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-conditioning?locationId=${locationId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const records: any[] = Array.isArray(q.data?.records) ? q.data!.records : [];
+
+  const saveMut = useMutation({
+    mutationFn: (data: any) => {
+      const id = editItem?.id;
+      return fetch(id ? `/api/farms/${farmId}/grain-conditioning/${id}` : `/api/farms/${farmId}/grain-conditioning`, {
+        method: id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, locationId }),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setOpen(false); toast({ title: "Conditioning record saved" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-conditioning/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+  });
+
+  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };
+  const openEdit = (r: any) => { setEditItem(r); setForm({ conditioningDate: r.conditioningDate?.slice(0,10) ?? "", cropType: r.cropType ?? "", treatmentType: r.treatmentType ?? "", productUsed: r.productUsed ?? "", rateKgT: r.rateKgT ?? "", totalKg: r.totalKg ?? "", targetMoisture: r.targetMoisture ?? "", operatorName: r.operatorName ?? "", notes: r.notes ?? "" }); setOpen(true); };
+  const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  const TREATMENT_TYPES = ["Aeration", "Ambient aeration", "Insecticide treatment", "Fungicide treatment", "Blending", "Turning", "Other"];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={openAdd} className="gap-2"><Plus className="h-3.5 w-3.5" />Log Conditioning</Button>
+      </div>
+      {q.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!q.isLoading && records.length === 0 && (
+        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+          <Wind className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No conditioning records for this location yet.</p>
+        </div>
+      )}
+      {records.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-3 py-2.5 font-medium">Date</th>
+                <th className="text-left px-3 py-2.5 font-medium">Crop</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden sm:table-cell">Treatment</th>
+                <th className="text-left px-3 py-2.5 font-medium hidden md:table-cell">Product</th>
+                <th className="px-3 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => (
+                <tr key={r.id} className="hover:bg-muted/20">
+                  <td className="px-3 py-2">{fmtD(r.conditioningDate)}</td>
+                  <td className="px-3 py-2 font-medium">{r.cropType}</td>
+                  <td className="px-3 py-2 hidden sm:table-cell">{r.treatmentType || "—"}</td>
+                  <td className="px-3 py-2 hidden md:table-cell">{r.productUsed || "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" onClick={() => setViewItem(r)} title="View"><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(r.id)} title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Conditioning</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2"><Label>Date *</Label><Input type="date" value={form.conditioningDate} onChange={e => f("conditioningDate")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Crop Type *</Label><Input value={form.cropType} onChange={e => f("cropType")(e.target.value)} placeholder="e.g. Winter Wheat" /></div>
+            <div className="col-span-2">
+              <Label>Treatment Type</Label>
+              <Select value={form.treatmentType} onValueChange={v => f("treatmentType")(v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{TREATMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Product Used</Label><Input value={form.productUsed} onChange={e => f("productUsed")(e.target.value)} placeholder="e.g. Actellic 50 EC" /></div>
+            <div><Label>Rate (kg/t)</Label><Input type="number" step="0.001" value={form.rateKgT} onChange={e => f("rateKgT")(e.target.value)} /></div>
+            <div><Label>Total Applied (kg)</Label><Input type="number" step="0.1" value={form.totalKg} onChange={e => f("totalKg")(e.target.value)} /></div>
+            <div><Label>Target Moisture (%)</Label><Input type="number" step="0.1" value={form.targetMoisture} onChange={e => f("targetMoisture")(e.target.value)} /></div>
+            <div><Label>Operator</Label><Input value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={!form.conditioningDate || !form.cropType || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
+              {saveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
+        <DialogContent style={{ maxWidth: 500 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Conditioning Record</DialogTitle></DialogHeader>
+          {viewItem && (
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1">
+              <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{fmtD(viewItem.conditioningDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Crop</p><p className="font-medium">{viewItem.cropType}</p></div>
+              <div><p className="text-xs text-muted-foreground">Treatment</p><p>{viewItem.treatmentType || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Product</p><p>{viewItem.productUsed || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Rate (kg/t)</p><p>{viewItem.rateKgT ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Total (kg)</p><p>{viewItem.totalKg ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Target Moisture</p><p>{viewItem.targetMoisture != null ? `${viewItem.targetMoisture}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Operator</p><p>{viewItem.operatorName || "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewItem.notes || "—"}</p></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Conditioning Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>
+              {deleteMut.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Per-location Grain Monitoring Panel ────────────────────────────────────
 
 function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: number; locationId: number; locationType: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"stock" | "quality" | "temperature">("stock");
+  const [tab, setTab] = useState<"stock" | "quality" | "temperature" | "drying" | "conditioning">("stock");
 
   const [testOpen, setTestOpen] = useState(false);
   const [editTest, setEditTest] = useState<QualityTest | null>(null);
@@ -1319,6 +1620,12 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
               <TabButton active={tab === "temperature"} onClick={() => setTab("temperature")}>
                 <span className="flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5" /> Temperature Logs</span>
               </TabButton>
+              <TabButton active={tab === "drying"} onClick={() => setTab("drying")}>
+                <span className="flex items-center gap-1.5"><Flame className="h-3.5 w-3.5" /> Drying Records</span>
+              </TabButton>
+              <TabButton active={tab === "conditioning"} onClick={() => setTab("conditioning")}>
+                <span className="flex items-center gap-1.5"><Wind className="h-3.5 w-3.5" /> Conditioning</span>
+              </TabButton>
             </TabBar>
 
             {tab === "stock" && <StockMovementsTab farmId={farmId} locationId={locationId} />}
@@ -1426,6 +1733,14 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
                   </div>
                 )}
               </div>
+            )}
+
+            {tab === "drying" && (
+              <GrainDryingTab farmId={farmId} locationId={locationId} />
+            )}
+
+            {tab === "conditioning" && (
+              <GrainConditioningTab farmId={farmId} locationId={locationId} />
             )}
           </>
         ) : (

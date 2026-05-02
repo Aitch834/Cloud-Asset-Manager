@@ -2789,6 +2789,308 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Settlement Notes Tab ─────────────────────────────────────────────────────
+function SettlementNotesTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [subTab, setSubTab] = useState<"livestock" | "grain">("livestock");
+  const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const emptyLivestock = {
+    settlementDate: "", buyerName: "", marketName: "", haulierName: "",
+    numHead: "", species: "", averageWeightKg: "", totalWeightKg: "",
+    pricePerKg: "", pricePerHead: "", grossAmount: "", deductions: "",
+    netAmount: "", invoiceReference: "", notes: ""
+  };
+  const emptyGrain = {
+    settlementDate: "", buyerName: "", cropType: "", contractReference: "",
+    quantityT: "", pricePerTonne: "", grossAmount: "", deductions: "", netAmount: "",
+    moistureContent: "", protein: "", specificWeight: "", invoiceReference: "", notes: ""
+  };
+
+  const [lsForm, setLsForm] = useState({ ...emptyLivestock });
+  const [grForm, setGrForm] = useState({ ...emptyGrain });
+
+  const lsQ = useQuery<{ records: any[] }>({
+    queryKey: ["livestock-settlement-notes", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/livestock-settlement-notes`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const grQ = useQuery<{ records: any[] }>({
+    queryKey: ["grain-settlement-notes", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-settlement-notes`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const lsRecords: any[] = Array.isArray(lsQ.data?.records) ? lsQ.data!.records : [];
+  const grRecords: any[] = Array.isArray(grQ.data?.records) ? grQ.data!.records : [];
+
+  const lsSaveMut = useMutation({
+    mutationFn: (data: any) => {
+      const id = editItem?.id;
+      return fetch(id ? `/api/farms/${farmId}/livestock-settlement-notes/${id}` : `/api/farms/${farmId}/livestock-settlement-notes`, {
+        method: id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["livestock-settlement-notes", farmId] }); setOpen(false); toast({ title: "Settlement note saved" }); },
+  });
+  const grSaveMut = useMutation({
+    mutationFn: (data: any) => {
+      const id = editItem?.id;
+      return fetch(id ? `/api/farms/${farmId}/grain-settlement-notes/${id}` : `/api/farms/${farmId}/grain-settlement-notes`, {
+        method: id ? "PUT" : "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-settlement-notes", farmId] }); setOpen(false); toast({ title: "Settlement note saved" }); },
+  });
+  const lsDelMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-settlement-notes/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["livestock-settlement-notes", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+  });
+  const grDelMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-settlement-notes/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-settlement-notes", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+  });
+
+  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const fmtMoney = (v: any) => v != null ? `£${Number(v).toFixed(2)}` : "—";
+
+  const openAdd = () => {
+    setEditItem(null);
+    if (subTab === "livestock") setLsForm({ ...emptyLivestock });
+    else setGrForm({ ...emptyGrain });
+    setOpen(true);
+  };
+  const openEdit = (r: any) => {
+    setEditItem(r);
+    if (subTab === "livestock") setLsForm({
+      settlementDate: r.settlementDate?.slice(0,10) ?? "", buyerName: r.buyerName ?? "", marketName: r.marketName ?? "",
+      haulierName: r.haulierName ?? "", numHead: r.numHead ?? "", species: r.species ?? "",
+      averageWeightKg: r.averageWeightKg ?? "", totalWeightKg: r.totalWeightKg ?? "",
+      pricePerKg: r.pricePerKg ?? "", pricePerHead: r.pricePerHead ?? "", grossAmount: r.grossAmount ?? "",
+      deductions: r.deductions ?? "", netAmount: r.netAmount ?? "", invoiceReference: r.invoiceReference ?? "", notes: r.notes ?? ""
+    });
+    else setGrForm({
+      settlementDate: r.settlementDate?.slice(0,10) ?? "", buyerName: r.buyerName ?? "", cropType: r.cropType ?? "",
+      contractReference: r.contractReference ?? "", quantityT: r.quantityT ?? "", pricePerTonne: r.pricePerTonne ?? "",
+      grossAmount: r.grossAmount ?? "", deductions: r.deductions ?? "", netAmount: r.netAmount ?? "",
+      moistureContent: r.moistureContent ?? "", protein: r.protein ?? "", specificWeight: r.specificWeight ?? "",
+      invoiceReference: r.invoiceReference ?? "", notes: r.notes ?? ""
+    });
+    setOpen(true);
+  };
+
+  const fl = (k: string) => (v: string) => setLsForm(p => ({ ...p, [k]: v }));
+  const fg = (k: string) => (v: string) => setGrForm(p => ({ ...p, [k]: v }));
+
+  const isLoading = subTab === "livestock" ? lsQ.isLoading : grQ.isLoading;
+  const records = subTab === "livestock" ? lsRecords : grRecords;
+  const saveMut = subTab === "livestock" ? lsSaveMut : grSaveMut;
+  const delMut = subTab === "livestock" ? lsDelMut : grDelMut;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Settlement Notes</h2>
+          <p style={{ color: "#6b7280", fontSize: "0.8rem", marginTop: 4 }}>Record livestock and grain settlement notes received from markets, abattoirs, and grain merchants.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus style={{ width: 14, height: 14, marginRight: 4 }} />Add Settlement Note</Button>
+      </div>
+
+      <TabBar style={{ marginBottom: 16 }}>
+        <TabButton active={subTab === "livestock"} onClick={() => { setSubTab("livestock"); setViewItem(null); setDeleteId(null); }}>
+          Livestock ({lsRecords.length})
+        </TabButton>
+        <TabButton active={subTab === "grain"} onClick={() => { setSubTab("grain"); setViewItem(null); setDeleteId(null); }}>
+          Grain ({grRecords.length})
+        </TabButton>
+      </TabBar>
+
+      {isLoading && <p style={{ color: "#9ca3af", fontSize: "0.875rem" }}>Loading…</p>}
+      {!isLoading && records.length === 0 && (
+        <div style={{ border: "2px dashed #e5e7eb", borderRadius: 12, padding: "40px 0", textAlign: "center", color: "#9ca3af" }}>
+          <FileText style={{ width: 36, height: 36, margin: "0 auto 12px", opacity: 0.3 }} />
+          <p style={{ fontSize: "0.875rem", fontWeight: 500 }}>No {subTab} settlement notes yet</p>
+        </div>
+      )}
+
+      {records.length > 0 && (
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", fontSize: "0.8125rem", borderCollapse: "collapse" }}>
+            <thead style={{ background: "#f9fafb" }}>
+              <tr>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Date</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Buyer</th>
+                {subTab === "livestock" ? (
+                  <>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Species</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Head</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Crop</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Qty (t)</th>
+                  </>
+                )}
+                <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#374151" }}>Net Amount</th>
+                <th style={{ padding: "10px 12px" }} />
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, i) => (
+                <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <td style={{ padding: "9px 12px" }}>{fmtD(r.settlementDate)}</td>
+                  <td style={{ padding: "9px 12px", fontWeight: 500 }}>{r.buyerName}</td>
+                  {subTab === "livestock" ? (
+                    <>
+                      <td style={{ padding: "9px 12px" }}>{r.species || "—"}</td>
+                      <td style={{ padding: "9px 12px" }}>{r.numHead ?? "—"}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: "9px 12px" }}>{r.cropType || "—"}</td>
+                      <td style={{ padding: "9px 12px" }}>{r.quantityT ?? "—"}</td>
+                    </>
+                  )}
+                  <td style={{ padding: "9px 12px", fontWeight: 600, color: "#16a34a" }}>{fmtMoney(r.netAmount)}</td>
+                  <td style={{ padding: "9px 12px" }}>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                      <Button variant="ghost" size="icon" onClick={() => setViewItem(r)} title="View"><Eye style={{ width: 14, height: 14 }} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)} title="Edit"><Pencil style={{ width: 14, height: 14 }} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(r.id)} title="Delete"><Trash2 style={{ width: 14, height: 14, color: "#ef4444" }} /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add/Edit Livestock Dialog */}
+      <Dialog open={open && subTab === "livestock"} onOpenChange={o => { if (!o) setOpen(false); }}>
+        <DialogContent style={{ maxWidth: 560 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Livestock Settlement Note</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 8, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+            <div><Label>Settlement Date *</Label><Input type="date" value={lsForm.settlementDate} onChange={e => fl("settlementDate")(e.target.value)} /></div>
+            <div><Label>Species</Label>
+              <Select value={lsForm.species} onValueChange={v => fl("species")(v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{["Cattle","Sheep","Pigs","Poultry","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Buyer Name *</Label><Input value={lsForm.buyerName} onChange={e => fl("buyerName")(e.target.value)} /></div>
+            <div><Label>Market</Label><Input value={lsForm.marketName} onChange={e => fl("marketName")(e.target.value)} /></div>
+            <div><Label>Haulier</Label><Input value={lsForm.haulierName} onChange={e => fl("haulierName")(e.target.value)} /></div>
+            <div><Label>No. of Head</Label><Input type="number" value={lsForm.numHead} onChange={e => fl("numHead")(e.target.value)} /></div>
+            <div><Label>Avg Weight (kg)</Label><Input type="number" step="0.1" value={lsForm.averageWeightKg} onChange={e => fl("averageWeightKg")(e.target.value)} /></div>
+            <div><Label>Total Weight (kg)</Label><Input type="number" step="0.1" value={lsForm.totalWeightKg} onChange={e => fl("totalWeightKg")(e.target.value)} /></div>
+            <div><Label>Price/kg (£)</Label><Input type="number" step="0.001" value={lsForm.pricePerKg} onChange={e => fl("pricePerKg")(e.target.value)} /></div>
+            <div><Label>Gross Amount (£)</Label><Input type="number" step="0.01" value={lsForm.grossAmount} onChange={e => fl("grossAmount")(e.target.value)} /></div>
+            <div><Label>Deductions (£)</Label><Input type="number" step="0.01" value={lsForm.deductions} onChange={e => fl("deductions")(e.target.value)} /></div>
+            <div><Label>Net Amount (£)</Label><Input type="number" step="0.01" value={lsForm.netAmount} onChange={e => fl("netAmount")(e.target.value)} /></div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Invoice Reference</Label><Input value={lsForm.invoiceReference} onChange={e => fl("invoiceReference")(e.target.value)} /></div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Input value={lsForm.notes} onChange={e => fl("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={!lsForm.settlementDate || !lsForm.buyerName || lsSaveMut.isPending} onClick={() => lsSaveMut.mutate(lsForm)}>
+              {lsSaveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Grain Dialog */}
+      <Dialog open={open && subTab === "grain"} onOpenChange={o => { if (!o) setOpen(false); }}>
+        <DialogContent style={{ maxWidth: 560 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Grain Settlement Note</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 8, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+            <div><Label>Settlement Date *</Label><Input type="date" value={grForm.settlementDate} onChange={e => fg("settlementDate")(e.target.value)} /></div>
+            <div><Label>Crop Type *</Label><Input value={grForm.cropType} onChange={e => fg("cropType")(e.target.value)} placeholder="e.g. Winter Wheat" /></div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Buyer Name *</Label><Input value={grForm.buyerName} onChange={e => fg("buyerName")(e.target.value)} /></div>
+            <div><Label>Contract Ref</Label><Input value={grForm.contractReference} onChange={e => fg("contractReference")(e.target.value)} /></div>
+            <div><Label>Quantity (tonnes)</Label><Input type="number" step="0.001" value={grForm.quantityT} onChange={e => fg("quantityT")(e.target.value)} /></div>
+            <div><Label>Price/tonne (£)</Label><Input type="number" step="0.01" value={grForm.pricePerTonne} onChange={e => fg("pricePerTonne")(e.target.value)} /></div>
+            <div><Label>Moisture (%)</Label><Input type="number" step="0.1" value={grForm.moistureContent} onChange={e => fg("moistureContent")(e.target.value)} /></div>
+            <div><Label>Protein (%)</Label><Input type="number" step="0.1" value={grForm.protein} onChange={e => fg("protein")(e.target.value)} /></div>
+            <div><Label>Spec. Weight (kg/hl)</Label><Input type="number" step="0.1" value={grForm.specificWeight} onChange={e => fg("specificWeight")(e.target.value)} /></div>
+            <div><Label>Gross Amount (£)</Label><Input type="number" step="0.01" value={grForm.grossAmount} onChange={e => fg("grossAmount")(e.target.value)} /></div>
+            <div><Label>Deductions (£)</Label><Input type="number" step="0.01" value={grForm.deductions} onChange={e => fg("deductions")(e.target.value)} /></div>
+            <div><Label>Net Amount (£)</Label><Input type="number" step="0.01" value={grForm.netAmount} onChange={e => fg("netAmount")(e.target.value)} /></div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Invoice Reference</Label><Input value={grForm.invoiceReference} onChange={e => fg("invoiceReference")(e.target.value)} /></div>
+            <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Input value={grForm.notes} onChange={e => fg("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button disabled={!grForm.settlementDate || !grForm.buyerName || !grForm.cropType || grSaveMut.isPending} onClick={() => grSaveMut.mutate(grForm)}>
+              {grSaveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Settlement Note</DialogTitle></DialogHeader>
+          {viewItem && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", fontSize: "0.875rem", paddingTop: 4, maxHeight: "70vh", overflowY: "auto" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Date</p><p className="font-medium">{fmtD(viewItem.settlementDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Buyer</p><p className="font-medium">{viewItem.buyerName}</p></div>
+              {subTab === "livestock" ? (
+                <>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Species</p><p>{viewItem.species || "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Head</p><p>{viewItem.numHead ?? "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Market</p><p>{viewItem.marketName || "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Haulier</p><p>{viewItem.haulierName || "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Avg Weight</p><p>{viewItem.averageWeightKg ? `${viewItem.averageWeightKg} kg` : "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Total Weight</p><p>{viewItem.totalWeightKg ? `${viewItem.totalWeightKg} kg` : "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Price/kg</p><p>{fmtMoney(viewItem.pricePerKg)}</p></div>
+                </>
+              ) : (
+                <>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Crop</p><p>{viewItem.cropType || "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Quantity (t)</p><p>{viewItem.quantityT ?? "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Price/tonne</p><p>{fmtMoney(viewItem.pricePerTonne)}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Contract Ref</p><p>{viewItem.contractReference || "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Moisture</p><p>{viewItem.moistureContent != null ? `${viewItem.moistureContent}%` : "—"}</p></div>
+                  <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Protein</p><p>{viewItem.protein != null ? `${viewItem.protein}%` : "—"}</p></div>
+                </>
+              )}
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Gross Amount</p><p>{fmtMoney(viewItem.grossAmount)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Deductions</p><p>{fmtMoney(viewItem.deductions)}</p></div>
+              <div style={{ gridColumn: "1/-1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Net Amount</p><p style={{ fontWeight: 700, fontSize: "1rem", color: "#16a34a" }}>{fmtMoney(viewItem.netAmount)}</p></div>
+              <div style={{ gridColumn: "1/-1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Invoice Ref</p><p>{viewItem.invoiceReference || "—"}</p></div>
+              <div style={{ gridColumn: "1/-1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600 }}>Notes</p><p>{viewItem.notes || "—"}</p></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Settlement Note?</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={delMut.isPending} onClick={() => deleteId !== null && delMut.mutate(deleteId)}>
+              {delMut.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Tabs Config ──────────────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
   { id: "grain", label: "Grain Trading", icon: Wheat },
