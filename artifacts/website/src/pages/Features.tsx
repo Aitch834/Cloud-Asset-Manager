@@ -595,6 +595,37 @@ const sections: Section[] = [
     description: "Dedicated modules for specialist production systems with their own scheme requirements.",
     modules: [
       {
+        title: "Sheep Production",
+        icon: Leaf,
+        color: "bg-green-50 text-green-700 border-green-100",
+        badge: "module",
+        features: [
+          "Flock register — record each flock with breed, management system, ram/ewe ratio, flock size, and current field location; flocks link to all tupping, scanning, lambing, weigh-in, and shearing records",
+          "Tupping records — log each ram-to-ewe service event with ram ID and breed, flock group, date put to, date removed, and expected scanning date; multiple tupping rounds per flock per season; links to flock fertility analytics",
+          "Pregnancy scanning — record scanning results per ewe or group with scanner name, scanning date, singles, twins, triplets, quads, and empties; scanning summary calculates pregnancy rate and expected litter distribution for lambing planning",
+          "Weigh-in & DLWG — record group or individual weigh-in events with date, average weight per group, individual weights, and calculated daily live weight gain vs target; performance data feeds Red Tractor Sheep Assurance performance records",
+          "Shearing records — log shearing events with date, contractor name and contact, fleece weight per group, and wool merchant / buyer details for BWMB (British Wool Marketing Board) traceability",
+          "Sheep health plans — record annual vet-signed health plans with review date tracking; plan details include key health risks, parasite control strategy (SCOPS-aligned), vaccination programmes, and five-year soil history",
+          "Red Tractor Sheep Assurance checklist — structured pre-inspection self-assessment covering identification, movements, medicines, health plans, welfare, feed and water, and fleece management; colour-coded compliance status per section",
+          "Mobile capture — tupping, scanning, weigh-in, shearing, and health plan entries all available in the mobile app for in-field and in-shed recording; saves offline and syncs automatically when connectivity is restored",
+        ],
+      },
+      {
+        title: "Beef Production",
+        icon: HeartPulse,
+        color: "bg-orange-50 text-orange-700 border-orange-100",
+        badge: "module",
+        features: [
+          "Weigh-in & DLWG records — record group or individual weigh-in events with entry weight, current weight, target weight, and calculated DLWG; colour-coded performance against breed target; links to individual animals from the Animal Register for full ear tag traceability",
+          "Finishing records — log beef finishing groups with entry date, shed/pen assignment, target finish weight, target finish date, starting DLWG, and feed regime; closing entries capture exit weight, actual finish date, DLWG achieved, and final grade assessment for kill sheet reconciliation",
+          "Body condition scoring — record BCS assessments on the 1–5 scale for beef cattle groups or individuals; capture scores at key production stages (housing, pre-calving, pre-service, weaning) with action flags for animals scoring below threshold",
+          "Deadweight settlement recording — log kill data and settlement documents from the abattoir: kill date, slaughter number, cold deadweight, kill-out percentage, EUROP conformation grade, fat class, value per kg DW, and net settlement value; links to cattle movement records for complete animal-to-kill-sheet traceability",
+          "DLWG performance analytics — running DLWG trend per finishing group with target vs actual comparison across the finishing period; flag underperforming groups early for ration or health intervention",
+          "Red Tractor Beef & Lamb readiness — all weigh-in, finishing, and settlement records map directly to the evidence trail required by Red Tractor Beef & Lamb assurance standards including performance monitoring, feed records, and cattle traceability",
+          "Mobile capture — weigh-in and body condition scoring records available in the mobile app for in-yard and in-shed entry; saves offline and syncs automatically when connectivity is restored",
+        ],
+      },
+      {
         title: "Pig Production",
         icon: Ham,
         color: "bg-pink-50 text-pink-700 border-pink-100",

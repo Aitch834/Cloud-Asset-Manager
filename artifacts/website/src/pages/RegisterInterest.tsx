@@ -40,6 +40,8 @@ const MODULES = [
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "water-irrigation", label: "Water & Irrigation Management" },
   { id: "fresh-produce", label: "Fresh Produce" },
+  { id: "sheep-production", label: "Sheep Production (flock register, tupping, scanning, weigh-in & DLWG, shearing, health plans, Red Tractor Sheep Assurance)" },
+  { id: "beef-production", label: "Beef Production (weigh-in & DLWG, finishing records, body condition scoring, deadweight settlement)" },
   { id: "pig-production", label: "Pig Production" },
   { id: "poultry-production", label: "Poultry Production" },
   { id: "crop-trials", label: "Crop Trials" },

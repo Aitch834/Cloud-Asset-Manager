@@ -12680,6 +12680,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     contractorPliRows,
     sheepDipWithdrawalRows,
     sheepDipCertRows,
+    medicatedFeedWdRows,
+    sheepTuppingScanningRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -13009,6 +13011,20 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: sheepDippingRecordsTable.id, operatorName: sheepDippingRecordsTable.operatorName, operatorCertNumber: sheepDippingRecordsTable.operatorCertNumber, operatorCertExpiry: sheepDippingRecordsTable.operatorCertExpiry })
       .from(sheepDippingRecordsTable)
       .where(and(eq(sheepDippingRecordsTable.farmId, farmId), isNotNull(sheepDippingRecordsTable.operatorCertExpiry), gte(sheepDippingRecordsTable.operatorCertExpiry, overdueStart.toISOString().split("T")[0]), lt(sheepDippingRecordsTable.operatorCertExpiry, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Medicated Feed Records: withdrawal period end date ────────────────────
+    db.select({ id: medicatedFeedRecordsTable.id, productName: medicatedFeedRecordsTable.productName, speciesTargeted: medicatedFeedRecordsTable.speciesTargeted, herdFlockRef: medicatedFeedRecordsTable.herdFlockRef, withdrawalEndDate: medicatedFeedRecordsTable.withdrawalEndDate })
+      .from(medicatedFeedRecordsTable)
+      .where(and(eq(medicatedFeedRecordsTable.farmId, farmId), isNotNull(medicatedFeedRecordsTable.withdrawalEndDate), gte(medicatedFeedRecordsTable.withdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(medicatedFeedRecordsTable.withdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Sheep Tupping: scanning window (tuppingEndDate + 42 days) ─────────────
+    (() => {
+      const scanStart = new Date(overdueStart); scanStart.setDate(scanStart.getDate() - 42);
+      const scanEnd   = new Date(rangeEnd);     scanEnd.setDate(scanEnd.getDate() - 42);
+      return db.select({ id: sheepTuppingRecordsTable.id, tuppingEndDate: sheepTuppingRecordsTable.tuppingEndDate, ramBreed: sheepTuppingRecordsTable.ramBreed })
+        .from(sheepTuppingRecordsTable)
+        .where(and(eq(sheepTuppingRecordsTable.farmId, farmId), isNotNull(sheepTuppingRecordsTable.tuppingEndDate), gte(sheepTuppingRecordsTable.tuppingEndDate, scanStart.toISOString().split("T")[0]), lt(sheepTuppingRecordsTable.tuppingEndDate, scanEnd.toISOString().split("T")[0])));
+    })(),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -13539,6 +13555,37 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Livestock",
       href: `/livestock?tab=sheep-dipping`,
       colour: "amber",
+    });
+  }
+
+  for (const r of medicatedFeedWdRows) {
+    if (!r.withdrawalEndDate) continue;
+    const flock = r.herdFlockRef ? ` — ${r.herdFlockRef}` : "";
+    tasks.push({
+      id: `medfeed-wd-${r.id}`,
+      type: "medicated_feed_withdrawal",
+      title: `Medicated Feed Withdrawal Clears${flock}`,
+      description: `The withdrawal period for '${r.productName || "medicated feed"}'${r.speciesTargeted ? ` (${r.speciesTargeted})` : ""}${flock} clears on this date. Animals must not enter the food chain before this date. Check the Medicated Feed record for batch and dosing details.`,
+      dueDate: toISO(r.withdrawalEndDate)!,
+      module: "Livestock",
+      href: `/feed-management?tab=medicated`,
+      colour: "green",
+    });
+  }
+
+  for (const r of sheepTuppingScanningRows) {
+    if (!r.tuppingEndDate) continue;
+    const scanDate = new Date(r.tuppingEndDate + "T00:00:00Z");
+    scanDate.setDate(scanDate.getDate() + 42);
+    tasks.push({
+      id: `sheep-scan-due-${r.id}`,
+      type: "sheep_scanning_due",
+      title: `Sheep Scanning Window Open${r.ramBreed ? ` — ${r.ramBreed} ram` : ""}`,
+      description: `Based on the tupping end date, pregnancy scanning can begin around this date (40–60 days post-tupping). Book your scanner and record results in Sheep Production → Scanning.`,
+      dueDate: scanDate.toISOString(),
+      module: "Sheep Production",
+      href: `/sheep-production?tab=scanning`,
+      colour: "green",
     });
   }
 

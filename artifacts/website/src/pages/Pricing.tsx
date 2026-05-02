@@ -27,6 +27,8 @@ const MODULES = [
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
   { id: "platform-addons", name: "Platform Add-ons", price: 10, note: "Includes SMS Alerts & Advisor/Inspector Access" },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
+  { id: "sheep-production", name: "Sheep Production", price: 25, note: "Flock register, tupping records, pregnancy scanning, weigh-in & DLWG performance tracking, shearing records (fleece weight, contractor, BWMB traceability), health plans, and Red Tractor Sheep Assurance checklist" },
+  { id: "beef-production", name: "Beef Production", price: 20, note: "Beef weigh-in & DLWG records, finishing records (entry/exit weights, shed/group management, feed conversion), body condition scoring, deadweight settlement recording, and Red Tractor Beef & Lamb readiness" },
   { id: "pig-production", name: "Pig Production", price: 25 },
   { id: "poultry-production", name: "Poultry Production", price: 25, note: "Flock register with breed / strain and hatchery traceability, placement & depletion records, daily mortality log with year-by-year trend, breed / strain and hatchery / supplier mortality breakdowns, cause analysis, feed & water consumption, egg production, medicine & vaccine records, biosecurity checklist, house cleanout records (farm staff or contractor, DEFRA-approved disinfectant, dilution rate, stock consumption, cost and invoice tracking, photo evidence), and Red Tractor Poultry scheme records" },
   { id: "fresh-produce", name: "Fresh Produce", price: 25, note: "Growing blocks, crop records, water quality testing, harvest records, pre-cooling & intake, packhouse & despatch, allergen management and cold chain compliance" },

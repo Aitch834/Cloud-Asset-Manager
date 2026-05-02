@@ -591,6 +591,7 @@ export default function TaskBoardPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
+  const [moduleFilter, setModuleFilter] = useState("all");
   const [completedWindow, setCompletedWindow] = useState("90d");
 
   const WINDOW_OPTIONS: { value: string; label: string }[] = [
@@ -647,8 +648,12 @@ export default function TaskBoardPage() {
     return result;
   })();
 
+  const moduleNames: string[] = Array.from(new Set(records.map(r => r.module ?? "General"))).sort();
+
   const filtered = memberFiltered.filter(r => {
-    return statusFilter === "all" || r.status === statusFilter;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (moduleFilter !== "all" && (r.module ?? "General") !== moduleFilter) return false;
+    return true;
   });
 
   const pending = filtered.filter(r => r.status === "pending" || r.status === "in_progress");
@@ -745,9 +750,19 @@ export default function TaskBoardPage() {
             <option value="all">All staff</option>
             {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
-          {(statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all") && (
+          {moduleNames.length > 1 && (
+            <select
+              value={moduleFilter}
+              onChange={e => setModuleFilter(e.target.value)}
+              className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">All modules</option>
+              {moduleNames.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          )}
+          {(statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all" || moduleFilter !== "all") && (
             <button
-              onClick={() => { setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); }}
+              onClick={() => { setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); setModuleFilter("all"); }}
               className="text-xs text-foreground/50 hover:text-foreground underline underline-offset-2"
             >
               Clear filters
