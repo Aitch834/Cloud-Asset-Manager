@@ -1459,7 +1459,7 @@ function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }:
           <table className="text-xs w-max min-w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[160px] border-r">
+                <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[220px] w-[220px] border-r">
                   Certificate
                 </th>
                 {visibleStaff.map(s => (
@@ -1480,8 +1480,8 @@ function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }:
                 const anyIssue = rowStatuses.some(s => s === "expired" || s === "expiring");
                 return (
                   <tr key={certType} className={anyIssue ? "bg-red-50/30" : "hover:bg-gray-50/50"}>
-                    <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white border-r max-w-[240px]">
-                      <div className="truncate" title={certType}>{certType}</div>
+                    <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white border-r min-w-[220px] w-[220px]">
+                      <div className="whitespace-normal leading-snug">{certType}</div>
                     </td>
                     {rowStatuses.map((status, i) => (
                       <td key={visibleStaff[i]} className="px-2 py-2 text-center border-l">
