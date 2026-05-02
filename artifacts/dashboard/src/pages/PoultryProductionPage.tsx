@@ -389,6 +389,8 @@ function FlocksTab({ farmId }: { farmId: number }) {
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks = (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const [statusFilter, setStatusFilter] = useState("active");
+  const filteredFlocks = statusFilter === "all" ? flocks : flocks.filter(f => statusFilter === "active" ? String(f.status ?? "").toLowerCase() !== "depleted" : String(f.status ?? "").toLowerCase() === "depleted");
   const houseList = houses as Record<string, unknown>[];
   const selectedHouse = houseList.find(h => String(h.id) === String(form.houseId)) ?? null;
 
@@ -413,7 +415,20 @@ function FlocksTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Flock Register</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Flock</Button></div>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h3 className="font-semibold text-sm">Flock Register <span className="text-muted-foreground font-normal">({filteredFlocks.length})</span></h3>
+        <div className="flex gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active flocks</SelectItem>
+              <SelectItem value="depleted">Depleted</SelectItem>
+              <SelectItem value="all">All flocks</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Flock</Button>
+        </div>
+      </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "flockNumber", label: "Flock No." },
         { key: "houseName", label: "House" },
@@ -422,7 +437,7 @@ function FlocksTab({ farmId }: { farmId: number }) {
         { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) },
         { key: "placementCount", label: "Placed" },
         { key: "status", label: "Status" },
-      ]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredFlocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -554,6 +569,12 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
   const hatcherySuppliers = (Array.isArray(supplierData) ? supplierData as Record<string, unknown>[] : []).filter(s => s.supplierType === "hatchery");
   const { data: raw, isLoading, open, setOpen, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-chick-purchases", "poultry-chick-purchases");
   const records = (raw ?? []) as Record<string, unknown>[];
+  const [payStatusFilter, setPayStatusFilter] = useState("all");
+  const [flockFilterCP, setFlockFilterCP] = useState("all");
+  const filteredPurchases = records.filter(r =>
+    (payStatusFilter === "all" || r.paymentStatus === payStatusFilter) &&
+    (flockFilterCP === "all" || String(r.flockId) === flockFilterCP)
+  );
 
   function fmtGBP(pence: unknown): string {
     const p = Number(pence ?? 0); if (!p) return "—";
@@ -572,9 +593,28 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div><h3 className="font-semibold text-sm">Chick Purchases</h3><p className="text-xs text-muted-foreground mt-0.5">Track purchase orders, chick receipts, invoices and payment status for each flock placement.</p></div>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div><h3 className="font-semibold text-sm">Chick Purchases <span className="text-muted-foreground font-normal">({filteredPurchases.length})</span></h3><p className="text-xs text-muted-foreground mt-0.5">Track purchase orders, chick receipts, invoices and payment status for each flock placement.</p></div>
         <Button size="sm" onClick={() => openAdd({ paymentStatus: "unpaid", paymentTermsDays: "30" })}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={flockFilterCP} onValueChange={setFlockFilterCP}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flockList.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={payStatusFilter} onValueChange={setPayStatusFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
+            <SelectItem value="part-paid">Part-paid</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "flockId", label: "Flock", fmt: r => fmtFlockLabel(r.flockId) },
@@ -587,7 +627,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
         { key: "totalCostPence", label: "Total Cost", fmt: r => fmtGBP(r.totalCostPence) },
         { key: "invoiceReference", label: "Invoice Ref" },
         { key: "paymentStatus", label: "Status", render: r => <span className={`capitalize font-medium text-xs ${payStatusClass(r.paymentStatus)}`}>{String(r.paymentStatus ?? "—")}</span> },
-      ]} rows={records} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredPurchases} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -688,6 +728,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const CURRENT_YEAR = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [flockFilterMort, setFlockFilterMort] = useState("all");
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
 
@@ -707,7 +748,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
   // Year filter
   const availableYears = [...new Set(recordsList.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(y => y.length === 4))].sort((a, b) => Number(b) - Number(a));
   if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
-  const filteredList = yearFilter === "all" ? recordsList : recordsList.filter(r => String(r.recordDate ?? "").startsWith(yearFilter));
+  const filteredList = (yearFilter === "all" ? recordsList : recordsList.filter(r => String(r.recordDate ?? "").startsWith(yearFilter))).filter(r => flockFilterMort === "all" || String(r.flockId) === flockFilterMort);
 
   // Summary stats from filtered list
   const totalDeaths = filteredList.reduce((s, r) => s + Number(r.mortalityCount ?? 0), 0);
@@ -784,7 +825,14 @@ function MortalityTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Daily Mortality Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Broilers: daily mortality must be recorded and retained for a minimum of 3 years.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Select value={flockFilterMort} onValueChange={setFlockFilterMort}>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All flocks</SelectItem>
+              {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -1054,6 +1102,12 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
     });
   }
 
+  const [flockFilterTx, setFlockFilterTx] = useState("all");
+  const [inWithdrawalOnly, setInWithdrawalOnly] = useState(false);
+  const filteredTreatments = records.filter(r =>
+    (flockFilterTx === "all" || String(r.flockId ?? "") === flockFilterTx) &&
+    (!inWithdrawalOnly || (r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr))
+  );
   const inWithdrawal = records.filter(r => r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr);
   const pomvCount = records.filter(r => r.prescriptionObtained).length;
   const medCounts: Record<string, number> = {};
@@ -1078,12 +1132,27 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
         <Pill className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
         <p className="text-xs text-blue-800">Records required under <strong>Veterinary Medicines Regulations 2013</strong>. Retain for minimum 5 years. POM-V medicines must have a valid veterinary prescription — record the prescribing vet's details for every such treatment.</p>
       </div>
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Medication & Treatment Records</h3>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(records, "treatment-records.csv", tCsvCols)} disabled={!records.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredTreatments, "treatment-records.csv", tCsvCols)} disabled={!filteredTreatments.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={flockFilterTx} onValueChange={setFlockFilterTx}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <button
+          onClick={() => setInWithdrawalOnly(v => !v)}
+          className={`h-8 px-3 text-xs rounded-md border font-medium transition-colors ${inWithdrawalOnly ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-background border-input text-muted-foreground hover:text-foreground"}`}
+        >
+          {inWithdrawalOnly ? "⚠ In withdrawal only" : "In withdrawal only"}
+        </button>
       </div>
       {records.length > 0 && (
         <div className="space-y-3">
@@ -1112,11 +1181,11 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
           )}
         </div>
       )}
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
-        <Empty msg="No treatment records yet. Log all medicines administered to your flocks, including over-the-counter and prescription products." />
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : filteredTreatments.length === 0 ? (
+        <Empty msg={records.length === 0 ? "No treatment records yet. Log all medicines administered to your flocks, including over-the-counter and prescription products." : "No records match the current filters."} />
       ) : (
         <div className="space-y-2">
-          {records.map((r, i) => {
+          {filteredTreatments.map((r, i) => {
             const isWithdrawal = r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr;
             return (
               <div key={i} className={`border rounded-lg p-3 bg-white ${isWithdrawal ? "border-amber-300" : ""}`}>
@@ -1324,10 +1393,12 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-house-cleanouts", "poultry-cleanouts");
   const coList = (records ?? []) as Record<string, unknown>[];
-  const avgStanding = coList.filter(r => r.standingTimeDays).length ? Math.round(coList.filter(r => r.standingTimeDays).reduce((s, r) => s + Number(r.standingTimeDays), 0) / coList.filter(r => r.standingTimeDays).length) : null;
-  const swabsTaken = coList.filter(r => r.swabsTaken).length;
+  const [houseFilterCO, setHouseFilterCO] = useState("all");
+  const filteredCoList = houseFilterCO === "all" ? coList : coList.filter(r => String(r.houseId) === houseFilterCO);
+  const avgStanding = filteredCoList.filter(r => r.standingTimeDays).length ? Math.round(filteredCoList.filter(r => r.standingTimeDays).reduce((s, r) => s + Number(r.standingTimeDays), 0) / filteredCoList.filter(r => r.standingTimeDays).length) : null;
+  const swabsTaken = filteredCoList.filter(r => r.swabsTaken).length;
   const disinfCounts: Record<string, number> = {};
-  coList.forEach(r => { if (r.disinfectantUsed) { const d = String(r.disinfectantUsed); disinfCounts[d] = (disinfCounts[d] ?? 0) + 1; } });
+  filteredCoList.forEach(r => { if (r.disinfectantUsed) { const d = String(r.disinfectantUsed); disinfCounts[d] = (disinfCounts[d] ?? 0) + 1; } });
   const topDisinf = Object.entries(disinfCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
   const coCsvCols = [
     { key: "cleanoutStartDate", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutStartDate) },
@@ -1340,20 +1411,29 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(coList, "cleanout-records.csv", coCsvCols)} disabled={!coList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredCoList, "cleanout-records.csv", coCsvCols)} disabled={!filteredCoList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ swabsTaken: false })}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={houseFilterCO} onValueChange={setHouseFilterCO}>
+          <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="All houses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All houses</SelectItem>
+            {houses.map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && coList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleanout Summary</p></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Cleanouts" value={coList.length} />
+            <StatCard label="Total Cleanouts" value={filteredCoList.length} />
             <StatCard label="Avg Standing Time" value={avgStanding !== null ? `${avgStanding} days` : "—"} sub="before restocking" />
-            <StatCard label="Swab Records" value={swabsTaken} sub={`of ${coList.length} cleanouts`} />
+            <StatCard label="Swab Records" value={swabsTaken} sub={`of ${filteredCoList.length} cleanouts`} />
             <StatCard label="Most Used Disinfectant" value={topDisinf.length > 18 ? topDisinf.slice(0, 16) + "…" : topDisinf} />
           </div>
         </div>
@@ -1367,7 +1447,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
         { key: "contactTimeMins", label: "Contact (mins)" },
         { key: "completedBy", label: "Completed By" },
         { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-house-cleanouts" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-cleanouts", farmId]} /> },
-      ]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredCoList} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -1449,13 +1529,21 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
   const envList = (records ?? []) as Record<string, unknown>[];
-  const withTemp = envList.filter(r => r.temperatureMin != null && r.temperatureMax != null);
+  const [flockFilterEnv, setFlockFilterEnv] = useState("all");
+  const [dateFromEnv, setDateFromEnv] = useState("");
+  const [dateToEnv, setDateToEnv] = useState("");
+  const filteredEnvList = envList.filter(r =>
+    (flockFilterEnv === "all" || String(r.flockId) === flockFilterEnv) &&
+    (!dateFromEnv || String(r.logDate ?? "") >= dateFromEnv) &&
+    (!dateToEnv || String(r.logDate ?? "") <= dateToEnv)
+  );
+  const withTemp = filteredEnvList.filter(r => r.temperatureMin != null && r.temperatureMax != null);
   const avgMinTemp = withTemp.length ? (withTemp.reduce((s, r) => s + Number(r.temperatureMin), 0) / withTemp.length).toFixed(1) : null;
   const avgMaxTemp = withTemp.length ? (withTemp.reduce((s, r) => s + Number(r.temperatureMax), 0) / withTemp.length).toFixed(1) : null;
-  const withAmm = envList.filter(r => r.ammoniaPpm != null);
+  const withAmm = filteredEnvList.filter(r => r.ammoniaPpm != null);
   const maxAmm = withAmm.length ? Math.max(...withAmm.map(r => Number(r.ammoniaPpm))) : null;
-  const avgHum = envList.filter(r => r.humidity != null).length ? (envList.filter(r => r.humidity != null).reduce((s, r) => s + Number(r.humidity), 0) / envList.filter(r => r.humidity != null).length).toFixed(1) : null;
-  const alarmCount = envList.filter(r => r.alarmActivated).length;
+  const avgHum = filteredEnvList.filter(r => r.humidity != null).length ? (filteredEnvList.filter(r => r.humidity != null).reduce((s, r) => s + Number(r.humidity), 0) / filteredEnvList.filter(r => r.humidity != null).length).toFixed(1) : null;
+  const alarmCount = filteredEnvList.filter(r => r.alarmActivated).length;
   const ammAlert = maxAmm !== null && maxAmm > 10;
   const ammWarn = maxAmm !== null && maxAmm >= 7 && maxAmm <= 10;
   const envCsvCols = [
@@ -1470,17 +1558,37 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(envList, "environmental-logs.csv", envCsvCols)} disabled={!envList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredEnvList, "environmental-logs.csv", envCsvCols)} disabled={!filteredEnvList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={flockFilterEnv} onValueChange={setFlockFilterEnv}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1">
+          <label className="text-xs text-muted-foreground">From</label>
+          <input type="date" value={dateFromEnv} onChange={e => setDateFromEnv(e.target.value)} className="h-8 rounded-md border border-input px-2 text-xs bg-background" />
+        </div>
+        <div className="flex items-center gap-1">
+          <label className="text-xs text-muted-foreground">To</label>
+          <input type="date" value={dateToEnv} onChange={e => setDateToEnv(e.target.value)} className="h-8 rounded-md border border-input px-2 text-xs bg-background" />
+        </div>
+        {(flockFilterEnv !== "all" || dateFromEnv || dateToEnv) && (
+          <button onClick={() => { setFlockFilterEnv("all"); setDateFromEnv(""); setDateToEnv(""); }} className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground border rounded-md">Clear</button>
+        )}
       </div>
       {!isLoading && envList.length > 0 && (
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Environmental Summary — All Records</p></div>
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Environmental Summary{flockFilterEnv !== "all" || dateFromEnv || dateToEnv ? " — Filtered" : " — All Records"}</p></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="Avg Min Temp" value={avgMinTemp !== null ? `${avgMinTemp} °C` : "—"} />
               <StatCard label="Avg Max Temp" value={avgMaxTemp !== null ? `${avgMaxTemp} °C` : "—"} />
@@ -1505,7 +1613,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
         { key: "humidity", label: "Humidity %" },
         { key: "ammoniaPpm", label: "Ammonia ppm" },
         { key: "stockingDensity", label: "kg/m²" },
-      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredEnvList} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -1559,10 +1667,12 @@ function FciTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-fci-documents", "poultry-fci");
   const fciList = (records ?? []) as Record<string, unknown>[];
-  const notWithdrawalClear = fciList.filter(r => !r.withdrawalPeriodClear).length;
-  const withMeds = fciList.filter(r => r.medicationsLast7Days).length;
-  const withDisease = fciList.filter(r => r.anyDiseaseOrCondition).length;
-  const totalBirds = fciList.reduce((s, r) => s + Number(r.numberOfBirds ?? 0), 0);
+  const [flockFilterFci, setFlockFilterFci] = useState("all");
+  const filteredFciList = flockFilterFci === "all" ? fciList : fciList.filter(r => String(r.flockId) === flockFilterFci);
+  const notWithdrawalClear = filteredFciList.filter(r => !r.withdrawalPeriodClear).length;
+  const withMeds = filteredFciList.filter(r => r.medicationsLast7Days).length;
+  const withDisease = filteredFciList.filter(r => r.anyDiseaseOrCondition).length;
+  const totalBirds = filteredFciList.reduce((s, r) => s + Number(r.numberOfBirds ?? 0), 0);
   const fciCsvCols = [
     { key: "documentDate", label: "FCI Date", fmt: (r: Record<string, unknown>) => fmtDate(r.documentDate) },
     { key: "catchingDate", label: "Catching Date", fmt: (r: Record<string, unknown>) => fmtDate(r.catchingDate) },
@@ -1576,19 +1686,28 @@ function FciTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Food Chain Information (FCI) Documents</h3>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(fciList, "fci-documents.csv", fciCsvCols)} disabled={!fciList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredFciList, "fci-documents.csv", fciCsvCols)} disabled={!filteredFciList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ withdrawalPeriodClear: true, signedByFarmer: true, anyDiseaseOrCondition: false, medicationsLast7Days: false })}><Plus className="w-4 h-4 mr-1" />Add FCI Doc</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={flockFilterFci} onValueChange={setFlockFilterFci}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && fciList.length > 0 && (
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
             <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">FCI Summary</p></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="FCI Documents" value={fciList.length} />
+              <StatCard label="FCI Documents" value={filteredFciList.length} />
               <StatCard label="Total Birds Declared" value={totalBirds.toLocaleString()} />
               <StatCard label="Withdrawal Not Clear" value={notWithdrawalClear} color={notWithdrawalClear > 0 ? "red" : "green"} sub={notWithdrawalClear > 0 ? "review before slaughter" : "all clear"} />
               <StatCard label="Medications Last 7 Days" value={withMeds} color={withMeds > 0 ? "amber" : "green"} sub={withMeds > 0 ? "declared on FCI docs" : "none declared"} />
@@ -1605,7 +1724,7 @@ function FciTab({ farmId }: { farmId: number }) {
         { key: "catchingContractor", label: "Catching Contractor" },
         { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "✓ Yes" : "No" },
         { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-fci", farmId]} /> },
-      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredFciList} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -1655,11 +1774,17 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-broiler-welfare", "poultry-broiler-welfare");
   const bwiList = (records ?? []) as Record<string, unknown>[];
-  const passCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Pass")).length;
-  const advisoryCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Advisory")).length;
-  const failCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Fail")).length;
-  const lastAssessment = bwiList[0] ?? null;
-  const passRate = bwiList.length ? Math.round(passCount / bwiList.length * 100) : null;
+  const [flockFilterBwi, setFlockFilterBwi] = useState("all");
+  const [outcomeFilterBwi, setOutcomeFilterBwi] = useState("all");
+  const filteredBwiList = bwiList.filter(r =>
+    (flockFilterBwi === "all" || String(r.flockId) === flockFilterBwi) &&
+    (outcomeFilterBwi === "all" || String(r.overallOutcome ?? "").startsWith(outcomeFilterBwi))
+  );
+  const passCount = filteredBwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Pass")).length;
+  const advisoryCount = filteredBwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Advisory")).length;
+  const failCount = filteredBwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Fail")).length;
+  const lastAssessment = filteredBwiList[0] ?? null;
+  const passRate = filteredBwiList.length ? Math.round(passCount / filteredBwiList.length * 100) : null;
   const bwiCsvCols = [
     { key: "assessmentDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.assessmentDate) },
     { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
@@ -1673,21 +1798,39 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Broiler Welfare Indicators (BWI)</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Broilers — pododermatitis, hock burn and gait score must be assessed and recorded at each crop cycle.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(bwiList, "bwi-assessments.csv", bwiCsvCols)} disabled={!bwiList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredBwiList, "bwi-assessments.csv", bwiCsvCols)} disabled={!filteredBwiList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ overallOutcome: "Pass" })}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={flockFilterBwi} onValueChange={setFlockFilterBwi}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={outcomeFilterBwi} onValueChange={setOutcomeFilterBwi}>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="All outcomes" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All outcomes</SelectItem>
+            <SelectItem value="Pass">Pass</SelectItem>
+            <SelectItem value="Advisory">Advisory</SelectItem>
+            <SelectItem value="Fail">Fail</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && bwiList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">BWI Assessment Summary</p></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Assessments" value={bwiList.length} />
+            <StatCard label="Total Assessments" value={filteredBwiList.length} />
             <StatCard label="Pass Rate" value={passRate !== null ? `${passRate}%` : "—"} color={passRate !== null && passRate >= 80 ? "green" : passRate !== null && passRate >= 60 ? "amber" : "red"} />
             <StatCard label="Advisory" value={advisoryCount} color={advisoryCount > 0 ? "amber" : "green"} sub="action recommended" />
             <StatCard label="Fail" value={failCount} color={failCount > 0 ? "red" : "green"} sub={failCount > 0 ? "action required — check notes" : "no failures"} />
@@ -1711,7 +1854,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           { key: "overallOutcome", label: "Outcome" },
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-broiler-welfare" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-bwi", farmId]} /> },
         ]}
-        rows={records as Record<string, unknown>[]}
+        rows={filteredBwiList}
         onDelete={r => del.mutate(r.id as number)}
         onView={setViewRecord}
       />}
@@ -1801,9 +1944,11 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
   const tList = (records ?? []) as Record<string, unknown>[];
-  const totalBirdsRemoved = tList.reduce((s, r) => s + Number(r.birdsRemoved ?? 0), 0);
-  const totalDoas = tList.reduce((s, r) => s + Number(r.doasAtLoading ?? 0), 0);
-  const withWeight = tList.filter(r => r.averageLiveWeightKg != null);
+  const [flockFilterThin, setFlockFilterThin] = useState("all");
+  const filteredThinList = flockFilterThin === "all" ? tList : tList.filter(r => String(r.flockId) === flockFilterThin);
+  const totalBirdsRemoved = filteredThinList.reduce((s, r) => s + Number(r.birdsRemoved ?? 0), 0);
+  const totalDoas = filteredThinList.reduce((s, r) => s + Number(r.doasAtLoading ?? 0), 0);
+  const withWeight = filteredThinList.filter(r => r.averageLiveWeightKg != null);
   const avgLiveWeight = withWeight.length ? (withWeight.reduce((s, r) => s + Number(r.averageLiveWeightKg), 0) / withWeight.length).toFixed(2) : null;
   const doaPct = totalBirdsRemoved > 0 ? ((totalDoas / totalBirdsRemoved) * 100).toFixed(2) : null;
   const tCsv = [
@@ -1817,21 +1962,30 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Thinning Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record each partial depletion event — numbers removed, live weight, catching details and any DOAs at loading.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(tList, "thinning-records.csv", tCsv)} disabled={!tList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredThinList, "thinning-records.csv", tCsv)} disabled={!filteredThinList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => openAdd({ thinningNumber: "1", doasAtLoading: "0" })}><Plus className="w-4 h-4 mr-1" />Log Thinning</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={flockFilterThin} onValueChange={setFlockFilterThin}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All flocks</SelectItem>
+            {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && tList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Thinning Summary</p></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Events" value={tList.length} />
+            <StatCard label="Total Events" value={filteredThinList.length} />
             <StatCard label="Total Birds Removed" value={totalBirdsRemoved.toLocaleString()} />
             <StatCard label="Total DOAs" value={totalDoas} color={totalDoas > 0 ? "amber" : "green"} sub={doaPct !== null ? `${doaPct}% of birds removed` : undefined} />
             <StatCard label="Avg Live Weight" value={avgLiveWeight !== null ? `${avgLiveWeight} kg` : "—"} />
@@ -1848,7 +2002,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           { key: "destinationAbattoir", label: "Abattoir" },
           { key: "doasAtLoading", label: "DOAs at Loading" },
         ]}
-        rows={records as Record<string, unknown>[]}
+        rows={filteredThinList}
         onDelete={r => del.mutate(r.id as number)}
         onView={setViewRecord}
       />}
@@ -1961,10 +2115,16 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }) });
 
   const bioList = records as Record<string, unknown>[];
-  const compliant = bioList.filter(r => r.overallComplianceStatus === "compliant").length;
-  const nonCompliant = bioList.filter(r => r.overallComplianceStatus === "non-compliant").length;
-  const inProgress = bioList.filter(r => r.overallComplianceStatus === "in-progress").length;
-  const avgDowntime = bioList.filter(r => r.downtimeDays).length ? Math.round(bioList.filter(r => r.downtimeDays).reduce((s, r) => s + Number(r.downtimeDays), 0) / bioList.filter(r => r.downtimeDays).length) : null;
+  const [houseFilterBio, setHouseFilterBio] = useState("all");
+  const [statusFilterBio, setStatusFilterBio] = useState("all");
+  const filteredBioList = bioList.filter(r =>
+    (houseFilterBio === "all" || String(r.houseId) === houseFilterBio) &&
+    (statusFilterBio === "all" || r.overallComplianceStatus === statusFilterBio)
+  );
+  const compliant = filteredBioList.filter(r => r.overallComplianceStatus === "compliant").length;
+  const nonCompliant = filteredBioList.filter(r => r.overallComplianceStatus === "non-compliant").length;
+  const inProgress = filteredBioList.filter(r => r.overallComplianceStatus === "in-progress").length;
+  const avgDowntime = filteredBioList.filter(r => r.downtimeDays).length ? Math.round(filteredBioList.filter(r => r.downtimeDays).reduce((s, r) => s + Number(r.downtimeDays), 0) / filteredBioList.filter(r => r.downtimeDays).length) : null;
   const bioCsv = [
     { key: "cleanoutStartDate", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutStartDate) },
     { key: "cleanoutEndDate", label: "End Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutEndDate) },
@@ -1974,22 +2134,40 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Biosecurity Checklist — Downtime & Cleanout</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record end-of-flock biosecurity procedures for each house cleanout to demonstrate Red Tractor and RSPCA Assured compliance. All items must be completed before restocking.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(bioList, "biosecurity-checklists.csv", bioCsv)} disabled={!bioList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredBioList, "biosecurity-checklists.csv", bioCsv)} disabled={!filteredBioList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => { setEditing(null); setForm({ cleanoutStartDate: new Date().toISOString().slice(0, 10), overallComplianceStatus: "in-progress", vehicleRestrictions: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={houseFilterBio} onValueChange={setHouseFilterBio}>
+          <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="All houses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All houses</SelectItem>
+            {houses.map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilterBio} onValueChange={setStatusFilterBio}>
+          <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="compliant">Compliant</SelectItem>
+            <SelectItem value="non-compliant">Non-Compliant</SelectItem>
+            <SelectItem value="in-progress">In Progress</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && bioList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
           <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Biosecurity Compliance Summary</p></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Checklists" value={bioList.length} />
-            <StatCard label="Compliant" value={compliant} color={compliant === bioList.length ? "green" : "amber"} sub={`${Math.round(compliant / bioList.length * 100)}% of records`} />
+            <StatCard label="Total Checklists" value={filteredBioList.length} />
+            <StatCard label="Compliant" value={compliant} color={compliant === filteredBioList.length ? "green" : "amber"} sub={filteredBioList.length > 0 ? `${Math.round(compliant / filteredBioList.length * 100)}% of records` : undefined} />
             <StatCard label="Non-Compliant" value={nonCompliant} color={nonCompliant > 0 ? "red" : "green"} sub={nonCompliant > 0 ? "action required" : "none"} />
             <StatCard label="Avg Downtime" value={avgDowntime !== null ? `${avgDowntime} days` : "—"} sub="between flocks" />
           </div>
@@ -2006,7 +2184,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           { key: "completedBy", label: "Completed By" },
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-biosecurity-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-biosecurity", farmId]} /> },
         ]}
-        rows={records as Record<string, unknown>[]}
+        rows={filteredBioList}
         onEdit={r => { setEditing(r); setForm({ ...r, houseId: r.houseId ? String(r.houseId) : "__none__", previousFlockId: r.previousFlockId ? String(r.previousFlockId) : "__none__" }); setOpen(true); }}
         onDelete={r => del.mutate(r.id as number)}
         onView={setViewRecord}
@@ -2183,11 +2361,13 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
   const SCHEMES = ["Red Tractor Poultry (Broiler)", "Red Tractor Poultry (Turkey)", "Red Tractor Poultry (Laying Hens)", "Lion Quality", "RSPCA Assured", "Organic (Soil Association)", "Organic (OF&G)", "Free Range", "Higher Welfare", "M&S Select Farms", "Other"];
   const OUTCOMES = ["Pass", "Conditional Pass", "Fail", "Pending", "Under Review"];
   const schList = records as Record<string, unknown>[];
+  const [schemeNameFilter, setSchemeNameFilter] = useState("all");
+  const filteredSchList = schemeNameFilter === "all" ? schList : schList.filter(r => String(r.schemeName ?? "") === schemeNameFilter);
   const today = new Date();
   const in60Days = new Date(today); in60Days.setDate(today.getDate() + 60);
-  const expiringSoon = schList.filter(r => { if (!r.certificateExpiryDate) return false; const d = new Date(String(r.certificateExpiryDate)); return d >= today && d <= in60Days; });
-  const expired = schList.filter(r => { if (!r.certificateExpiryDate) return false; return new Date(String(r.certificateExpiryDate)) < today; });
-  const passes = schList.filter(r => r.assessmentOutcome === "Pass").length;
+  const expiringSoon = filteredSchList.filter(r => { if (!r.certificateExpiryDate) return false; const d = new Date(String(r.certificateExpiryDate)); return d >= today && d <= in60Days; });
+  const expired = filteredSchList.filter(r => { if (!r.certificateExpiryDate) return false; return new Date(String(r.certificateExpiryDate)) < today; });
+  const passes = filteredSchList.filter(r => r.assessmentOutcome === "Pass").length;
   const schCsv = [
     { key: "schemeName", label: "Scheme" }, { key: "certificateNumber", label: "Certificate No." },
     { key: "assessmentYear", label: "Year" }, { key: "assessmentDate", label: "Assessment Date", fmt: (r: Record<string, unknown>) => fmtDate(r.assessmentDate) },
@@ -2199,23 +2379,32 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Assurance Scheme Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Log all Red Tractor Poultry, Lion Quality, RSPCA Assured and retailer assurance assessments. Track certificate numbers, assessment dates and non-conformances to maintain compliance status.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(schList, "scheme-records.csv", schCsv)} disabled={!schList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSchList, "scheme-records.csv", schCsv)} disabled={!filteredSchList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentYear: String(new Date().getFullYear()), assessmentOutcome: "Pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Select value={schemeNameFilter} onValueChange={setSchemeNameFilter}>
+          <SelectTrigger className="w-56 h-8 text-xs"><SelectValue placeholder="All schemes" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All schemes</SelectItem>
+            {SCHEMES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       {!isLoading && schList.length > 0 && (
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
             <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scheme Compliance Overview</p></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Schemes Recorded" value={schList.length} />
-              <StatCard label="Passes" value={passes} color={passes === schList.length ? "green" : "amber"} />
+              <StatCard label="Schemes Recorded" value={filteredSchList.length} />
+              <StatCard label="Passes" value={passes} color={filteredSchList.length > 0 && passes === filteredSchList.length ? "green" : "amber"} />
               <StatCard label="Expiring Soon" value={expiringSoon.length} color={expiringSoon.length > 0 ? "amber" : "green"} sub="within 60 days" />
               <StatCard label="Expired Certificates" value={expired.length} color={expired.length > 0 ? "red" : "green"} sub={expired.length > 0 ? "renew immediately" : "none"} />
             </div>
@@ -2244,7 +2433,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
           { key: "nonConformances", label: "Non-conformances" },
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-scheme-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-schemes", farmId]} /> },
         ]}
-        rows={records as Record<string, unknown>[]}
+        rows={filteredSchList}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
         onDelete={r => del.mutate(r.id as number)}
         onView={setViewRecord}
@@ -2319,6 +2508,9 @@ function PoultryFeedTab({ farmId }: { farmId: number }) {
     const sp = String(d.speciesIntended ?? "").toLowerCase();
     return sp === "poultry" || sp === "mixed";
   }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
+  const [yearFilterFeed, setYearFilterFeed] = useState("all");
+  const deliveryYears = [...new Set(poultryDeliveries.map(d => String(d.deliveryDate ?? "").slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+  const filteredDeliveries = yearFilterFeed === "all" ? poultryDeliveries : poultryDeliveries.filter(d => String(d.deliveryDate ?? "").startsWith(yearFilterFeed));
 
   return (
     <div className="space-y-4">
@@ -2337,11 +2529,22 @@ function PoultryFeedTab({ farmId }: { farmId: number }) {
               Showing all feed deliveries from <strong>Feed Management</strong> where species is set to <em>Poultry</em> or <em>Mixed</em>. To add a delivery, go to Feed Management → Delivery Records.
             </p>
           </div>
-          {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : poultryDeliveries.length === 0 ? (
-            <Empty msg='No poultry or mixed-species feed deliveries on record. Log a delivery in Feed Management with species set to "Poultry" or "Mixed".' />
+          {deliveryYears.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Select value={yearFilterFeed} onValueChange={setYearFilterFeed}>
+                <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All years</SelectItem>
+                  {deliveryYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : filteredDeliveries.length === 0 ? (
+            <Empty msg={poultryDeliveries.length === 0 ? 'No poultry or mixed-species feed deliveries on record. Log a delivery in Feed Management with species set to "Poultry" or "Mixed".' : "No deliveries match the selected year."} />
           ) : (
             <div className="space-y-2">
-              {poultryDeliveries.map((r, i) => (
+              {filteredDeliveries.map((r, i) => (
                 <div key={i} className="border rounded-lg p-3 bg-white">
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
