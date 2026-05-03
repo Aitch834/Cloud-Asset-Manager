@@ -375,8 +375,18 @@ function HousesTab({ farmId }: { farmId: number }) {
               species={String(form.species ?? "")}
               productionSystem={String(form.productionSystem ?? "")}
             />
-            <div><Label>Ventilation Type</Label><Input value={String(form.ventilationType ?? "")} onChange={e => setForm(f => ({ ...f, ventilationType: e.target.value }))} placeholder="e.g. Tunnel, Cross-flow, Natural" /></div>
-            <div><Label>Water System</Label><Input value={String(form.waterSystem ?? "")} onChange={e => setForm(f => ({ ...f, waterSystem: e.target.value }))} placeholder="e.g. Nipple drinkers, Bell drinkers" /></div>
+            <div><Label>Ventilation Type</Label>
+              <Select value={String(form.ventilationType ?? "")} onValueChange={v => setForm(f => ({ ...f, ventilationType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select ventilation type" /></SelectTrigger>
+                <SelectContent>{["Tunnel ventilation","Cross-flow ventilation","Natural / passive ventilation","Positive pressure","Negative pressure","Hybrid ventilation","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Water System</Label>
+              <Select value={String(form.waterSystem ?? "")} onValueChange={v => setForm(f => ({ ...f, waterSystem: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select water system" /></SelectTrigger>
+                <SelectContent>{["Nipple drinkers","Bell drinkers","Cup drinkers","Trough","Combination (nipple + trough)","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>

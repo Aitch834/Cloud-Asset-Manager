@@ -129,6 +129,11 @@ function FlocksTab({ farmId }: { farmId: number }) {
                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>{["Breeding Sow Herd", "Weaner Production", "Grower-Finisher", "Boar Stud", "Outdoor Free-Range", "Conventional Indoor"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                   </Select>
+                ) : k === "breed" ? (
+                  <Select value={form[k] ?? ""} onValueChange={v => setForm(f => ({ ...f, [k]: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select breed" /></SelectTrigger>
+                    <SelectContent>{["Large White","Landrace","Duroc","Hampshire","Pietrain","Berkshire","Oxford Sandy & Black","Welsh","British Lop","Hybrid / commercial cross","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
                 ) : (
                   <Input value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} />
                 )}
@@ -326,7 +331,12 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
             <div><Label>Destination Abattoir</Label><Input value={String(form.destinationAbattoir ?? "")} onChange={e => setForm(f => ({ ...f, destinationAbattoir: e.target.value }))} /></div>
             <div><Label>Number of Pigs *</Label><Input type="number" value={String(form.numberOfPigs ?? "")} onChange={e => setForm(f => ({ ...f, numberOfPigs: e.target.value }))} /></div>
             <div><Label>Feed Withdrawal (hours)</Label><Input type="number" value={String(form.feedWithdrawalHours ?? "")} onChange={e => setForm(f => ({ ...f, feedWithdrawalHours: e.target.value }))} /></div>
-            <div><Label>Lameness / Casualty Status</Label><Input value={String(form.lambnessCasualtyStatus ?? "")} onChange={e => setForm(f => ({ ...f, lambnessCasualtyStatus: e.target.value }))} /></div>
+            <div><Label>Lameness / Casualty Status</Label>
+              <Select value={String(form.lambnessCasualtyStatus ?? "")} onValueChange={v => setForm(f => ({ ...f, lambnessCasualtyStatus: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectContent>{["None","Lame – minor","Lame – moderate","Lame – severe","Casualty – suspected","Casualty – confirmed","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2 space-y-2">
               {([["veterinaryMedicinesLast60Days", "Veterinary medicines administered in last 60 days?"], ["withdrawalPeriodClear", "Withdrawal period clear?"], ["signedByFarmer", "Signed by farmer?"]] as [string, string][]).map(([k, l]) => (
                 <div key={k} className="flex items-center gap-2">
@@ -1362,7 +1372,12 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Sow Breed</Label><Input value={form.sowBreed || ""} onChange={e => set("sowBreed", e.target.value)} placeholder="e.g. Large White, Landrace" /></div>
+                  <div><Label>Sow Breed</Label>
+                    <Select value={form.sowBreed || ""} onValueChange={v => set("sowBreed", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select breed" /></SelectTrigger>
+                      <SelectContent>{["Large White","Landrace","Duroc","Hampshire","Pietrain","Berkshire","Oxford Sandy & Black","Welsh","British Lop","Hybrid / commercial cross","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   <div>
                     <Label>Parity Number</Label>
                     <Input type="number" min="1" value={form.parityNumber ?? ""} onChange={e => set("parityNumber", e.target.value ? parseInt(e.target.value) : null)} placeholder="1 = gilt" />

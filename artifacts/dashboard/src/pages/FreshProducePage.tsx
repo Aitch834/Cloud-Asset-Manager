@@ -239,9 +239,24 @@ function BlocksTab({ farmId }: { farmId: number }) {
               <p className="text-xs text-muted-foreground mt-1">Link this block to a farm field to inherit NVZ / organic status.</p>
             </div>
             <div><Label>Area (ha)</Label><Input value={form.areaHa ?? ""} onChange={e => setForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="Will update when boundary is drawn" /></div>
-            <div><Label>Soil Type</Label><Input value={form.soilType ?? ""} onChange={e => setForm(f => ({ ...f, soilType: e.target.value }))} /></div>
-            <div><Label>Irrigation System</Label><Input value={form.irrigationSystem ?? ""} onChange={e => setForm(f => ({ ...f, irrigationSystem: e.target.value }))} /></div>
-            <div><Label>Water Source</Label><Input value={form.waterSource ?? ""} onChange={e => setForm(f => ({ ...f, waterSource: e.target.value }))} /></div>
+            <div><Label>Soil Type</Label>
+              <Select value={form.soilType ?? ""} onValueChange={v => setForm(f => ({ ...f, soilType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select soil type" /></SelectTrigger>
+                <SelectContent>{["Sandy","Loamy sand","Sandy loam","Loam","Clay loam","Silty clay loam","Silty clay","Clay","Peat","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Irrigation System</Label>
+              <Select value={form.irrigationSystem ?? ""} onValueChange={v => setForm(f => ({ ...f, irrigationSystem: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select irrigation system" /></SelectTrigger>
+                <SelectContent>{["Overhead sprinkler","Drip / trickle irrigation","Seep hose","Boom / boom reel","Flood irrigation","Furrow irrigation","None – rainfed"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Water Source</Label>
+              <Select value={form.waterSource ?? ""} onValueChange={v => setForm(f => ({ ...f, waterSource: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select water source" /></SelectTrigger>
+                <SelectContent>{["Borehole","Reservoir","River / stream","Mains (potable)","Rainwater harvesting","Pond / lake","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -384,7 +399,12 @@ function WaterTestsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Water Test Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
-            <div><Label>Water Source *</Label><Input value={form.waterSource ?? ""} onChange={e => setForm(f => ({ ...f, waterSource: e.target.value }))} /></div>
+            <div><Label>Water Source *</Label>
+              <Select value={form.waterSource ?? ""} onValueChange={v => setForm(f => ({ ...f, waterSource: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                <SelectContent>{["Borehole","Reservoir","River / stream","Mains (potable)","Rainwater harvesting","Pond / lake","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2">
               <LabSelector farmId={farmId} value={labSupplierId} labName={form.testingLab ?? null} onChange={(id, name) => { setLabSupplierId(id); setForm(f => ({ ...f, testingLab: name ?? "" })); }} />
             </div>
@@ -459,7 +479,12 @@ function HarvestTab({ farmId }: { farmId: number }) {
             <div><Label>Waste (kg)</Label><Input type="number" step="0.01" value={form.waste ?? ""} onChange={e => setForm(f => ({ ...f, waste: e.target.value }))} /></div>
             <div><Label>PHI (days)</Label><Input type="number" value={form.preHarvestInterval ?? ""} onChange={e => setForm(f => ({ ...f, preHarvestInterval: e.target.value }))} /></div>
             <div><Label>Harvested By</Label><Input value={form.harvestedBy ?? ""} onChange={e => setForm(f => ({ ...f, harvestedBy: e.target.value }))} /></div>
-            <div><Label>Destination</Label><Input value={form.destination ?? ""} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} /></div>
+            <div><Label>Destination</Label>
+              <Select value={form.destination ?? ""} onValueChange={v => setForm(f => ({ ...f, destination: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
+                <SelectContent>{["Packing house – own","Packing house – third party","Direct retail (supermarket)","Wholesale market","Processor","Export","Farm shop / direct sale","Food bank / donation","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Customer Reference</Label><Input value={form.customerReference ?? ""} onChange={e => setForm(f => ({ ...f, customerReference: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>

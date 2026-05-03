@@ -130,7 +130,12 @@ function WeighTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Weigh Date *"><Input type="date" value={form.weighDate ?? ""} onChange={e => sf("weighDate", e.target.value)} /></Field>
             <Field label="Group Reference"><Input value={form.groupRef ?? ""} onChange={e => sf("groupRef", e.target.value)} /></Field>
-            <Field label="Breed"><Input value={form.breed ?? ""} onChange={e => sf("breed", e.target.value)} /></Field>
+            <Field label="Breed">
+              <Select value={form.breed ?? ""} onValueChange={v => sf("breed", v)}>
+                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
+                <SelectContent>{["Hereford","Angus","Limousin","Charolais","Simmental","Blonde d'Aquitaine","Shorthorn","Belgian Blue","British Friesian","Murray Grey","Dexter","Highland","Red Poll","South Devon","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Category">
               <Select value={form.category ?? ""} onValueChange={v => sf("category", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -213,7 +218,12 @@ function FinishingTab({ farmId }: { farmId: number }) {
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Finishing Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Animal Tag No. *"><Input value={form.animalTagNumber ?? ""} onChange={e => sf("animalTagNumber", e.target.value)} /></Field>
-            <Field label="Breed"><Input value={form.breed ?? ""} onChange={e => sf("breed", e.target.value)} /></Field>
+            <Field label="Breed">
+              <Select value={form.breed ?? ""} onValueChange={v => sf("breed", v)}>
+                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
+                <SelectContent>{["Hereford","Angus","Limousin","Charolais","Simmental","Blonde d'Aquitaine","Shorthorn","Belgian Blue","British Friesian","Murray Grey","Dexter","Highland","Red Poll","South Devon","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Sex">
               <Select value={form.sex ?? ""} onValueChange={v => sf("sex", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -225,7 +235,12 @@ function FinishingTab({ farmId }: { farmId: number }) {
             <Field label="Entry Live Weight (kg)"><Input type="number" step="0.1" value={form.entryLiveWeightKg ?? ""} onChange={e => sf("entryLiveWeightKg", e.target.value)} /></Field>
             <Field label="Target Slaughter Wt (kg)"><Input type="number" step="0.1" value={form.targetSlaughterWeightKg ?? ""} onChange={e => sf("targetSlaughterWeightKg", e.target.value)} /></Field>
             <Field label="Target Slaughter Date"><Input type="date" value={form.targetSlaughterDate ?? ""} onChange={e => sf("targetSlaughterDate", e.target.value)} /></Field>
-            <Field label="Finishing System"><Input value={form.finishingSystem ?? ""} onChange={e => sf("finishingSystem", e.target.value)} placeholder="e.g. Cereal beef, Grass finishing" /></Field>
+            <Field label="Finishing System">
+              <Select value={form.finishingSystem ?? ""} onValueChange={v => sf("finishingSystem", v)}>
+                <SelectTrigger><SelectValue placeholder="Select system..." /></SelectTrigger>
+                <SelectContent>{["Cereal beef","Grass finishing","18-month beef","Maize silage","TMR (Total Mixed Ration)","Silage-based","Specialist slow-finish","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Status">
               <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -308,7 +323,12 @@ function DeadweightTab({ farmId }: { farmId: number }) {
             <Field label="Avg Carcass Wt (kg)"><Input type="number" step="0.1" value={form.averageCarcassWeightKg ?? ""} onChange={e => sf("averageCarcassWeightKg", e.target.value)} /></Field>
             <Field label="Total Carcass Wt (kg)"><Input type="number" step="0.1" value={form.totalCarcassWeightKg ?? ""} onChange={e => sf("totalCarcassWeightKg", e.target.value)} /></Field>
             <Field label="Killing Out %"><Input type="number" step="0.1" value={form.killingOutPercentage ?? ""} onChange={e => sf("killingOutPercentage", e.target.value)} /></Field>
-            <Field label="Dominant Grade"><Input value={form.dominantGrade ?? ""} onChange={e => sf("dominantGrade", e.target.value)} placeholder="e.g. R4L, U3" /></Field>
+            <Field label="Dominant Grade">
+              <Select value={form.dominantGrade ?? ""} onValueChange={v => sf("dominantGrade", v)}>
+                <SelectTrigger><SelectValue placeholder="Select EUROP grade..." /></SelectTrigger>
+                <SelectContent>{["E3L","E3H","E4L","E4H","U3L","U3H","U4L","U4H","R3L","R3H","R4L","R4H","O3L","O3H","O4L","O4H","P3L","P3H","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Avg Price per kg (£)"><Input type="number" step="0.001" value={form.averagePricePerKgGbp ?? ""} onChange={e => sf("averagePricePerKgGbp", e.target.value)} /></Field>
             <Field label="Total Value (£)"><Input type="number" step="0.01" value={form.totalValueGbp ?? ""} onChange={e => sf("totalValueGbp", e.target.value)} /></Field>
             <Field label="Levy Deduction (£)"><Input type="number" step="0.01" value={form.levyDeductionGbp ?? ""} onChange={e => sf("levyDeductionGbp", e.target.value)} /></Field>
