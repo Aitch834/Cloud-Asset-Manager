@@ -6837,27 +6837,7 @@ router.patch("/farms/:farmId/grants/:recordId/document", requireAuth, requireTen
 
 // ─── Help Articles ─────────────────────────────────
 router.get("/help/articles", async (req: Request, res: Response): Promise<void> => {
-  // DB-first: if published articles exist, serve those instead of the hardcoded list
-  try {
-    const dbRows = await db.select({
-      id: helpArticlesTable.id,
-      title: helpArticlesTable.title,
-      category: helpArticlesTable.category,
-      content: helpArticlesTable.content,
-    }).from(helpArticlesTable)
-      .where(eq(helpArticlesTable.published, true))
-      .orderBy(helpArticlesTable.sortOrder, helpArticlesTable.id);
-    if (dbRows.length > 0) {
-      const { search, category } = req.query;
-      let filtered: typeof dbRows = dbRows;
-      if (search) { const s = (search as string).toLowerCase(); filtered = filtered.filter(a => a.title.toLowerCase().includes(s) || a.content.toLowerCase().includes(s)); }
-      if (category) { filtered = filtered.filter(a => a.category === category); }
-      res.json({ records: filtered });
-      return;
-    }
-  } catch {}
-
-  const articles = [
+  const articles: { id: number; title: string; category: string; content: string }[] = [
     {
       id: 1,
       title: "Getting Started with Red Tractor Compliance",
@@ -11043,6 +11023,26 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Red Tractor Beef &amp; Lamb and Dairy standards require you to check that commercial transporters hold a valid ATA before loading animals. Recording the ATA number in each relevant movement record demonstrates this check has been carried out — satisfying the standard without the need for a separate log.</p>`,
     },
   ];
+
+  // Overlay published DB articles: replace matching hardcoded entries by ID, append DB-only articles
+  try {
+    const dbRows = await db.select({
+      id: helpArticlesTable.id,
+      title: helpArticlesTable.title,
+      category: helpArticlesTable.category,
+      content: helpArticlesTable.content,
+    }).from(helpArticlesTable)
+      .where(eq(helpArticlesTable.published, true))
+      .orderBy(helpArticlesTable.sortOrder, helpArticlesTable.id);
+    for (const dbRow of dbRows) {
+      const idx = articles.findIndex((a) => a.id === dbRow.id);
+      if (idx >= 0) {
+        articles[idx] = dbRow;
+      } else {
+        articles.push(dbRow);
+      }
+    }
+  } catch {}
 
   const { search, category } = req.query;
   let filtered = articles;
