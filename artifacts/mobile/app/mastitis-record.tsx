@@ -24,7 +24,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyMastitisRecord } from "@/lib/types";
 
-const CLINICAL_GRADES = ["Grade 1 — Mild", "Grade 2 — Moderate", "Grade 3 — Severe"];
+const CLINICAL_GRADES = ["Subclinical", "Mild", "Moderate", "Severe"];
 const QUARTERS = ["Left fore", "Right fore", "Left hind", "Right hind"];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

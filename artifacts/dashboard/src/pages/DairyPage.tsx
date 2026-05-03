@@ -681,6 +681,17 @@ interface MastitisRecord {
   vetConsulted?: boolean; vetName?: string | null; sccAtOnset?: number | null; notes?: string | null;
 }
 
+// Normalise grade values from any historic format to canonical text
+function normalizeGrade(g?: string | null): string {
+  if (!g) return "";
+  const s = g.trim();
+  if (s === "1" || /grade\s*1/i.test(s) || /^mild/i.test(s)) return "Mild";
+  if (s === "2" || /grade\s*2/i.test(s) || /^moderate/i.test(s)) return "Moderate";
+  if (s === "3" || /grade\s*3/i.test(s) || /^severe/i.test(s)) return "Severe";
+  if (s === "4" || /grade\s*4/i.test(s) || /^subclinical/i.test(s)) return "Subclinical";
+  return s;
+}
+
 const GRADE_PIE_COLOURS = ["#6366f1", "#f59e0b", "#f97316", "#ef4444", "#94a3b8"];
 const OUTCOME_PIE_COLOURS = ["#22c55e", "#eab308", "#f97316", "#3b82f6", "#ef4444", "#94a3b8"];
 
@@ -744,7 +755,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
     if (presetFrom && d < presetFrom) return false;
     if (filterEarTag && !r.earTagNumber?.toLowerCase().includes(filterEarTag.toLowerCase())) return false;
     if (filterOutcome && r.outcome !== filterOutcome) return false;
-    if (filterGrade && r.clinicalGrade !== filterGrade) return false;
+    if (filterGrade && normalizeGrade(r.clinicalGrade) !== filterGrade) return false;
     return true;
   }), [allRecords, presetFrom, filterEarTag, filterOutcome, filterGrade]);
 
@@ -793,7 +804,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
     }));
 
     const gradeMap: Record<string, number> = {};
-    filtered.forEach(r => { if (r.clinicalGrade) gradeMap[r.clinicalGrade] = (gradeMap[r.clinicalGrade] || 0) + 1; });
+    filtered.forEach(r => { const g = normalizeGrade(r.clinicalGrade); if (g) gradeMap[g] = (gradeMap[g] || 0) + 1; });
     const gradeData = Object.entries(gradeMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
     const pathMap: Record<string, number> = {};
@@ -809,7 +820,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
       if (!r.earTagNumber) return;
       if (!cowMap[r.earTagNumber]) cowMap[r.earTagNumber] = { count: 0, grades: [], lastDate: "" };
       cowMap[r.earTagNumber].count++;
-      if (r.clinicalGrade) cowMap[r.earTagNumber].grades.push(r.clinicalGrade);
+      const ng = normalizeGrade(r.clinicalGrade); if (ng) cowMap[r.earTagNumber].grades.push(ng);
       if (!cowMap[r.earTagNumber].lastDate || r.onsetDate > cowMap[r.earTagNumber].lastDate) cowMap[r.earTagNumber].lastDate = r.onsetDate;
     });
     const problemCows = Object.entries(cowMap)
@@ -1093,7 +1104,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
                           <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-medium">{kpis.tagCounts[r.earTagNumber]}× recurring</span>
                         )}
                         {r.quartersAffected && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{r.quartersAffected}</span>}
-                        {r.clinicalGrade && <span className="text-xs text-gray-500">Grade: {r.clinicalGrade}</span>}
+                        {r.clinicalGrade && <span className="text-xs text-gray-500">Grade: {normalizeGrade(r.clinicalGrade)}</span>}
                         {r.treatmentProduct && <span className="text-xs text-gray-500">{r.treatmentProduct}</span>}
                         <OutcomeBadge v={r.outcome} />
                         {r.withdrawalEndDate && new Date(r.withdrawalEndDate) >= new Date() && (
@@ -1137,7 +1148,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
                 </div>
               </div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quarters Affected</p><p className="font-medium">{viewRecord.quartersAffected || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Grade</p><p className="font-medium">{viewRecord.clinicalGrade || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Grade</p><p className="font-medium">{normalizeGrade(viewRecord.clinicalGrade) || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bacterial Culture</p><p className="font-medium">{viewRecord.bacterialCultureResult || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Onset</p><p className="font-medium">{viewRecord.sccAtOnset ? `${viewRecord.sccAtOnset.toLocaleString()} k/mL` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Product</p><p className="font-medium">{viewRecord.treatmentProduct || "—"}</p></div>
