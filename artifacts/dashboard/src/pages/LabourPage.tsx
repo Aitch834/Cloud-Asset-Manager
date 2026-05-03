@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
-  CheckCircle2, AlertTriangle, XCircle, Download,
+  CheckCircle2, AlertTriangle, XCircle, Download, Bell,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -108,6 +108,170 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onCli
       <Icon size={15} />
       {label}
     </button>
+  );
+}
+
+// ─── Submission Status Panel ──────────────────────────────────────────────────
+
+type DayStatus = { day: string; date: string; shift: string | null; status: string; entriesCount: number; totalHours: number };
+type StaffStatus = { name: string; phone: string | null; days: DayStatus[] };
+
+function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStart: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const statusQ = useQuery<{ weekStart: string; weekEnd: string; staff: StaffStatus[] }>({
+    queryKey: ["labour-submission-status", farmId, weekStart],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/submission-status?weekStart=${weekStart}`).then(r => r.json()),
+    enabled: !!farmId && !!weekStart,
+  });
+
+  const settingsQ = useQuery<{ timesheetReminderTime: string }>({
+    queryKey: ["labour-settings", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/settings`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const [reminderTime, setReminderTime] = useState("18:00");
+  useEffect(() => {
+    if (settingsQ.data?.timesheetReminderTime) setReminderTime(settingsQ.data.timesheetReminderTime);
+  }, [settingsQ.data]);
+
+  const saveReminderMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/labour/settings`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timesheetReminderTime: reminderTime }),
+    }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Reminder time saved" }); qc.invalidateQueries({ queryKey: ["labour-settings", farmId] }); },
+  });
+
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const today = new Date().toISOString().slice(0, 10);
+  const data = statusQ.data;
+
+  const todayIndex = (() => {
+    const d = new Date(today + "T00:00:00Z"); const dow = d.getUTCDay();
+    return dow === 0 ? 6 : dow - 1;
+  })();
+
+  const summary = data?.staff?.length ? (() => {
+    const scheduled = data.staff.filter(s => {
+      const day = s.days[todayIndex];
+      return day && !["not_in_rota", "off", "future"].includes(day.status);
+    });
+    const submitted = scheduled.filter(s => {
+      const day = s.days[todayIndex];
+      return day && (day.status === "approved" || day.status === "pending");
+    });
+    return { scheduled: scheduled.length, submitted: submitted.length };
+  })() : null;
+
+  const cellCls = (status: string) => {
+    if (status === "approved") return "bg-green-100 text-green-800 border-green-300";
+    if (status === "pending")  return "bg-amber-50 text-amber-700 border-amber-300";
+    if (status === "missing")  return "bg-red-50 text-red-600 border-red-300";
+    if (status === "off")      return "bg-gray-100 text-gray-400 border-gray-200";
+    return "bg-white text-gray-200 border-gray-100";
+  };
+  const cellGlyph = (status: string) => {
+    if (status === "approved") return "✓";
+    if (status === "pending")  return "~";
+    if (status === "missing")  return "!";
+    if (status === "off")      return "–";
+    return "";
+  };
+
+  return (
+    <div className="border rounded-xl bg-white overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <CalendarDays size={14} className="text-gray-400 shrink-0" />
+          <span className="text-sm font-medium text-gray-800">Submission Status</span>
+          {summary !== null && (
+            <span className="text-xs text-gray-500 ml-1">
+              Today: <strong className={summary.submitted >= summary.scheduled && summary.scheduled > 0 ? "text-green-700" : "text-amber-700"}>
+                {summary.submitted}/{summary.scheduled}
+              </strong> submitted
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Bell size={12} className="text-gray-400 shrink-0" />
+          <span className="text-xs text-gray-500 whitespace-nowrap">SMS reminder at:</span>
+          <input
+            type="time"
+            value={reminderTime}
+            onChange={e => setReminderTime(e.target.value)}
+            className="h-7 text-xs border rounded px-2 focus:outline-none focus:ring-1 focus:ring-green-500 w-28"
+          />
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2.5"
+            onClick={() => saveReminderMut.mutate()} disabled={saveReminderMut.isPending}>
+            Save
+          </Button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 px-4 py-1.5 border-b bg-gray-50/60 text-xs text-gray-500">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-green-100 border border-green-300" />Approved</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-amber-50 border border-amber-300" />Pending</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-red-50 border border-red-300" />Missing</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />Off / Holiday</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-white border border-gray-100" />Not rostered</span>
+      </div>
+
+      {/* Grid */}
+      {statusQ.isLoading ? (
+        <div className="text-center text-sm text-gray-400 py-6">Loading…</div>
+      ) : !data?.staff?.length ? (
+        <div className="text-center text-sm text-gray-400 py-6">
+          No active staff found — add staff members in the Rota tab first.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b">
+                <th className="px-3 py-2 text-left font-medium text-gray-500 min-w-[130px]">Staff</th>
+                {DAYS.map((d, i) => {
+                  const date = data.staff[0]?.days[i]?.date ?? "";
+                  const isToday = date === today;
+                  return (
+                    <th key={d} className={`px-1 py-2 text-center font-medium min-w-[52px] ${isToday ? "text-green-700 bg-green-50/60" : "text-gray-500"}`}>
+                      <div>{d}</div>
+                      <div className="font-normal text-gray-400 text-[10px]">
+                        {date ? new Date(date + "T00:00:00Z").getDate() : ""}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {data.staff.map(member => (
+                <tr key={member.name} className="border-t hover:bg-gray-50/40">
+                  <td className="px-3 py-1.5 font-medium text-gray-700 truncate max-w-[150px]">{member.name}</td>
+                  {member.days.map((day, i) => {
+                    const isToday = day.date === today;
+                    return (
+                      <td key={i} className={`px-1 py-1.5 text-center ${isToday ? "bg-green-50/40" : ""}`}>
+                        <span
+                          title={`${day.status}${day.shift ? ` (${day.shift})` : ""}${day.totalHours > 0 ? ` — ${day.totalHours.toFixed(1)}h` : ""}`}
+                          className={`inline-flex items-center justify-center w-8 h-6 rounded border text-[11px] font-semibold cursor-default ${cellCls(day.status)}`}
+                        >
+                          {cellGlyph(day.status)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -359,6 +523,9 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
           Rest breaks (including the statutory 20-minute break, or any break where the worker is free to leave) are <em>not</em> working time under the Working Time Regulations 1998 and should not be recorded as task hours.
         </span>
       </div>
+
+      {/* Submission status grid + SMS reminder settings */}
+      <SubmissionStatusPanel farmId={farmId} weekStart={filterWeekStart} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

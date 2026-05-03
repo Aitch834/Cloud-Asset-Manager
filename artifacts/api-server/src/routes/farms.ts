@@ -22676,6 +22676,65 @@ router.delete("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, asy
   res.json({ success: true });
 });
 
+// Submission status grid
+router.get("/farms/:farmId/labour/submission-status", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const weekStart = String(req.query.weekStart ?? "");
+  if (!weekStart) { res.status(400).json({ error: "weekStart required" }); return; }
+
+  const DAY_KEYS = ["monShift", "tueShift", "wedShift", "thuShift", "friShift", "satShift", "sunShift"] as const;
+  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const OFF_SHIFTS = new Set(["day-off", "holiday", "sick", "cancelled"]);
+
+  const weekStartDate = new Date(weekStart + "T00:00:00Z");
+  const dayDates = DAY_LABELS.map((_, i) => { const d = new Date(weekStartDate); d.setUTCDate(d.getUTCDate() + i); return d.toISOString().slice(0, 10); });
+  const weekEnd = dayDates[6];
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [staff, rota, entries] = await Promise.all([
+    db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone }).from(farmMembersTable).where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.isActive, true))),
+    db.select().from(labourRotaTable).where(and(eq(labourRotaTable.farmId, farmId), eq(labourRotaTable.weekStartDate, weekStart))),
+    db.select().from(labourTimesheetEntriesTable).where(and(eq(labourTimesheetEntriesTable.farmId, farmId), gte(labourTimesheetEntriesTable.date, weekStart), lte(labourTimesheetEntriesTable.date, weekEnd))),
+  ]);
+
+  type RotaRow = typeof rota[0];
+  const staffStatus = staff.map(member => {
+    const fullName = `${member.firstName} ${member.lastName}`.trim();
+    const rotaEntry = rota.find(r => r.staffName === fullName) as RotaRow | undefined;
+    const days = DAY_LABELS.map((day, i) => {
+      const date = dayDates[i];
+      const shift = rotaEntry ? (rotaEntry[DAY_KEYS[i]] as string | null) : null;
+      const dayEntries = entries.filter(e => e.staffName === fullName && e.date === date);
+      const isFuture = date > today;
+      let status: string;
+      if (!shift) { status = "not_in_rota"; }
+      else if (OFF_SHIFTS.has(shift)) { status = "off"; }
+      else if (dayEntries.length > 0) { status = dayEntries.every(e => e.approvedBy) ? "approved" : "pending"; }
+      else if (isFuture) { status = "future"; }
+      else { status = "missing"; }
+      const totalHours = dayEntries.reduce((s, e) => s + parseFloat(e.hoursRegular ?? "0") + parseFloat(e.hoursOvertime ?? "0"), 0);
+      return { day, date, shift, status, entriesCount: dayEntries.length, totalHours };
+    });
+    return { name: fullName, phone: member.phone, days };
+  });
+
+  res.json({ weekStart, weekEnd, staff: staffStatus });
+});
+
+// Labour settings (GET + PATCH reminder time)
+router.get("/farms/:farmId/labour/settings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const [farm] = await db.select({ timesheetReminderTime: farmsTable.timesheetReminderTime }).from(farmsTable).where(eq(farmsTable.id, farmId));
+  res.json({ timesheetReminderTime: farm?.timesheetReminderTime ?? "18:00" });
+});
+
+router.patch("/farms/:farmId/labour/settings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  await db.update(farmsTable).set({ timesheetReminderTime: String(b.timesheetReminderTime ?? "18:00") }).where(eq(farmsTable.id, farmId));
+  res.json({ ok: true });
+});
+
 // ── Grain Drying Log (StorageLocationsPage) ───────────────────────────────────
 router.get("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);

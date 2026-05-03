@@ -59,6 +59,7 @@ export const farmsTable = pgTable("farms", {
   country: text("country").notNull().default("england"),
   scotEidNumber: text("scot_eid_number"),
   eidCymruNumber: text("eid_cymru_number"),
+  timesheetReminderTime: text("timesheet_reminder_time").default("18:00"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

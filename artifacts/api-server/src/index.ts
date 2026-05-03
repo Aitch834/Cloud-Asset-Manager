@@ -2,6 +2,7 @@ import app from "./app";
 import { seedDefaults } from "./lib/seedDefaults";
 import { seedLookupDefaults } from "./lib/seedLookups";
 import { startAlertingJob } from "./lib/alertingJob";
+import { startTimesheetReminderJob } from "./lib/timesheetReminderJob";
 
 interface EnvSpec {
   key: string;
@@ -68,4 +69,5 @@ app.listen(port, () => {
     console.error("[SEED] Failed to seed lookup defaults:", err);
   });
   startAlertingJob();
+  startTimesheetReminderJob();
 });
