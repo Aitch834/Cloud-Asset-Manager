@@ -626,7 +626,7 @@ const sections: Section[] = [
         color: "bg-green-50 text-green-700 border-green-100",
         badge: "module",
         features: [
-          "Flock register — record each flock with breed, management system, ram/ewe ratio, flock size, and current field location; flocks link to all tupping, scanning, lambing, weigh-in, and shearing records",
+          "Flock register — sheep flocks are registered and managed centrally in Livestock → Herds & Animals (the single herd and flock register); the Sheep Production module links every tupping, scanning, lambing, weigh-in, and shearing record to the relevant flock from that register",
           "Tupping records — log each ram-to-ewe service event with ram ID and breed, flock group, date put to, date removed, and expected scanning date; multiple tupping rounds per flock per season; links to flock fertility analytics",
           "Pregnancy scanning — record scanning results per ewe or group with scanner name, scanning date, singles, twins, triplets, quads, and empties; scanning summary calculates pregnancy rate and expected litter distribution for lambing planning",
           "Weigh-in & DLWG — record group or individual weigh-in events with date, average weight per group, individual weights, and calculated daily live weight gain vs target; performance data feeds Red Tractor Sheep Assurance performance records",
@@ -657,7 +657,7 @@ const sections: Section[] = [
         color: "bg-pink-50 text-pink-700 border-pink-100",
         badge: "module",
         features: [
-          "Pig herd register with breed, age and production system",
+          "Pig herds are registered and managed centrally in Livestock → Herds & Animals (the single herd and flock register); all pig production records link back to the herd from that register",
           "Farrowing & weaning records — litter size, piglet weights and survival",
           "Health & medicine records with withdrawal tracking",
           "Movements — Eartag Scotland / APHA compliant",
@@ -673,7 +673,7 @@ const sections: Section[] = [
         color: "bg-amber-50 text-amber-700 border-amber-100",
         badge: "module",
         features: [
-          "Flock register — broiler, layer, turkey, duck and speciality species with breed / strain recording",
+          "Flock register — poultry flocks (broiler, layer, turkey, duck, and speciality species) are registered centrally in Livestock → Herds & Animals; flocks are selected from that register when recording placements, depletions, mortality, and production records",
           "Placement & depletion records with hatchery traceability",
           "Daily mortality log — cumulative count, cause analysis, year filter, and year-by-year trend table",
           "Breed / strain mortality breakdown — compare peak mortality % and total losses across Ross 308, Cobb 500, slower-growing breeds and others",

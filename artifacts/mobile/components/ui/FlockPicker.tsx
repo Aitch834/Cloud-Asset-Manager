@@ -121,7 +121,7 @@ export function FlockPicker({
               <Text style={styles.centreText}>
                 {error
                   ? "Could not connect to load flocks. Open the app online to sync your list."
-                  : "Add your flocks in the Poultry Production section of the web dashboard."}
+                  : "Herds and flocks are managed in Livestock → Herds & Animals on the web dashboard."}
               </Text>
             </View>
           ) : filtered.length === 0 ? (

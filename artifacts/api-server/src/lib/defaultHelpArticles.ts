@@ -162,7 +162,7 @@ const TITLES: [string, string][] = [
   ["PPE Compliance Pack — Printing the Full PPE Register for Inspection", "Staff & Training"],
   ["PPE Staff Record — Printing an Individual Staff Member's PPE History", "Staff & Training"],
   ["Sheep Production Module — Overview and Getting Started", "Sheep Production"],
-  ["Sheep Flock Register — Setting Up Flocks and Breeding Groups", "Sheep Production"],
+  ["Sheep Flock Register — Flocks are Registered in Livestock → Herds & Animals", "Sheep Production"],
   ["Sheep Tupping Records — Ram Selection, Service Dates and Scanning Expectation", "Sheep Production"],
   ["Sheep Scanning Records — Pregnancy Scanning, Litter Sizes and Expected Lambing", "Sheep Production"],
   ["Sheep Weigh-in and DLWG — Performance Recording and Target Tracking", "Sheep Production"],
