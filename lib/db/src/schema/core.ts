@@ -243,6 +243,20 @@ export const farmMembersTable = pgTable("farm_members", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ── Staff ↔ Secondary Departments (many-to-many) ───────────────────────────────
+// Keeps departmentId on farmMembersTable as the *primary* department.
+// This table records any additional departments a person also works across.
+export const staffDepartmentMembershipsTable = pgTable("staff_department_memberships", {
+  id: serial("id").primaryKey(),
+  memberId: integer("member_id").notNull().references(() => farmMembersTable.id, { onDelete: "cascade" }),
+  departmentId: integer("department_id").notNull().references(() => farmDepartmentsTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniq: uniqueIndex("staff_dept_membership_uniq").on(t.memberId, t.departmentId),
+}));
+
+export type StaffDepartmentMembership = typeof staffDepartmentMembershipsTable.$inferSelect;
+
 export const farmTaskAssignmentsTable = pgTable("farm_task_assignments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

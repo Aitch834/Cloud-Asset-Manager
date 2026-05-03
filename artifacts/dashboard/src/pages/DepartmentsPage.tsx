@@ -35,6 +35,7 @@ interface StaffMember {
   farmRole: string;
   isActive: boolean;
   departmentId: number | null;
+  secondaryDepartments?: { id: number; name: string; colour: string }[];
   employedFrom: string | null;
   employedTo: string | null;
 }
@@ -67,7 +68,9 @@ function DeptMembersDialog({ farmId, dept, open, onClose }: {
     enabled: open && !!farmId,
   });
 
-  const allInDept = (data?.members ?? []).filter(m => m.departmentId === dept.id);
+  const allInDept = (data?.members ?? []).filter(m =>
+    m.departmentId === dept.id || m.secondaryDepartments?.some(sd => sd.id === dept.id)
+  );
   const activeMembers = allInDept.filter(m => m.isActive);
   const formerMembers = allInDept.filter(m => !m.isActive);
   const displayed = showFormer ? allInDept : activeMembers;
@@ -138,6 +141,11 @@ function DeptMembersDialog({ farmId, dept, open, onClose }: {
                         {m.jobTitle || FARM_ROLE_LABELS[m.farmRole] || m.farmRole}
                       </p>
                     </div>
+                    {m.departmentId !== dept.id && m.secondaryDepartments?.some(sd => sd.id === dept.id) && (
+                      <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">
+                        Secondary
+                      </Badge>
+                    )}
                     {!m.isActive && (
                       <Badge variant="secondary" className="text-[10px] shrink-0">
                         <UserX className="w-2.5 h-2.5 mr-1" />

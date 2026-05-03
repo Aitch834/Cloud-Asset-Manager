@@ -10,6 +10,7 @@ export interface FarmMember {
   departmentId: number | null;
   departmentName: string | null;
   departmentColour: string | null;
+  secondaryDepartments: { id: number; name: string; colour: string }[];
 }
 
 export function memberFullName(m: FarmMember) {

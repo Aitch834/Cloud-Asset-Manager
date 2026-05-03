@@ -216,6 +216,7 @@ import {
   irrigationEquipmentTable,
   farmDepartmentsTable,
   farmMembersTable,
+  staffDepartmentMembershipsTable,
   userInvitationsTable,
   staffFarmAssignmentsTable,
   usersTable,
@@ -17440,7 +17441,27 @@ router.get("/farms/:farmId/members", requireAuth, requireTenant, async (req: Req
     .leftJoin(farmDepartmentsTable, eq(farmMembersTable.departmentId, farmDepartmentsTable.id))
     .where(eq(farmMembersTable.farmId, farmId))
     .orderBy(farmMembersTable.lastName, farmMembersTable.firstName);
-  res.json({ members: rows });
+
+  // Fetch secondary department memberships for all returned members in one query
+  const memberIds = rows.map(r => r.id);
+  const secondaryRows = memberIds.length > 0
+    ? await db.select({
+        memberId: staffDepartmentMembershipsTable.memberId,
+        id: farmDepartmentsTable.id,
+        name: farmDepartmentsTable.name,
+        colour: farmDepartmentsTable.colour,
+      })
+      .from(staffDepartmentMembershipsTable)
+      .innerJoin(farmDepartmentsTable, eq(staffDepartmentMembershipsTable.departmentId, farmDepartmentsTable.id))
+      .where(inArray(staffDepartmentMembershipsTable.memberId, memberIds))
+    : [];
+  const secondaryByMember = new Map<number, { id: number; name: string; colour: string }[]>();
+  secondaryRows.forEach(sr => {
+    if (!secondaryByMember.has(sr.memberId)) secondaryByMember.set(sr.memberId, []);
+    secondaryByMember.get(sr.memberId)!.push({ id: sr.id, name: sr.name, colour: sr.colour });
+  });
+  const members = rows.map(r => ({ ...r, secondaryDepartments: secondaryByMember.get(r.id) ?? [] }));
+  res.json({ members });
 });
 
 // Create a staff record (no system access by default)
@@ -17448,7 +17469,7 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const tenantId = (req as any).tenantId as number;
-  const { firstName, lastName, email, phone, jobTitle, departmentId, farmRole, employedFrom, employedTo, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, departmentId, secondaryDepartmentIds, farmRole, employedFrom, employedTo, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   if (!firstName || !lastName) { res.status(400).json({ error: "First name and last name are required" }); return; }
   const [member] = await db.insert(farmMembersTable).values({
     farmId,
@@ -17472,6 +17493,12 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
     nokPhone: nokPhone ?? null,
     nokEmail: nokEmail ?? null,
   }).returning();
+  // Insert secondary department memberships
+  if (Array.isArray(secondaryDepartmentIds) && secondaryDepartmentIds.length > 0) {
+    await db.insert(staffDepartmentMembershipsTable).values(
+      secondaryDepartmentIds.map((deptId: number) => ({ memberId: member.id, departmentId: Number(deptId) }))
+    ).onConflictDoNothing();
+  }
   res.status(201).json({ member });
 });
 
@@ -17480,7 +17507,7 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const memberId = parseInt(req.params.memberId);
-  const { firstName, lastName, email, phone, jobTitle, departmentId, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, departmentId, secondaryDepartmentIds, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   const [member] = await db.update(farmMembersTable).set({
     ...(firstName !== undefined && { firstName }),
     ...(lastName !== undefined && { lastName }),
@@ -17502,6 +17529,15 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
     ...(nokEmail !== undefined && { nokEmail }),
   }).where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId))).returning();
   if (!member) { res.status(404).json({ error: "Member not found" }); return; }
+  // Replace secondary department memberships if provided
+  if (Array.isArray(secondaryDepartmentIds)) {
+    await db.delete(staffDepartmentMembershipsTable).where(eq(staffDepartmentMembershipsTable.memberId, memberId));
+    if (secondaryDepartmentIds.length > 0) {
+      await db.insert(staffDepartmentMembershipsTable).values(
+        secondaryDepartmentIds.map((deptId: number) => ({ memberId, departmentId: Number(deptId) }))
+      ).onConflictDoNothing();
+    }
+  }
   res.json({ member });
 });
 

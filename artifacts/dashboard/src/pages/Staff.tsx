@@ -68,6 +68,7 @@ interface FarmMember {
   departmentId: number | null;
   departmentName: string | null;
   departmentColour: string | null;
+  secondaryDepartments: { id: number; name: string; colour: string }[];
 }
 
 interface CertRecord {
@@ -1159,6 +1160,7 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
   const [phone, setPhone] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [departmentId, setDepartmentId] = useState<string>("none");
+  const [secondaryDeptIds, setSecondaryDeptIds] = useState<number[]>([]);
   const [farmRole, setFarmRole] = useState<FarmRole>("operator");
   const [employedFrom, setEmployedFrom] = useState("");
   const [notes, setNotes] = useState("");
@@ -1174,7 +1176,7 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
 
   function reset() {
     setFirstName(""); setLastName(""); setEmail(""); setPhone(""); setJobTitle("");
-    setDepartmentId("none"); setFarmRole("operator"); setEmployedFrom(""); setNotes("");
+    setDepartmentId("none"); setSecondaryDeptIds([]); setFarmRole("operator"); setEmployedFrom(""); setNotes("");
     setNiNumber(""); setPayrollNumber("");
     setNokName(""); setNokRelationship(""); setNokPhone(""); setNokEmail("");
     setStep("form");
@@ -1185,7 +1187,7 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
       const res = await fetch(`/api/farms/${farmId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, farmRole, employedFrom: employedFrom || null, notes: notes || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, secondaryDepartmentIds: secondaryDeptIds, farmRole, employedFrom: employedFrom || null, notes: notes || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -1249,8 +1251,8 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
                 </div>
                 {departments.length > 0 && (
                   <div>
-                    <Label>Department</Label>
-                    <Select value={departmentId} onValueChange={setDepartmentId}>
+                    <Label>Primary Department</Label>
+                    <Select value={departmentId} onValueChange={v => { setDepartmentId(v); setSecondaryDeptIds(prev => prev.filter(id => id !== Number(v))); }}>
                       <SelectTrigger><SelectValue placeholder="No department" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No department</SelectItem>
@@ -1264,6 +1266,29 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+                {departments.length > 1 && (
+                  <div>
+                    <Label>Also works in (secondary)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Select any additional departments this person works across.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {departments.filter(d => String(d.id) !== departmentId).map(d => {
+                        const selected = secondaryDeptIds.includes(d.id);
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setSecondaryDeptIds(prev => selected ? prev.filter(x => x !== d.id) : [...prev, d.id])}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${selected ? "border-transparent text-white" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+                            style={selected ? { background: d.colour } : undefined}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: selected ? "rgba(255,255,255,0.7)" : d.colour }} />
+                            {d.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -1481,6 +1506,7 @@ function EditMemberDialog({
   const [accessType, setAccessType] = useState<AccessType>(member?.accessType ?? "none");
   const [jobTitle, setJobTitle] = useState(member?.jobTitle ?? "");
   const [departmentId, setDepartmentId] = useState<string>(member?.departmentId ? String(member.departmentId) : "none");
+  const [secondaryDeptIds, setSecondaryDeptIds] = useState<number[]>(member?.secondaryDepartments?.map(d => d.id) ?? []);
   const [niNumber, setNiNumber] = useState(member?.niNumber ?? "");
   const [payrollNumber, setPayrollNumber] = useState(member?.payrollNumber ?? "");
   const [nokName, setNokName] = useState(member?.nokName ?? "");
@@ -1495,7 +1521,7 @@ function EditMemberDialog({
       const res = await fetch(`/api/farms/${farmId}/members/${member!.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, departmentId: departmentId !== "none" ? Number(departmentId) : null, secondaryDepartmentIds: secondaryDeptIds, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Save failed");
     },
@@ -1522,8 +1548,8 @@ function EditMemberDialog({
           </div>
           {departments.length > 0 && (
             <div>
-              <Label>Department</Label>
-              <Select value={departmentId} onValueChange={setDepartmentId}>
+              <Label>Primary Department</Label>
+              <Select value={departmentId} onValueChange={v => { setDepartmentId(v); setSecondaryDeptIds(prev => prev.filter(id => id !== Number(v))); }}>
                 <SelectTrigger><SelectValue placeholder="No department" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No department</SelectItem>
@@ -1537,6 +1563,29 @@ function EditMemberDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {departments.length > 1 && (
+            <div>
+              <Label>Also works in (secondary)</Label>
+              <p className="text-xs text-muted-foreground mb-2">Select any additional departments this person works across.</p>
+              <div className="flex flex-wrap gap-2">
+                {departments.filter(d => String(d.id) !== departmentId).map(d => {
+                  const selected = secondaryDeptIds.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setSecondaryDeptIds(prev => selected ? prev.filter(x => x !== d.id) : [...prev, d.id])}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${selected ? "border-transparent text-white" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+                      style={selected ? { background: d.colour } : undefined}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: selected ? "rgba(255,255,255,0.7)" : d.colour }} />
+                      {d.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -1643,11 +1692,23 @@ function MemberRow({
             <span
               className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-white"
               style={{ background: member.departmentColour ?? "#374151" }}
+              title="Primary department"
             >
               <Building2 className="w-2.5 h-2.5" />
               {member.departmentName}
             </span>
           )}
+          {member.secondaryDepartments?.map(d => (
+            <span
+              key={d.id}
+              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ml-0.5"
+              style={{ background: d.colour + "22", color: d.colour, border: `1px solid ${d.colour}55` }}
+              title="Secondary department"
+            >
+              <Building2 className="w-2.5 h-2.5" />
+              {d.name}
+            </span>
+          ))}
         </div>
       </td>
       <td className="px-6 py-4">
