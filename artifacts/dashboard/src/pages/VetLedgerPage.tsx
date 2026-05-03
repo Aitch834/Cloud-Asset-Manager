@@ -384,6 +384,30 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
     setShowVisitDialog(true);
   }
 
+  // ── Open Invoice Dialog pre-filled from a DCT vet visit ───
+  function openInvoiceFromDctVisit(v: Record<string, unknown>) {
+    setEditInvoice(null);
+    setInvoiceForm({
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      paymentStatus: "unpaid",
+      vetName: String(v.vetName ?? ""),
+      vetPractice: String(v.vetPractice ?? ""),
+      ...(v.estimatedTotalGbp ? { totalAmountGbp: String(v.estimatedTotalGbp) } : {}),
+    });
+    const reason = String(v.reasonForVisit ?? "");
+    setInvoiceLines([{
+      lineType: "medicine",
+      description: reason,
+      quantity: "1",
+      unitPriceGbp: v.estimatedTotalGbp ? String(v.estimatedTotalGbp) : "",
+      lineTotalGbp: v.estimatedTotalGbp ? String(v.estimatedTotalGbp) : "",
+      visitId: String(v.id ?? ""),
+      isMatched: false,
+      matchNote: "",
+    }]);
+    setShowInvoiceDialog(true);
+  }
+
   // ── Open Invoice Dialog ────────────────────────────────────
   function openInvoiceEdit(inv?: Record<string, unknown>) {
     setEditInvoice(inv ?? null);
@@ -577,6 +601,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
               const lines = (inv.lines as InvoiceLine[] | null) ?? [];
               return lines.some(l => l.visitId && String(l.visitId) === String(v.id));
             });
+            const isDct = String(v.reasonForVisit ?? "").startsWith("DCT prescription authorisation");
             return (
               <div key={String(v.id)} className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
                 <div className="flex items-start gap-3">
@@ -585,6 +610,11 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
                       <span className="text-sm font-semibold text-gray-900">{fmtDate(String(v.visitDate ?? ""))}</span>
                       <span className="text-sm text-gray-700">{String(v.vetName ?? "")}{v.vetPractice ? ` — ${String(v.vetPractice)}` : ""}</span>
                       {followUpOverdue && <Badge className="text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "none" }}>Follow-up overdue</Badge>}
+                      {isDct && linkedInvoices.length === 0 && (
+                        <Badge className="text-xs" style={{ background: "#fef3c7", color: "#854d0e", border: "1px solid #fde68a" }}>
+                          <TriangleAlert className="w-2.5 h-2.5 mr-1 inline" />DCT — invoice expected
+                        </Badge>
+                      )}
                       {linkedInvoices.length > 0 && <Badge className="text-xs" style={{ background: "#e0f2fe", color: "#0369a1", border: "none" }}>
                         <Receipt className="w-2.5 h-2.5 mr-1 inline" />{linkedInvoices.length} invoice{linkedInvoices.length > 1 ? "s" : ""}
                       </Badge>}
@@ -598,6 +628,12 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                    {isDct && linkedInvoices.length === 0 && (
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openInvoiceFromDctVisit(v)}>
+                        <Receipt className="w-3 h-3" />
+                        Raise Invoice
+                      </Button>
+                    )}
                     {(v.followUpDueDate || v.followUpRequired) && (
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5" onClick={() => setRaiseTaskVisit(v)}>
                         <ClipboardList className="w-3 h-3" />

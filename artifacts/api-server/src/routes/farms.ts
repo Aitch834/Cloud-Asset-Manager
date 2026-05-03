@@ -12639,7 +12639,7 @@ router.get("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requi
 router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, notes } = req.body;
+  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, estimatedPrescriptionFee, notes } = req.body;
   const [record] = await db.insert(dairyDctRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: new Date(dryOffDate), protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: !!vetAuthorisation, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).returning();
   if (vetAuthorisation && vetName?.trim()) {
     const visitDateStr = dryOffDate ? String(dryOffDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
@@ -12650,6 +12650,7 @@ router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requ
       reasonForVisit: "DCT prescription authorisation" + (cowEarTag ? " — " + cowEarTag : "") + (antibioticTubeProduct ? " · " + antibioticTubeProduct : ""),
       prescriptionsIssued: antibioticTubeProduct || null,
       animalIds: animalId ? JSON.stringify([animalId]) : null,
+      estimatedTotalGbp: estimatedPrescriptionFee ? String(estimatedPrescriptionFee) : null,
     });
   }
   // Cross-post antibiotic treatment to the Medicine Records register
@@ -12686,7 +12687,7 @@ router.put("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTen
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, notes } = req.body;
+  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, estimatedPrescriptionFee, notes } = req.body;
   const [record] = await db.update(dairyDctRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: dryOffDate ? new Date(dryOffDate) : undefined, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: vetAuthorisation !== undefined ? !!vetAuthorisation : undefined, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });

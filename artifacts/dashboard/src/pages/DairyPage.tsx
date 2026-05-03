@@ -3223,7 +3223,7 @@ interface DctRecord {
   teatSealantBatch?: string | null; treatmentJustification?: string | null;
   sccAtDryOff?: number | null; mastitisEpisodes12Months?: number | null;
   administeredBy?: string | null; vetAuthorisation?: boolean; vetName?: string | null;
-  expectedCalvingDate?: string | null; notes?: string | null;
+  expectedCalvingDate?: string | null; estimatedPrescriptionFee?: number | string | null; notes?: string | null;
 }
 
 interface FarmAnimal { id: number; earTagNumber?: string | null; tagNumber?: string | null; herdId?: number | null; breed?: string | null; species?: string | null; }
@@ -3772,6 +3772,23 @@ function DctTab({ farmId }: { farmId: number }) {
                     Used to determine withdrawal compliance — milk withdrawal for antibiotic dry cow tubes runs from calving, not from the date of administration.
                   </p>
                 </div>
+
+                {needsVetAuth && (
+                  <div>
+                    <Label>Estimated Prescription Fee (£)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 45.00"
+                      value={form.estimatedPrescriptionFee ?? ""}
+                      onChange={e => set("estimatedPrescriptionFee", e.target.value)}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Optional — this will appear against the vet visit in the Vet Ledger so finance can match it when the invoice arrives.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-md border border-amber-100 bg-amber-50 p-2.5">
