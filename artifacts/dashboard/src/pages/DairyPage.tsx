@@ -834,6 +834,62 @@ function MastitisTab({ farmId }: { farmId: number }) {
     return { monthlyTrend, gradeData, pathogenData, outcomeData, problemCows };
   }, [filtered]);
 
+  function generateMastitisReport() {
+    const periodLabel = filterPreset === "30d" ? "Last 30 days" : filterPreset === "90d" ? "Last 90 days" : filterPreset === "12m" ? "Last 12 months" : "All records";
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const fmtD = (v?: string | null) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
+    const rows = filtered.map(r => `<tr>
+      <td>${fmtD(r.onsetDate)}</td>
+      <td>${r.earTagNumber || "—"}</td>
+      <td>${r.quartersAffected || "—"}</td>
+      <td>${r.clinicalGrade || "—"}</td>
+      <td>${r.bacterialCultureResult || "—"}</td>
+      <td>${r.treatmentProduct || "—"}</td>
+      <td>${r.outcome ? r.outcome.charAt(0).toUpperCase() + r.outcome.slice(1).replace("-", " ") : "Ongoing"}</td>
+      <td>${fmtD(r.withdrawalEndDate)}</td>
+    </tr>`).join("");
+    const pathRows = reportData.pathogenData.map(p => `<tr><td>${p.name}</td><td>${p.value}</td><td>${filtered.length > 0 ? ((p.value / filtered.length) * 100).toFixed(0) : 0}%</td></tr>`).join("");
+    const problemRows = reportData.problemCows.map(c => `<tr><td>${c.tag}</td><td>${c.count}</td><td>${c.grades.join(", ") || "—"}</td><td>${fmtD(c.lastDate)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Mastitis Records — Compliance Report</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  h3{font-size:11px;margin:12px 0 6px}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}
+  .kpi-val{font-size:20px;font-weight:700;color:#111}
+  .kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Mastitis Records</h1><h2>Red Tractor Dairy Scheme — Compliance Report</h2><p style="margin:4px 0;font-size:9px;color:#6b7280">Period: <strong>${periodLabel}</strong></p></div>
+  <div class="hdr-r"><b>${filtered.length} record${filtered.length !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+</div>
+<div class="kpi">
+  <div class="kpi-box"><div class="kpi-val">${kpis.total}</div><div class="kpi-lbl">Total cases</div></div>
+  <div class="kpi-box"><div class="kpi-val">${kpis.activeCases}</div><div class="kpi-lbl">Active / ongoing</div></div>
+  <div class="kpi-box"><div class="kpi-val">${kpis.recurrentCows}</div><div class="kpi-lbl">Recurrent cows (≥2 cases)</div></div>
+  <div class="kpi-box"><div class="kpi-val">${kpis.topPathogen ?? "—"}</div><div class="kpi-lbl">Most common pathogen</div></div>
+</div>
+${pathRows ? `<h3>Pathogen Breakdown</h3><table><tr><th>Pathogen</th><th>Cases</th><th>% of total</th></tr>${pathRows}</table>` : ""}
+${problemRows ? `<h3>Recurrent Cows (2+ episodes in period)</h3><table><tr><th>Ear Tag</th><th>Episodes</th><th>Grades</th><th>Last case</th></tr>${problemRows}</table>` : ""}
+<h3>All Records — ${periodLabel}</h3>
+<table>
+  <tr><th>Date</th><th>Ear Tag</th><th>Quarter</th><th>Grade</th><th>Pathogen</th><th>Treatment</th><th>Outcome</th><th>Withdrawal ends</th></tr>
+  ${rows || "<tr><td colspan='8'>No records</td></tr>"}
+</table>
+<p class="note">This mastitis records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Dairy audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   const filtersActive = filterEarTag || filterOutcome || filterGrade || filterPreset !== "12m";
 
   return (
@@ -876,6 +932,9 @@ function MastitisTab({ farmId }: { farmId: number }) {
             className={`h-8 px-3 rounded-md border text-sm font-medium transition-colors flex items-center gap-1.5 ${showReports ? "bg-green-700 text-white border-green-700" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}>
             <BarChart2 className="h-3.5 w-3.5" />{showReports ? "Hide Reports" : "Reports"}
           </button>
+          <Button variant="outline" size="sm" onClick={generateMastitisReport} disabled={filtered.length === 0}>
+            <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+          </Button>
           <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -2053,14 +2112,117 @@ function BcsTab({ farmId }: { farmId: number }) {
 
   const LIFE_STAGES = ["Early lactation (0-60 DIM)", "Mid lactation (60-200 DIM)", "Late lactation (>200 DIM)", "Dry period", "At dry-off", "At calving", "Heifers pre-calving"];
 
+  const allBcsRecords = data?.records ?? [];
+
+  const bcsTrendData = React.useMemo(() => {
+    const monthMap: Record<string, { sum: number; count: number; inRange: number; outRange: number }> = {};
+    for (const r of allBcsRecords) {
+      if (!r.assessmentDate || !r.bcsScore) continue;
+      const d = new Date(r.assessmentDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const score = parseFloat(r.bcsScore);
+      if (isNaN(score)) continue;
+      if (!monthMap[key]) monthMap[key] = { sum: 0, count: 0, inRange: 0, outRange: 0 };
+      monthMap[key].sum += score;
+      monthMap[key].count++;
+      if (score >= 2.5 && score <= 3.5) monthMap[key].inRange++; else monthMap[key].outRange++;
+    }
+    return Object.keys(monthMap).sort().map(m => ({
+      month: new Date(m + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
+      avg: Math.round((monthMap[m].sum / monthMap[m].count) * 10) / 10,
+      inRange: monthMap[m].inRange,
+      outRange: monthMap[m].outRange,
+      total: monthMap[m].count,
+    }));
+  }, [allBcsRecords]);
+
+  function generateBcsReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const total = allBcsRecords.length;
+    const inRange = allBcsRecords.filter(r => r.bcsScore && parseFloat(r.bcsScore) >= 2.5 && parseFloat(r.bcsScore) <= 3.5).length;
+    const actionsNeeded = allBcsRecords.filter(r => r.actionRequired).length;
+    const rows = allBcsRecords.map(r => `<tr>
+      <td>${r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${r.earTagNumber || "Group / all"}</td>
+      <td>${r.lifeStage || "—"}</td>
+      <td>${r.bcsScore || "—"}</td>
+      <td>${r.targetScore || "—"}</td>
+      <td>${r.bcsScore && parseFloat(r.bcsScore) >= 2.5 && parseFloat(r.bcsScore) <= 3.5 ? "In range" : r.bcsScore ? "<b style='color:#b45309'>Outside range</b>" : "—"}</td>
+      <td>${r.assessedBy || "—"}</td>
+      <td>${r.actionRequired ? "Yes" : "No"}</td>
+      <td>${r.actionTaken || "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>BCS Records — Compliance Report</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}h3{font-size:11px;margin:10px 0 6px}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}
+  .kpi-val{font-size:20px;font-weight:700;color:#111}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Body Condition Scoring (BCS) Records</h1><h2>Red Tractor Dairy Scheme — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${total} record${total !== 1 ? "s" : ""}</b><br>Target: 2.5–3.5 (1–5 scale)<br>Printed: ${printedDate}</div>
+</div>
+<div class="kpi">
+  <div class="kpi-box"><div class="kpi-val">${total}</div><div class="kpi-lbl">Total assessments</div></div>
+  <div class="kpi-box"><div class="kpi-val">${total > 0 ? Math.round((inRange / total) * 100) : 0}%</div><div class="kpi-lbl">Scores in target range (2.5–3.5)</div></div>
+  <div class="kpi-box"><div class="kpi-val">${actionsNeeded}</div><div class="kpi-lbl">Actions flagged</div></div>
+</div>
+<h3>All BCS Records</h3>
+<table>
+  <tr><th>Date</th><th>Ear Tag / Group</th><th>Life Stage</th><th>Score</th><th>Target</th><th>Range</th><th>Assessed By</th><th>Action?</th><th>Action Taken</th></tr>
+  ${rows || "<tr><td colspan='9'>No records</td></tr>"}
+</table>
+<p class="note">Body Condition Scoring records produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor Dairy requires BCS assessed at dry-off, calving, and mid-lactation. Retain for a minimum of 3 years and present at audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <div>
           <p className="text-sm text-gray-500">Body Condition Scoring (BCS) — document at dry-off, calving, and mid-lactation. Target range: 2.5–3.5 on a 1–5 scale.</p>
         </div>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add BCS</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generateBcsReport} disabled={allBcsRecords.length === 0}>
+            <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+          </Button>
+          <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add BCS</Button>
+        </div>
       </div>
+
+      {/* ── BCS Trend Chart ── */}
+      {bcsTrendData.length >= 2 && (
+        <Card className="mb-4">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-sm font-semibold text-gray-700 mb-0.5">Average BCS by Month</p>
+            <p className="text-xs text-gray-400 mb-3">Monthly average body condition score — target band 2.5–3.5 shown in green</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <ComposedChart data={bcsTrendData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis domain={[1, 5]} tick={{ fontSize: 11 }} ticks={[1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]} />
+                <Tooltip formatter={(v: unknown) => [String(v), "Avg BCS"]} />
+                <ReferenceLine y={2.5} stroke="#16a34a" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "Min 2.5", position: "right", fontSize: 9, fill: "#16a34a" }} />
+                <ReferenceLine y={3.5} stroke="#16a34a" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "Max 3.5", position: "right", fontSize: 9, fill: "#16a34a" }} />
+                <Bar dataKey="inRange" name="In range" fill="#bbf7d0" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="outRange" name="Outside range" fill="#fecaca" stackId="a" radius={[3, 3, 0, 0]} />
+                <Line type="monotone" dataKey="avg" name="Avg BCS" stroke="#1d4ed8" strokeWidth={2} dot={{ fill: "#1d4ed8", r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -2224,6 +2386,77 @@ function MobilityTab({ farmId }: { farmId: number }) {
 
   const staffListId = `mobility-staff-${farmId}`;
 
+  const allMobilityRecords = data?.records ?? [];
+
+  const mobilityTrend = React.useMemo(() => {
+    return [...allMobilityRecords]
+      .filter(r => r.assessmentDate && r.lamenessPrevalencePercent != null)
+      .sort((a, b) => a.assessmentDate.localeCompare(b.assessmentDate))
+      .map(r => ({
+        date: new Date(r.assessmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" }),
+        lameness: parseFloat(r.lamenessPrevalencePercent!),
+        total: r.totalCowsScored,
+      }));
+  }, [allMobilityRecords]);
+
+  function generateMobilityReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const records = [...allMobilityRecords].sort((a, b) => b.assessmentDate.localeCompare(a.assessmentDate));
+    const total = records.length;
+    const aboveTarget = records.filter(r => r.lamenessPrevalencePercent && parseFloat(r.lamenessPrevalencePercent) >= 10).length;
+    const avgLameness = total > 0 ? (records.reduce((s, r) => s + (r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : 0), 0) / total).toFixed(1) : "—";
+    const rows = records.map(r => {
+      const lam = r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : null;
+      const lamCell = lam != null ? `<span style="color:${lam >= 10 ? "#b91c1c" : "#166534"};font-weight:600">${lam.toFixed(1)}%${lam >= 10 ? " ⚠" : ""}</span>` : "—";
+      return `<tr>
+        <td>${new Date(r.assessmentDate).toLocaleDateString("en-GB")}</td>
+        <td>${r.assessedBy || "—"}</td>
+        <td>${r.totalCowsScored}</td>
+        <td>${r.score0Count}</td>
+        <td>${r.score1Count}</td>
+        <td>${r.score2Count}</td>
+        <td>${r.score3Count}</td>
+        <td>${lamCell}</td>
+        <td style="font-size:9px">${r.score3AnimalTags || "—"}</td>
+        <td style="font-size:9px">${r.actionTaken || "—"}</td>
+        <td>${r.nextAssessmentDue ? new Date(r.nextAssessmentDue).toLocaleDateString("en-GB") : "—"}</td>
+      </tr>`;
+    }).join("");
+    const html = `<!DOCTYPE html><html><head><title>Mobility Scoring — Compliance Report</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}h3{font-size:11px;margin:10px 0 6px}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}
+  .kpi-val{font-size:20px;font-weight:700;color:#111}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Mobility / Lameness Scoring Records</h1><h2>Red Tractor Dairy Scheme — Compliance Report</h2><p style="margin:4px 0;font-size:9px;color:#6b7280">Quarterly assessment required. Score 3 (lame) target: below 10% of herd.</p></div>
+  <div class="hdr-r"><b>${total} assessment${total !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+</div>
+<div class="kpi">
+  <div class="kpi-box"><div class="kpi-val">${total}</div><div class="kpi-lbl">Total assessments</div></div>
+  <div class="kpi-box"><div class="kpi-val">${avgLameness}%</div><div class="kpi-lbl">Average lameness prevalence</div></div>
+  <div class="kpi-box"><div class="kpi-val">${aboveTarget}</div><div class="kpi-lbl">Sessions above 10% target</div></div>
+</div>
+<h3>All Mobility Assessments</h3>
+<table>
+  <tr><th>Date</th><th>Assessed By</th><th>Total</th><th>Score 0</th><th>Score 1</th><th>Score 2</th><th>Score 3</th><th>Lameness %</th><th>Lame tags</th><th>Action Taken</th><th>Next Due</th></tr>
+  ${rows || "<tr><td colspan='11'>No records</td></tr>"}
+</table>
+<p class="note">Mobility scoring records produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor Dairy requires quarterly mobility scoring. Score 3 (severely lame) target: below 10% of herd. Retain for a minimum of 3 years and present at audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
       <datalist id={staffListId}>{staffNames.map(n => <option key={n} value={n} />)}</datalist>
@@ -2231,8 +2464,34 @@ function MobilityTab({ farmId }: { farmId: number }) {
         <div>
           <p className="text-sm text-gray-500">Quarterly mobility/lameness scoring — score cows 0–3 as they walk from the parlour. Red Tractor target: score 3 (lame) cows below 10% of herd. Next assessment date auto-calculates at 13 weeks.</p>
         </div>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Assessment</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generateMobilityReport} disabled={allMobilityRecords.length === 0}>
+            <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+          </Button>
+          <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Assessment</Button>
+        </div>
       </div>
+
+      {/* ── Lameness trend chart ── */}
+      {mobilityTrend.length >= 2 && (
+        <Card className="mb-4">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-sm font-semibold text-gray-700 mb-0.5">Lameness Prevalence Trend</p>
+            <p className="text-xs text-gray-400 mb-3">Score 3 (lame) cows as a % of herd per assessment session — Red Tractor target below 10%</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <ComposedChart data={mobilityTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis domain={[0, "auto"]} tick={{ fontSize: 11 }} unit="%" />
+                <Tooltip formatter={(v: unknown) => [`${v}%`, "Lameness"]} />
+                <ReferenceLine y={10} stroke="#dc2626" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "10% target", position: "right", fontSize: 9, fill: "#dc2626" }} />
+                <Bar dataKey="lameness" name="Lameness %" fill="#fca5a5" radius={[3, 3, 0, 0]} />
+                <Line type="monotone" dataKey="lameness" name="Trend" stroke="#dc2626" strokeWidth={2} dot={{ fill: "#dc2626", r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── View dialog ── */}
       {viewRecord && (
@@ -2727,8 +2986,119 @@ function BulkTankTab({ farmId }: { farmId: number }) {
 
   const tankName = (id?: number | null) => tanks.find(t => t.id === id)?.name ?? null;
 
+  const monRecords = monQ.data?.records ?? [];
+  const collRecords = collQ.data?.collections ?? [];
+
+  const tankComplianceSummary = React.useMemo(() => {
+    const tempRecords = monRecords.filter(r => r.recordType === "daily-temperature" && r.tankTemperatureCelsius != null);
+    const tempInRange = tempRecords.filter(r => r.tankTemperatureCelsius! <= 4).length;
+    const cleaningCount = monRecords.filter(r => r.tankCleaned).length;
+    const abrTests = monRecords.filter(r => r.antibioticResidueResult);
+    const abrPositive = abrTests.filter(r => r.antibioticResidueResult === "positive").length;
+    const abrNegative = abrTests.filter(r => r.antibioticResidueResult === "negative").length;
+    const collAbrPositive = collRecords.filter(r => r.abtResultBeforeCollection === "positive").length;
+    const totalCollVol = collRecords.reduce((s, c) => s + (c.volumeCollectedLitres ? parseFloat(String(c.volumeCollectedLitres)) : 0), 0);
+    return { tempTotal: tempRecords.length, tempInRange, cleaningCount, abrTests: abrTests.length, abrPositive, abrNegative, collAbrPositive, totalCollVol: Math.round(totalCollVol) };
+  }, [monRecords, collRecords]);
+
+  function generateTankReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const s = tankComplianceSummary;
+    const tempPct = s.tempTotal > 0 ? Math.round((s.tempInRange / s.tempTotal) * 100) : null;
+    const monRows = [...monRecords].sort((a, b) => b.recordDate.localeCompare(a.recordDate)).map(r => `<tr>
+      <td>${new Date(r.recordDate).toLocaleDateString("en-GB")}</td>
+      <td>${tanks.find(t => t.id === r.tankId)?.name ?? "—"}</td>
+      <td>${r.recordType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td>
+      <td>${r.tankTemperatureCelsius != null ? `${r.tankTemperatureCelsius}°C${r.tankTemperatureCelsius <= 4 ? "" : " ⚠"}` : "—"}</td>
+      <td>${r.tankCleaned ? "Yes" : "No"}</td>
+      <td>${r.cleaningProductUsed || "—"}</td>
+      <td>${r.antibioticResidueResult ? (r.antibioticResidueResult === "positive" ? "<b style='color:#b91c1c'>POSITIVE ⚠</b>" : "Negative") : "—"}</td>
+      <td style="font-size:9px">${r.notes || "—"}</td>
+    </tr>`).join("");
+    const collRows = [...collRecords].sort((a, b) => b.collectionDate.localeCompare(a.collectionDate)).map(c => `<tr>
+      <td>${new Date(c.collectionDate).toLocaleDateString("en-GB")}</td>
+      <td>${tanks.find(t => t.id === c.tankId)?.name ?? "—"}</td>
+      <td>${c.volumeCollectedLitres ? `${Number(c.volumeCollectedLitres).toLocaleString()} L` : "—"}</td>
+      <td>${c.milkBuyer || "—"}</td>
+      <td>${c.collectionRef || "—"}</td>
+      <td>${c.abtResultBeforeCollection ? (c.abtResultBeforeCollection === "positive" ? "<b style='color:#b91c1c'>POSITIVE ⚠</b>" : "Negative") : "—"}</td>
+      <td>${c.pencePerLitre ? `${parseFloat(c.pencePerLitre).toFixed(2)}ppl` : "—"}</td>
+      <td>${c.netPaymentPence != null ? `£${(c.netPaymentPence / 100).toFixed(2)}` : "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Bulk Tank — Compliance Report</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}h3{font-size:11px;margin:12px 0 6px}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}
+  .kpi-val{font-size:18px;font-weight:700;color:#111}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Bulk Tank — Monitoring &amp; Compliance Report</h1><h2>Red Tractor Dairy Scheme</h2></div>
+  <div class="hdr-r">${tanks.length} tank${tanks.length !== 1 ? "s" : ""} registered<br>Printed: ${printedDate}</div>
+</div>
+<div class="kpi">
+  <div class="kpi-box"><div class="kpi-val">${tempPct != null ? `${tempPct}%` : "—"}</div><div class="kpi-lbl">Temp ≤4°C compliance (${s.tempInRange}/${s.tempTotal} checks)</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.cleaningCount}</div><div class="kpi-lbl">Cleaning records</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.abrPositive > 0 ? `<span style="color:#b91c1c">${s.abrPositive} POSITIVE</span>` : s.abrNegative}</div><div class="kpi-lbl">ABR tests (tank monitoring)</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.totalCollVol.toLocaleString()} L</div><div class="kpi-lbl">Total milk collected</div></div>
+</div>
+${monRows ? `<h3>Tank Monitoring Records</h3><table><tr><th>Date</th><th>Tank</th><th>Type</th><th>Temperature</th><th>Cleaned</th><th>Product</th><th>ABR Result</th><th>Notes</th></tr>${monRows}</table>` : ""}
+${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>Volume</th><th>Buyer</th><th>Ref</th><th>ABR (pre-collection)</th><th>ppl</th><th>Net payment</th></tr>${collRows}</table>` : ""}
+<p class="note">Bulk tank compliance report produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor Dairy requires daily temperature records, regular cleaning logs, and pre-collection ABR testing. Retain for a minimum of 3 years and present at audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-6">
+
+      {/* ── Compliance Summary ───────────────────────────────────────────────── */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <span className="font-semibold text-sm text-gray-800">Compliance Summary</span>
+          <Button variant="outline" size="sm" onClick={generateTankReport} disabled={monRecords.length === 0 && collRecords.length === 0}>
+            <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-gray-100">
+          <div className="px-4 py-3 text-center">
+            <p className="text-xl font-bold text-gray-800">
+              {tankComplianceSummary.tempTotal > 0 ? `${Math.round((tankComplianceSummary.tempInRange / tankComplianceSummary.tempTotal) * 100)}%` : "—"}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">Temp ≤4°C compliance</p>
+            <p className="text-xs text-gray-400">{tankComplianceSummary.tempInRange}/{tankComplianceSummary.tempTotal} checks</p>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <p className="text-xl font-bold text-gray-800">{tankComplianceSummary.cleaningCount || "—"}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Cleaning records</p>
+          </div>
+          <div className="px-4 py-3 text-center">
+            {tankComplianceSummary.abrPositive > 0 || tankComplianceSummary.collAbrPositive > 0 ? (
+              <p className="text-xl font-bold text-red-700">{tankComplianceSummary.abrPositive + tankComplianceSummary.collAbrPositive} positive</p>
+            ) : (
+              <p className="text-xl font-bold text-gray-800">{tankComplianceSummary.abrNegative || "—"}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-0.5">ABR tests</p>
+            {(tankComplianceSummary.abrPositive > 0 || tankComplianceSummary.collAbrPositive > 0) && (
+              <p className="text-xs text-red-600 font-medium">Action required</p>
+            )}
+          </div>
+          <div className="px-4 py-3 text-center">
+            <p className="text-xl font-bold text-blue-700">{tankComplianceSummary.totalCollVol > 0 ? `${tankComplianceSummary.totalCollVol.toLocaleString()} L` : "—"}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Total milk collected</p>
+            <p className="text-xs text-gray-400">{collRecords.length} collection{collRecords.length !== 1 ? "s" : ""}</p>
+          </div>
+        </div>
+      </div>
 
       {/* ── Section 1: Tank Registry ────────────────────────────────────────── */}
       <div className="border rounded-lg overflow-hidden">
@@ -3532,14 +3902,145 @@ function DctTab({ farmId }: { farmId: number }) {
 
   const hasHintData = hint && (hint.mastitisCount12m > 0 || hint.recentMastitisScc);
 
+  const [dctYear, setDctYear] = useState<number>(new Date().getFullYear());
+  const allDctRecords = data?.records ?? [];
+  const dctYearRecords = allDctRecords.filter(r => r.dryOffDate && new Date(r.dryOffDate).getFullYear() === dctYear);
+
+  const dctStats = React.useMemo(() => {
+    const recs = dctYearRecords;
+    const total = recs.length;
+    const selective = recs.filter(r => r.protocol === "selective" || r.protocol === "selective-sealant").length;
+    const blanket = recs.filter(r => r.protocol === "blanket" || r.protocol === "blanket-sealant").length;
+    const sealantOnly = recs.filter(r => r.protocol === "teat-sealant-only").length;
+    const vetAuthorised = recs.filter(r => r.vetAuthorisation).length;
+    const sccValues = recs.filter(r => r.sccAtDryOff != null).map(r => r.sccAtDryOff!);
+    const avgScc = sccValues.length > 0 ? Math.round(sccValues.reduce((a, b) => a + b, 0) / sccValues.length) : null;
+    const productCounts: Record<string, number> = {};
+    recs.forEach(r => { if (r.antibioticTubeProduct) productCounts[r.antibioticTubeProduct] = (productCounts[r.antibioticTubeProduct] || 0) + 1; });
+    const topProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return { total, selective, blanket, sealantOnly, vetAuthorised, avgScc, topProducts };
+  }, [dctYearRecords]);
+
+  function generateDctReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const s = dctStats;
+    const recs = [...dctYearRecords].sort((a, b) => b.dryOffDate.localeCompare(a.dryOffDate));
+    const productRows = s.topProducts.map(([p, c]) => `<tr><td>${p}</td><td>${c}</td><td>${s.total > 0 ? Math.round((c / s.total) * 100) : 0}%</td></tr>`).join("");
+    const rows = recs.map(r => `<tr>
+      <td>${new Date(r.dryOffDate).toLocaleDateString("en-GB")}</td>
+      <td>${r.cowEarTag || "—"}</td>
+      <td>${r.protocol.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td>
+      <td>${r.antibioticTubeProduct || "—"}</td>
+      <td>${r.teatSealantProduct || "—"}</td>
+      <td>${r.sccAtDryOff?.toLocaleString() ?? "—"}</td>
+      <td>${r.mastitisEpisodes12Months ?? "—"}</td>
+      <td>${r.vetAuthorisation ? "Yes" : "<b style='color:#b91c1c'>No</b>"}</td>
+      <td>${r.vetName || "—"}</td>
+      <td style="font-size:9px">${r.treatmentJustification || "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>DCT Stewardship Report ${dctYear}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}h3{font-size:11px;margin:12px 0 6px}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}
+  .kpi-val{font-size:18px;font-weight:700;color:#111}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Dry Cow Therapy (DCT) — Antibiotic Stewardship Report</h1><h2>Red Tractor Dairy Scheme — Reporting Year: ${dctYear}</h2></div>
+  <div class="hdr-r"><b>${s.total} dry-off record${s.total !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+</div>
+<div class="kpi">
+  <div class="kpi-box"><div class="kpi-val">${s.total}</div><div class="kpi-lbl">Total dry-offs recorded</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.total > 0 ? Math.round((s.selective / s.total) * 100) : 0}%</div><div class="kpi-lbl">Selective DCT (${s.selective} cows)</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.total > 0 ? Math.round((s.vetAuthorised / s.total) * 100) : 0}%</div><div class="kpi-lbl">Vet-authorised (${s.vetAuthorised}/${s.total})</div></div>
+  <div class="kpi-box"><div class="kpi-val">${s.avgScc != null ? s.avgScc.toLocaleString() + " k/mL" : "—"}</div><div class="kpi-lbl">Avg SCC at dry-off</div></div>
+</div>
+<p style="font-size:10px;margin-bottom:8px"><b>Protocol breakdown:</b> Selective DCT: ${s.selective} &nbsp;|&nbsp; Blanket DCT: ${s.blanket} &nbsp;|&nbsp; Teat sealant only: ${s.sealantOnly}</p>
+${productRows ? `<h3>Antibiotic Products Used</h3><table><tr><th>Product</th><th>Cows treated</th><th>% of total</th></tr>${productRows}</table>` : ""}
+<h3>All DCT Records — ${dctYear}</h3>
+<table>
+  <tr><th>Dry-off date</th><th>Ear Tag</th><th>Protocol</th><th>Antibiotic product</th><th>Sealant</th><th>SCC at dry-off</th><th>Mastitis eps 12m</th><th>Vet auth.</th><th>Vet</th><th>Justification</th></tr>
+  ${rows || "<tr><td colspan='10'>No records for this year</td></tr>"}
+</table>
+<p class="note">DCT Antibiotic Stewardship Report produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). This report should be reviewed annually with your prescribing vet as part of your Veterinary Health Plan. Retain for a minimum of 5 years. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap gap-2 items-center justify-between mb-4">
         <div>
           <p className="text-sm text-gray-500">Dry Cow Therapy (DCT) — record treatment decisions at dry-off. Antibiotic stewardship requires documented justification for each cow treated.</p>
         </div>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add DCT Record</Button>
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" size="sm" onClick={generateDctReport} disabled={dctYearRecords.length === 0}>
+            <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+          </Button>
+          <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add DCT Record</Button>
+        </div>
       </div>
+
+      {/* ── Annual Stewardship Summary ── */}
+      <Card className="mb-4">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Annual Stewardship Summary</p>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setDctYear(y => y - 1)} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"><ChevronLeft className="h-3.5 w-3.5" /></button>
+              <span className="text-sm font-semibold text-gray-800 w-12 text-center">{dctYear}</span>
+              <button onClick={() => setDctYear(y => y + 1)} disabled={dctYear >= new Date().getFullYear()} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-3.5 w-3.5" /></button>
+            </div>
+          </div>
+          {dctYearRecords.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-3">No DCT records for {dctYear}.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-lg border bg-white px-3 py-2.5 text-center">
+                <p className="text-2xl font-bold text-gray-800">{dctStats.total}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Dry-offs recorded</p>
+              </div>
+              <div className={`rounded-lg border px-3 py-2.5 text-center ${dctStats.total > 0 && Math.round((dctStats.selective / dctStats.total) * 100) >= 50 ? "bg-green-50 border-green-200" : "bg-white"}`}>
+                <p className={`text-2xl font-bold ${dctStats.total > 0 && Math.round((dctStats.selective / dctStats.total) * 100) >= 50 ? "text-green-700" : "text-gray-800"}`}>
+                  {dctStats.total > 0 ? `${Math.round((dctStats.selective / dctStats.total) * 100)}%` : "—"}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Selective DCT</p>
+              </div>
+              <div className={`rounded-lg border px-3 py-2.5 text-center ${dctStats.vetAuthorised < dctStats.total ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200"}`}>
+                <p className={`text-2xl font-bold ${dctStats.vetAuthorised < dctStats.total ? "text-amber-700" : "text-green-700"}`}>
+                  {dctStats.total > 0 ? `${Math.round((dctStats.vetAuthorised / dctStats.total) * 100)}%` : "—"}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Vet-authorised</p>
+              </div>
+              <div className="rounded-lg border bg-white px-3 py-2.5 text-center">
+                <p className="text-xl font-bold text-gray-800">{dctStats.avgScc != null ? dctStats.avgScc.toLocaleString() : "—"}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Avg SCC at dry-off (k/mL)</p>
+              </div>
+            </div>
+          )}
+          {dctStats.topProducts.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Antibiotic products used in {dctYear}</p>
+              <div className="flex flex-wrap gap-2">
+                {dctStats.topProducts.map(([p, c]) => (
+                  <span key={p} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-1 rounded">
+                    {p} <span className="font-semibold">×{c}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
