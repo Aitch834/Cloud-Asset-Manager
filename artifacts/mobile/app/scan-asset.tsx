@@ -1,9 +1,11 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -46,7 +48,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-type EntityType = "equipment" | "field" | "animal" | "storage";
+type EntityType = "equipment" | "field" | "animal" | "storage" | "tank";
 
 interface ScanResult {
   type: EntityType;
@@ -55,33 +57,38 @@ interface ScanResult {
 }
 
 const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: keyof typeof Feather.glyphMap }> = {
-  equipment: { label: "Equipment Asset",     colour: "#0f766e", icon: "tool" },
-  field:     { label: "Field",               colour: "#15803d", icon: "map" },
-  animal:    { label: "Animal",              colour: "#b45309", icon: "feather" },
-  storage:   { label: "Storage Location",   colour: "#1d4ed8", icon: "archive" },
+  equipment: { label: "Equipment Asset",   colour: "#0f766e", icon: "tool" },
+  field:     { label: "Field",             colour: "#15803d", icon: "map" },
+  animal:    { label: "Animal",            colour: "#b45309", icon: "feather" },
+  storage:   { label: "Storage Location", colour: "#1d4ed8", icon: "archive" },
+  tank:      { label: "Bulk Milk Tank",   colour: "#0369a1", icon: "droplet" },
 };
 
-const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string }[]> = {
+const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string; extraParams?: Record<string, string> }[]> = {
   equipment: [
-    { label: "Report Defect / Fault",      sub: "Log a breakdown, fault or safety concern",       icon: "alert-triangle", colour: "#dc2626", bg: "#FEE2E2", route: "/equipment-defect",  paramKey: "assetId",   nameKey: "assetName" },
-    { label: "Log Service / Workshop Job", sub: "Record a service, repair or inspection job",      icon: "tool",           colour: "#0f766e", bg: "#CCFBF1", route: "/service-job",       paramKey: "assetId",   nameKey: "assetName" },
-    { label: "Record Fuel Drawdown",       sub: "Log fuel drawn from storage for this equipment", icon: "droplet",        colour: "#0369a1", bg: "#DBEAFE", route: "/fuel-drawdown",     paramKey: "assetId",   nameKey: "assetName" },
-    { label: "Calibration Check",          sub: "Record a sprayer or equipment calibration",      icon: "check-circle",   colour: "#7c3aed", bg: "#EDE9FE", route: "/sprayer-calibration", paramKey: "assetId",   nameKey: "assetName" },
+    { label: "Report Defect / Fault",      sub: "Log a breakdown, fault or safety concern",       icon: "alert-triangle", colour: "#dc2626", bg: "#FEE2E2", route: "/equipment-defect",    paramKey: "assetId",  nameKey: "assetName" },
+    { label: "Log Service / Workshop Job", sub: "Record a service, repair or inspection job",      icon: "tool",           colour: "#0f766e", bg: "#CCFBF1", route: "/service-job",         paramKey: "assetId",  nameKey: "assetName" },
+    { label: "Record Fuel Drawdown",       sub: "Log fuel drawn from storage for this equipment", icon: "droplet",        colour: "#0369a1", bg: "#DBEAFE", route: "/fuel-drawdown",       paramKey: "assetId",  nameKey: "assetName" },
+    { label: "Calibration Check",          sub: "Record a sprayer or equipment calibration",      icon: "check-circle",   colour: "#7c3aed", bg: "#EDE9FE", route: "/sprayer-calibration", paramKey: "assetId",  nameKey: "assetName" },
   ],
   field: [
-    { label: "Log Crop Event",             sub: "Record drilling, spraying or harvest activity", icon: "feather",       colour: "#15803d", bg: "#DCFCE7", route: "/crop-event",        paramKey: "fieldId",   nameKey: "fieldName" },
-    { label: "Record Spray Application",   sub: "Log chemical application for this field",       icon: "droplet",       colour: "#0369a1", bg: "#DBEAFE", route: "/spray-record",      paramKey: "fieldId",   nameKey: "fieldName" },
-    { label: "Log Soil Sample",            sub: "Record soil testing for this field",             icon: "layers",        colour: "#92400e", bg: "#FEF3C7", route: "/soil-sample",       paramKey: "fieldId",   nameKey: "fieldName" },
-    { label: "Field Inspection",           sub: "Complete a field walkover inspection",           icon: "search",        colour: "#6d28d9", bg: "#EDE9FE", route: "/field-inspection",  paramKey: "fieldId",   nameKey: "fieldName" },
+    { label: "Log Crop Event",             sub: "Record drilling, spraying or harvest activity", icon: "feather",       colour: "#15803d", bg: "#DCFCE7", route: "/crop-event",        paramKey: "fieldId",  nameKey: "fieldName" },
+    { label: "Record Spray Application",   sub: "Log chemical application for this field",       icon: "droplet",       colour: "#0369a1", bg: "#DBEAFE", route: "/spray-record",      paramKey: "fieldId",  nameKey: "fieldName" },
+    { label: "Log Soil Sample",            sub: "Record soil testing for this field",             icon: "layers",        colour: "#92400e", bg: "#FEF3C7", route: "/soil-sample",       paramKey: "fieldId",  nameKey: "fieldName" },
+    { label: "Field Inspection",           sub: "Complete a field walkover inspection",           icon: "search",        colour: "#6d28d9", bg: "#EDE9FE", route: "/field-inspection",  paramKey: "fieldId",  nameKey: "fieldName" },
   ],
   animal: [
-    { label: "Log Medicine / Treatment",   sub: "Record a medicine withdrawal or treatment",      icon: "activity",      colour: "#be123c", bg: "#FFE4E6", route: "/medicine-record",   paramKey: "animalId",  nameKey: "animalName" },
-    { label: "Mobility Score",             sub: "Complete a mobility assessment",                 icon: "trending-up",   colour: "#0369a1", bg: "#DBEAFE", route: "/mobility-scoring",  paramKey: "animalId",  nameKey: "animalName" },
-    { label: "Calving Record",             sub: "Record a calving event",                        icon: "heart",         colour: "#d97706", bg: "#FEF3C7", route: "/calving-record",    paramKey: "animalId",  nameKey: "animalName" },
+    { label: "Log Medicine / Treatment",   sub: "Record a medicine withdrawal or treatment",      icon: "activity",      colour: "#be123c", bg: "#FFE4E6", route: "/medicine-record",   paramKey: "animalId", nameKey: "animalName" },
+    { label: "Mobility Score",             sub: "Complete a mobility assessment",                 icon: "trending-up",   colour: "#0369a1", bg: "#DBEAFE", route: "/mobility-scoring",  paramKey: "animalId", nameKey: "animalName" },
+    { label: "Calving Record",             sub: "Record a calving event",                        icon: "heart",         colour: "#d97706", bg: "#FEF3C7", route: "/calving-record",    paramKey: "animalId", nameKey: "animalName" },
   ],
   storage: [
-    { label: "Log Biofuel Delivery",       sub: "Record fuel delivered to this store",            icon: "truck",         colour: "#0f766e", bg: "#CCFBF1", route: "/biofuel-delivery",  paramKey: "storeId",   nameKey: "storeName" },
-    { label: "Log Feed Record",            sub: "Record feed stock movement",                     icon: "package",       colour: "#92400e", bg: "#FEF3C7", route: "/feed-record",       paramKey: "storeId",   nameKey: "storeName" },
+    { label: "Log Biofuel Delivery",       sub: "Record fuel delivered to this store",            icon: "truck",         colour: "#0f766e", bg: "#CCFBF1", route: "/biofuel-delivery",  paramKey: "storeId",  nameKey: "storeName" },
+    { label: "Log Feed Record",            sub: "Record feed stock movement",                     icon: "package",       colour: "#92400e", bg: "#FEF3C7", route: "/feed-record",       paramKey: "storeId",  nameKey: "storeName" },
+  ],
+  tank: [
+    { label: "Log Monitoring Record",      sub: "Temperature check, cleaning or ABR test",       icon: "activity",      colour: "#0369a1", bg: "#DBEAFE", route: "/bulk-tank-record",  paramKey: "tankId",  nameKey: "tankName" },
+    { label: "Log Deep Clean",             sub: "Record a full tank clean and sanitisation",     icon: "check-circle",  colour: "#0f766e", bg: "#CCFBF1", route: "/bulk-tank-record",  paramKey: "tankId",  nameKey: "tankName", extraParams: { presetType: "cleaning" } },
   ],
 };
 
@@ -96,6 +103,7 @@ function detectEntityType(raw: string): EntityType | null {
   if (code.startsWith("FLD-")) return "field";
   if (code.startsWith("ANM-")) return "animal";
   if (code.startsWith("STG-")) return "storage";
+  if (code.startsWith("TNK-")) return "tank";
   return null;
 }
 
@@ -108,6 +116,7 @@ async function lookupEntity(rawCode: string, type: EntityType, farmId: number, h
     field:     `${base}/fields/by-code/${code}`,
     animal:    `${base}/animals/by-code/${code}`,
     storage:   `${base}/storage-locations/by-code/${code}`,
+    tank:      `${base}/dairy/tanks/by-code/${code}`,
   };
   const res = await fetch(endpoints[type], { headers });
   if (!res.ok) return null;
@@ -120,6 +129,7 @@ function entityDisplayName(type: EntityType, data: Record<string, unknown>): str
     case "field":     return (data.name as string) || `Field #${data.id}`;
     case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
     case "storage":   return (data.name as string) || `Store #${data.id}`;
+    case "tank":      return (data.name as string) || `Tank #${data.id}`;
   }
 }
 
@@ -129,6 +139,7 @@ function entitySubtitle(type: EntityType, data: Record<string, unknown>): string
     case "field":     return (data.fieldReference as string) ? `Ref: ${data.fieldReference}` : (data.soilType as string) || null;
     case "animal":    return [(data.species as string), (data.breed as string)].filter(Boolean).join(" · ") || null;
     case "storage":   return (data.type as string) ? `${data.type}`.replace(/_/g, " ") : null;
+    case "tank":      return (data.location as string) || (data.capacityLitres ? `Capacity: ${Number(data.capacityLitres).toLocaleString()} L` : null);
   }
 }
 
@@ -148,6 +159,7 @@ function entityStatus(type: EntityType, data: Record<string, unknown>): { label:
   if (type === "equipment") return STATUS_EQ[data.status as string] ?? { label: data.status as string, colour: "#6b7280" };
   if (type === "animal")    return STATUS_ANI[data.status as string] ?? { label: data.status as string, colour: "#6b7280" };
   if (type === "storage")   return data.isActive ? { label: "Active", colour: "#16a34a" } : { label: "Inactive", colour: "#6b7280" };
+  if (type === "tank")      return { label: "Registered", colour: "#16a34a" };
   return null;
 }
 
@@ -160,6 +172,54 @@ export default function ScanQRScreen() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastScan = useRef<string>("");
+  const [gpsUpdating, setGpsUpdating] = useState(false);
+
+  async function handleUpdateTankGps() {
+    if (!result || result.type !== "tank" || !currentFarm) return;
+    setGpsUpdating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Location Access Required", "Please grant location access to capture GPS coordinates.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = loc.coords;
+
+      const headers = await getAuthHeaders();
+      const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+      const current = result.data;
+      const res = await fetch(
+        `https://${apiDomain}/api/farms/${currentFarm.id}/dairy/tanks/${current.id}`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            name: current.name,
+            location: current.location ?? null,
+            capacityLitres: current.capacityLitres ?? null,
+            notes: current.notes ?? null,
+            latitudeDeg: latitude,
+            longitudeDeg: longitude,
+          }),
+        }
+      );
+      if (res.ok) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "GPS Updated",
+          `Tank location set to ${latitude.toFixed(6)}, ${longitude.toFixed(6)}. It will appear on the farm map.`,
+        );
+        setResult(r => r ? { ...r, data: { ...r.data, latitudeDeg: latitude, longitudeDeg: longitude } } : r);
+      } else {
+        Alert.alert("Update Failed", "Could not save the GPS coordinates. Try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not capture GPS. Check location permissions and try again.");
+    } finally {
+      setGpsUpdating(false);
+    }
+  }
 
   async function handleBarcode({ data }: { data: string }) {
     if (!scanning || !currentFarm || data === lastScan.current) return;
@@ -249,7 +309,7 @@ export default function ScanQRScreen() {
               <View style={[styles.corner, styles.br]} />
             </View>
             <Text style={styles.scanHint}>Point at a BDE Farm Trac QR label</Text>
-            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage</Text>
+            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · Tanks</Text>
           </View>
         </View>
       ) : (
@@ -298,13 +358,14 @@ export default function ScanQRScreen() {
                   <Text style={styles.actionsTitle}>Quick Actions</Text>
                   {actions.map(action => (
                     <Pressable
-                      key={action.route}
+                      key={action.label}
                       style={styles.actionRow}
                       onPress={() => router.push({
                         pathname: action.route as never,
                         params: {
                           [action.paramKey]: result.data.id,
                           ...(action.nameKey ? { [action.nameKey]: entityDisplayName(result.type, result.data) } : {}),
+                          ...(action.extraParams ?? {}),
                         },
                       })}
                     >
@@ -318,6 +379,30 @@ export default function ScanQRScreen() {
                       <Feather name="chevron-right" size={16} color={colors.textSecondary} />
                     </Pressable>
                   ))}
+                  {result.type === "tank" && (
+                    <Pressable
+                      style={[styles.actionRow, { borderBottomWidth: 0 }]}
+                      onPress={handleUpdateTankGps}
+                      disabled={gpsUpdating}
+                    >
+                      <View style={[styles.actionIcon, { backgroundColor: "#EFF6FF" }]}>
+                        <Feather name={gpsUpdating ? "loader" : "map-pin"} size={18} color="#2563eb" />
+                      </View>
+                      <View style={styles.actionTextBlock}>
+                        <Text style={styles.actionTitle}>
+                          {result.data.latitudeDeg ? "Update GPS Location" : "Set GPS Location"}
+                        </Text>
+                        <Text style={styles.actionSub}>
+                          {result.data.latitudeDeg
+                            ? `Current: ${(result.data.latitudeDeg as number).toFixed(5)}, ${(result.data.longitudeDeg as number).toFixed(5)}`
+                            : "Capture device GPS to place tank on the farm map"}
+                        </Text>
+                      </View>
+                      {gpsUpdating
+                        ? <ActivityIndicator size="small" color="#2563eb" />
+                        : <Feather name="chevron-right" size={16} color={colors.textSecondary} />}
+                    </Pressable>
+                  )}
                 </View>
               )}
 

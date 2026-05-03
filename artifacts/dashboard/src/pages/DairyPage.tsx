@@ -11,7 +11,8 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { openPrintWindow } from "@/lib/print-report";
@@ -2584,6 +2585,7 @@ function AbrKitStockSection({ farmId }: { farmId: number }) {
 interface BulkTank {
   id: number; name: string; location?: string | null;
   capacityLitres?: string | null; notes?: string | null;
+  latitudeDeg?: number | null; longitudeDeg?: number | null;
 }
 
 interface BulkTankRecord {
@@ -2644,6 +2646,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
   const [tankDialog, setTankDialog] = useState(false);
   const [editingTank, setEditingTank] = useState<BulkTank | null>(null);
   const [tankForm, setTankForm] = useState<Partial<BulkTank>>({});
+  const [qrTank, setQrTank] = useState<BulkTank | null>(null);
 
   const tanksQ = useQuery<{ tanks: BulkTank[] }>({
     queryKey: ["dairy-tanks", farmId],
@@ -2743,12 +2746,24 @@ function BulkTankTab({ farmId }: { farmId: number }) {
                 ? <p className="text-sm text-gray-400 italic">No tanks registered yet. Add your first tank below.</p>
                 : tanks.map(t => (
                   <div key={t.id} className="flex items-center justify-between bg-white border rounded px-3 py-2">
-                    <div>
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                       <span className="font-medium text-sm">{t.name}</span>
-                      {t.location && <span className="text-xs text-gray-500 ml-2">· {t.location}</span>}
-                      {t.capacityLitres && <span className="text-xs text-gray-400 ml-2">· {Number(t.capacityLitres).toLocaleString()} L capacity</span>}
+                      {t.location && <span className="text-xs text-gray-500">· {t.location}</span>}
+                      {t.capacityLitres && <span className="text-xs text-gray-400">· {Number(t.capacityLitres).toLocaleString()} L</span>}
+                      {t.latitudeDeg != null && t.longitudeDeg != null && (
+                        <a
+                          href={`https://maps.google.com/?q=${t.latitudeDeg},${t.longitudeDeg}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:underline"
+                          title="View on Google Maps"
+                        >
+                          <MapPin className="h-3 w-3" />GPS
+                        </a>
+                      )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="View QR code" onClick={() => setQrTank(t)}><QrCode className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTank(t)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => delTank.mutate(t.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -2883,6 +2898,23 @@ function BulkTankTab({ farmId }: { farmId: number }) {
               <Label>Capacity (litres)</Label>
               <Input type="number" placeholder="e.g. 12000" value={tankForm.capacityLitres || ""} onChange={e => setTankForm(f => ({ ...f, capacityLitres: e.target.value }))} />
             </div>
+            <div className="col-span-2">
+              <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-blue-500" />GPS Location (optional)</Label>
+              <p className="text-xs text-gray-500 mb-1.5">Set coordinates so the tank appears on the farm map. Use the mobile app to capture GPS automatically, or enter manually below.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs font-normal text-gray-500">Latitude</Label>
+                  <Input type="number" step="0.000001" placeholder="e.g. 51.507351" value={tankForm.latitudeDeg ?? ""} onChange={e => setTankForm(f => ({ ...f, latitudeDeg: e.target.value ? parseFloat(e.target.value) : null }))} />
+                </div>
+                <div>
+                  <Label className="text-xs font-normal text-gray-500">Longitude</Label>
+                  <Input type="number" step="0.000001" placeholder="e.g. -0.127758" value={tankForm.longitudeDeg ?? ""} onChange={e => setTankForm(f => ({ ...f, longitudeDeg: e.target.value ? parseFloat(e.target.value) : null }))} />
+                </div>
+              </div>
+              {tankForm.latitudeDeg != null && tankForm.longitudeDeg != null && (
+                <a href={`https://maps.google.com/?q=${tankForm.latitudeDeg},${tankForm.longitudeDeg}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">Preview on Google Maps →</a>
+              )}
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={tankForm.notes || ""} onChange={e => setTankForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2894,6 +2926,62 @@ function BulkTankTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── QR Code Dialog ────────────────────────────────────────────────────── */}
+      {qrTank && (() => {
+        const qrValue = `BDE:F${farmId}:TNK-${qrTank.id}`;
+        function downloadQr() {
+          const svg = document.getElementById(`tank-qr-${qrTank!.id}`);
+          if (!svg) return;
+          const svgData = new XMLSerializer().serializeToString(svg);
+          const canvas = document.createElement("canvas");
+          canvas.width = 400; canvas.height = 480;
+          const ctx = canvas.getContext("2d")!;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 400, 480);
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 50, 40, 300, 300);
+            ctx.fillStyle = "#111827";
+            ctx.font = "bold 18px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(qrTank!.name, 200, 380);
+            ctx.font = "14px sans-serif";
+            ctx.fillStyle = "#6b7280";
+            ctx.fillText("BDE Farm Trac · Bulk Tank", 200, 406);
+            ctx.fillText(`TNK-${qrTank!.id}`, 200, 430);
+            const link = document.createElement("a");
+            link.download = `tank-qr-${qrTank!.name.replace(/\s+/g, "-")}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+          };
+          img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+        }
+        return (
+          <Dialog open onOpenChange={() => setQrTank(null)}>
+            <DialogContent style={{ maxWidth: "24rem" }}>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2"><QrCode className="h-4 w-4" />QR Label — {qrTank.name}</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-2">
+                <div className="bg-white border rounded-xl p-6 shadow-sm">
+                  <QRCodeSVG id={`tank-qr-${qrTank.id}`} value={qrValue} size={220} level="H" includeMargin={false} />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-sm text-gray-800">{qrTank.name}</p>
+                  <p className="text-xs text-gray-500">BDE Farm Trac · Bulk Tank</p>
+                  <p className="text-xs font-mono text-gray-400 mt-0.5">TNK-{qrTank.id}</p>
+                </div>
+                <p className="text-xs text-gray-500 text-center">Scan with the BDE Farm Trac mobile app to log monitoring records, cleaning events, or view tank details without manual selection.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setQrTank(null)}>Close</Button>
+                <Button onClick={downloadQr}><Download className="h-4 w-4 mr-1.5" />Download PNG</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ── Monitoring Record View Dialog ────────────────────────────────────── */}
       {viewMon && (

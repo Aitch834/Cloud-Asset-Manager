@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { kvGet } from "@/lib/database";
 
-export type BdeEntityType = "equipment" | "field" | "animal" | "storage";
+export type BdeEntityType = "equipment" | "field" | "animal" | "storage" | "tank";
 
 export function parseBdeCode(raw: string): string {
   const match = raw.match(/^BDE:F\d+:(.+)$/i);
@@ -14,6 +14,7 @@ export function detectBdeType(raw: string): BdeEntityType | null {
   if (code.startsWith("FLD-")) return "field";
   if (code.startsWith("ANM-")) return "animal";
   if (code.startsWith("STG-")) return "storage";
+  if (code.startsWith("TNK-")) return "tank";
   return null;
 }
 
@@ -23,6 +24,7 @@ export function bdeEntityDisplayName(type: BdeEntityType, data: Record<string, u
     case "field":     return (data.name as string) || `Field #${data.id}`;
     case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
     case "storage":   return (data.name as string) || `Store #${data.id}`;
+    case "tank":      return (data.name as string) || `Tank #${data.id}`;
   }
 }
 
@@ -63,6 +65,7 @@ export async function lookupBdeEntity(
     field:     `${base}/fields/by-code/${normalizedCode}`,
     animal:    `${base}/animals/by-code/${normalizedCode}`,
     storage:   `${base}/storage-locations/by-code/${normalizedCode}`,
+    tank:      `${base}/dairy/tanks/by-code/${normalizedCode}`,
   };
   try {
     const headers = await getAuthHeaders();

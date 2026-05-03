@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb, date, doublePrecision } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
 
@@ -437,6 +437,8 @@ export const dairyBulkTanksTable = pgTable("dairy_bulk_tanks", {
   location: text("location"),
   capacityLitres: numeric("capacity_litres", { precision: 10, scale: 0 }),
   notes: text("notes"),
+  latitudeDeg: doublePrecision("latitude_deg"),
+  longitudeDeg: doublePrecision("longitude_deg"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
