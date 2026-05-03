@@ -412,6 +412,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["dairy"],
   },
   {
+    id: "dry-cow-therapy",
+    title: "Dry Cow Therapy Record",
+    description: "Log DCT treatments at dry-off — antibiotic tube, teat sealant, POM-V authorisation, and withdrawal periods",
+    icon: "droplet",
+    color: "#0891b2",
+    bgColor: "#cffafe",
+    route: "/dry-cow-therapy",
+    moduleKeys: ["dairy-management"],
+    requiresSectors: ["dairy"],
+  },
+  {
     id: "body-condition-score",
     title: "Body Condition Score",
     description: "Record BCS assessments per cow or group on the 1–5 scale with action tracking",

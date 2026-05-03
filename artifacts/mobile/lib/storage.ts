@@ -136,6 +136,7 @@ export const STORAGE_KEYS = {
   MORTALITY_RECORDS: "bde_mortality_records",
   DAIRY_CALVING_RECORDS: "bde_dairy_calving_records",
   DAIRY_MASTITIS_RECORDS: "bde_dairy_mastitis_records",
+  DAIRY_DCT_RECORDS: "bde_dairy_dct_records",
   DAIRY_BCS_RECORDS: "bde_dairy_bcs_records",
   DAIRY_MOBILITY_SCORINGS: "bde_dairy_mobility_scorings",
   FEED_RECORDS: "bde_feed_records",

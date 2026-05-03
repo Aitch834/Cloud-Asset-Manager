@@ -674,6 +674,33 @@ export interface DairyMastitisRecord {
   synced: boolean;
 }
 
+export interface DairyDctRecord {
+  id: string;
+  farmId: string;
+  cowEarTag: string;
+  dryOffDate: string;
+  protocol: string;
+  antibioticProduct: string;
+  antibioticBatch: string;
+  milkWithdrawalDays: string;
+  meatWithdrawalDays: string;
+  teatSealantProduct: string;
+  teatSealantBatch: string;
+  treatmentJustification: string;
+  sccAtDryOff: string;
+  mastitisEpisodes12m: string;
+  administeredBy: string;
+  pomvAuthorised: boolean;
+  prescribingVet: string;
+  expectedCalvingDate: string;
+  estimatedPrescriptionFeeGbp: string;
+  notes: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface DairyBcsRecord {
   id: string;
   farmId: string;
