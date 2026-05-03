@@ -102,10 +102,34 @@ export default function DairyPage() {
 
 interface MilkRecord {
   id: number; recordDate: string; recordType: string; sessionType?: string | null;
-  yieldLitres?: string | null; sccThousands?: number | null; tbcCfuMl?: number | null;
+  milkBuyer?: string | null;
+  yieldLitres?: string | null;
+  // On-farm temperature
+  milkTemperatureCelsius?: string | null; tempTestedBy?: string | null;
+  // On-farm ABR
+  antibioticResidueTestResult?: string | null; abrTestedBy?: string | null;
+  abrTestKitLot?: string | null; abrTestKitBatch?: string | null;
+  // Buyer lab results
+  buyerLabResultsStatus?: string | null; buyerLabResultsDate?: string | null;
+  buyerLabRef?: string | null; buyerSccThousands?: number | null;
+  buyerTbcCfuMl?: number | null; buyerFatPercent?: string | null;
+  buyerProteinPercent?: string | null; buyerLactosePercent?: string | null;
+  // On-farm quality measurements
+  sccThousands?: number | null; tbcCfuMl?: number | null;
   fatPercent?: string | null; proteinPercent?: string | null; lactosePercent?: string | null;
-  milkTemperatureCelsius?: string | null; antibioticResidueTestResult?: string | null;
   collectorReference?: string | null; herdId?: number | null; notes?: string | null;
+}
+
+function LabResultsBadge({ status }: { status?: string | null }) {
+  if (!status || status === "not-applicable") return null;
+  const map: Record<string, { label: string; cls: string }> = {
+    pending: { label: "Lab Results Pending", cls: "bg-amber-100 text-amber-800" },
+    received: { label: "Lab Results Received", cls: "bg-green-100 text-green-800" },
+    concern: { label: "Lab Results — Action Needed", cls: "bg-red-100 text-red-800" },
+  };
+  const m = map[status];
+  if (!m) return null;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.cls}`}>{m.label}</span>;
 }
 
 function MilkRecordsTab({ farmId }: { farmId: number }) {
@@ -114,19 +138,26 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<MilkRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<MilkRecord | null>(null);
   const [form, setForm] = useState<Partial<MilkRecord>>({});
+  const [abrKitStockId, setAbrKitStockId] = useState<string>("");
 
   const { data, isLoading } = useQuery<{ records: MilkRecord[] }>({
     queryKey: ["dairy-milk", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/milk-records`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const abrStockQ = useQuery<{ stock: AbrKitStock[] }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`), { credentials: "include" }).then(r => r.json()),
+  });
+  const abrStock = abrStockQ.data?.stock ?? [];
+
   const save = useMutation({
     mutationFn: async (body: Partial<MilkRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/milk-records/${editing.id}`) : api(`farms/${farmId}/dairy/milk-records`);
-      const r = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const r = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ ...body, abrKitStockId: abrKitStockId || undefined }) });
       return r.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-milk", farmId] }); setOpen(false); setEditing(null); setForm({}); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-milk", farmId] }); qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }); setOpen(false); setEditing(null); setForm({}); setAbrKitStockId(""); },
   });
 
   const del = useMutation({
@@ -134,33 +165,79 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-milk", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm({ recordDate: today(), recordType: "bulk-tank" }); setOpen(true); }
-  function openEdit(r: MilkRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openAdd() { setEditing(null); setForm({ recordDate: today(), recordType: "bulk-tank", buyerLabResultsStatus: "not-applicable" }); setAbrKitStockId(""); setOpen(true); }
+  function openEdit(r: MilkRecord) { setEditing(r); setForm({ ...r }); setAbrKitStockId(""); setOpen(true); }
   function set(k: keyof MilkRecord, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  const labStatus = form.buyerLabResultsStatus;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Record</Button>
       </div>
+
+      {/* ── View Dialog ─────────────────────────────────────────────────────── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Milk Record</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{formatDate(viewRecord.recordDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium capitalize">{String(viewRecord.recordType ?? "—").replace("-", " ")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milking Session</p><p className="font-medium capitalize">{String(viewRecord.sessionType ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Yield (litres)</p><p className="font-medium">{viewRecord.yieldLitres ? `${parseFloat(viewRecord.yieldLitres).toLocaleString()} L` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (k/mL)</p><p className="font-medium">{viewRecord.sccThousands?.toLocaleString() ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (cfu/mL)</p><p className="font-medium">{viewRecord.tbcCfuMl?.toLocaleString() ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fat (%)</p><p className="font-medium">{String(viewRecord.fatPercent ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protein (%)</p><p className="font-medium">{String(viewRecord.proteinPercent ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lactose (%)</p><p className="font-medium">{String(viewRecord.lactosePercent ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Temperature (°C)</p><p className="font-medium">{String(viewRecord.milkTemperatureCelsius ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Antibiotic Residue Test</p><p className="font-medium capitalize">{String(viewRecord.antibioticResidueTestResult ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collector Ref</p><p className="font-medium">{String(viewRecord.collectorReference ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+          <DialogContent style={{ maxWidth: "52rem" }}>
+            <DialogHeader><DialogTitle>Milk Record — {formatDate(viewRecord.recordDate)}</DialogTitle></DialogHeader>
+            <div className="space-y-5 text-sm overflow-y-auto max-h-[70vh]">
+
+              {/* Collection Details */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Collection Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">Record Type</p><p className="font-medium capitalize">{String(viewRecord.recordType ?? "—").replace(/-/g, " ")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Milking Session</p><p className="font-medium capitalize">{String(viewRecord.sessionType ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Milk Buyer</p><p className="font-medium">{viewRecord.milkBuyer ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Yield (litres)</p><p className="font-medium">{viewRecord.yieldLitres ? `${parseFloat(viewRecord.yieldLitres).toLocaleString()} L` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Collector Ref</p><p className="font-medium">{viewRecord.collectorReference ?? "—"}</p></div>
+                </div>
+              </div>
+
+              {/* On-Farm Measurements */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">On-Farm Measurements</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">Milk Temperature (°C)</p><p className="font-medium">{viewRecord.milkTemperatureCelsius ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Temp Tested By</p><p className="font-medium">{viewRecord.tempTestedBy ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">ABR Test Result</p><p className="font-medium capitalize">{viewRecord.antibioticResidueTestResult ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">ABR Tested By</p><p className="font-medium">{viewRecord.abrTestedBy ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">ABR Kit Lot No.</p><p className="font-medium font-mono">{viewRecord.abrTestKitLot ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">ABR Kit Batch No.</p><p className="font-medium font-mono">{viewRecord.abrTestKitBatch ?? "—"}</p></div>
+                  {(viewRecord.sccThousands || viewRecord.tbcCfuMl || viewRecord.fatPercent) && <>
+                    <div><p className="text-xs text-muted-foreground">SCC (k/mL) — On-farm</p><SccBadge v={viewRecord.sccThousands} /></div>
+                    <div><p className="text-xs text-muted-foreground">TBC (cfu/mL)</p><p className="font-medium">{viewRecord.tbcCfuMl?.toLocaleString() ?? "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Fat %</p><p className="font-medium">{viewRecord.fatPercent ?? "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Protein %</p><p className="font-medium">{viewRecord.proteinPercent ?? "—"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Lactose %</p><p className="font-medium">{viewRecord.lactosePercent ?? "—"}</p></div>
+                  </>}
+                </div>
+              </div>
+
+              {/* Buyer Lab Results */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Buyer Lab Results</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 flex items-center gap-2"><p className="text-xs text-muted-foreground">Status</p><LabResultsBadge status={viewRecord.buyerLabResultsStatus} />{(!viewRecord.buyerLabResultsStatus || viewRecord.buyerLabResultsStatus === "not-applicable") && <span className="text-sm text-gray-400">Not applicable</span>}</div>
+                  <div><p className="text-xs text-muted-foreground">Results Received Date</p><p className="font-medium">{viewRecord.buyerLabResultsDate ? formatDate(viewRecord.buyerLabResultsDate) : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Buyer Lab Reference</p><p className="font-medium">{viewRecord.buyerLabRef ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">SCC (k/mL) — Buyer Lab</p><SccBadge v={viewRecord.buyerSccThousands} /></div>
+                  <div><p className="text-xs text-muted-foreground">TBC (cfu/mL) — Buyer Lab</p><p className="font-medium">{viewRecord.buyerTbcCfuMl?.toLocaleString() ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Fat % — Buyer Lab</p><p className="font-medium">{viewRecord.buyerFatPercent ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Protein % — Buyer Lab</p><p className="font-medium">{viewRecord.buyerProteinPercent ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Lactose % — Buyer Lab</p><p className="font-medium">{viewRecord.buyerLactosePercent ?? "—"}</p></div>
+                </div>
+              </div>
+
+              {viewRecord.notes && <div className="border-t pt-4"><p className="text-xs text-muted-foreground">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+
+              {/* Document Attachments */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Documents &amp; Attachments</p>
+                <RecordAttachments recordType="dairy_milk_record" recordId={viewRecord.id} farmId={farmId} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -169,6 +246,8 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── List ────────────────────────────────────────────────────────────── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No milk records yet — click Add Record to begin.</CardContent></Card>}
@@ -176,102 +255,151 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
             <Card key={r.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-sm text-gray-900">{formatDate(r.recordDate)}</span>
-                    <span className="text-xs text-gray-500 capitalize">{r.recordType.replace("-", " ")}{r.sessionType ? ` · ${r.sessionType}` : ""}</span>
+                    <span className="text-xs text-gray-500 capitalize">{r.recordType.replace(/-/g, " ")}{r.sessionType ? ` · ${r.sessionType}` : ""}</span>
+                    {r.milkBuyer && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{r.milkBuyer}</span>}
                     {r.yieldLitres && <span className="text-sm text-gray-700">{parseFloat(r.yieldLitres).toLocaleString()} L</span>}
-                    <SccBadge v={r.sccThousands} />
-                    {r.tbcCfuMl && <span className="text-xs text-gray-500">TBC: {r.tbcCfuMl.toLocaleString()} cfu/mL</span>}
-                    {r.fatPercent && <span className="text-xs text-gray-500">Fat: {r.fatPercent}%</span>}
-                    {r.proteinPercent && <span className="text-xs text-gray-500">Protein: {r.proteinPercent}%</span>}
+                    <SccBadge v={r.sccThousands || r.buyerSccThousands} />
                     {r.antibioticResidueTestResult && (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${r.antibioticResidueTestResult === "negative" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                         {r.antibioticResidueTestResult === "negative" ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
                         ABR: {r.antibioticResidueTestResult}
                       </span>
                     )}
+                    <LabResultsBadge status={r.buyerLabResultsStatus} />
                   </div>
-                  <div className="flex gap-1 ml-2">
+                  <div className="flex gap-1 ml-2 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
-                {r.notes && <p className="text-xs text-gray-400 mt-1">{r.notes}</p>}
+                {r.notes && <p className="text-xs text-gray-400 mt-1 truncate">{r.notes}</p>}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* ── Add / Edit Dialog ───────────────────────────────────────────────── */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "56rem" }}>
+        <DialogContent style={{ maxWidth: "64rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Milk Record" : "Add Milk Record"}</DialogTitle>
-            <p className="text-xs text-muted-foreground pt-1">Record milk quality and yield data — SCC, TBC, composition, and ABR test results. For tanker collection logistics (volume, driver, buyer), use the <span className="font-medium">Bulk Tank</span> tab.</p>
+            <p className="text-xs text-muted-foreground pt-1">Capture on-farm measurements and buyer lab results in one place. For tanker logistics, use the <span className="font-medium">Bulk Tank</span> tab.</p>
           </DialogHeader>
-          <div className="flex gap-6 py-2">
-            {/* ── Left column ── */}
-            <div className="flex-1 flex flex-col gap-3">
-              <div><Label>Date *</Label><Input type="date" value={form.recordDate || ""} onChange={e => set("recordDate", e.target.value)} /></div>
-              <div>
-                <Label>Record Type *</Label>
-                <Select value={form.recordType || "bulk-tank"} onValueChange={v => set("recordType", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bulk-tank">Bulk Tank (Quality Sample)</SelectItem>
-                    <SelectItem value="individual-cow">Individual Cow</SelectItem>
-                    <SelectItem value="herd-total">Herd Total</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="overflow-y-auto max-h-[75vh] space-y-5 pr-1">
+
+            {/* ── Section 1: Collection Details ── */}
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Collection Details</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Date *</Label><Input type="date" value={form.recordDate || ""} onChange={e => set("recordDate", e.target.value)} /></div>
+                <div>
+                  <Label>Record Type *</Label>
+                  <Select value={form.recordType || "bulk-tank"} onValueChange={v => set("recordType", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bulk-tank">Bulk Tank (Quality Sample)</SelectItem>
+                      <SelectItem value="individual-cow">Individual Cow</SelectItem>
+                      <SelectItem value="herd-total">Herd Total</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Milking Session</Label>
+                  <Select value={form.sessionType || ""} onValueChange={v => set("sessionType", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="morning">Morning</SelectItem>
+                      <SelectItem value="afternoon">Afternoon</SelectItem>
+                      <SelectItem value="evening">Evening</SelectItem>
+                      <SelectItem value="daily-total">Daily Total</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Milk Buyer</Label><Input placeholder="e.g. Müller, Arla, First Milk" value={form.milkBuyer || ""} onChange={e => set("milkBuyer", e.target.value)} /></div>
+                <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
+                <div><Label>Collector / Tanker Ref</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
               </div>
-              <div>
-                <Label>Milking Session</Label>
-                <Select value={form.sessionType || ""} onValueChange={v => set("sessionType", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="morning">Morning</SelectItem>
-                    <SelectItem value="afternoon">Afternoon</SelectItem>
-                    <SelectItem value="evening">Evening</SelectItem>
-                    <SelectItem value="daily-total">Daily Total</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
-              <div>
-                <Label>SCC (thousands/mL)</Label>
-                <Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="e.g. 185 = 185,000 cells/mL" />
-                <p className="text-xs text-gray-400 mt-0.5">Legal limit: 400 (400,000 cells/mL)</p>
-              </div>
-              <div><Label>TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="Total bacterial count" /></div>
             </div>
 
-            {/* ── Divider ── */}
-            <div className="w-px bg-gray-200 self-stretch" />
-
-            {/* ── Right column ── */}
-            <div className="flex-1 flex flex-col gap-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div><Label>Fat (%)</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
-                <div><Label>Protein (%)</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
-                <div><Label>Lactose (%)</Label><Input type="number" step="0.01" value={form.lactosePercent || ""} onChange={e => set("lactosePercent", e.target.value)} /></div>
+            {/* ── Section 2: On-Farm Measurements ── */}
+            <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-3">On-Farm Measurements</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} placeholder="Target ≤4°C" /></div>
+                <div className="col-span-2"><Label>Temperature Tested By</Label><Input placeholder="Name of person who took reading" value={form.tempTestedBy || ""} onChange={e => set("tempTestedBy", e.target.value)} /></div>
+                <div>
+                  <Label>ABR Test Result</Label>
+                  <Select value={form.antibioticResidueTestResult || ""} onValueChange={v => set("antibioticResidueTestResult", v)}>
+                    <SelectTrigger><SelectValue placeholder="Not tested" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="negative">Negative (safe to supply)</SelectItem>
+                      <SelectItem value="positive">Positive (milk discarded)</SelectItem>
+                      <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>ABR Tested By</Label><Input placeholder="Name of tester" value={form.abrTestedBy || ""} onChange={e => set("abrTestedBy", e.target.value)} /></div>
+                <div>
+                  <Label>ABR Kit Stock Record</Label>
+                  <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>
+                    <SelectTrigger><SelectValue placeholder="Link kit (auto-decrements stock)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / not tracking</SelectItem>
+                      {abrStock.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.productName}{s.lotNumber ? ` · Lot ${s.lotNumber}` : ""} ({s.quantityRemaining} remaining)</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>ABR Kit Lot Number</Label><Input placeholder="From kit packaging" value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>
+                <div><Label>ABR Kit Batch Number</Label><Input placeholder="From kit packaging" value={form.abrTestKitBatch || ""} onChange={e => set("abrTestKitBatch", e.target.value)} /></div>
+                <div className="col-span-3 border-t border-blue-200 pt-3">
+                  <p className="text-xs text-blue-600 mb-2 font-medium">On-farm quality measurements (optional — if tested on-farm separately from buyer)</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    <div><Label>SCC (k/mL)</Label><Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                    <div><Label>TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                    <div><Label>Fat %</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
+                    <div><Label>Protein %</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
+                    <div><Label>Lactose %</Label><Input type="number" step="0.01" value={form.lactosePercent || ""} onChange={e => set("lactosePercent", e.target.value)} /></div>
+                  </div>
+                </div>
               </div>
-              <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} /></div>
-              <div>
-                <Label>Antibiotic Residue Test</Label>
-                <Select value={form.antibioticResidueTestResult || ""} onValueChange={v => set("antibioticResidueTestResult", v)}>
-                  <SelectTrigger><SelectValue placeholder="Not tested" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="negative">Negative (safe to supply)</SelectItem>
-                    <SelectItem value="positive">Positive (milk discarded)</SelectItem>
-                    <SelectItem value="inconclusive">Inconclusive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Collector / Tanker Reference</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
-              <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={4} /></div>
             </div>
+
+            {/* ── Section 3: Buyer Lab Results ── */}
+            <div className="rounded-md border border-purple-100 bg-purple-50 p-4">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider mb-1">Buyer Lab Results</p>
+              <p className="text-xs text-purple-600 mb-3">Transcribe results from your milk buyer's lab report. These are the official figures used for payment and compliance.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-3">
+                  <Label>Lab Results Status</Label>
+                  <Select value={labStatus || "not-applicable"} onValueChange={v => set("buyerLabResultsStatus", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not-applicable">Not applicable (no buyer lab for this record)</SelectItem>
+                      <SelectItem value="pending">Pending — awaiting results from buyer</SelectItem>
+                      <SelectItem value="received">Received — results logged below</SelectItem>
+                      <SelectItem value="concern">Concern — results require action</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(labStatus === "received" || labStatus === "concern") && <>
+                  <div><Label>Results Date</Label><Input type="date" value={form.buyerLabResultsDate || ""} onChange={e => set("buyerLabResultsDate", e.target.value)} /></div>
+                  <div className="col-span-2"><Label>Buyer Lab Reference</Label><Input placeholder="Lab report reference / slip number" value={form.buyerLabRef || ""} onChange={e => set("buyerLabRef", e.target.value)} /></div>
+                  <div><Label>SCC (k/mL) — Buyer</Label><Input type="number" value={form.buyerSccThousands || ""} onChange={e => set("buyerSccThousands", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                  <div><Label>TBC (cfu/mL) — Buyer</Label><Input type="number" value={form.buyerTbcCfuMl || ""} onChange={e => set("buyerTbcCfuMl", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                  <div><Label>Fat % — Buyer</Label><Input type="number" step="0.01" value={form.buyerFatPercent || ""} onChange={e => set("buyerFatPercent", e.target.value)} /></div>
+                  <div><Label>Protein % — Buyer</Label><Input type="number" step="0.01" value={form.buyerProteinPercent || ""} onChange={e => set("buyerProteinPercent", e.target.value)} /></div>
+                  <div><Label>Lactose % — Buyer</Label><Input type="number" step="0.01" value={form.buyerLactosePercent || ""} onChange={e => set("buyerLactosePercent", e.target.value)} /></div>
+                </>}
+              </div>
+            </div>
+
+            <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={3} /></div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.recordDate}>
               {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
@@ -1576,7 +1704,122 @@ function MobilityTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Bulk Tank Records ─────────────────────────────────────────────────────────
+// ─── ABR Test Kit Stock Section ───────────────────────────────────────────────
+
+function AbrKitStockSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<AbrKitStock | null>(null);
+  const [form, setForm] = useState<Partial<AbrKitStock>>({});
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const stockQ = useQuery<{ stock: AbrKitStock[] }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`), { credentials: "include" }).then(r => r.json()),
+  });
+  const stock = stockQ.data?.stock ?? [];
+  const lowStock = stock.filter(s => s.quantityRemaining <= s.lowStockThreshold && s.quantityRemaining >= 0);
+
+  const save = useMutation({
+    mutationFn: (body: Partial<AbrKitStock>) => {
+      const url = editingItem ? api(`farms/${farmId}/dairy/abr-test-kit-stock/${editingItem.id}`) : api(`farms/${farmId}/dairy/abr-test-kit-stock`);
+      return fetch(url, { method: editingItem ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }); setOpen(false); setEditingItem(null); setForm({}); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }),
+  });
+
+  function openAdd() { setEditingItem(null); setForm({ quantityPurchased: 0, quantityUsed: 0, lowStockThreshold: 5 }); setOpen(true); }
+  function openEdit(s: AbrKitStock) { setEditingItem(s); setForm({ ...s }); setOpen(true); }
+  function set(k: keyof AbrKitStock, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        onClick={() => setPanelOpen(o => !o)}
+      >
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-sm text-gray-800">ABR Test Kit Stock ({stock.length} products)</span>
+          {lowStock.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              <AlertTriangle className="h-3 w-3" />{lowStock.length} low stock
+            </span>
+          )}
+        </div>
+        {panelOpen ? <ChevronDown className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />}
+      </button>
+      {panelOpen && (
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-gray-500">Track antibiotic residue test kit batches, lot numbers, expiry dates, and remaining stock. When linked to a milk record, stock automatically decrements.</p>
+          {stockQ.isLoading
+            ? <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            : stock.length === 0
+              ? <p className="text-sm text-gray-400 italic">No kit stock logged yet. Add your first kit batch below.</p>
+              : stock.map(s => {
+                const isLow = s.quantityRemaining <= s.lowStockThreshold;
+                const isOut = s.quantityRemaining === 0;
+                return (
+                  <div key={s.id} className={`flex items-start justify-between rounded-md border px-3 py-2.5 ${isOut ? "bg-red-50 border-red-200" : isLow ? "bg-amber-50 border-amber-200" : "bg-white border-gray-200"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-medium text-sm text-gray-900">{s.productName}</span>
+                        {s.supplier && <span className="text-xs text-gray-500">{s.supplier}</span>}
+                        {isOut ? <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Out of stock</span>
+                          : isLow ? <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Low stock</span>
+                          : <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />In stock</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+                        {s.lotNumber && <span>Lot: <span className="font-mono text-gray-700">{s.lotNumber}</span></span>}
+                        {s.batchNumber && <span>Batch: <span className="font-mono text-gray-700">{s.batchNumber}</span></span>}
+                        {s.expiryDate && <span>Expires: {formatDate(s.expiryDate)}</span>}
+                        <span className="font-medium text-gray-700">{s.quantityRemaining} of {s.quantityPurchased} remaining</span>
+                        <span>({s.quantityUsed} used)</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 ml-2 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                );
+              })
+          }
+          <Button size="sm" variant="outline" onClick={openAdd}><Plus className="h-3.5 w-3.5 mr-1" />Add Kit Batch</Button>
+        </div>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>{editingItem ? "Edit Kit Batch" : "Add ABR Test Kit Batch"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2"><Label>Product Name *</Label><Input placeholder="e.g. Delvotest Accelerator, BRT Tube Kit" value={form.productName || ""} onChange={e => set("productName", e.target.value)} /></div>
+            <div><Label>Supplier</Label><Input placeholder="e.g. Neogen, Charm Sciences" value={form.supplier || ""} onChange={e => set("supplier", e.target.value)} /></div>
+            <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} /></div>
+            <div><Label>Lot Number</Label><Input placeholder="From kit box" value={form.lotNumber || ""} onChange={e => set("lotNumber", e.target.value)} /></div>
+            <div><Label>Batch Number</Label><Input placeholder="From kit box" value={form.batchNumber || ""} onChange={e => set("batchNumber", e.target.value)} /></div>
+            <div><Label>Qty Purchased</Label><Input type="number" min="0" value={form.quantityPurchased ?? ""} onChange={e => set("quantityPurchased", parseInt(e.target.value) || 0)} /></div>
+            <div><Label>Qty Used (to date)</Label><Input type="number" min="0" value={form.quantityUsed ?? ""} onChange={e => set("quantityUsed", parseInt(e.target.value) || 0)} /></div>
+            <div><Label>Low Stock Alert Threshold</Label><Input type="number" min="0" value={form.lowStockThreshold ?? 5} onChange={e => set("lowStockThreshold", parseInt(e.target.value) || 5)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.productName?.trim()}>
+              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {editingItem ? "Save Changes" : "Add Batch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 // ─── Bulk Tank interfaces ─────────────────────────────────────────────────────
 
@@ -1597,8 +1840,20 @@ interface MilkCollection {
   id: number; tankId?: number | null; collectionDate: string;
   volumeCollectedLitres?: string | null; milkBuyer?: string | null;
   tankerRegistration?: string | null; tankerDriverName?: string | null;
-  collectionRef?: string | null; abtResultBeforeCollection?: string | null;
+  collectionRef?: string | null; statementRef?: string | null;
+  abtResultBeforeCollection?: string | null;
+  pencePerLitre?: string | null; grossValuePence?: number | null;
+  qualityBonusPence?: number | null; qualityPenaltyPence?: number | null;
+  transportDeductionPence?: number | null; netPaymentPence?: number | null;
   notes?: string | null;
+}
+
+interface AbrKitStock {
+  id: number; productName: string; supplier?: string | null;
+  lotNumber?: string | null; batchNumber?: string | null;
+  expiryDate?: string | null; quantityPurchased: number;
+  quantityUsed: number; quantityRemaining: number;
+  lowStockThreshold: number; notes?: string | null;
 }
 
 // ─── ABR badge helper ─────────────────────────────────────────────────────────
@@ -1834,7 +2089,8 @@ function BulkTankTab({ farmId }: { farmId: number }) {
                         {c.volumeCollectedLitres && <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{Number(c.volumeCollectedLitres).toLocaleString()} L</span>}
                         {c.milkBuyer && <span className="text-xs text-gray-500">{c.milkBuyer}</span>}
                         {c.collectionRef && <span className="text-xs text-gray-400">Ref: {c.collectionRef}</span>}
-                        {c.tankerRegistration && <span className="text-xs text-gray-400 font-mono">{c.tankerRegistration}</span>}
+                        {c.netPaymentPence != null && <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded">£{(c.netPaymentPence / 100).toFixed(2)} net</span>}
+                        {c.pencePerLitre && <span className="text-xs text-gray-400">{parseFloat(c.pencePerLitre).toFixed(2)}ppl</span>}
                         <AbrBadge result={c.abtResultBeforeCollection} />
                       </div>
                       <div className="flex gap-1 ml-2 shrink-0">
@@ -1844,7 +2100,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
                       </div>
                     </div>
                     {c.tankerDriverName && <p className="text-xs text-gray-400 mt-1">Driver: {c.tankerDriverName}</p>}
-                    {c.notes && <p className="text-xs text-gray-400 mt-1">{c.notes}</p>}
+                    {c.notes && <p className="text-xs text-gray-400 mt-1 truncate">{c.notes}</p>}
                   </CardContent>
                 </Card>
               ))}
@@ -1970,18 +2226,34 @@ function BulkTankTab({ farmId }: { farmId: number }) {
       {/* ── Milk Collection View Dialog ──────────────────────────────────────── */}
       {viewColl && (
         <Dialog open onOpenChange={() => setViewColl(null)}>
-          <DialogContent style={{ maxWidth: "40rem" }}>
-            <DialogHeader><DialogTitle>View Milk Collection</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Date</p><p className="font-medium">{formatDate(viewColl.collectionDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tank</p><p className="font-medium">{tankName(viewColl.tankId) ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume Collected</p><p className="font-medium">{viewColl.volumeCollectedLitres ? `${Number(viewColl.volumeCollectedLitres).toLocaleString()} L` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk Buyer / Haulier</p><p className="font-medium">{viewColl.milkBuyer ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tanker Registration</p><p className="font-medium font-mono">{viewColl.tankerRegistration ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tanker Driver</p><p className="font-medium">{viewColl.tankerDriverName ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Reference</p><p className="font-medium">{viewColl.collectionRef ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pre-Collection ABR</p><p className="font-medium capitalize">{viewColl.abtResultBeforeCollection ?? "—"}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewColl.notes ?? "—"}</p></div>
+          <DialogContent style={{ maxWidth: "48rem" }}>
+            <DialogHeader><DialogTitle>Milk Collection — {formatDate(viewColl.collectionDate)}</DialogTitle></DialogHeader>
+            <div className="space-y-4 text-sm overflow-y-auto max-h-[70vh]">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Collection Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground">Tank</p><p className="font-medium">{tankName(viewColl.tankId) ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Volume Collected</p><p className="font-medium">{viewColl.volumeCollectedLitres ? `${Number(viewColl.volumeCollectedLitres).toLocaleString()} L` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Milk Buyer / Haulier</p><p className="font-medium">{viewColl.milkBuyer ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Pre-Collection ABR</p><p className="font-medium capitalize">{viewColl.abtResultBeforeCollection ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Tanker Registration</p><p className="font-medium font-mono">{viewColl.tankerRegistration ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Tanker Driver</p><p className="font-medium">{viewColl.tankerDriverName ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Collection Ref</p><p className="font-medium">{viewColl.collectionRef ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Statement Ref</p><p className="font-medium">{viewColl.statementRef ?? "—"}</p></div>
+                </div>
+              </div>
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Payment &amp; Settlement</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><p className="text-xs text-muted-foreground">Pence per Litre</p><p className="font-medium">{viewColl.pencePerLitre ? `${parseFloat(viewColl.pencePerLitre).toFixed(4)}ppl` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Gross Value</p><p className="font-medium">{viewColl.grossValuePence != null ? `£${(viewColl.grossValuePence / 100).toFixed(2)}` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Quality Bonus</p><p className="font-medium text-green-700">{viewColl.qualityBonusPence != null ? `+£${(viewColl.qualityBonusPence / 100).toFixed(2)}` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Quality Penalty</p><p className="font-medium text-red-700">{viewColl.qualityPenaltyPence != null ? `-£${(viewColl.qualityPenaltyPence / 100).toFixed(2)}` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Transport Deduction</p><p className="font-medium text-red-700">{viewColl.transportDeductionPence != null ? `-£${(viewColl.transportDeductionPence / 100).toFixed(2)}` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Net Payment</p><p className="font-semibold text-green-700 text-base">{viewColl.netPaymentPence != null ? `£${(viewColl.netPaymentPence / 100).toFixed(2)}` : "—"}</p></div>
+                </div>
+              </div>
+              {viewColl.notes && <div className="border-t pt-3"><p className="text-xs text-muted-foreground">Notes</p><p className="font-medium">{viewColl.notes}</p></div>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEditColl(viewColl); setViewColl(null); }}>Edit</Button>
@@ -1993,39 +2265,64 @@ function BulkTankTab({ farmId }: { farmId: number }) {
 
       {/* ── Milk Collection Add/Edit Dialog ─────────────────────────────────── */}
       <Dialog open={collDialog} onOpenChange={setCollDialog}>
-        <DialogContent style={{ maxWidth: "42rem" }}>
+        <DialogContent style={{ maxWidth: "54rem" }}>
           <DialogHeader><DialogTitle>{editingColl ? "Edit Milk Collection" : "Log Milk Collection"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate?.slice(0, 10) || ""} onChange={e => setColl("collectionDate", e.target.value)} /></div>
-            <div>
-              <Label>Tank Collected From</Label>
-              <Select value={collForm.tankId ? String(collForm.tankId) : "__none__"} onValueChange={v => setColl("tankId", v !== "__none__" ? parseInt(v) : null)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Not specified</SelectItem>
-                  {tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.location ? ` — ${t.location}` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          <div className="overflow-y-auto max-h-[75vh] space-y-4 pr-1">
+
+            {/* Collection details */}
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Collection Details</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate?.slice(0, 10) || ""} onChange={e => setColl("collectionDate", e.target.value)} /></div>
+                <div>
+                  <Label>Tank Collected From</Label>
+                  <Select value={collForm.tankId ? String(collForm.tankId) : "__none__"} onValueChange={v => setColl("tankId", v !== "__none__" ? parseInt(v) : null)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      {tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.location ? ` — ${t.location}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Volume Collected (litres)</Label><Input type="number" step="1" placeholder="e.g. 8500" value={collForm.volumeCollectedLitres || ""} onChange={e => setColl("volumeCollectedLitres", e.target.value)} /></div>
+                <div><Label>Milk Buyer / Haulier</Label><Input placeholder="e.g. Müller, Arla, First Milk" value={collForm.milkBuyer || ""} onChange={e => setColl("milkBuyer", e.target.value)} /></div>
+                <div><Label>Tanker Registration</Label><Input placeholder="e.g. AB12 CDE" value={collForm.tankerRegistration || ""} onChange={e => setColl("tankerRegistration", e.target.value)} /></div>
+                <div><Label>Tanker Driver Name</Label><Input value={collForm.tankerDriverName || ""} onChange={e => setColl("tankerDriverName", e.target.value)} /></div>
+                <div><Label>Collection Ref</Label><Input placeholder="From milk buyer docket" value={collForm.collectionRef || ""} onChange={e => setColl("collectionRef", e.target.value)} /></div>
+                <div><Label>Statement Ref</Label><Input placeholder="Monthly statement ref" value={collForm.statementRef || ""} onChange={e => setColl("statementRef", e.target.value)} /></div>
+                <div>
+                  <Label>Pre-Collection ABR Result</Label>
+                  <Select value={collForm.abtResultBeforeCollection || ""} onValueChange={v => setColl("abtResultBeforeCollection", v)}>
+                    <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="negative">Negative</SelectItem>
+                      <SelectItem value="positive">Positive</SelectItem>
+                      <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <div><Label>Volume Collected (litres)</Label><Input type="number" step="1" placeholder="e.g. 8500" value={collForm.volumeCollectedLitres || ""} onChange={e => setColl("volumeCollectedLitres", e.target.value)} /></div>
-            <div><Label>Milk Buyer / Haulier</Label><Input placeholder="e.g. Müller, Arla, First Milk" value={collForm.milkBuyer || ""} onChange={e => setColl("milkBuyer", e.target.value)} /></div>
-            <div><Label>Tanker Registration</Label><Input placeholder="e.g. AB12 CDE" value={collForm.tankerRegistration || ""} onChange={e => setColl("tankerRegistration", e.target.value)} /></div>
-            <div><Label>Tanker Driver Name</Label><Input value={collForm.tankerDriverName || ""} onChange={e => setColl("tankerDriverName", e.target.value)} /></div>
-            <div><Label>Collection Reference</Label><Input placeholder="From milk buyer docket" value={collForm.collectionRef || ""} onChange={e => setColl("collectionRef", e.target.value)} /></div>
-            <div>
-              <Label>Pre-Collection ABR Result</Label>
-              <Select value={collForm.abtResultBeforeCollection || ""} onValueChange={v => setColl("abtResultBeforeCollection", v)}>
-                <SelectTrigger><SelectValue placeholder="Not recorded" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="negative">Negative</SelectItem>
-                  <SelectItem value="positive">Positive</SelectItem>
-                  <SelectItem value="inconclusive">Inconclusive</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Payment & Settlement */}
+            <div className="rounded-md border border-green-100 bg-green-50 p-4">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Payment &amp; Settlement</p>
+              <p className="text-xs text-green-600 mb-3">Enter values in pence (not pounds). Gross, bonus, penalty, and transport feed into the net figure automatically.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Pence per Litre</Label><Input type="number" step="0.0001" placeholder="e.g. 34.2500" value={collForm.pencePerLitre || ""} onChange={e => setColl("pencePerLitre", e.target.value)} /></div>
+                <div><Label>Gross Value (pence)</Label><Input type="number" step="1" placeholder="e.g. 291250" value={collForm.grossValuePence || ""} onChange={e => setColl("grossValuePence", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                <div><Label>Quality Bonus (pence)</Label><Input type="number" step="1" placeholder="e.g. 5000" value={collForm.qualityBonusPence || ""} onChange={e => setColl("qualityBonusPence", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                <div><Label>Quality Penalty (pence)</Label><Input type="number" step="1" placeholder="e.g. 0" value={collForm.qualityPenaltyPence || ""} onChange={e => setColl("qualityPenaltyPence", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                <div><Label>Transport Deduction (pence)</Label><Input type="number" step="1" placeholder="e.g. 1200" value={collForm.transportDeductionPence || ""} onChange={e => setColl("transportDeductionPence", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                <div><Label>Net Payment (pence)</Label><Input type="number" step="1" placeholder="e.g. 295050" value={collForm.netPaymentPence || ""} onChange={e => setColl("netPaymentPence", e.target.value ? parseInt(e.target.value) : undefined)} />
+                  {collForm.netPaymentPence != null && <p className="text-xs text-green-700 mt-1 font-semibold">= £{(collForm.netPaymentPence / 100).toFixed(2)}</p>}
+                </div>
+              </div>
             </div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={collForm.notes || ""} onChange={e => setColl("notes", e.target.value)} rows={2} /></div>
+
+            <div><Label>Notes</Label><Textarea value={collForm.notes || ""} onChange={e => setColl("notes", e.target.value)} rows={2} /></div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setCollDialog(false)}>Cancel</Button>
             <Button onClick={() => saveColl.mutate(collForm)} disabled={saveColl.isPending || !collForm.collectionDate}>
               {saveColl.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
@@ -2034,6 +2331,9 @@ function BulkTankTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Section 4: ABR Test Kit Stock ───────────────────────────────────── */}
+      <AbrKitStockSection farmId={farmId} />
 
     </div>
   );

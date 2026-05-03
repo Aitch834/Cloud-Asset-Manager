@@ -60,6 +60,7 @@ import {
   vetHealthPlanActionsTable,
   vetHealthPlanActionCompletionsTable,
   dairyMilkRecordsTable,
+  dairyAbrTestKitStockTable,
   dairyMastitisRecordsTable,
   dairyCalvingRecordsTable,
   lambingRecordsTable,
@@ -11941,8 +11942,12 @@ router.get("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requ
 router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { recordDate, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId, notes } = req.body;
-  const [record] = await db.insert(dairyMilkRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType: recordType || "bulk-tank", sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId: herdId || null, notes }).returning();
+  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes, abrKitStockId } = req.body;
+  const [record] = await db.insert(dairyMilkRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType: recordType || "bulk-tank", sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || "not-applicable", buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes }).returning();
+  // Decrement ABR test kit stock if a kit was used
+  if (antibioticResidueTestResult && abrKitStockId) {
+    await db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(abrKitStockId)), eq(dairyAbrTestKitStockTable.farmId, farmId)));
+  }
   res.json({ record });
 });
 
@@ -11950,8 +11955,8 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { recordDate, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId, notes } = req.body;
-  const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId: herdId || null, notes }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
+  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes } = req.body;
+  const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || null, buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -12419,9 +12424,9 @@ router.get("/farms/:farmId/dairy/milk-collections", requireAuth, requireTenant, 
 router.post("/farms/:farmId/dairy/milk-collections", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, abtResultBeforeCollection, notes } = req.body;
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
   if (!collectionDate) { res.status(400).json({ error: "collectionDate is required" }); return; }
-  const [collection] = await db.insert(dairyMilkCollectionsTable).values({ farmId, tankId: tankId ? parseInt(tankId) : null, collectionDate: new Date(collectionDate), volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, notes: notes || null }).returning();
+  const [collection] = await db.insert(dairyMilkCollectionsTable).values({ farmId, tankId: tankId ? parseInt(tankId) : null, collectionDate: new Date(collectionDate), volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).returning();
   res.json({ collection });
 });
 
@@ -12429,8 +12434,8 @@ router.put("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const collectionId = parseInt(req.params.collectionId);
-  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, abtResultBeforeCollection, notes } = req.body;
-  const [collection] = await db.update(dairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, notes: notes || null }).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId))).returning();
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
+  const [collection] = await db.update(dairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId))).returning();
   res.json({ collection });
 });
 
@@ -12439,6 +12444,45 @@ router.delete("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth
   if (!farmId) return;
   const collectionId = parseInt(req.params.collectionId);
   await db.delete(dairyMilkCollectionsTable).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── ABR Test Kit Stock ──────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/abr-test-kit-stock", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stock = await db.select().from(dairyAbrTestKitStockTable).where(eq(dairyAbrTestKitStockTable.farmId, farmId)).orderBy(desc(dairyAbrTestKitStockTable.createdAt));
+  res.json({ stock });
+});
+
+router.post("/farms/:farmId/dairy/abr-test-kit-stock", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { productName, supplier, lotNumber, batchNumber, expiryDate, quantityPurchased, quantityUsed, lowStockThreshold, notes } = req.body;
+  if (!productName) { res.status(400).json({ error: "productName is required" }); return; }
+  const qty = parseInt(quantityPurchased) || 0;
+  const used = parseInt(quantityUsed) || 0;
+  const [item] = await db.insert(dairyAbrTestKitStockTable).values({ farmId, productName, supplier: supplier || null, lotNumber: lotNumber || null, batchNumber: batchNumber || null, expiryDate: expiryDate || null, quantityPurchased: qty, quantityUsed: used, quantityRemaining: Math.max(qty - used, 0), lowStockThreshold: parseInt(lowStockThreshold) || 5, notes: notes || null }).returning();
+  res.json({ item });
+});
+
+router.put("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const itemId = parseInt(req.params.itemId);
+  const { productName, supplier, lotNumber, batchNumber, expiryDate, quantityPurchased, quantityUsed, lowStockThreshold, notes } = req.body;
+  const qty = parseInt(quantityPurchased) || 0;
+  const used = parseInt(quantityUsed) || 0;
+  const [item] = await db.update(dairyAbrTestKitStockTable).set({ productName, supplier: supplier || null, lotNumber: lotNumber || null, batchNumber: batchNumber || null, expiryDate: expiryDate || null, quantityPurchased: qty, quantityUsed: used, quantityRemaining: Math.max(qty - used, 0), lowStockThreshold: parseInt(lowStockThreshold) || 5, notes: notes || null }).where(and(eq(dairyAbrTestKitStockTable.id, itemId), eq(dairyAbrTestKitStockTable.farmId, farmId))).returning();
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const itemId = parseInt(req.params.itemId);
+  await db.delete(dairyAbrTestKitStockTable).where(and(eq(dairyAbrTestKitStockTable.id, itemId), eq(dairyAbrTestKitStockTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -52,6 +54,40 @@ export default function MilkStatementScreen() {
   const [netPayment, setNetPayment] = useState("");
   const [statementRef, setStatementRef] = useState("");
   const [notes, setNotes] = useState("");
+  const [attachedPhotos, setAttachedPhotos] = useState<string[]>([]);
+
+  async function pickPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library to attach statement images.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      quality: 0.7,
+      selectionLimit: 5,
+    });
+    if (!result.canceled) {
+      setAttachedPhotos(prev => [...prev, ...result.assets.map(a => a.uri)]);
+    }
+  }
+
+  async function takePhoto() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow camera access to photograph your statement.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (!result.canceled && result.assets[0]) {
+      setAttachedPhotos(prev => [...prev, result.assets[0].uri]);
+    }
+  }
+
+  function removePhoto(uri: string) {
+    setAttachedPhotos(prev => prev.filter(p => p !== uri));
+  }
 
   const handleSave = async () => {
     if (!buyer.trim()) {
@@ -153,6 +189,34 @@ export default function MilkStatementScreen() {
           <Input label="Statement Reference" value={statementRef} onChangeText={setStatementRef} placeholder="e.g. Arla-2024-03" />
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any comments on quality or deductions…" multiline numberOfLines={3} />
 
+          {/* Photo attachments */}
+          <View>
+            <Text style={styles.sectionLabel}>Photo Attachments</Text>
+            <Text style={styles.sectionHint}>Photograph your milk statement, test kit results, or ABR test strips for your records.</Text>
+            <View style={styles.photoButtonRow}>
+              <Pressable style={styles.photoBtn} onPress={takePhoto}>
+                <Feather name="camera" size={16} color={colors.primary} />
+                <Text style={styles.photoBtnText}>Camera</Text>
+              </Pressable>
+              <Pressable style={styles.photoBtn} onPress={pickPhoto}>
+                <Feather name="image" size={16} color={colors.primary} />
+                <Text style={styles.photoBtnText}>Library</Text>
+              </Pressable>
+            </View>
+            {attachedPhotos.length > 0 && (
+              <View style={styles.photoGrid}>
+                {attachedPhotos.map((uri, i) => (
+                  <View key={i} style={styles.photoThumbWrap}>
+                    <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                    <Pressable style={styles.photoRemove} onPress={() => removePhoto(uri)}>
+                      <Feather name="x" size={12} color="#fff" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
           <Button
             title={saving ? "Saving…" : "Save Milk Statement"}
             onPress={handleSave}
@@ -185,4 +249,20 @@ const styles = StyleSheet.create({
   buyerText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textSecondary },
   buyerTextActive: { color: "#fff" },
   qualityRow: { flexDirection: "row", gap: 8 },
+  sectionHint: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: 10 },
+  photoButtonRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  photoBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 10, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface,
+  },
+  photoBtnText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  photoThumbWrap: { position: "relative" },
+  photoThumb: { width: 80, height: 80, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  photoRemove: {
+    position: "absolute", top: -6, right: -6, width: 20, height: 20,
+    borderRadius: 10, backgroundColor: "#ef4444",
+    alignItems: "center", justifyContent: "center",
+  },
 });

@@ -80,6 +80,17 @@ A dedicated "Organic Farming" section in the sidebar includes four modules: Orga
 ### P1/P2 Compliance Gap Features
 Recent additions address Red Tractor / APHA compliance gaps, including new database tables for bovine TB tests, welfare outcome assessments, PPE issue records, contractors, and sheep dipping records. Schema changes include `ata_number` and `ata_expiry_date` in `livestock_movements` and the addition of `farm_departments`. New API routes and dashboard features provide full CRUD functionality for these new tables, staff department management, an enhanced task board, and dedicated compliance tabs within the dashboard (e.g., TB Tests, Welfare Outcomes, Sheep Dipping, PPE Register). A new standalone Contractors H&S File page and an AMRM Report tab in the Vet Ledger have also been implemented.
 
+### Dairy Management Module — Milk Records Overhaul
+- **`dairy_milk_records`** table gained 13 new columns: `milk_buyer`, `temp_tested_by`, `abr_tested_by`, `abr_test_kit_lot`, `abr_test_kit_batch`, `buyer_lab_results_status` (not-applicable/pending/received/concern), `buyer_lab_results_date`, `buyer_lab_ref`, `buyer_scc_thousands`, `buyer_tbc_cfu_ml`, `buyer_fat_percent`, `buyer_protein_percent`, `buyer_lactose_percent`.
+- **`dairy_milk_collections`** table gained 7 pricing columns: `pence_per_litre`, `gross_value_pence`, `quality_bonus_pence`, `quality_penalty_pence`, `transport_deduction_pence`, `net_payment_pence`, `statement_ref`.
+- **New `dairy_abr_test_kit_stock`** table: tracks ABR kit batches with lot/batch numbers, expiry dates, purchase quantity, used quantity, remaining quantity, and low-stock thresholds. Stock auto-decrements when a milk record is saved with a linked kit.
+- **Drizzle schema** in `lib/db/src/schema/livestock.ts` updated to reflect all new columns and the new table.
+- **API** (`artifacts/api-server/src/routes/farms.ts`): POST/PUT milk-records and milk-collections updated for all new fields; full CRUD for `/dairy/abr-test-kit-stock`.
+- **Dashboard MilkRecordsTab** (`artifacts/dashboard/src/pages/DairyPage.tsx`): restructured dialog into 3 labelled sections (Collection Details / On-Farm Measurements / Buyer Lab Results); buyer lab results status workflow with `LabResultsBadge`; tester identity, ABR kit lot/batch fields; kit stock picker auto-decrements stock; document attachments in view dialog; `RecordAttachments` component wired to new view dialog.
+- **Dashboard BulkTankTab**: milk collection list shows net payment badge and ppl; collection view dialog shows full payment breakdown; collection add/edit dialog has "Payment & Settlement" section (ppl, gross, bonus, penalty, transport, net).
+- **Dashboard ABR Kit Stock**: new `AbrKitStockSection` collapsible panel inside BulkTankTab showing per-kit stock level, lot/batch, expiry, low-stock warnings.
+- **Mobile milk-statement.tsx**: photo attachment added via `expo-image-picker` — Camera and Library buttons, thumbnail grid, tap-to-remove.
+
 ## External Dependencies
 
 - **Monorepo Tool:** pnpm workspaces
