@@ -3291,6 +3291,65 @@ function ProductCombobox({
   );
 }
 
+// ── Generic name combobox (vet names, staff names) ──────────────────────────
+function NameCombobox({
+  value, onChange, names, placeholder, allowFreeType = true,
+}: {
+  value: string; onChange: (v: string) => void;
+  names: string[]; placeholder: string; allowFreeType?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = query.length >= 1
+    ? names.filter(n => n.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
+    : names.slice(0, 12);
+
+  function select(name: string) { onChange(name); setQuery(""); setOpen(false); }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <Input
+        value={open ? query : (value || "")}
+        placeholder={placeholder}
+        onChange={e => { setQuery(e.target.value); setOpen(true); if (allowFreeType) onChange(e.target.value); }}
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        className="pr-7"
+        autoComplete="off"
+      />
+      <ChevronsUpDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {filtered.length === 0 && names.length === 0 && (
+            <div className="px-3 py-3 text-xs text-gray-400 text-center">No previous records — type name above</div>
+          )}
+          {filtered.length === 0 && names.length > 0 && query.length >= 1 && (
+            <div className="px-3 py-2 text-xs text-gray-400">No match — will use "{query}"</div>
+          )}
+          {filtered.map(n => (
+            <button key={n} type="button"
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-primary/5 flex items-center justify-between ${value === n ? "bg-primary/10" : ""}`}
+              onMouseDown={e => { e.preventDefault(); select(n); }}
+            >
+              <span>{n}</span>
+              {value === n && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Animal ear tag combobox ─────────────────────────────────────────────────
 function AnimalEarTagCombobox({
   value, onSelect, animals,
@@ -3388,6 +3447,20 @@ function DctTab({ farmId }: { farmId: number }) {
     return !sp || sp.includes("bovine") || sp.includes("cattle") || sp.includes("cow") || sp.includes("dairy");
   });
 
+  const { data: vetNamesData } = useQuery<{ names: string[] }>({
+    queryKey: ["dct-vet-names", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/dct-vet-names`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 120000,
+  });
+  const vetNames = vetNamesData?.names ?? [];
+
+  const { data: staffNamesData } = useQuery<{ names: string[] }>({
+    queryKey: ["dairy-staff-names", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/staff-names`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 120000,
+  });
+  const staffNames = staffNamesData?.names ?? [];
+
   const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
     queryKey: ["record-attachment-counts", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/record-attachments/counts`), { credentials: "include" }).then(r => r.json()),
@@ -3453,6 +3526,9 @@ function DctTab({ farmId }: { farmId: number }) {
     { value: "selective-sealant", label: "Selective DCT + Teat Sealant" },
     { value: "blanket-sealant", label: "Blanket DCT + Teat Sealant" },
   ];
+
+  const needsVetAuth = form.protocol !== "teat-sealant-only";
+  const canSave = !!form.dryOffDate && (!needsVetAuth || !!form.vetAuthorisation);
 
   const hasHintData = hint && (hint.mastitisCount12m > 0 || hint.recentMastitisScc);
 
@@ -3635,17 +3711,67 @@ function DctTab({ farmId }: { farmId: number }) {
                 <div><Label>Treatment Justification</Label><Textarea value={form.treatmentJustification || ""} onChange={e => set("treatmentJustification", e.target.value)} placeholder="e.g. SCC consistently above 200k, 2 mastitis episodes in last lactation" rows={2} /></div>
               </div>
 
-              <div className="rounded-md border p-3 space-y-2">
+              <div className="rounded-md border p-3 space-y-2.5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vet &amp; Administration</p>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="vetauth" checked={!!form.vetAuthorisation} onChange={e => set("vetAuthorisation", e.target.checked)} className="rounded" />
-                  <Label htmlFor="vetauth">Written vet authorisation obtained</Label>
-                </div>
+
+                {/* POM-V authorisation — required when antibiotics involved */}
+                {needsVetAuth && (
+                  <div className={`rounded-md border p-2.5 ${form.vetAuthorisation ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        id="vetauth"
+                        checked={!!form.vetAuthorisation}
+                        onChange={e => set("vetAuthorisation", e.target.checked)}
+                        className="rounded mt-0.5 accent-green-600 h-4 w-4 shrink-0"
+                      />
+                      <div>
+                        <Label htmlFor="vetauth" className={`font-semibold ${form.vetAuthorisation ? "text-green-800" : "text-red-800"}`}>
+                          Written vet prescription / authorisation obtained *
+                        </Label>
+                        <p className={`text-xs mt-0.5 ${form.vetAuthorisation ? "text-green-700" : "text-red-700"}`}>
+                          {form.vetAuthorisation
+                            ? "Confirmed — this product is covered by a valid vet prescription."
+                            : "Required by law: intramammary antibiotic tubes are POM-V medicines. A vet must examine the herd and issue a written prescription before the product can legally be obtained or used."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Teat sealant only — authorisation not required */}
+                {!needsVetAuth && (
+                  <p className="text-xs text-gray-400">No antibiotic used — vet prescription not required for internal teat sealants.</p>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
-                  <div><Label>Administered By</Label><Input value={form.administeredBy || ""} onChange={e => set("administeredBy", e.target.value)} /></div>
+                  <div>
+                    <Label>Prescribing Vet</Label>
+                    <NameCombobox
+                      value={form.vetName || ""}
+                      onChange={v => set("vetName", v)}
+                      names={vetNames}
+                      placeholder="Select or type vet name…"
+                    />
+                  </div>
+                  <div>
+                    <Label>Administered By</Label>
+                    <NameCombobox
+                      value={form.administeredBy || ""}
+                      onChange={v => set("administeredBy", v)}
+                      names={staffNames}
+                      placeholder="Select or type staff name…"
+                    />
+                  </div>
                 </div>
-                <div><Label>Expected Calving Date</Label><Input type="date" value={form.expectedCalvingDate || ""} onChange={e => set("expectedCalvingDate", e.target.value)} /></div>
+
+                <div>
+                  <Label>Expected Calving Date</Label>
+                  <Input type="date" value={form.expectedCalvingDate || ""} onChange={e => set("expectedCalvingDate", e.target.value)} />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Used to determine withdrawal compliance — milk withdrawal for antibiotic dry cow tubes runs from calving, not from the date of administration.
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-md border border-amber-100 bg-amber-50 p-2.5">
@@ -3661,7 +3787,7 @@ function DctTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.dryOffDate}>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !canSave} title={!form.dryOffDate ? "Dry-off date is required" : needsVetAuth && !form.vetAuthorisation ? "Written vet prescription must be confirmed before saving" : undefined}>
               {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               {editing ? "Save Changes" : "Add DCT Record"}
             </Button>

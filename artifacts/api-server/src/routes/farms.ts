@@ -12559,6 +12559,24 @@ router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, re
   res.json({ success: true });
 });
 
+router.get("/farms/:farmId/dairy/dct-vet-names", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [visitRows, prescRows, medicineRows, dctRows] = await Promise.all([
+    db.selectDistinct({ vetName: vetVisitsTable.vetName }).from(vetVisitsTable).where(and(eq(vetVisitsTable.farmId, farmId), isNotNull(vetVisitsTable.vetName))),
+    db.selectDistinct({ vetName: vetPrescriptionRecordsTable.vetName }).from(vetPrescriptionRecordsTable).where(and(eq(vetPrescriptionRecordsTable.farmId, farmId), isNotNull(vetPrescriptionRecordsTable.vetName))),
+    db.selectDistinct({ vetName: livestockMedicineRecordsTable.vetName }).from(livestockMedicineRecordsTable).where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.vetName))),
+    db.selectDistinct({ vetName: dairyDctRecordsTable.vetName }).from(dairyDctRecordsTable).where(and(eq(dairyDctRecordsTable.farmId, farmId), isNotNull(dairyDctRecordsTable.vetName))),
+  ]);
+  const allNames = new Set([
+    ...visitRows.map(r => r.vetName).filter(Boolean),
+    ...prescRows.map(r => r.vetName).filter(Boolean),
+    ...medicineRows.map(r => r.vetName).filter(Boolean),
+    ...dctRows.map(r => r.vetName).filter(Boolean),
+  ]);
+  res.json({ names: [...allNames].sort() });
+});
+
 router.get("/farms/:farmId/dairy/staff-names", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
