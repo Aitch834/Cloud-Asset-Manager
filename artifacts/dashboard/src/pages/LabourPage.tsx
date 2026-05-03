@@ -227,6 +227,127 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
     if (w) { w.document.write(html); w.document.close(); w.print(); }
   };
 
+  const printBlankTimesheet = () => {
+    const taskList = TASK_TYPES.map(t => `<li>${t}</li>`).join("");
+    const blankRows = Array.from({ length: 12 }, () =>
+      `<tr><td style="width:90px">&nbsp;</td><td>&nbsp;</td><td style="width:62px">&nbsp;</td><td style="width:62px">&nbsp;</td><td style="width:58px;text-align:right">&nbsp;</td><td style="width:58px;text-align:right">&nbsp;</td><td>&nbsp;</td></tr>`
+    ).join("");
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Blank Daily Timesheet — BDE Farm Trac</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;margin:0;padding:20px 24px;color:#111}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:10px;margin-bottom:14px}
+  .brand{font-size:20px;font-weight:700;color:#166534;letter-spacing:-0.3px}
+  .brand-sub{font-size:10px;color:#4b7c5e;margin-top:1px}
+  .doc-title{font-size:15px;font-weight:700;color:#111;text-align:right}
+  .doc-ref{font-size:10px;color:#888;text-align:right;margin-top:2px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:12px}
+  .info-field label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:3px}
+  .info-field .line{border-bottom:1.5px solid #333;height:22px}
+  .wtr-box{background:#fffbeb;border:1px solid #d97706;border-radius:3px;padding:7px 10px;margin-bottom:12px;font-size:10px;color:#78350f;line-height:1.5}
+  .wtr-box strong{color:#92400e}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th{background:#166534;color:#fff;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:6px 7px;border:1px solid #155e2f;text-align:left}
+  td{border:1px solid #ccc;padding:0;height:26px;vertical-align:middle}
+  td:nth-child(5),td:nth-child(6){text-align:right}
+  .totals-row td{border:1px solid #aaa;background:#f0f7f0;font-weight:700;padding:5px 7px;height:auto}
+  .totals-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#555}
+  .section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#166534;margin:12px 0 5px}
+  .task-ref{display:grid;grid-template-columns:repeat(4,1fr);gap:1px 12px;margin-bottom:12px}
+  .task-ref ol{margin:0;padding-left:16px;font-size:10px;color:#444;line-height:1.7}
+  .signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px}
+  .sig-block label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:3px}
+  .sig-block .line{border-bottom:1.5px solid #333;height:30px;margin-bottom:8px}
+  .footer-note{margin-top:14px;border-top:1px solid #ddd;padding-top:8px;font-size:9.5px;color:#666;text-align:center}
+  @media print{body{padding:14px 18px}@page{size:A4;margin:10mm}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="brand">BDE Farm Trac</div>
+    <div class="brand-sub">Red Tractor Compliance Made Simple · bdefarmtrac.co.uk</div>
+  </div>
+  <div>
+    <div class="doc-title">Daily Timesheet Record</div>
+    <div class="doc-ref">Form FT-TS-01 &nbsp;|&nbsp; Printed: ${today}</div>
+  </div>
+</div>
+
+<div class="info-grid">
+  <div class="info-field"><label>Employee Name</label><div class="line"></div></div>
+  <div class="info-field"><label>Farm / Business Name</label><div class="line"></div></div>
+  <div class="info-field"><label>Date of Work</label><div class="line"></div></div>
+  <div class="info-field"><label>Department / Section</label><div class="line"></div></div>
+  <div class="info-field"><label>Line Manager</label><div class="line"></div></div>
+  <div class="info-field"><label>Contract Type (circle)&nbsp; &nbsp;Full-Time &nbsp;/&nbsp; Part-Time &nbsp;/&nbsp; Casual</label><div class="line"></div></div>
+</div>
+
+<div class="wtr-box">
+  <strong>Working Time Regulations 1998 — What to record:</strong>
+  Record each task separately with the actual hours spent working on it.
+  <strong>Include:</strong> travel between work sites during the working day (use "Travel (between sites)").
+  <strong>Do NOT include:</strong> rest breaks — including the statutory 20-minute break or any period where you are free to leave your post.
+  Regular hours = contracted hours &nbsp;|&nbsp; Overtime = hours worked beyond your contracted daily hours.
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:90px">Date</th>
+      <th>Task Type <span style="font-weight:400;font-size:9px">(see list below)</span></th>
+      <th style="width:62px">Start Time</th>
+      <th style="width:62px">End Time</th>
+      <th style="width:58px;text-align:right">Reg Hrs</th>
+      <th style="width:58px;text-align:right">OT Hrs</th>
+      <th>Notes / Location / Field Reference</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${blankRows}
+    <tr class="totals-row">
+      <td colspan="4" style="padding:5px 7px"><span class="totals-label">Daily Totals</span></td>
+      <td style="text-align:right;padding:5px 7px">&nbsp;</td>
+      <td style="text-align:right;padding:5px 7px">&nbsp;</td>
+      <td style="padding:5px 7px"><span class="totals-label">Total working time: _________ hrs</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="section-title">Task Type Reference — write the task type in the Task column above</div>
+<div class="task-ref">
+  <ol>${taskList}</ol>
+</div>
+
+<div class="signoff-grid">
+  <div>
+    <div class="section-title">Employee Declaration</div>
+    <p style="font-size:10px;color:#555;margin:0 0 8px">I confirm the hours recorded above are accurate and represent time actively spent working on the tasks listed.</p>
+    <div class="sig-block"><label>Employee Signature</label><div class="line"></div></div>
+    <div class="sig-block"><label>Date Signed</label><div class="line"></div></div>
+  </div>
+  <div>
+    <div class="section-title">Manager Approval</div>
+    <p style="font-size:10px;color:#555;margin:0 0 8px">I have reviewed and approved the hours recorded on this timesheet.</p>
+    <div class="sig-block"><label>Manager Name (print)</label><div class="line"></div></div>
+    <div class="sig-block"><label>Manager Signature &amp; Date</label><div class="line"></div></div>
+  </div>
+</div>
+
+<div class="footer-note">
+  Please complete in <strong>black or blue ink</strong> and return this form to your manager at the end of the working day.
+  Managers: retain completed timesheets for a minimum of <strong>2 years</strong> in accordance with Working Time Regulations record-keeping requirements.
+  Once approved, enter hours into BDE Farm Trac (Labour → Timesheets → Add Entry) to maintain your WTR 17-week rolling average.
+</div>
+
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  };
+
   return (
     <div className="space-y-5">
       {/* WTR guidance */}
@@ -271,6 +392,9 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={printBlankTimesheet} title="Print a blank daily timesheet for staff without app access">
+            <Printer size={14} className="mr-1" /> Blank Timesheet
+          </Button>
           {filterStaff !== "all" && filtered.length > 0 && (
             <Button variant="outline" size="sm" onClick={printStaffTimesheet}>
               <Printer size={14} className="mr-1" /> Print Staff Timesheet
@@ -278,7 +402,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
           )}
           {filterStaff === "all" && filtered.length > 0 && (
             <Button variant="outline" size="sm" onClick={printTimesheets}>
-              <Printer size={14} className="mr-1" /> Print
+              <Printer size={14} className="mr-1" /> Print All
             </Button>
           )}
           <Button size="sm" onClick={() => { setForm(emptyForm()); setEditItem(null); setAddOpen(true); }}>
