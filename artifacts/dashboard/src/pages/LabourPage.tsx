@@ -20,7 +20,7 @@ const TASK_TYPES = [
   "General Farm Work", "Crop Spraying", "Drilling / Planting", "Harvesting",
   "Livestock Handling", "Machinery Maintenance", "Irrigation", "Fencing / Hedging",
   "Grain Handling / Store", "Record Keeping / Admin", "Cleaning & Biosecurity",
-  "Vehicle / Transport", "Building / Construction", "Other",
+  "Vehicle / Transport", "Travel (between sites)", "Building / Construction", "Other",
 ];
 
 const SHIFT_TYPES = [
@@ -115,12 +115,19 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onCli
 function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+
   const [filterStaff, setFilterStaff] = useState("all");
+  const [filterMode, setFilterMode] = useState<"month" | "week">("month");
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [filterWeekStart, setFilterWeekStart] = useState(() => isoDate(getMondayOfWeek(new Date())));
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<TimesheetEntry | null>(null);
 
-  const emptyForm = () => ({ staffName: "", date: new Date().toISOString().slice(0, 10), taskType: "", hoursRegular: "", hoursOvertime: "", notes: "", approvedBy: "" });
+  const emptyForm = () => ({
+    staffName: filterStaff !== "all" ? filterStaff : "",
+    date: new Date().toISOString().slice(0, 10),
+    taskType: "", hoursRegular: "", hoursOvertime: "", notes: "", approvedBy: "",
+  });
   const [form, setForm] = useState(emptyForm());
   const sf = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -148,12 +155,14 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
     setEditItem(e);
     setAddOpen(true);
   };
-
   const save = () => {
-    const body = { ...form };
-    if (editItem) editMut.mutate({ id: editItem.id, body });
-    else addMut.mutate(body);
+    if (editItem) editMut.mutate({ id: editItem.id, body: { ...form } });
+    else addMut.mutate({ ...form });
   };
+
+  const weekEnd = isoDate(addDays(new Date(filterWeekStart + "T00:00:00"), 6));
+  const prevWeek = () => setFilterWeekStart(isoDate(addDays(new Date(filterWeekStart + "T00:00:00"), -7)));
+  const nextWeek = () => setFilterWeekStart(isoDate(addDays(new Date(filterWeekStart + "T00:00:00"), 7)));
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
@@ -161,49 +170,112 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
   });
 
   const all = q.data?.entries ?? [];
-  const filtered = all.filter(e => {
+
+  const filtered = useMemo(() => all.filter(e => {
     if (filterStaff !== "all" && e.staffName !== filterStaff) return false;
-    if (filterMonth && !e.date.startsWith(filterMonth)) return false;
+    if (filterMode === "month" && filterMonth && !e.date.startsWith(filterMonth)) return false;
+    if (filterMode === "week" && (e.date < filterWeekStart || e.date > weekEnd)) return false;
     return true;
-  });
+  }).sort((a, b) => a.date.localeCompare(b.date)), [all, filterStaff, filterMode, filterMonth, filterWeekStart, weekEnd]);
 
   const totalReg = filtered.reduce((s, e) => s + parseFloat(e.hoursRegular || "0"), 0);
   const totalOT = filtered.reduce((s, e) => s + parseFloat(e.hoursOvertime || "0"), 0);
 
-  const byStaff = filtered.reduce<Record<string, { reg: number; ot: number }>>((acc, e) => {
-    if (!acc[e.staffName]) acc[e.staffName] = { reg: 0, ot: 0 };
-    acc[e.staffName].reg += parseFloat(e.hoursRegular || "0");
-    acc[e.staffName].ot += parseFloat(e.hoursOvertime || "0");
-    return acc;
-  }, {});
+  const byDate = useMemo(() => {
+    if (filterStaff === "all") return null;
+    const map: Record<string, TimesheetEntry[]> = {};
+    filtered.forEach(e => { if (!map[e.date]) map[e.date] = []; map[e.date].push(e); });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [filtered, filterStaff]);
+
+  const byStaff = useMemo(() => {
+    if (filterStaff !== "all") return {};
+    return filtered.reduce<Record<string, { reg: number; ot: number }>>((acc, e) => {
+      if (!acc[e.staffName]) acc[e.staffName] = { reg: 0, ot: 0 };
+      acc[e.staffName].reg += parseFloat(e.hoursRegular || "0");
+      acc[e.staffName].ot += parseFloat(e.hoursOvertime || "0");
+      return acc;
+    }, {});
+  }, [filtered, filterStaff]);
+
+  const periodLabel = filterMode === "week"
+    ? `${fmtDate(filterWeekStart)} – ${fmtDate(weekEnd)}`
+    : filterMonth ? new Date(filterMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "All periods";
 
   const printTimesheets = () => {
-    const rows = filtered.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.staffName}</td><td>${e.taskType}</td><td style="text-align:right">${e.hoursRegular}</td><td style="text-align:right">${e.hoursOvertime || "—"}</td><td>${e.approvedBy || "—"}</td><td>${e.notes || ""}</td></tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Timesheets</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px;margin-bottom:4px}p{color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f5f5f5;font-weight:600}tr:nth-child(even){background:#fafafa}.totals{margin-top:12px;font-size:13px}</style></head><body><h1>Labour Timesheets</h1><p>${filterMonth ? new Date(filterMonth + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "All periods"} — ${filterStaff !== "all" ? filterStaff : "All staff"}</p><table><thead><tr><th>Date</th><th>Staff Member</th><th>Task</th><th>Reg Hrs</th><th>OT Hrs</th><th>Approved By</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><strong>Total regular hours: ${totalReg.toFixed(1)} hrs</strong> &nbsp;&nbsp; <strong>Total overtime: ${totalOT.toFixed(1)} hrs</strong></div></body></html>`;
+    const rows = filtered.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.staffName}</td><td>${e.taskType}</td><td style="text-align:right">${parseFloat(e.hoursRegular || "0").toFixed(1)}</td><td style="text-align:right">${parseFloat(e.hoursOvertime || "0") > 0 ? parseFloat(e.hoursOvertime).toFixed(1) : "—"}</td><td>${e.approvedBy || "—"}</td><td>${e.notes || ""}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Labour Timesheets</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px;margin-bottom:4px}p{color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f5f5f5;font-weight:600}tr:nth-child(even){background:#fafafa}.totals{margin-top:12px;font-size:13px}</style></head><body><h1>Labour Timesheets</h1><p>${periodLabel} — All staff</p><table><thead><tr><th>Date</th><th>Staff Member</th><th>Task</th><th>Reg Hrs</th><th>OT Hrs</th><th>Approved By</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><strong>Total regular: ${totalReg.toFixed(1)} hrs</strong> &nbsp;&nbsp; <strong>Total overtime: ${totalOT.toFixed(1)} hrs</strong> &nbsp;&nbsp; <strong>Total working time: ${(totalReg + totalOT).toFixed(1)} hrs</strong></div></body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  };
+
+  const printStaffTimesheet = () => {
+    if (!byDate) return;
+    const name = filterStaff;
+    const dayRows = byDate.map(([date, entries]) => {
+      const dayReg = entries.reduce((s, e) => s + parseFloat(e.hoursRegular || "0"), 0);
+      const dayOT = entries.reduce((s, e) => s + parseFloat(e.hoursOvertime || "0"), 0);
+      const dayLabel = new Date(date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+      const taskRows = entries.map(e =>
+        `<tr><td style="padding-left:24px;color:#555">${e.taskType}</td><td style="text-align:right">${parseFloat(e.hoursRegular || "0").toFixed(2)}</td><td style="text-align:right">${parseFloat(e.hoursOvertime || "0") > 0 ? parseFloat(e.hoursOvertime).toFixed(2) : "—"}</td><td style="color:#777;font-size:11px">${e.approvedBy || ""}</td><td style="color:#777;font-size:11px">${e.notes || ""}</td></tr>`
+      ).join("");
+      return `<tr style="background:#f8f8f8"><td colspan="5" style="font-weight:600;padding:7px 8px;border:1px solid #bbb">${dayLabel} &nbsp;<span style="font-weight:400;color:#555">— ${dayReg.toFixed(1)}h reg${dayOT > 0 ? ` + ${dayOT.toFixed(1)}h OT` : ""} &nbsp;(daily total: ${(dayReg + dayOT).toFixed(1)}h)</span></td></tr>${taskRows}`;
+    }).join("");
+    const html = `<!DOCTYPE html><html><head><title>Timesheet — ${name}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0 0 2px}.sub{color:#666;font-size:12px;margin:0 0 14px}table{width:100%;border-collapse:collapse;margin-bottom:14px}th{background:#efefef;border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em}td{border:1px solid #ddd;padding:6px 8px}.wtr-note{background:#fff8e1;border:1px solid #e8cc50;border-radius:4px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:#555}.totals{background:#f0f7f0;border:1px solid #b8d8b8;border-radius:4px;padding:10px 14px;margin-bottom:18px;font-size:13px}.signoff{border-top:2px solid #222;padding-top:14px;margin-top:20px}.sig-box{border-bottom:1px solid #222;height:36px;margin-top:4px}.signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:10px}@media print{body{margin:12px}}</style></head><body><h1>Staff Timesheet — ${name}</h1><p class="sub">${periodLabel} &nbsp;·&nbsp; Printed ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p><div class="wtr-note"><strong>Working Time note:</strong> Hours recorded represent time actively working on each task. Rest breaks (including the statutory 20-minute break) are <em>not</em> working time under the Working Time Regulations 1998 and should not be included. Travel between work sites during the working day <em>is</em> working time and should be recorded as "Travel (between sites)".</div><table><thead><tr><th>Task</th><th style="text-align:right">Reg Hrs</th><th style="text-align:right">OT Hrs</th><th>Approved By</th><th>Notes</th></tr></thead><tbody>${dayRows}</tbody></table><div class="totals">Total regular hours: <strong>${totalReg.toFixed(1)} hrs</strong> &nbsp;&nbsp;&nbsp; Total overtime: <strong>${totalOT.toFixed(1)} hrs</strong> &nbsp;&nbsp;&nbsp; Total working time: <strong>${(totalReg + totalOT).toFixed(1)} hrs</strong></div><div class="signoff"><p style="margin:0 0 4px;font-size:13px;font-weight:600">Declaration</p><p style="margin:0;font-size:11px;color:#555">I confirm that the above is an accurate record of my working hours and the tasks undertaken during the period shown. Rest breaks are not included in the hours recorded.</p><div class="signoff-grid"><div><p style="margin:10px 0 2px;font-size:11px">Staff member: <strong>${name}</strong></p><div class="sig-box"></div><p style="margin:3px 0 0;font-size:10px;color:#888">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: _______________</p></div><div><p style="margin:10px 0 2px;font-size:11px">Countersigned by (supervisor / farm manager)</p><div class="sig-box"></div><p style="margin:3px 0 0;font-size:10px;color:#888">Name: _________________________ &nbsp; Date: _______________</p></div></div></div></body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); w.print(); }
   };
 
   return (
     <div className="space-y-5">
+      {/* WTR guidance */}
+      <div className="flex gap-2.5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800 leading-relaxed">
+        <AlertTriangle size={13} className="shrink-0 mt-0.5 text-blue-500" />
+        <span>
+          <strong>What counts as working time:</strong> Record each task separately with the hours spent on it.
+          Travel <em>between</em> work sites during the day is working time — use the &ldquo;Travel (between sites)&rdquo; task type.
+          Rest breaks (including the statutory 20-minute break, or any break where the worker is free to leave) are <em>not</em> working time under the Working Time Regulations 1998 and should not be recorded as task hours.
+        </span>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={filterStaff} onValueChange={setFilterStaff}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All staff" /></SelectTrigger>
+        <Select value={filterStaff} onValueChange={v => setFilterStaff(v)}>
+          <SelectTrigger className="w-48 h-9 text-sm"><SelectValue placeholder="All staff" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All staff</SelectItem>
             {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterMonth || "all-months"} onValueChange={v => setFilterMonth(v === "all-months" ? "" : v)}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select month" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all-months">All months</SelectItem>
-            {months.map(m => <SelectItem key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</SelectItem>)}
-          </SelectContent>
-        </Select>
+
+        <div className="flex border rounded-lg overflow-hidden h-9 shrink-0">
+          <button onClick={() => setFilterMode("month")} className={`px-3 text-sm font-medium transition-colors ${filterMode === "month" ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>Month</button>
+          <button onClick={() => setFilterMode("week")} className={`px-3 text-sm font-medium border-l transition-colors ${filterMode === "week" ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>Week</button>
+        </div>
+
+        {filterMode === "month" ? (
+          <Select value={filterMonth || "all-months"} onValueChange={v => setFilterMonth(v === "all-months" ? "" : v)}>
+            <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select month" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all-months">All months</SelectItem>
+              {months.map(m => <SelectItem key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex items-center gap-1 h-9">
+            <button onClick={prevWeek} className="border rounded-lg p-1.5 hover:bg-gray-50 transition-colors"><ChevronLeft size={14} /></button>
+            <span className="text-sm font-medium px-2 whitespace-nowrap">{fmtDate(filterWeekStart)} – {fmtDate(weekEnd)}</span>
+            <button onClick={nextWeek} className="border rounded-lg p-1.5 hover:bg-gray-50 transition-colors"><ChevronRight size={14} /></button>
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
-          {filtered.length > 0 && (
+          {filterStaff !== "all" && filtered.length > 0 && (
+            <Button variant="outline" size="sm" onClick={printStaffTimesheet}>
+              <Printer size={14} className="mr-1" /> Print Staff Timesheet
+            </Button>
+          )}
+          {filterStaff === "all" && filtered.length > 0 && (
             <Button variant="outline" size="sm" onClick={printTimesheets}>
               <Printer size={14} className="mr-1" /> Print
             </Button>
@@ -214,69 +286,135 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
         </div>
       </div>
 
-      {/* Summary cards */}
-      {Object.keys(byStaff).length > 0 && (
+      {/* Totals bar */}
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center gap-4 text-sm bg-gray-50 rounded-lg px-4 py-2.5 border">
+          <span className="text-gray-500">Regular: <strong className="text-gray-900">{totalReg.toFixed(1)} hrs</strong></span>
+          <span className="text-gray-500">Overtime: <strong className="text-amber-700">{totalOT.toFixed(1)} hrs</strong></span>
+          <span className="text-gray-500">Total working time: <strong className="text-gray-900">{(totalReg + totalOT).toFixed(1)} hrs</strong></span>
+          <span className="text-gray-400 text-xs ml-auto">{filtered.length} {filtered.length === 1 ? "entry" : "entries"} · {periodLabel}{filterStaff !== "all" ? ` · ${filterStaff}` : ""}</span>
+        </div>
+      )}
+
+      {/* All-staff summary cards — click a card to drill into that staff member */}
+      {filterStaff === "all" && Object.keys(byStaff).length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {Object.entries(byStaff).map(([name, hrs]) => (
-            <div key={name} className="border rounded-xl p-3 bg-white">
+            <button key={name} onClick={() => setFilterStaff(name)} className="border rounded-xl p-3 bg-white text-left hover:border-green-500 hover:shadow-sm transition-all group">
               <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
               <p className="text-xl font-bold text-gray-900 mt-0.5">{hrs.reg.toFixed(1)} <span className="text-xs font-normal text-gray-400">reg hrs</span></p>
               {hrs.ot > 0 && <p className="text-xs text-amber-600 mt-0.5">+ {hrs.ot.toFixed(1)} OT hrs</p>}
-            </div>
+              <p className="text-xs text-green-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View daily breakdown →</p>
+            </button>
           ))}
         </div>
       )}
 
-      {/* Total bar */}
-      {filtered.length > 0 && (
-        <div className="flex items-center gap-4 text-sm bg-gray-50 rounded-lg px-4 py-2.5 border">
-          <span className="text-gray-500">Total regular: <strong className="text-gray-900">{totalReg.toFixed(1)} hrs</strong></span>
-          <span className="text-gray-500">Total overtime: <strong className="text-amber-700">{totalOT.toFixed(1)} hrs</strong></span>
-          <span className="text-gray-400 text-xs ml-auto">{filtered.length} entries</span>
+      {/* Per-staff: day-grouped view */}
+      {filterStaff !== "all" && (
+        <div>
+          {q.isLoading ? (
+            <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
+          ) : !byDate || byDate.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Clock className="w-10 h-10 mx-auto mb-2 opacity-25" />
+              <p className="text-sm">No entries for <strong>{filterStaff}</strong> in this period.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {byDate.map(([date, entries]) => {
+                const dayReg = entries.reduce((s, e) => s + parseFloat(e.hoursRegular || "0"), 0);
+                const dayOT = entries.reduce((s, e) => s + parseFloat(e.hoursOvertime || "0"), 0);
+                const dayLabel = new Date(date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+                return (
+                  <div key={date} className="border rounded-xl overflow-hidden bg-white">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b">
+                      <span className="text-sm font-semibold text-gray-800">{dayLabel}</span>
+                      <span className="text-sm text-gray-500 flex items-center gap-2">
+                        <strong className="text-gray-900">{dayReg.toFixed(1)}h</strong>
+                        <span className="text-gray-300">reg</span>
+                        {dayOT > 0 && <><span className="text-gray-300">+</span><strong className="text-amber-700">{dayOT.toFixed(1)}h</strong><span className="text-gray-300">OT</span></>}
+                        <span className="text-gray-400 text-xs ml-1">· total {(dayReg + dayOT).toFixed(1)}h</span>
+                      </span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-gray-100">
+                        {entries.map(e => (
+                          <tr key={e.id} className="hover:bg-gray-50/50">
+                            <td className="px-4 py-2 pl-6 text-gray-700">{e.taskType}</td>
+                            <td className="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">{parseFloat(e.hoursRegular || "0").toFixed(1)}h</td>
+                            <td className="px-4 py-2 font-mono whitespace-nowrap">
+                              {parseFloat(e.hoursOvertime || "0") > 0 ? <span className="text-amber-700">+{parseFloat(e.hoursOvertime).toFixed(1)}h OT</span> : <span className="text-gray-200">—</span>}
+                            </td>
+                            <td className="px-4 py-2">
+                              {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : null}
+                            </td>
+                            <td className="px-4 py-2 text-gray-400 text-xs max-w-[200px] truncate">{e.notes || ""}</td>
+                            <td className="px-4 py-2">
+                              <div className="flex gap-1">
+                                <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
+                                <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Table */}
-      {q.isLoading ? (
-        <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <Clock className="w-10 h-10 mx-auto mb-2 opacity-25" />
-          <p className="text-sm">{all.length === 0 ? "No timesheet entries yet — add your first entry." : "No entries match the current filters."}</p>
-        </div>
-      ) : (
-        <div className="border rounded-xl overflow-hidden bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
-                {["Date", "Staff Member", "Task", "Reg hrs", "OT hrs", "Approved By", "Notes", ""].map(h => (
-                  <th key={h} className="text-left px-4 py-2.5 font-semibold">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map(e => (
-                <tr key={e.id} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">{fmtDate(e.date)}</td>
-                  <td className="px-4 py-2.5 font-medium text-gray-900">{e.staffName}</td>
-                  <td className="px-4 py-2.5 text-gray-700">{e.taskType}</td>
-                  <td className="px-4 py-2.5 font-mono text-gray-900">{parseFloat(e.hoursRegular || "0").toFixed(1)}</td>
-                  <td className="px-4 py-2.5 font-mono">{parseFloat(e.hoursOvertime || "0") > 0 ? <span className="text-amber-700">{parseFloat(e.hoursOvertime).toFixed(1)}</span> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-2.5">
-                    {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : <span className="text-gray-300 text-xs">—</span>}
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-400 text-xs max-w-[180px] truncate">{e.notes || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
-                      <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* All-staff flat table */}
+      {filterStaff === "all" && (
+        <>
+          {q.isLoading ? (
+            <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Clock className="w-10 h-10 mx-auto mb-2 opacity-25" />
+              <p className="text-sm">{all.length === 0 ? "No timesheet entries yet — add your first entry." : "No entries match the current filters."}</p>
+            </div>
+          ) : (
+            <div className="border rounded-xl overflow-hidden bg-white">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                    {["Date", "Staff Member", "Task", "Reg hrs", "OT hrs", "Approved By", "Notes", ""].map(h => (
+                      <th key={h} className="text-left px-4 py-2.5 font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map(e => (
+                    <tr key={e.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">{fmtDate(e.date)}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        <button onClick={() => setFilterStaff(e.staffName)} className="text-gray-900 hover:text-green-700 hover:underline">{e.staffName}</button>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-700">{e.taskType}</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-900">{parseFloat(e.hoursRegular || "0").toFixed(1)}</td>
+                      <td className="px-4 py-2.5 font-mono">{parseFloat(e.hoursOvertime || "0") > 0 ? <span className="text-amber-700">{parseFloat(e.hoursOvertime).toFixed(1)}</span> : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-2.5">
+                        {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-400 text-xs max-w-[180px] truncate">{e.notes || "—"}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex gap-1">
+                          <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
+                          <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Add/Edit dialog */}
@@ -287,8 +425,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
           </DialogHeader>
           <p className="text-xs text-muted-foreground -mt-1">
             Each entry records <strong>one task type</strong> for one staff member on one date.
-            To record multiple tasks in the same day (e.g. cultivation in the morning, livestock care in the afternoon),
-            save this entry then click <strong>Add Entry</strong> again with the same staff member and date.
+            To record multiple tasks in the same day, save this entry then click <strong>Add Entry</strong> again with the same person and date.
           </p>
           <div className="space-y-4 mt-1">
             <div className="grid grid-cols-2 gap-4">
@@ -334,7 +471,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
                   className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[72px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.notes}
                   onChange={e => sf("notes", e.target.value)}
-                  placeholder="e.g. North block, worked to 18:00 due to weather"
+                  placeholder="e.g. North block, finished at 18:00 due to weather"
                 />
               </div>
             </div>

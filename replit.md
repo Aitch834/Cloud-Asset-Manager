@@ -20,10 +20,13 @@ The monorepo is built using `pnpm workspaces` with Node.js 24 and TypeScript 5.9
 - Handles tenant context, user roles, and module-based permissions.
 
 **Database Layer (`lib/db`):**
-- Uses PostgreSQL with Drizzle ORM, featuring over 70 tables.
+- Uses PostgreSQL with Drizzle ORM, featuring 90+ tables.
 - Encompasses authentication, core tenant data, and all farm management modules (e.g., fields, crops, livestock, equipment, financial).
 - Includes specialized tables for Dairy Bulk Tank, Farm Services, Vet Ledger, and extended Insurance schemas.
 - Incorporates `field_season_land_use` and extended `fieldsTable` for land tenure tracking.
+- **Sheep production tables** (9): sheep_flocks, sheep_tupping_records, sheep_scanning_records, sheep_weigh_records, sheep_shearing_records, sheep_cull_records, sheep_vaccination_programmes, sheep_disease_monitoring, sheep_red_tractor_checklists.
+- **Beef production tables** (5): beef_weigh_records, beef_animal_weigh_entries, beef_finishing_records, beef_deadweight_settlements, beef_red_tractor_checklists.
+- **Grain store log tables**: grain_drying_log, grain_conditioning_log (simple schema matching StorageLocationsPage).
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application, utilizing `wouter` for routing and TanStack React Query for data fetching.

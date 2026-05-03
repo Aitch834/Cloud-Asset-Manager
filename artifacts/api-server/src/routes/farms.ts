@@ -22430,4 +22430,60 @@ router.delete("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, asy
   res.json({ success: true });
 });
 
+// ── Grain Drying Log (StorageLocationsPage) ───────────────────────────────────
+router.get("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : null;
+  const result = await db.execute(locationId
+    ? sql`SELECT * FROM grain_drying_log WHERE farm_id = ${farmId} AND location_id = ${locationId} ORDER BY drying_date DESC`
+    : sql`SELECT * FROM grain_drying_log WHERE farm_id = ${farmId} ORDER BY drying_date DESC`);
+  res.json({ records: result.rows });
+});
+router.post("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const result = await db.execute(sql`INSERT INTO grain_drying_log (farm_id, location_id, drying_date, crop_type, moisture_in, moisture_out, temp_c, duration_hours, fuel_litres, operator_name, notes) VALUES (${farmId}, ${b.locationId ? Number(b.locationId) : null}, ${String(b.dryingDate ?? "")}, ${String(b.cropType ?? "")}, ${b.moistureIn ? Number(b.moistureIn) : null}, ${b.moistureOut ? Number(b.moistureOut) : null}, ${b.tempC ? Number(b.tempC) : null}, ${b.durationHours ? Number(b.durationHours) : null}, ${b.fuelLitres ? Number(b.fuelLitres) : null}, ${b.operatorName ?? null}, ${b.notes ?? null}) RETURNING *`);
+  res.status(201).json({ record: result.rows[0] });
+});
+router.put("/farms/:farmId/grain-drying/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const result = await db.execute(sql`UPDATE grain_drying_log SET drying_date = ${String(b.dryingDate ?? "")}, crop_type = ${String(b.cropType ?? "")}, moisture_in = ${b.moistureIn ? Number(b.moistureIn) : null}, moisture_out = ${b.moistureOut ? Number(b.moistureOut) : null}, temp_c = ${b.tempC ? Number(b.tempC) : null}, duration_hours = ${b.durationHours ? Number(b.durationHours) : null}, fuel_litres = ${b.fuelLitres ? Number(b.fuelLitres) : null}, operator_name = ${b.operatorName ?? null}, notes = ${b.notes ?? null} WHERE id = ${id} AND farm_id = ${farmId} RETURNING *`);
+  if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: result.rows[0] });
+});
+router.delete("/farms/:farmId/grain-drying/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.execute(sql`DELETE FROM grain_drying_log WHERE id = ${id} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Grain Conditioning Log (StorageLocationsPage) ─────────────────────────────
+router.get("/farms/:farmId/grain-conditioning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : null;
+  const result = await db.execute(locationId
+    ? sql`SELECT * FROM grain_conditioning_log WHERE farm_id = ${farmId} AND location_id = ${locationId} ORDER BY conditioning_date DESC`
+    : sql`SELECT * FROM grain_conditioning_log WHERE farm_id = ${farmId} ORDER BY conditioning_date DESC`);
+  res.json({ records: result.rows });
+});
+router.post("/farms/:farmId/grain-conditioning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const b = req.body as Record<string, unknown>;
+  const result = await db.execute(sql`INSERT INTO grain_conditioning_log (farm_id, location_id, conditioning_date, crop_type, treatment_type, product_used, rate_kg_t, total_kg, target_moisture, operator_name, notes) VALUES (${farmId}, ${b.locationId ? Number(b.locationId) : null}, ${String(b.conditioningDate ?? "")}, ${b.cropType ?? null}, ${String(b.treatmentType ?? "aeration")}, ${b.productUsed ?? null}, ${b.rateKgT ? Number(b.rateKgT) : null}, ${b.totalKg ? Number(b.totalKg) : null}, ${b.targetMoisture ? Number(b.targetMoisture) : null}, ${b.operatorName ?? null}, ${b.notes ?? null}) RETURNING *`);
+  res.status(201).json({ record: result.rows[0] });
+});
+router.put("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const b = req.body as Record<string, unknown>;
+  const result = await db.execute(sql`UPDATE grain_conditioning_log SET conditioning_date = ${String(b.conditioningDate ?? "")}, crop_type = ${b.cropType ?? null}, treatment_type = ${String(b.treatmentType ?? "aeration")}, product_used = ${b.productUsed ?? null}, rate_kg_t = ${b.rateKgT ? Number(b.rateKgT) : null}, total_kg = ${b.totalKg ? Number(b.totalKg) : null}, target_moisture = ${b.targetMoisture ? Number(b.targetMoisture) : null}, operator_name = ${b.operatorName ?? null}, notes = ${b.notes ?? null} WHERE id = ${id} AND farm_id = ${farmId} RETURNING *`);
+  if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: result.rows[0] });
+});
+router.delete("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  await db.execute(sql`DELETE FROM grain_conditioning_log WHERE id = ${id} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
 export default router;

@@ -216,6 +216,7 @@ export default function DocumentsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showChecklist, setShowChecklist] = useState(true);
+  const [pageTab, setPageTab] = useState<"register" | "required">("register");
 
   const emptyForm = {
     title: "", documentType: "", referenceNumber: "", issuedBy: "",
@@ -341,6 +342,28 @@ export default function DocumentsPage() {
   });
   const checklistComplete = checklistPresent.filter(c => c.present).length;
 
+  const RT_FULL: { label: string; key: string; category: string; note?: string }[] = [
+    { label: "Red Tractor Assurance Certificate", key: "Red Tractor Assurance Certificate", category: "Assurance & Certification" },
+    { label: "Farm Insurance Certificate (Public Liability)", key: "Farm Insurance Certificate", category: "Insurance", note: "Minimum £5M public liability required" },
+    { label: "Employers Liability Insurance", key: "Employers Liability Insurance", category: "Insurance", note: "Required if you employ any staff" },
+    { label: "Spray Operator Certificate — PA1 (Foundation)", key: "Spray Operator Certificate (PA1)", category: "Operator Competence" },
+    { label: "Spray Operator Certificate — PA2 (Ground) or PA6 (Handheld)", key: "Spray Operator Certificate (PA2 – Ground)", category: "Operator Competence" },
+    { label: "Sprayer Calibration Certificate (NSTS)", key: "Sprayer Calibration Certificate (NSTS)", category: "Equipment & Machinery", note: "Required every 3 years under Red Tractor" },
+    { label: "Nutrient Management Plan (NMP)", key: "Nutrient Management Plan (NMP)", category: "Agronomy & Soil", note: "Must be reviewed annually" },
+    { label: "Soil Analysis Report (within 5 years)", key: "Soil Analysis Report", category: "Agronomy & Soil" },
+    { label: "FACTS or BASIS Adviser Certificate", key: "FACTS Adviser Certificate", category: "Agronomy & Soil" },
+    { label: "COSHH Assessments (agrochemicals)", key: "COSHH Assessment", category: "Health & Safety" },
+    { label: "Risk Assessment — General Farm", key: "Risk Assessment (General)", category: "Health & Safety" },
+    { label: "First Aid Certificate", key: "First Aid Certificate", category: "Operator Competence" },
+    { label: "Grain Store Inspection Certificate", key: "Grain Store Inspection Certificate", category: "Storage & Grain" },
+    { label: "Pesticide Purchase & Application Records", key: "Pesticide Invoice / Purchase Record", category: "Compliance Records" },
+  ];
+  const rtByCategory: Record<string, typeof RT_FULL> = {};
+  for (const item of RT_FULL) {
+    if (!rtByCategory[item.category]) rtByCategory[item.category] = [];
+    rtByCategory[item.category].push(item);
+  }
+
   const onDocTypeSelect = (v: string) => {
     setForm((f: any) => ({ ...f, documentType: v }));
     const defaultIssuers: Record<string, string> = {
@@ -369,11 +392,95 @@ export default function DocumentsPage() {
   return (
     <AppLayout title="Documents">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <p className="text-sm text-gray-500 mb-4">
-          Farm document register — certificates, assessments, assurance documents, and compliance records. Red Tractor assessors will request to see these during an audit visit.
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem", gap: 12, flexWrap: "wrap" }}>
+          <p className="text-sm text-gray-500" style={{ margin: 0, flex: 1 }}>
+            Farm document register — certificates, assessments, assurance documents, and compliance records. Red Tractor assessors will request to see these during an audit visit.
+          </p>
+          <div style={{ display: "flex", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
+            {(["register", "required"] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setPageTab(t)}
+                style={{
+                  padding: "0.45rem 1rem", border: "none", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500,
+                  background: pageTab === t ? "#166534" : "#fff",
+                  color: pageTab === t ? "#fff" : "#374151",
+                  borderRight: t === "register" ? "1px solid #e5e7eb" : "none",
+                  transition: "background 0.15s, color 0.15s",
+                }}
+              >
+                {t === "register" ? "Document Register" : `Required Documents (${checklistComplete}/${RT_REQUIRED_DOCS.length})`}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {(expired > 0 || expiringSoon > 0) && (
+        {pageTab === "required" && (
+          <div>
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: 10 }}>
+              <CheckCircle size={16} color="#16a34a" />
+              <span style={{ fontSize: "0.875rem", color: "#166534" }}>
+                <strong>{checklistComplete}</strong> of <strong>{RT_FULL.length}</strong> Red Tractor required documents present and valid.
+                {checklistComplete < RT_FULL.length && <span style={{ color: "#92400e", marginLeft: 8 }}>&#9888; {RT_FULL.length - checklistComplete} missing or expired — action required before your next audit.</span>}
+              </span>
+            </div>
+            {Object.entries(rtByCategory).map(([cat, items]) => (
+              <div key={cat} style={{ marginBottom: "1.5rem" }}>
+                <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.625rem" }}>{cat}</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10 }}>
+                  {items.map(item => {
+                    const matchingDocs = docs.filter((d: any) => d.documentType === item.key);
+                    const validDoc = matchingDocs.find((d: any) => getExpiryStatus(d.expiryDate) !== "expired");
+                    const expiredDoc = !validDoc && matchingDocs.find((d: any) => getExpiryStatus(d.expiryDate) === "expired");
+                    const itemStatus = validDoc ? getExpiryStatus(validDoc.expiryDate) : expiredDoc ? "expired" : "missing";
+                    const SC: Record<string, { bg: string; border: string; dot: string; label: string; labelColor: string }> = {
+                      valid: { bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", label: "Present", labelColor: "#166534" },
+                      expiring: { bg: "#fffbeb", border: "#fcd34d", dot: "#d97706", label: "Expiring Soon", labelColor: "#92400e" },
+                      expired: { bg: "#fef2f2", border: "#fca5a5", dot: "#dc2626", label: "Expired", labelColor: "#991b1b" },
+                      none: { bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", label: "Present", labelColor: "#166534" },
+                      missing: { bg: "#f9fafb", border: "#e5e7eb", dot: "#d1d5db", label: "Missing", labelColor: "#9ca3af" },
+                    };
+                    const sc = SC[itemStatus];
+                    return (
+                      <div key={item.key} style={{ background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 8, padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: sc.dot, flexShrink: 0, marginTop: 4 }} />
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.4 }}>{item.label}</p>
+                            {item.note && <p style={{ fontSize: "0.72rem", color: "#6b7280", margin: "2px 0 0" }}>{item.note}</p>}
+                          </div>
+                          <span style={{ fontSize: "0.72rem", fontWeight: 600, color: sc.labelColor, flexShrink: 0, background: "#fff", padding: "2px 7px", borderRadius: 5, border: `1px solid ${sc.border}` }}>{sc.label}</span>
+                        </div>
+                        {validDoc && (
+                          <div style={{ fontSize: "0.75rem", color: "#6b7280", display: "flex", gap: 12, paddingLeft: 16, flexWrap: "wrap" }}>
+                            <span>{validDoc.title}</span>
+                            {validDoc.expiryDate && <span>Expires: <strong style={{ color: itemStatus === "expiring" ? "#92400e" : "#374151" }}>{fmt(validDoc.expiryDate)}</strong></span>}
+                            {validDoc.referenceNumber && <span style={{ fontFamily: "monospace" }}>#{validDoc.referenceNumber}</span>}
+                          </div>
+                        )}
+                        {expiredDoc && (
+                          <div style={{ fontSize: "0.75rem", color: "#991b1b", paddingLeft: 16 }}>
+                            Expired {fmt((expiredDoc as any).expiryDate)} — renew immediately
+                          </div>
+                        )}
+                        {itemStatus === "missing" && (
+                          <button
+                            onClick={() => { setForm((f: any) => ({ ...f, documentType: item.key })); setAddOpen(true); }}
+                            style={{ alignSelf: "flex-start", marginLeft: 16, background: "none", border: "1px solid #d1d5db", borderRadius: 5, padding: "3px 10px", fontSize: "0.75rem", cursor: "pointer", color: "#374151" }}
+                          >
+                            + Add Document
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {pageTab === "register" && (expired > 0 || expiringSoon > 0) && (
           <div style={{ display: "flex", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
             {expired > 0 && (
               <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", color: "#991b1b" }}>
@@ -388,6 +495,7 @@ export default function DocumentsPage() {
           </div>
         )}
 
+        {pageTab === "register" && (<>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: "1.5rem", alignItems: "start" }}>
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
             <button
@@ -582,6 +690,8 @@ export default function DocumentsPage() {
             </table>
           </div>
         )}
+
+        </>)}
 
         {/* ── Add Document Dialog ─────────────────────────────── */}
         <Dialog open={addOpen} onOpenChange={closeAddDialog}>
