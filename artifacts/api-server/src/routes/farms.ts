@@ -316,7 +316,7 @@ import {
   labourHourlyRatesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
@@ -12341,11 +12341,27 @@ router.get("/farms/:farmId/dairy/mobility-scorings", requireAuth, requireTenant,
 router.post("/farms/:farmId/dairy/mobility-scorings", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes } = req.body;
+  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes, score3AnimalTags, score2AnimalTags } = req.body;
   const total = parseInt(totalCowsScored) || 0;
   const s3 = parseInt(score3Count) || 0;
+  const s2 = parseInt(score2Count) || 0;
   const prevalence = total > 0 ? ((s3 / total) * 100).toFixed(1) : lamenessPrevalencePercent;
-  const [record] = await db.insert(dairyMobilityScoringsTable).values({ farmId, herdId: herdId || null, assessmentDate: new Date(assessmentDate), assessedBy, totalCowsScored: total, score0Count: parseInt(score0Count) || 0, score1Count: parseInt(score1Count) || 0, score2Count: parseInt(score2Count) || 0, score3Count: s3, lamenessPrevalencePercent: prevalence as unknown as string, actionTaken, nextAssessmentDue: nextAssessmentDue ? new Date(nextAssessmentDue) : null, notes }).returning();
+  // Auto-calculate next assessment due: 91 days (13 weeks) from assessment date if not manually set
+  const computedNextDue = nextAssessmentDue
+    ? new Date(nextAssessmentDue)
+    : (() => { const d = new Date(assessmentDate); d.setDate(d.getDate() + 91); return d; })();
+  const [record] = await db.insert(dairyMobilityScoringsTable).values({ farmId, herdId: herdId || null, assessmentDate: new Date(assessmentDate), assessedBy, totalCowsScored: total, score0Count: parseInt(score0Count) || 0, score1Count: parseInt(score1Count) || 0, score2Count: s2, score3Count: s3, lamenessPrevalencePercent: prevalence as unknown as string, actionTaken, nextAssessmentDue: computedNextDue, notes, score3AnimalTags: score3AnimalTags || null, score2AnimalTags: score2AnimalTags || null }).returning();
+  // Fire alerts — non-blocking
+  const tenantId = req.tenantId!;
+  const lamenessNum = total > 0 ? (s3 / total) * 100 : 0;
+  const score2Pct = total > 0 ? (s2 / total) * 100 : 0;
+  const rdStr = typeof assessmentDate === "string" ? assessmentDate : new Date(assessmentDate).toISOString();
+  if (lamenessNum >= 10) {
+    createMobilityLamenessAlert({ tenantId, farmId, recordId: record.id, assessmentDate: rdStr, lamenessPercent: lamenessNum, score3Count: s3, totalCowsScored: total, score3AnimalTags: score3AnimalTags || null }).catch(e => console.error("[DAIRY] Mobility lameness alert failed:", e));
+  }
+  if (score2Pct >= 20) {
+    createMobilityScore2Advisory({ tenantId, farmId, recordId: record.id, assessmentDate: rdStr, score2Percent: score2Pct, score2Count: s2, totalCowsScored: total }).catch(e => console.error("[DAIRY] Mobility score2 advisory failed:", e));
+  }
   res.json({ record });
 });
 
@@ -12353,8 +12369,33 @@ router.put("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes } = req.body;
-  const [record] = await db.update(dairyMobilityScoringsTable).set({ herdId: herdId || null, assessmentDate: assessmentDate ? new Date(assessmentDate) : undefined, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue: nextAssessmentDue ? new Date(nextAssessmentDue) : null, notes }).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId))).returning();
+  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes, score3AnimalTags, score2AnimalTags } = req.body;
+  // Fetch previous state for change-detection (only alert when threshold is newly crossed)
+  const [prev] = await db.select({ score3Count: dairyMobilityScoringsTable.score3Count, score2Count: dairyMobilityScoringsTable.score2Count, totalCowsScored: dairyMobilityScoringsTable.totalCowsScored }).from(dairyMobilityScoringsTable).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId))).limit(1);
+  const total = parseInt(totalCowsScored) || 0;
+  const s3 = parseInt(score3Count) || 0;
+  const s2 = parseInt(score2Count) || 0;
+  const prevalence = total > 0 ? ((s3 / total) * 100).toFixed(1) : lamenessPrevalencePercent;
+  const aDate = assessmentDate ? new Date(assessmentDate) : undefined;
+  // Auto-calculate next assessment due if not manually provided
+  const computedNextDue = nextAssessmentDue
+    ? new Date(nextAssessmentDue)
+    : aDate ? (() => { const d = new Date(aDate); d.setDate(d.getDate() + 91); return d; })() : null;
+  const [record] = await db.update(dairyMobilityScoringsTable).set({ herdId: herdId || null, assessmentDate: aDate, assessedBy, totalCowsScored: total, score0Count: parseInt(score0Count) || 0, score1Count: parseInt(score1Count) || 0, score2Count: s2, score3Count: s3, lamenessPrevalencePercent: prevalence as unknown as string, actionTaken, nextAssessmentDue: computedNextDue, notes, score3AnimalTags: score3AnimalTags || null, score2AnimalTags: score2AnimalTags || null }).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId))).returning();
+  // Alert only when threshold is newly crossed
+  const tenantId = req.tenantId!;
+  const rdStr = assessmentDate ? String(assessmentDate) : new Date().toISOString().slice(0, 10);
+  const lamenessNum = total > 0 ? (s3 / total) * 100 : 0;
+  const score2Pct = total > 0 ? (s2 / total) * 100 : 0;
+  const prevTotal = prev?.totalCowsScored || 0;
+  const prevLameness = prevTotal > 0 ? ((prev?.score3Count || 0) / prevTotal) * 100 : 0;
+  const prevScore2Pct = prevTotal > 0 ? ((prev?.score2Count || 0) / prevTotal) * 100 : 0;
+  if (lamenessNum >= 10 && prevLameness < 10) {
+    createMobilityLamenessAlert({ tenantId, farmId, recordId, assessmentDate: rdStr, lamenessPercent: lamenessNum, score3Count: s3, totalCowsScored: total, score3AnimalTags: score3AnimalTags || null }).catch(e => console.error("[DAIRY] Mobility lameness alert failed:", e));
+  }
+  if (score2Pct >= 20 && prevScore2Pct < 20) {
+    createMobilityScore2Advisory({ tenantId, farmId, recordId, assessmentDate: rdStr, score2Percent: score2Pct, score2Count: s2, totalCowsScored: total }).catch(e => console.error("[DAIRY] Mobility score2 advisory failed:", e));
+  }
   res.json({ record });
 });
 
@@ -12509,11 +12550,20 @@ router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, re
 router.get("/farms/:farmId/dairy/staff-names", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const rows = await db.selectDistinct({ staffName: labourTimesheetEntriesTable.staffName })
-    .from(labourTimesheetEntriesTable)
-    .where(eq(labourTimesheetEntriesTable.farmId, farmId))
-    .orderBy(labourTimesheetEntriesTable.staffName);
-  res.json({ names: rows.map(r => r.staffName).filter(Boolean) });
+  const [timesheetRows, mobilityRows] = await Promise.all([
+    db.selectDistinct({ staffName: labourTimesheetEntriesTable.staffName })
+      .from(labourTimesheetEntriesTable)
+      .where(eq(labourTimesheetEntriesTable.farmId, farmId))
+      .orderBy(labourTimesheetEntriesTable.staffName),
+    db.selectDistinct({ assessedBy: dairyMobilityScoringsTable.assessedBy })
+      .from(dairyMobilityScoringsTable)
+      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.assessedBy))),
+  ]);
+  const allNames = new Set([
+    ...timesheetRows.map(r => r.staffName).filter(Boolean),
+    ...mobilityRows.map(r => r.assessedBy).filter(Boolean),
+  ]);
+  res.json({ names: [...allNames].sort() });
 });
 
 router.get("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -12893,6 +12943,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     sheepDipCertRows,
     medicatedFeedWdRows,
     sheepTuppingScanningRows,
+    mobilityAssessmentRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -13236,6 +13287,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
         .from(sheepTuppingRecordsTable)
         .where(and(eq(sheepTuppingRecordsTable.farmId, farmId), isNotNull(sheepTuppingRecordsTable.tuppingEndDate), gte(sheepTuppingRecordsTable.tuppingEndDate, scanStart.toISOString().split("T")[0]), lt(sheepTuppingRecordsTable.tuppingEndDate, scanEnd.toISOString().split("T")[0])));
     })(),
+
+    // ── Dairy: mobility assessment due (quarterly — 91-day cycle) ─────────────
+    db.select({ id: dairyMobilityScoringsTable.id, nextAssessmentDue: dairyMobilityScoringsTable.nextAssessmentDue, assessedBy: dairyMobilityScoringsTable.assessedBy, lamenessPrevalencePercent: dairyMobilityScoringsTable.lamenessPrevalencePercent })
+      .from(dairyMobilityScoringsTable)
+      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd))),
+
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -13798,6 +13855,14 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       href: `/sheep-production?tab=scanning`,
       colour: "green",
     });
+  }
+
+  for (const r of mobilityAssessmentRows) {
+    if (!r.nextAssessmentDue) continue;
+    const prevLameness = r.lamenessPrevalencePercent ? parseFloat(String(r.lamenessPrevalencePercent)) : null;
+    const lamenessNote = prevLameness !== null ? ` Last assessment lameness: ${prevLameness.toFixed(1)}%.` : "";
+    const byNote = r.assessedBy ? ` Last assessed by ${r.assessedBy}.` : "";
+    tasks.push({ id: `mobility-${r.id}`, type: "dairy_mobility_assessment_due", title: `Dairy Mobility Assessment Due`, description: `Quarterly mobility scoring is due. Observe cows walking from the parlour and score each animal 0–3 in Dairy → Mobility Scoring. Red Tractor target: score 3 (lame) below 10% of herd.${lamenessNote}${byNote}`, dueDate: toISO(r.nextAssessmentDue)!, module: "Dairy", href: `/dairy?tab=mobility`, colour: "purple" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());

@@ -425,6 +425,8 @@ export const dairyMobilityScoringsTable = pgTable("dairy_mobility_scorings", {
   actionTaken: text("action_taken"),
   nextAssessmentDue: timestamp("next_assessment_due", { withTimezone: true }),
   notes: text("notes"),
+  score3AnimalTags: text("score3_animal_tags"),
+  score2AnimalTags: text("score2_animal_tags"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

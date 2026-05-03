@@ -1782,6 +1782,7 @@ interface MobilityScoring {
   totalCowsScored: number; score0Count: number; score1Count: number; score2Count: number; score3Count: number;
   lamenessPrevalencePercent?: string | null; actionTaken?: string | null;
   nextAssessmentDue?: string | null; notes?: string | null;
+  score3AnimalTags?: string | null; score2AnimalTags?: string | null;
 }
 
 function MobilityTab({ farmId }: { farmId: number }) {
@@ -1795,6 +1796,12 @@ function MobilityTab({ farmId }: { farmId: number }) {
     queryKey: ["dairy-mobility", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/mobility-scorings`), { credentials: "include" }).then(r => r.json()),
   });
+
+  const { data: staffData } = useQuery<{ names: string[] }>({
+    queryKey: ["dairy-staff-names", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/staff-names`), { credentials: "include" }).then(r => r.json()),
+  });
+  const staffNames = staffData?.names ?? [];
 
   const save = useMutation({
     mutationFn: async (body: Partial<MobilityScoring>) => {
@@ -1813,33 +1820,76 @@ function MobilityTab({ farmId }: { farmId: number }) {
   function openEdit(r: MobilityScoring) { setEditing(r); setForm({ ...r, assessmentDate: r.assessmentDate.slice(0, 10), nextAssessmentDue: r.nextAssessmentDue?.slice(0, 10) }); setOpen(true); }
   function set(k: keyof MobilityScoring, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
+  function handleAssessmentDateChange(dateStr: string) {
+    const updates: Partial<MobilityScoring> = { assessmentDate: dateStr };
+    // Auto-calculate next assessment due = 91 days (13 weeks) from assessment date
+    if (dateStr) {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + 91);
+      updates.nextAssessmentDue = d.toISOString().slice(0, 10);
+    }
+    setForm(f => ({ ...f, ...updates }));
+  }
+
   const total = (form.score0Count || 0) + (form.score1Count || 0) + (form.score2Count || 0) + (form.score3Count || 0);
   const prevalence = total > 0 ? (((form.score3Count || 0) / total) * 100).toFixed(1) : null;
+  const score2Pct = total > 0 ? (((form.score2Count || 0) / total) * 100).toFixed(1) : null;
+
+  const staffListId = `mobility-staff-${farmId}`;
 
   return (
     <div>
+      <datalist id={staffListId}>{staffNames.map(n => <option key={n} value={n} />)}</datalist>
       <div className="flex justify-between items-center mb-4">
         <div>
-          <p className="text-sm text-gray-500">Quarterly mobility/lameness scoring — score cows 0–3 as they walk from the parlour. Red Tractor target: score 3 (lame) cows below 10% of herd.</p>
+          <p className="text-sm text-gray-500">Quarterly mobility/lameness scoring — score cows 0–3 as they walk from the parlour. Red Tractor target: score 3 (lame) cows below 10% of herd. Next assessment date auto-calculates at 13 weeks.</p>
         </div>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Assessment</Button>
       </div>
+
+      {/* ── View dialog ── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Mobility Assessment</DialogTitle></DialogHeader>
+          <DialogContent style={{ maxWidth: "48rem" }}>
+            <DialogHeader><DialogTitle>Mobility Assessment — {formatDate(viewRecord.assessmentDate)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{formatDate(viewRecord.assessmentDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{String(viewRecord.assessedBy ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Scored</p><p className="font-medium">{String(viewRecord.totalCowsScored ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 0 (Normal)</p><p className="font-medium">{String(viewRecord.score0Count ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 1</p><p className="font-medium">{String(viewRecord.score1Count ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 2</p><p className="font-medium">{String(viewRecord.score2Count ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 3 (Lame)</p><p className="font-medium">{String(viewRecord.score3Count ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness %</p><p className="font-medium">{String(viewRecord.lamenessPrevalencePercent ?? "—")}%</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{String(viewRecord.actionTaken ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Due</p><p className="font-medium">{formatDate(viewRecord.nextAssessmentDue)}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{viewRecord.assessedBy || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Scored</p><p className="font-medium">{viewRecord.totalCowsScored}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness Prevalence</p>
+                <p className={`font-semibold ${viewRecord.lamenessPrevalencePercent && parseFloat(viewRecord.lamenessPrevalencePercent) >= 10 ? "text-red-600" : "text-green-700"}`}>
+                  {viewRecord.lamenessPrevalencePercent ? `${parseFloat(viewRecord.lamenessPrevalencePercent).toFixed(1)}%` : "—"}
+                  {viewRecord.lamenessPrevalencePercent && parseFloat(viewRecord.lamenessPrevalencePercent) >= 10 ? " — Above target" : ""}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Score Distribution</p>
+                <div className="flex gap-2 text-xs">
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded font-medium">Score 0 (Normal): {viewRecord.score0Count}</span>
+                  <span className="bg-lime-100 text-lime-800 px-2 py-1 rounded font-medium">Score 1: {viewRecord.score1Count}</span>
+                  <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">Score 2 (Impaired): {viewRecord.score2Count}</span>
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded font-medium">Score 3 (Lame): {viewRecord.score3Count}</span>
+                </div>
+              </div>
+              {viewRecord.score3AnimalTags && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 3 — Ear Tag Numbers</p>
+                  <p className="font-medium text-red-700 bg-red-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score3AnimalTags}</p>
+                </div>
+              )}
+              {viewRecord.score2AnimalTags && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 2 — Ear Tag Numbers (Monitor)</p>
+                  <p className="font-medium text-amber-700 bg-amber-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score2AnimalTags}</p>
+                </div>
+              )}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{viewRecord.actionTaken || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Assessment Due</p>
+                <p className="font-medium">{formatDate(viewRecord.nextAssessmentDue)}
+                  <span className="text-xs text-gray-400 ml-1">(auto-calculated 13 weeks)</span>
+                </p>
+              </div>
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -1848,13 +1898,16 @@ function MobilityTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Record list ── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No mobility assessments yet. Assessments should be carried out at least quarterly.</CardContent></Card>}
           {data?.records?.map(r => {
-            const prev = r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : null;
+            const lam = r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : null;
+            const s2pct = r.totalCowsScored > 0 ? (r.score2Count / r.totalCowsScored) * 100 : 0;
             return (
-              <Card key={r.id}>
+              <Card key={r.id} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => setViewRecord(r)}>
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-wrap items-center gap-3">
@@ -1866,39 +1919,61 @@ function MobilityTab({ farmId }: { farmId: number }) {
                         <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">2: {r.score2Count}</span>
                         <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">3: {r.score3Count}</span>
                       </div>
-                      {prev !== null && (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${prev >= 10 ? "bg-red-100 text-red-700" : prev >= 5 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                          Lameness: {prev}%{prev >= 10 ? " ⚠ above target" : ""}
+                      {lam !== null && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lam >= 10 ? "bg-red-100 text-red-700" : lam >= 5 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          Lameness: {lam.toFixed(1)}%{lam >= 10 ? " ⚠ above target" : ""}
                         </span>
                       )}
+                      {s2pct >= 20 && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Score 2: {s2pct.toFixed(1)}% — monitor</span>}
                       {r.assessedBy && <span className="text-xs text-gray-400">by {r.assessedBy}</span>}
                       {r.nextAssessmentDue && <span className="text-xs text-gray-400">Next: {formatDate(r.nextAssessmentDue)}</span>}
                     </div>
-                    <div className="flex gap-1 ml-2">
+                    <div className="flex gap-1 ml-2" onClick={e => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </div>
                   {r.actionTaken && <p className="text-xs text-gray-400 mt-1">Action: {r.actionTaken}</p>}
+                  {(r.score3AnimalTags || r.score2AnimalTags) && (
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {r.score3AnimalTags && <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">Score 3 tags: {r.score3AnimalTags}</span>}
+                      {r.score2AnimalTags && <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Score 2 tags: {r.score2AnimalTags}</span>}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
+
+      {/* ── Add / Edit dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "56rem" }}>
+        <DialogContent style={{ maxWidth: "60rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Mobility Assessment" : "Add Mobility Assessment"}</DialogTitle>
+            <p className="text-xs text-muted-foreground">Score cows 0–3 as they walk from the milking parlour. Next assessment date is calculated automatically at 13 weeks (Red Tractor quarterly requirement).</p>
           </DialogHeader>
           <div className="flex gap-6 py-2">
             {/* ── Left column: scores ── */}
             <div className="flex-1 flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate?.slice(0, 10) || ""} onChange={e => set("assessmentDate", e.target.value)} /></div>
-                <div><Label>Assessed By</Label><Input value={form.assessedBy || ""} onChange={e => set("assessedBy", e.target.value)} /></div>
+                <div>
+                  <Label>Assessment Date *</Label>
+                  <Input type="date" value={form.assessmentDate?.slice(0, 10) || ""} onChange={e => handleAssessmentDateChange(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Assessed By</Label>
+                  <Input
+                    list={staffListId}
+                    value={form.assessedBy || ""}
+                    onChange={e => set("assessedBy", e.target.value)}
+                    placeholder="Select or type name…"
+                  />
+                </div>
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Score counts (observe cows walking from parlour)</p>
+
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-1">Score counts — observe each cow walking from parlour</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
                   <p className="text-xs font-medium text-green-700 mb-0.5">Score 0 — Normal</p>
@@ -1921,10 +1996,45 @@ function MobilityTab({ farmId }: { farmId: number }) {
                   <Input type="number" min="0" className="text-center" value={form.score3Count || 0} onChange={e => set("score3Count", parseInt(e.target.value) || 0)} />
                 </div>
               </div>
+
+              {/* Live prevalence feedback */}
               {total > 0 && (
-                <div className={`p-3 rounded-lg text-sm font-medium text-center ${prevalence && parseFloat(prevalence) >= 10 ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-                  {total} cows scored — Lameness prevalence (score 3): <strong>{prevalence}%</strong>
-                  {prevalence && parseFloat(prevalence) >= 10 ? " — Above 10% target." : " — Within target."}
+                <div className={`p-3 rounded-lg text-sm text-center space-y-0.5 ${prevalence && parseFloat(prevalence) >= 10 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+                  <p className={`font-semibold ${prevalence && parseFloat(prevalence) >= 10 ? "text-red-700" : "text-green-700"}`}>
+                    {total} cows scored — Lameness (score 3): <strong>{prevalence}%</strong>
+                    {prevalence && parseFloat(prevalence) >= 10 ? " ⚠ above 10% target" : " — within target"}
+                  </p>
+                  {score2Pct && parseFloat(score2Pct) >= 20 && (
+                    <p className="text-xs text-amber-700">Score 2 impaired: {score2Pct}% — above advisory 20% threshold</p>
+                  )}
+                </div>
+              )}
+
+              {/* Score 3 animal tags — appears when any lame cows recorded */}
+              {(form.score3Count || 0) > 0 && (
+                <div className="border border-red-200 bg-red-50 rounded-lg p-3">
+                  <Label className="text-red-800 text-xs font-semibold uppercase tracking-wide">Score 3 — Lame Animal Ear Tags</Label>
+                  <p className="text-xs text-red-600 mb-1.5">Record ear tag numbers of lame animals for vet identification. Separate multiple tags with commas.</p>
+                  <Input
+                    value={form.score3AnimalTags || ""}
+                    onChange={e => set("score3AnimalTags", e.target.value)}
+                    placeholder="e.g. UK123456 7893, UK123456 7901, UK123456 7915"
+                    className="bg-white border-red-300"
+                  />
+                </div>
+              )}
+
+              {/* Score 2 animal tags — optional monitoring list */}
+              {(form.score2Count || 0) > 0 && (
+                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
+                  <Label className="text-amber-800 text-xs font-semibold uppercase tracking-wide">Score 2 — Impaired Animal Ear Tags (optional)</Label>
+                  <p className="text-xs text-amber-600 mb-1.5">Record ear tag numbers to monitor between assessments. Separate multiple tags with commas.</p>
+                  <Input
+                    value={form.score2AnimalTags || ""}
+                    onChange={e => set("score2AnimalTags", e.target.value)}
+                    placeholder="e.g. UK123456 7844, UK123456 7862"
+                    className="bg-white border-amber-300"
+                  />
                 </div>
               )}
             </div>
@@ -1932,19 +2042,26 @@ function MobilityTab({ farmId }: { farmId: number }) {
             {/* ── Divider ── */}
             <div className="w-px bg-gray-200 self-stretch" />
 
-            {/* ── Right column: actions & notes ── */}
+            {/* ── Right column: actions, dates, notes ── */}
             <div className="flex-1 flex flex-col gap-3">
               <div>
                 <Label>Action Taken</Label>
-                <Textarea value={form.actionTaken || ""} onChange={e => set("actionTaken", e.target.value)} placeholder="e.g. Score 3 cows referred to vet for foot trimming" rows={4} />
+                <Textarea value={form.actionTaken || ""} onChange={e => set("actionTaken", e.target.value)} placeholder="e.g. Score 3 cows referred to vet for foot trimming and examination" rows={4} />
               </div>
               <div>
                 <Label>Next Assessment Due</Label>
-                <Input type="date" value={form.nextAssessmentDue || ""} onChange={e => set("nextAssessmentDue", e.target.value)} />
+                <Input type="date" value={form.nextAssessmentDue?.slice(0, 10) || ""} onChange={e => set("nextAssessmentDue", e.target.value)} />
+                <p className="text-xs text-gray-400 mt-0.5">Auto-calculated 13 weeks from assessment date — override if vet specifies a shorter interval.</p>
               </div>
               <div>
                 <Label>Notes</Label>
-                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={4} />
+                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={4} placeholder="e.g. Wet conditions in yard increased scores this month. Foot-bathing frequency increased to 3×/week." />
+              </div>
+              <div className="text-xs text-gray-400 bg-gray-50 rounded p-3 space-y-1">
+                <p className="font-semibold text-gray-500">Threshold reminders</p>
+                <p>• Score 3 ≥ 10% → critical alert + SMS sent to farm managers</p>
+                <p>• Score 2 ≥ 20% → advisory notification to review foot bathing</p>
+                <p>• Next assessment date appears in the Week Ahead Planner</p>
               </div>
             </div>
           </div>

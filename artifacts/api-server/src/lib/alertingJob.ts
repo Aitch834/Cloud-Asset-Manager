@@ -9,7 +9,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -263,6 +263,62 @@ export async function createDairyAbrPositiveNotification(params: {
   });
 
   await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+}
+
+export async function createMobilityLamenessAlert(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  assessmentDate: string;
+  lamenessPercent: number;
+  score3Count: number;
+  totalCowsScored: number;
+  score3AnimalTags?: string | null;
+}) {
+  const dateLabel = new Date(params.assessmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const tagsLabel = params.score3AnimalTags?.trim() ? ` Affected animals: ${params.score3AnimalTags.trim().slice(0, 100)}.` : "";
+  const title = `Lameness Alert — ${params.lamenessPercent.toFixed(1)}% Prevalence (${dateLabel})`;
+  const message = `Mobility assessment on ${dateLabel} recorded ${params.score3Count} of ${params.totalCowsScored} cows scoring 3 (lame) — ${params.lamenessPercent.toFixed(1)}% prevalence, above the Red Tractor 10% target.${tagsLabel} Review foot health and arrange a veterinary assessment. Record actions taken in Dairy → Mobility Scoring.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_mobility_lameness",
+    severity: "critical",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-mobility-lameness-${params.recordId}`,
+  });
+
+  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+}
+
+export async function createMobilityScore2Advisory(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  assessmentDate: string;
+  score2Percent: number;
+  score2Count: number;
+  totalCowsScored: number;
+}) {
+  const dateLabel = new Date(params.assessmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const title = `Mobility Advisory — ${params.score2Percent.toFixed(1)}% Score 2 Impaired Gait (${dateLabel})`;
+  const message = `Mobility assessment on ${dateLabel} found ${params.score2Count} of ${params.totalCowsScored} cows scoring 2 (impaired gait) — ${params.score2Percent.toFixed(1)}% of the herd. Monitor closely, review foot-bathing frequency, and consider early veterinary intervention for at-risk animals before scores worsen.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_mobility_score2",
+    severity: "warning",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-mobility-score2-${params.recordId}`,
+  });
 }
 
 async function checkEscalations() {
