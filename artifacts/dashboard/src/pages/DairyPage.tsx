@@ -10,7 +10,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { openPrintWindow } from "@/lib/print-report";
@@ -132,6 +132,13 @@ function LabResultsBadge({ status }: { status?: string | null }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.cls}`}>{m.label}</span>;
 }
 
+const UK_MILK_BUYERS = [
+  "Arla Foods UK", "Müller Milk & Ingredients", "First Milk", "Crediton Dairy",
+  "Dale Farm", "Freshways Dairy", "Glanbia Cheese", "Graham's The Family Dairy",
+  "Hook & Son", "Medina Dairy", "Norseland", "Saputo Dairy UK",
+  "The Collective Dairy", "Yeo Valley Farms",
+];
+
 function MilkRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -139,6 +146,22 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<MilkRecord | null>(null);
   const [form, setForm] = useState<Partial<MilkRecord>>({});
   const [abrKitStockId, setAbrKitStockId] = useState<string>("");
+
+  // Month filter — default to current month
+  const now = new Date();
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(now.getMonth()); // 0-indexed
+
+  function stepMonth(dir: 1 | -1) {
+    setFilterMonth(m => {
+      const next = m + dir;
+      if (next < 0) { setFilterYear(y => y - 1); return 11; }
+      if (next > 11) { setFilterYear(y => y + 1); return 0; }
+      return next;
+    });
+  }
+
+  const monthLabel = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
   const { data, isLoading } = useQuery<{ records: MilkRecord[] }>({
     queryKey: ["dairy-milk", farmId],
@@ -150,6 +173,20 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`), { credentials: "include" }).then(r => r.json()),
   });
   const abrStock = abrStockQ.data?.stock ?? [];
+
+  const staffNamesQ = useQuery<{ names: string[] }>({
+    queryKey: ["dairy-staff-names", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/staff-names`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const staffNames = staffNamesQ.data?.names ?? [];
+
+  // Filter records to selected month
+  const filteredRecords = (data?.records ?? []).filter(r => {
+    if (!r.recordDate) return false;
+    const d = new Date(r.recordDate);
+    return d.getFullYear() === filterYear && d.getMonth() === filterMonth;
+  });
 
   const save = useMutation({
     mutationFn: async (body: Partial<MilkRecord>) => {
@@ -247,11 +284,26 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
+      {/* ── Month Filter ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-3 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+        <button onClick={() => stepMonth(-1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Previous month">
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">{monthLabel}</span>
+        <button onClick={() => stepMonth(1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Next month">
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        </button>
+      </div>
+
       {/* ── List ────────────────────────────────────────────────────────────── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
-          {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No milk records yet — click Add Record to begin.</CardContent></Card>}
-          {data?.records?.map(r => (
+          {filteredRecords.length === 0 && (
+            <Card><CardContent className="py-8 text-center text-gray-400 text-sm">
+              {data?.records?.length ? `No records for ${monthLabel} — use the arrows to browse other months.` : "No milk records yet — click Add Record to begin."}
+            </CardContent></Card>
+          )}
+          {filteredRecords.map(r => (
             <Card key={r.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -319,7 +371,13 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Milk Buyer</Label><Input placeholder="e.g. Müller, Arla, First Milk" value={form.milkBuyer || ""} onChange={e => set("milkBuyer", e.target.value)} /></div>
+                <div>
+                  <Label>Milk Buyer</Label>
+                  <datalist id="milk-buyer-list">
+                    {UK_MILK_BUYERS.map(b => <option key={b} value={b} />)}
+                  </datalist>
+                  <Input list="milk-buyer-list" placeholder="Type or select buyer…" value={form.milkBuyer || ""} onChange={e => set("milkBuyer", e.target.value)} />
+                </div>
                 <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
                 <div><Label>Collector / Tanker Ref</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
               </div>
@@ -330,7 +388,13 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-3">On-Farm Measurements</p>
               <div className="grid grid-cols-3 gap-3">
                 <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} placeholder="Target ≤4°C" /></div>
-                <div className="col-span-2"><Label>Temperature Tested By</Label><Input placeholder="Name of person who took reading" value={form.tempTestedBy || ""} onChange={e => set("tempTestedBy", e.target.value)} /></div>
+                <div className="col-span-2">
+                  <Label>Temperature Tested By</Label>
+                  <datalist id="staff-names-list">
+                    {staffNames.map(n => <option key={n} value={n} />)}
+                  </datalist>
+                  <Input list="staff-names-list" placeholder="Name of person who took reading" value={form.tempTestedBy || ""} onChange={e => set("tempTestedBy", e.target.value)} />
+                </div>
                 <div>
                   <Label>ABR Test Result</Label>
                   <Select value={form.antibioticResidueTestResult || ""} onValueChange={v => set("antibioticResidueTestResult", v)}>
@@ -342,7 +406,10 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>ABR Tested By</Label><Input placeholder="Name of tester" value={form.abrTestedBy || ""} onChange={e => set("abrTestedBy", e.target.value)} /></div>
+                <div>
+                  <Label>ABR Tested By</Label>
+                  <Input list="staff-names-list" placeholder="Name of tester" value={form.abrTestedBy || ""} onChange={e => set("abrTestedBy", e.target.value)} />
+                </div>
                 <div>
                   <Label>ABR Kit Stock Record</Label>
                   <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>

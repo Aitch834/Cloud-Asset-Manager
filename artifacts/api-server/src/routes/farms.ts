@@ -12486,6 +12486,16 @@ router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, re
   res.json({ success: true });
 });
 
+router.get("/farms/:farmId/dairy/staff-names", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.selectDistinct({ staffName: labourTimesheetEntriesTable.staffName })
+    .from(labourTimesheetEntriesTable)
+    .where(eq(labourTimesheetEntriesTable.farmId, farmId))
+    .orderBy(labourTimesheetEntriesTable.staffName);
+  res.json({ names: rows.map(r => r.staffName).filter(Boolean) });
+});
+
 router.get("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
