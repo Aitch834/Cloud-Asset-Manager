@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { herdFlockRegisterTable } from "./livestock";
 
 // ─── Sheep Flock Register ─────────────────────────────────────────────────────
 export const sheepFlocksTable = pgTable("sheep_flocks", {
@@ -26,7 +27,7 @@ export const sheepFlocksTable = pgTable("sheep_flocks", {
 export const sheepTuppingRecordsTable = pgTable("sheep_tupping_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   tuppingStartDate: date("tupping_start_date").notNull(),
   tuppingEndDate: date("tupping_end_date"),
   ramEarTag: text("ram_ear_tag"),
@@ -46,7 +47,7 @@ export const sheepTuppingRecordsTable = pgTable("sheep_tupping_records", {
 export const sheepScanningRecordsTable = pgTable("sheep_scanning_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   scanDate: date("scan_date").notNull(),
   scannerName: text("scanner_name"),
   scannerCompany: text("scanner_company"),
@@ -66,7 +67,7 @@ export const sheepScanningRecordsTable = pgTable("sheep_scanning_records", {
 export const sheepWeighRecordsTable = pgTable("sheep_weigh_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   weighDate: date("weigh_date").notNull(),
   weighType: text("weigh_type").notNull().default("routine"),
   weighedBy: text("weighed_by"),
@@ -88,7 +89,7 @@ export const sheepWeighRecordsTable = pgTable("sheep_weigh_records", {
 export const sheepShearingRecordsTable = pgTable("sheep_shearing_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   shearingDate: date("shearing_date").notNull(),
   contractor: text("contractor"),
   numberOfAnimalsSheared: integer("number_of_animals_sheared").notNull(),
@@ -108,7 +109,7 @@ export const sheepShearingRecordsTable = pgTable("sheep_shearing_records", {
 export const sheepCullRecordsTable = pgTable("sheep_cull_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   cullDate: date("cull_date").notNull(),
   numberCulled: integer("number_culled").notNull(),
   ageClass: text("age_class"),
@@ -126,7 +127,7 @@ export const sheepCullRecordsTable = pgTable("sheep_cull_records", {
 export const sheepVaccinationProgrammesTable = pgTable("sheep_vaccination_programmes", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   vaccinationDate: date("vaccination_date").notNull(),
   vaccineProduct: text("vaccine_product").notNull(),
   vaccinationCategory: text("vaccination_category").notNull(),
@@ -149,7 +150,7 @@ export const sheepVaccinationProgrammesTable = pgTable("sheep_vaccination_progra
 export const sheepDiseaseMonitoringTable = pgTable("sheep_disease_monitoring", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   monitoringDate: date("monitoring_date").notNull(),
   monitoringType: text("monitoring_type").notNull(),
   schemeReference: text("scheme_reference"),

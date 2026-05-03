@@ -398,6 +398,7 @@ function HousesTab({ farmId }: { farmId: number }) {
 function FlocksTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
+  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks = (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
   const [statusFilter, setStatusFilter] = useState("active");
@@ -476,6 +477,16 @@ function FlocksTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Flock Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Label>Linked Herd (Livestock Register)</Label>
+              <Select value={String(form.herdId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, herdId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Link to a registered herd..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not linked —</SelectItem>
+                  {(herds as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.name ?? "")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Flock Number *</Label><Input value={String(form.flockNumber ?? "")} onChange={e => setForm(f => ({ ...f, flockNumber: e.target.value }))} /></div>
             <div>
               <Label>House</Label>

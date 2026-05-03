@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { herdFlockRegisterTable } from "./livestock";
 
 export const pigFlocksTable = pgTable("pig_flocks", {
   id: serial("id").primaryKey(),
@@ -63,7 +64,7 @@ export const pigFeedConsumptionTable = pgTable("pig_feed_consumption", {
   feedType: text("feed_type").notNull(),
   quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
   batchLotNumber: text("batch_lot_number"),
-  appliedToFlockId: integer("applied_to_flock_id").references(() => pigFlocksTable.id),
+  appliedToFlockId: integer("applied_to_flock_id").references(() => herdFlockRegisterTable.id),
   locationId: integer("location_id"),
   linkedDeliveryId: integer("linked_delivery_id"),
   notes: text("notes"),
@@ -76,7 +77,7 @@ export const pigVetAssessmentsTable = pgTable("pig_vet_assessments", {
   assessmentDate: date("assessment_date").notNull(),
   vetName: text("vet_name").notNull(),
   practiceName: text("practice_name"),
-  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   bodyConditionScore: numeric("body_condition_score", { precision: 3, scale: 1 }),
   lameness: text("lameness"),
   respiratoryHealth: text("respiratory_health"),
@@ -96,7 +97,7 @@ export const pigStockmanshipChecksTable = pgTable("pig_stockmanship_checks", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   checkDate: date("check_date").notNull(),
   checkedBy: text("checked_by").notNull(),
-  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   mortalitiesFound: integer("mortalities_found").default(0),
   injuredFound: integer("injured_found").default(0),
   waterSystemOk: boolean("water_system_ok").default(true),
@@ -116,7 +117,7 @@ export const pigTailBitingRisksTable = pgTable("pig_tail_biting_risks", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   assessmentDate: date("assessment_date").notNull(),
   assessedBy: text("assessed_by").notNull(),
-  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   riskLevel: text("risk_level").notNull(),
   tailsDockedAtBirth: boolean("tails_docked_at_birth").default(false),
   tailLengthAdequate: boolean("tail_length_adequate").default(true),
@@ -142,7 +143,7 @@ export const pigFarrowingRecordsTable = pgTable("pig_farrowing_records", {
   sowEarTag: text("sow_ear_tag").notNull(),
   sowBreed: text("sow_breed"),
   parityNumber: integer("parity_number"),
-  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   totalBornAlive: integer("total_born_alive").notNull().default(0),
   totalBornDead: integer("total_born_dead").notNull().default(0),
   totalMummified: integer("total_mummified").notNull().default(0),
@@ -172,7 +173,7 @@ export const pigMedicineTreatmentsTable = pgTable("pig_medicine_treatments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   treatmentDate: date("treatment_date").notNull(),
-  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
   batchOrPenRef: text("batch_or_pen_ref"),
   numberOfAnimals: integer("number_of_animals").notNull().default(1),
   medicineProductName: text("medicine_product_name").notNull(),

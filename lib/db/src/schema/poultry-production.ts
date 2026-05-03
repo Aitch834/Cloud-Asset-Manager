@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { herdFlockRegisterTable } from "./livestock";
 
 export const poultryHousesTable = pgTable("poultry_houses", {
   id: serial("id").primaryKey(),
@@ -21,6 +22,7 @@ export const poultryFlocksTable = pgTable("poultry_flocks", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   houseId: integer("house_id").references(() => poultryHousesTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
   flockNumber: text("flock_number").notNull(),
   species: text("species").notNull(),
   breed: text("breed"),

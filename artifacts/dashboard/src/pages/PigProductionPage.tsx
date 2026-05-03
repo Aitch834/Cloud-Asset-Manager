@@ -77,76 +77,28 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
 
 // ─── FLOCKS TAB ────────────────────────────────────────────────────────────────
 function FlocksTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
-
-  const { data: flocks = [], isLoading } = useQuery({ queryKey: ["pig-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-flocks`), { credentials: "include" }).then(r => r.json()) });
-
-  const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
-      const url = editing ? api(`farms/${farmId}/pig-flocks/${editing.id}`) : api(`farms/${farmId}/pig-flocks`);
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-flocks", farmId] }); setOpen(false); setForm({}); setEditing(null); },
-  });
-
-  const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-flocks/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-flocks", farmId] }),
-  });
-
-  function openAdd() { setEditing(null); setForm({}); setOpen(true); }
-  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
-
+  const { data: herds = [], isLoading } = useQuery({ queryKey: ["pig-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-flocks`), { credentials: "include" }).then(r => r.json()) });
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Pig Flocks / Production Groups</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Flock</Button>
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+        <strong>Production groups are managed in Livestock → Herds &amp; Animals.</strong><br />
+        Records in all tabs link to that register. Create or edit herds and production groups there.
+      </div>
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">Registered Herds / Production Groups <span className="font-normal text-muted-foreground">({(herds as Record<string, unknown>[]).length})</span></h3>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
-            { key: "flockName", label: "Name" }, { key: "productionType", label: "Type" }, { key: "breed", label: "Breed" },
-            { key: "herdNumber", label: "Herd No." }, { key: "currentCount", label: "Head Count" }, { key: "location", label: "Location" },
+            { key: "flockName", label: "Name" },
+            { key: "productionType", label: "Type" },
+            { key: "breed", label: "Breed" },
+            { key: "herdNumber", label: "Herd No." },
+            { key: "notes", label: "Notes" },
           ]}
-          rows={flocks}
-          onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          rows={herds as Record<string, unknown>[]}
         />
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Flock" : "Add Pig Flock"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            {[["flockName", "Flock Name *"], ["productionType", "Production Type *"], ["breed", "Breed"], ["cphNumber", "CPH Number"], ["herdNumber", "Herd Number"], ["currentCount", "Current Count"], ["location", "Location"]].map(([k, l]) => (
-              <div key={k} className={k === "flockName" || k === "location" ? "col-span-2" : ""}>
-                <Label>{l}</Label>
-                {k === "productionType" ? (
-                  <Select value={form[k] ?? ""} onValueChange={v => setForm(f => ({ ...f, [k]: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                    <SelectContent>{["Breeding Sow Herd", "Weaner Production", "Grower-Finisher", "Boar Stud", "Outdoor Free-Range", "Conventional Indoor"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : k === "breed" ? (
-                  <Select value={form[k] ?? ""} onValueChange={v => setForm(f => ({ ...f, [k]: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select breed" /></SelectTrigger>
-                    <SelectContent>{["Large White","Landrace","Duroc","Hampshire","Pietrain","Berkshire","Oxford Sandy & Black","Welsh","British Lop","Hybrid / commercial cross","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} />
-                )}
-              </div>
-            ))}
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

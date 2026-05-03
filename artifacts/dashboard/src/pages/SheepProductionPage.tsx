@@ -75,102 +75,30 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1"><Label>{label}</Label>{children}</div>;
 }
 
-// ─── FLOCKS TAB ───────────────────────────────────────────────────────────────
+// ─── FLOCKS PANEL (read-only — managed via Livestock → Herds & Animals) ────────
 function FlocksTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
-  const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-flocks`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-flocks/${editing.id}`) : api(`farms/${farmId}/sheep-flocks`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-flocks", farmId] }); setOpen(false); setForm({}); setEditing(null); },
-  });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-flocks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-flocks", farmId] }) });
-  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  function openAdd() { setEditing(null); setForm({ status: "active" }); setOpen(true); }
-  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
-  function submit() { save.mutate({ ...form }); }
-
+  const { data: herds = [], isLoading } = useQuery({ queryKey: ["sheep-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-flocks`), { credentials: "include" }).then(r => r.json()) });
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Sheep Flocks / Production Groups</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Flock</Button>
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+        <strong>Flocks are managed in Livestock → Herds &amp; Animals.</strong><br />
+        Records in the tabs below link to those herds. To create, edit, or archive a flock, use the Livestock module.
+      </div>
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">Registered Flocks / Herds <span className="font-normal text-muted-foreground">({(herds as Record<string, unknown>[]).length})</span></h3>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
           cols={[
-            { key: "flockName", label: "Flock Name" },
+            { key: "flockName", label: "Name" },
             { key: "breed", label: "Breed" },
-            { key: "flockPurpose", label: "Purpose" },
-            { key: "currentCount", label: "Head Count" },
-            { key: "assuranceScheme", label: "Assurance" },
+            { key: "flockPurpose", label: "Type / Purpose" },
+            { key: "herdFlockNumber", label: "Herd / Flock No." },
             { key: "status", label: "Status", render: r => <Badge variant={r.status === "active" ? "default" : "secondary"}>{fmt(r.status)}</Badge> },
           ]}
-          rows={rows}
-          onView={setViewing}
-          onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          rows={herds as Record<string, unknown>[]}
         />
       )}
-
-      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Flock Details</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Flock Name", "flockName"], ["Breed", "breed"], ["Purpose", "flockPurpose"], ["CPH Number", "cphNumber"], ["Herd/Flock No.", "herdFlockNumber"], ["Current Count", "currentCount"], ["Location", "location"], ["Assurance Scheme", "assuranceScheme"], ["Membership No.", "assuranceMembershipNumber"], ["Status", "status"]].map(([label, key]) => (
-              <div key={key}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{fmt(viewing[key])}</span></div>
-            ))}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> <span>{fmt(viewing.notes)}</span></div>}
-          </div>}
-          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Flock</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Field label="Flock Name *"><Input value={form.flockName ?? ""} onChange={e => sf("flockName", e.target.value)} /></Field></div>
-            <Field label="Breed">
-              <Select value={form.breed ?? ""} onValueChange={v => sf("breed", v)}>
-                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
-                <SelectContent>{["Suffolk","Texel","Mule (Greyface)","Lleyn","Cheviot","Swaledale","Herdwick","Bluefaced Leicester","Border Leicester","Charollais","Beltex","Poll Dorset","Dorper","Hampshire Down","Merino","North of England Mule","Rouge de l'Ouest","Scotch Mule","Vendeen","Welsh Mountain","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Purpose">
-              <Select value={form.flockPurpose ?? ""} onValueChange={v => sf("flockPurpose", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{["Breeding ewes","Ewe lambs","Store lambs","Finishing lambs","Ram flock","Replacements"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="CPH Number"><Input value={form.cphNumber ?? ""} onChange={e => sf("cphNumber", e.target.value)} /></Field>
-            <Field label="Herd/Flock Number"><Input value={form.herdFlockNumber ?? ""} onChange={e => sf("herdFlockNumber", e.target.value)} /></Field>
-            <Field label="Current Count"><Input type="number" value={form.currentCount ?? ""} onChange={e => sf("currentCount", e.target.value)} /></Field>
-            <Field label="Location"><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} /></Field>
-            <Field label="Assurance Scheme">
-              <Select value={form.assuranceScheme ?? ""} onValueChange={v => sf("assuranceScheme", v)}>
-                <SelectTrigger><SelectValue placeholder="Select scheme..." /></SelectTrigger>
-                <SelectContent>{["Red Tractor Assured","Quality Meat Scotland (QMS)","RSPCA Assured","Organic Farmers & Growers","Soil Association Organic","Farm Assured Welsh Livestock (FAWL)","None"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Membership Number"><Input value={form.assuranceMembershipNumber ?? ""} onChange={e => sf("assuranceMembershipNumber", e.target.value)} /></Field>
-            <Field label="Status">
-              <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["active","archived"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
-            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={submit} disabled={save.isPending}>{save.isPending ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : null}{editing ? "Save" : "Add"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -741,7 +669,7 @@ type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" |
 
 export default function SheepProductionPage() {
   const farmId = useAppStore(s => s.farmId);
-  const [tab, setTab] = useState<Tab>("flocks");
+  const [tab, setTab] = useState<Tab>("tupping");
 
   if (!farmId) {
     return (

@@ -83,6 +83,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-weigh-records/${editing.id}`) : api(`farms/${farmId}/beef-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
@@ -128,6 +129,15 @@ function WeighTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Field label="Herd / Group">
+              <Select value={form.herdId ?? "__none__"} onValueChange={v => sf("herdId", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select herd..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified —</SelectItem>
+                  {(herds as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.name ?? "")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field></div>
             <Field label="Weigh Date *"><Input type="date" value={form.weighDate ?? ""} onChange={e => sf("weighDate", e.target.value)} /></Field>
             <Field label="Group Reference"><Input value={form.groupRef ?? ""} onChange={e => sf("groupRef", e.target.value)} /></Field>
             <Field label="Breed">
@@ -171,6 +181,7 @@ function FinishingTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-finishing", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-finishing-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-finishing-records/${editing.id}`) : api(`farms/${farmId}/beef-finishing-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
@@ -217,6 +228,15 @@ function FinishingTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Finishing Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Field label="Herd / Group">
+              <Select value={form.herdId ?? "__none__"} onValueChange={v => sf("herdId", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select herd..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified —</SelectItem>
+                  {(herds as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.name ?? "")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field></div>
             <Field label="Animal Tag No. *"><Input value={form.animalTagNumber ?? ""} onChange={e => sf("animalTagNumber", e.target.value)} /></Field>
             <Field label="Breed">
               <Select value={form.breed ?? ""} onValueChange={v => sf("breed", v)}>
