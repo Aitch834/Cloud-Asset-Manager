@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -130,6 +131,192 @@ function LabResultsBadge({ status }: { status?: string | null }) {
   const m = map[status];
   if (!m) return null;
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.cls}`}>{m.label}</span>;
+}
+
+// ─── Monthly Summary Component ────────────────────────────────────────────────
+
+function MilkMonthlySummary({ records, monthLabel }: { records: MilkRecord[]; monthLabel: string }) {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const totalYield = records.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
+  const uniqueDays = new Set(records.map(r => r.recordDate?.slice(0, 10)).filter(Boolean)).size;
+  const avgDaily = uniqueDays > 0 ? totalYield / uniqueDays : 0;
+
+  const sccReadings = records.map(r => r.buyerSccThousands ?? r.sccThousands).filter((v): v is number => v != null);
+  const avgScc = sccReadings.length > 0 ? Math.round(sccReadings.reduce((a, b) => a + b, 0) / sccReadings.length) : null;
+
+  const abrTests = records.filter(r => r.antibioticResidueTestResult);
+  const abrPositives = abrTests.filter(r => r.antibioticResidueTestResult === "positive").length;
+
+  // Group by calendar day — sum yields, average SCC
+  const byDay = new Map<string, { yield: number; sccSum: number; sccCount: number }>();
+  for (const r of records) {
+    const day = r.recordDate?.slice(0, 10);
+    if (!day) continue;
+    const yld = parseFloat(r.yieldLitres || "0") || 0;
+    const scc = r.buyerSccThousands ?? r.sccThousands ?? null;
+    const ex = byDay.get(day) ?? { yield: 0, sccSum: 0, sccCount: 0 };
+    byDay.set(day, {
+      yield: ex.yield + yld,
+      sccSum: scc != null ? ex.sccSum + scc : ex.sccSum,
+      sccCount: scc != null ? ex.sccCount + 1 : ex.sccCount,
+    });
+  }
+
+  const chartData = Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({
+      day: parseInt(date.slice(8, 10)),
+      date,
+      yield: Math.round(v.yield * 10) / 10,
+      scc: v.sccCount > 0 ? Math.round(v.sccSum / v.sccCount) : null,
+    }));
+
+  const hasScc = chartData.some(d => d.scc != null);
+
+  function handlePrint() {
+    if (!printRef.current) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Milk Records — ${monthLabel}</title>
+      <style>body{font-family:sans-serif;font-size:13px;color:#111;padding:24px}
+      h2{margin:0 0 16px}
+      .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+      .stat{border:1px solid #e5e7eb;border-radius:6px;padding:10px}
+      .stat-label{font-size:11px;color:#6b7280;margin-bottom:2px}
+      .stat-value{font-size:20px;font-weight:600}
+      table{width:100%;border-collapse:collapse}
+      th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;padding:6px 8px;border-bottom:2px solid #e5e7eb}
+      td{padding:6px 8px;border-bottom:1px solid #f3f4f6;font-size:12px}
+      </style></head><body>`);
+    w.document.write(printRef.current.innerHTML);
+    w.document.write("</body></html>");
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  }
+
+  const sccColour = (v: number | null) =>
+    v == null ? "text-gray-400" : v > 400 ? "text-red-700" : v > 200 ? "text-amber-700" : "text-green-700";
+  const sccBg = (v: number | null) =>
+    v == null ? "bg-gray-50 border-gray-200" : v > 400 ? "bg-red-50 border-red-200" : v > 200 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200";
+
+  return (
+    <div className="mb-4 rounded-md border border-gray-200 bg-white shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Droplets className="h-4 w-4 text-blue-500" />
+          <span className="text-sm font-semibold text-gray-800">Monthly Summary — {monthLabel}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={handlePrint}>
+          <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+        </Button>
+      </div>
+
+      {records.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">No records for this month to summarise.</p>
+      ) : (
+        <div className="p-4 space-y-5">
+          {/* Hidden print content */}
+          <div ref={printRef} style={{ display: "none" }}>
+            <h2>Milk Records — {monthLabel}</h2>
+            <div className="stats">
+              <div className="stat"><div className="stat-label">Total Yield</div><div className="stat-value">{totalYield.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</div></div>
+              <div className="stat"><div className="stat-label">Daily Average</div><div className="stat-value">{uniqueDays > 0 ? Math.round(avgDaily).toLocaleString() : "—"} L</div></div>
+              <div className="stat"><div className="stat-label">Avg SCC (k/mL)</div><div className="stat-value">{avgScc != null ? avgScc.toLocaleString() : "—"}</div></div>
+              <div className="stat"><div className="stat-label">ABR Tests</div><div className="stat-value">{abrTests.length}{abrPositives > 0 ? ` (${abrPositives} pos)` : ""}</div></div>
+            </div>
+            <table>
+              <thead><tr><th>Date</th><th>Session</th><th>Yield (L)</th><th>Temp (°C)</th><th>ABR</th><th>SCC (k/mL)</th><th>Buyer Lab Status</th><th>Buyer</th></tr></thead>
+              <tbody>{records.sort((a, b) => (a.recordDate ?? "").localeCompare(b.recordDate ?? "")).map(r => (
+                <tr key={r.id}>
+                  <td>{new Date(r.recordDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</td>
+                  <td>{r.sessionType ?? "—"}</td>
+                  <td>{r.yieldLitres ? parseFloat(r.yieldLitres).toLocaleString() : "—"}</td>
+                  <td>{r.milkTemperatureCelsius ?? "—"}</td>
+                  <td>{r.antibioticResidueTestResult ?? "—"}</td>
+                  <td>{(r.buyerSccThousands ?? r.sccThousands)?.toLocaleString() ?? "—"}</td>
+                  <td>{r.buyerLabResultsStatus ?? "—"}</td>
+                  <td>{r.milkBuyer ?? "—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2.5">
+              <p className="text-xs text-blue-600 mb-0.5">Total Yield</p>
+              <p className="text-xl font-bold text-blue-800">{totalYield.toLocaleString("en-GB", { maximumFractionDigits: 0 })}<span className="text-sm font-normal ml-1">L</span></p>
+            </div>
+            <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2.5">
+              <p className="text-xs text-gray-500 mb-0.5">Daily Average</p>
+              <p className="text-xl font-bold text-gray-800">{uniqueDays > 0 ? Math.round(avgDaily).toLocaleString() : "—"}<span className="text-sm font-normal ml-1">L</span></p>
+              {uniqueDays > 0 && <p className="text-xs text-gray-400">across {uniqueDays} day{uniqueDays !== 1 ? "s" : ""}</p>}
+            </div>
+            <div className={`rounded-md border px-3 py-2.5 ${sccBg(avgScc)}`}>
+              <p className={`text-xs mb-0.5 ${avgScc == null ? "text-gray-500" : avgScc > 400 ? "text-red-600" : avgScc > 200 ? "text-amber-600" : "text-green-600"}`}>Avg SCC (k/mL)</p>
+              <p className={`text-xl font-bold ${sccColour(avgScc)}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p>
+              {avgScc != null && <p className={`text-xs ${sccColour(avgScc)}`}>{avgScc <= 200 ? "Within threshold" : avgScc <= 400 ? "Above 200k — monitor" : "High — action needed"}</p>}
+            </div>
+            <div className={`rounded-md border px-3 py-2.5 ${abrPositives > 0 ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"}`}>
+              <p className={`text-xs mb-0.5 ${abrPositives > 0 ? "text-red-600" : "text-gray-500"}`}>ABR Tests</p>
+              <p className={`text-xl font-bold ${abrPositives > 0 ? "text-red-700" : "text-gray-700"}`}>{abrTests.length}</p>
+              <p className={`text-xs ${abrPositives > 0 ? "text-red-600 font-medium" : "text-gray-400"}`}>
+                {abrTests.length === 0 ? "No tests recorded" : abrPositives > 0 ? `${abrPositives} positive result${abrPositives > 1 ? "s" : ""}` : "All negative"}
+              </p>
+            </div>
+          </div>
+
+          {/* Chart */}
+          {chartData.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
+                Daily Yield{hasScc ? " & SCC Trend" : ""}
+              </p>
+              <ResponsiveContainer width="100%" height={210}>
+                <ComposedChart data={chartData} margin={{ top: 4, right: hasScc ? 52 : 12, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="yield" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} width={50} tickFormatter={v => `${v}L`} />
+                  {hasScc && (
+                    <YAxis yAxisId="scc" orientation="right" tick={{ fontSize: 11, fill: "#fb923c" }} tickLine={false} axisLine={false} width={44} tickFormatter={v => `${v}k`} />
+                  )}
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]?.payload;
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-md shadow px-3 py-2 text-xs">
+                          <p className="font-semibold text-gray-700 mb-1">
+                            {new Date(d.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                          </p>
+                          {d.yield > 0 && <p className="text-blue-600">Yield: <span className="font-medium">{d.yield.toLocaleString()} L</span></p>}
+                          {d.scc != null && <p className="text-orange-500">SCC: <span className="font-medium">{d.scc.toLocaleString()} k/mL</span></p>}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar yAxisId="yield" dataKey="yield" fill="#3b82f6" fillOpacity={0.8} radius={[3, 3, 0, 0]} name="Yield (L)" maxBarSize={32} />
+                  {hasScc && (
+                    <>
+                      <Line yAxisId="scc" type="monotone" dataKey="scc" stroke="#f97316" strokeWidth={2.5} dot={{ r: 3.5, fill: "#f97316", strokeWidth: 0 }} connectNulls name="SCC (k/mL)" />
+                      <ReferenceLine yAxisId="scc" y={200} stroke="#f97316" strokeDasharray="5 3" strokeOpacity={0.45} label={{ value: "200k", position: "right", fontSize: 10, fill: "#f97316" }} />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-500 opacity-80" />Daily yield (L)</span>
+                {hasScc && <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-orange-400" />SCC (k/mL) — dashed line = 200k threshold</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const UK_MILK_BUYERS = [
@@ -294,6 +481,9 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
           <ChevronRight className="h-4 w-4 text-gray-600" />
         </button>
       </div>
+
+      {/* ── Monthly Summary ──────────────────────────────────────────────────── */}
+      {!isLoading && <MilkMonthlySummary records={filteredRecords} monthLabel={monthLabel} />}
 
       {/* ── List ────────────────────────────────────────────────────────────── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
