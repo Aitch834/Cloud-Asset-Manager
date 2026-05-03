@@ -316,7 +316,7 @@ import {
   labourHourlyRatesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
@@ -11948,6 +11948,15 @@ router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, req
   if (antibioticResidueTestResult && abrKitStockId) {
     await db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(abrKitStockId)), eq(dairyAbrTestKitStockTable.farmId, farmId)));
   }
+  // Fire critical alerts — non-blocking
+  const tenantId = req.tenantId!;
+  const rdStr = typeof recordDate === "string" ? recordDate : new Date(recordDate).toISOString();
+  if (buyerLabResultsStatus === "concern") {
+    createDairyLabConcernNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, milkBuyer: milkBuyer || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null }).catch(e => console.error("[DAIRY] Lab concern alert failed:", e));
+  }
+  if (antibioticResidueTestResult === "positive") {
+    createDairyAbrPositiveNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR positive alert failed:", e));
+  }
   res.json({ record });
 });
 
@@ -11956,7 +11965,18 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
   const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes } = req.body;
+  // Fetch current state so we only alert when status is CHANGING to a critical value
+  const [prev] = await db.select({ buyerLabResultsStatus: dairyMilkRecordsTable.buyerLabResultsStatus, antibioticResidueTestResult: dairyMilkRecordsTable.antibioticResidueTestResult, recordDate: dairyMilkRecordsTable.recordDate }).from(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).limit(1);
   const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || null, buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
+  // Only alert if status is newly changing to a critical value (not already flagged)
+  const tenantId = req.tenantId!;
+  const rdStr = recordDate ? String(recordDate) : (prev?.recordDate ? new Date(prev.recordDate).toISOString() : new Date().toISOString());
+  if (buyerLabResultsStatus === "concern" && prev?.buyerLabResultsStatus !== "concern") {
+    createDairyLabConcernNotification({ tenantId, farmId, recordId, recordDate: rdStr, milkBuyer: milkBuyer || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null }).catch(e => console.error("[DAIRY] Lab concern alert failed:", e));
+  }
+  if (antibioticResidueTestResult === "positive" && prev?.antibioticResidueTestResult !== "positive") {
+    createDairyAbrPositiveNotification({ tenantId, farmId, recordId, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR positive alert failed:", e));
+  }
   res.json({ record });
 });
 

@@ -9,7 +9,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -200,6 +200,66 @@ export async function createWaterFailureNotification(params: {
     relatedModule: "livestock-management",
     relatedId: params.recordId,
     dedupeKey: `water-fail-${params.recordId}`,
+  });
+
+  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+}
+
+export async function createDairyLabConcernNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  recordDate: string;
+  milkBuyer?: string | null;
+  buyerLabRef?: string | null;
+  buyerSccThousands?: number | null;
+}) {
+  const dateLabel = new Date(params.recordDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const buyerLabel = params.milkBuyer ? ` from ${params.milkBuyer}` : "";
+  const refLabel = params.buyerLabRef ? ` (Ref: ${params.buyerLabRef})` : "";
+  const sccLabel = params.buyerSccThousands ? ` Buyer SCC: ${params.buyerSccThousands.toLocaleString()} k/mL.` : "";
+  const title = `Dairy Lab Results — Action Required (${dateLabel})`;
+  const message = `Buyer lab results${buyerLabel}${refLabel} for milk collected on ${dateLabel} have been flagged as requiring action.${sccLabel} Review the Dairy → Milk Records tab and take appropriate remedial action. Contact your milk buyer if SCC is above threshold.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_lab_concern",
+    severity: "critical",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-lab-concern-${params.recordId}`,
+  });
+
+  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+}
+
+export async function createDairyAbrPositiveNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  recordDate: string;
+  sessionType?: string | null;
+  abrTestedBy?: string | null;
+}) {
+  const dateLabel = new Date(params.recordDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const sessionLabel = params.sessionType ? ` (${params.sessionType} session)` : "";
+  const testerLabel = params.abrTestedBy ? ` Tested by: ${params.abrTestedBy}.` : "";
+  const title = `ABR Test POSITIVE — Milk Load Rejected (${dateLabel})`;
+  const message = `An antibiotic residue test on ${dateLabel}${sessionLabel} has returned a POSITIVE result.${testerLabel} The milk load must NOT be collected. Identify and isolate the treated animal, discard the affected milk, and retest before the next collection. Notify your milk buyer immediately.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_abr_positive",
+    severity: "critical",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-abr-positive-${params.recordId}`,
   });
 
   await dispatchSmsForCriticalAlert(params.tenantId, title, message);
