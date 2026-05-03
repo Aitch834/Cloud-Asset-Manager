@@ -3385,7 +3385,7 @@ function DctTab({ farmId }: { farmId: number }) {
   });
   const animals = (animalsData?.records ?? []).filter(a => {
     const sp = (a.species || "").toLowerCase();
-    return !sp || sp.includes("cattle") || sp.includes("cow") || sp.includes("dairy");
+    return !sp || sp.includes("bovine") || sp.includes("cattle") || sp.includes("cow") || sp.includes("dairy");
   });
 
   const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
