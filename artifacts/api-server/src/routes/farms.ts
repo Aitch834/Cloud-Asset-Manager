@@ -12578,6 +12578,39 @@ router.get("/farms/:farmId/dairy/staff-names", requireAuth, requireTenant, requi
   res.json({ names: [...allNames].sort() });
 });
 
+router.get("/farms/:farmId/dairy/dct-animal-hint", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const earTag = String(req.query.earTag ?? "").trim();
+  if (!earTag) { res.json({ animal: null, mastitisCount12m: 0, recentMastitisScc: null }); return; }
+  const [animal] = await db.select().from(livestockAnimalsTable)
+    .where(and(
+      eq(livestockAnimalsTable.farmId, farmId),
+      or(
+        sql`lower(${livestockAnimalsTable.earTagNumber}) = lower(${earTag})`,
+        sql`lower(${livestockAnimalsTable.tagNumber}) = lower(${earTag})`
+      )
+    )).limit(1);
+  const since12m = new Date();
+  since12m.setFullYear(since12m.getFullYear() - 1);
+  const [countRow] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(dairyMastitisRecordsTable)
+    .where(and(
+      eq(dairyMastitisRecordsTable.farmId, farmId),
+      gte(dairyMastitisRecordsTable.onsetDate, since12m),
+      sql`lower(${dairyMastitisRecordsTable.earTagNumber}) = lower(${earTag})`
+    ));
+  const [recentMastitis] = await db.select({ sccAtOnset: dairyMastitisRecordsTable.sccAtOnset })
+    .from(dairyMastitisRecordsTable)
+    .where(and(
+      eq(dairyMastitisRecordsTable.farmId, farmId),
+      sql`lower(${dairyMastitisRecordsTable.earTagNumber}) = lower(${earTag})`
+    ))
+    .orderBy(desc(dairyMastitisRecordsTable.onsetDate))
+    .limit(1);
+  res.json({ animal: animal ?? null, mastitisCount12m: countRow?.count ?? 0, recentMastitisScc: recentMastitis?.sccAtOnset ?? null });
+});
+
 router.get("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -12599,6 +12632,33 @@ router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requ
       reasonForVisit: "DCT prescription authorisation" + (cowEarTag ? " — " + cowEarTag : "") + (antibioticTubeProduct ? " · " + antibioticTubeProduct : ""),
       prescriptionsIssued: antibioticTubeProduct || null,
       animalIds: animalId ? JSON.stringify([animalId]) : null,
+    });
+  }
+  // Cross-post antibiotic treatment to the Medicine Records register
+  if (antibioticTubeProduct && protocol !== "teat-sealant-only") {
+    const dryOffDateObj = new Date(dryOffDate);
+    let withdrawalEndDate: Date | null = null;
+    if (antibioticTubeWithdrawalMilkDays) {
+      withdrawalEndDate = new Date(dryOffDateObj);
+      withdrawalEndDate.setDate(withdrawalEndDate.getDate() + Number(antibioticTubeWithdrawalMilkDays));
+    }
+    await db.insert(livestockMedicineRecordsTable).values({
+      farmId,
+      animalId: animalId || null,
+      herdId: herdId || null,
+      medicineName: antibioticTubeProduct,
+      batchNumber: antibioticTubeBatch || null,
+      administrationRoute: "Intramammary",
+      administeredDate: dryOffDateObj,
+      administeredBy: administeredBy || null,
+      withdrawalPeriodDays: antibioticTubeWithdrawalMilkDays ? Number(antibioticTubeWithdrawalMilkDays) : null,
+      withdrawalEndDate,
+      reason: "DCT treatment at dry-off" + (cowEarTag ? ` — ${cowEarTag}` : ""),
+      vetName: vetName || null,
+      treatmentScope: "individual",
+      treatedAnimalTags: cowEarTag || null,
+      treatedAnimalCount: 1,
+      source: "manual",
     });
   }
   res.json({ record });
