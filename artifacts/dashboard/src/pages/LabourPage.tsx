@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1249,26 +1250,17 @@ export default function LabourPage() {
 
   if (!farmId) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-3 mb-1">
-          <Clock className="text-green-700" size={24} />
-          <h1 className="text-2xl font-bold text-gray-900">Labour Management</h1>
-        </div>
-        <p className="text-gray-500 text-sm mb-6">Timesheets, rota, holiday & absence, pay summary, and working time compliance.</p>
+      <AppLayout title="Labour Management">
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
           Select a farm from the top-left dropdown to load labour records.
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-3 mb-1">
-        <Clock className="text-green-700" size={24} />
-        <h1 className="text-2xl font-bold text-gray-900">Labour Management</h1>
-      </div>
-      <p className="text-gray-500 text-sm mb-5">Timesheets, rota planning, holiday & absence, pay summaries, and Working Time Regulations compliance.</p>
+    <AppLayout title="Labour Management">
+      <p className="text-gray-500 text-sm -mt-4 mb-4">Timesheets, rota planning, holiday & absence, pay summaries, and Working Time Regulations compliance.</p>
 
       {/* Tab bar */}
       <div className="border-b flex gap-0 overflow-x-auto mb-6">
@@ -1284,6 +1276,6 @@ export default function LabourPage() {
       {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} />}
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} />}
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} />}
-    </div>
+    </AppLayout>
   );
 }
