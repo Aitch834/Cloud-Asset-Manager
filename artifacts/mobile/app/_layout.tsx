@@ -97,6 +97,7 @@ function RootLayoutNav() {
         <Stack.Screen name="tb-test" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="welfare-outcome" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="ppe-issue" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="labour-timesheet" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
