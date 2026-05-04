@@ -7252,7 +7252,24 @@ A Nutrient Management Plan (NMP) is a written record of how you intend to manage
       category: "Fields & Crops",
       content: `<img src="/api/help-images/field-register.png" alt="Harvest Records and Yield Tracking" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Harvest records document the yield achieved from each field at the end of the growing season. These records are used to support nutrient management planning (comparing actual yield against the planned yield used to calculate nitrogen demand), to verify biofuel feedstock quantities for RTFO purposes, and to provide the traceability data required by Red Tractor's combinable crops standard.\n\nTo record a harvest in BDE Farm Trac, navigate to Fields & Crops and open the Harvest Records section. Click Add Harvest Record and select the field and crop. Enter the harvest date, the yield in tonnes, the moisture content at harvest (percentage), and the storage location or destination (e.g. home store, co-op, direct to merchant). If the grain is destined for biofuel processing, tick the Biofuel Feedstock flag — this links the harvest record to the Biofuel / RTFO module.\n\nThe Harvest Dashboard provides an at-a-glance summary of total yield, yield per hectare by crop type, and a comparison against the previous season. Use this to identify underperforming fields and to update your agronomic plan for the following season. Moisture content at harvest is important not just for grain quality but because it affects the dry-matter yield figure used in NMP calculations — the system applies a standard conversion factor when calculating dry-matter tonnes from the as-harvested moisture figure.\n\nFor Red Tractor traceability purposes, each harvest record generates a unique batch reference that can be quoted on grain movement documents. This enables the system to build a chain of custody from field to store to dispatch, which is particularly important for assured combinable crops sold into the milling or malting market.`,
+<p>Harvest records document the yield achieved from each field at the end of the growing season. These records are used to support nutrient management planning (comparing actual yield against the planned yield used to calculate nitrogen demand), to verify biofuel feedstock quantities for RTFO purposes, and to provide the traceability data required by Red Tractor's combinable crops standard.</p>
+
+<p>To record a harvest in BDE Farm Trac, navigate to Fields &amp; Crops and open the Harvest Records section. Click <strong>Add Harvest Record</strong> and select the field and crop. Enter the harvest date, the yield in tonnes, the moisture content at harvest (percentage), and the storage location or destination (e.g. home store, co-op, direct to merchant). If the grain is destined for biofuel processing, tick the Biofuel Feedstock flag — this links the harvest record to the Biofuel / RTFO module.</p>
+
+<h3>Yield History in the Field History Drawer</h3>
+<p>Every field's history drawer (accessed by clicking any field card in the Fields tab) includes a <strong>Season History</strong> tab. Within each crop card on that tab, a <strong>Yield History</strong> section summarises all harvest records for that variety on that field. For each season the following metrics are shown:</p>
+<ul>
+<li><strong>Yield (t/ha)</strong> — the yield per hectare recorded at harvest</li>
+<li><strong>Total yield</strong> — the absolute tonnage harvested from the field that season</li>
+<li><strong>Moisture at harvest</strong> — percentage moisture recorded when the grain was sampled</li>
+<li><strong>Grade</strong> — quality grade assigned at intake (e.g. milling, feed, malting)</li>
+</ul>
+<p>Below the individual season rows, a <strong>Yield History summary table</strong> at the bottom of the Season History tab shows all crops grown on that field in descending year order with a season-on-season trend indicator. An upward arrow (green) indicates yield improved versus the previous season; a downward arrow (amber) indicates a fall in yield; a dash indicates a single season with no prior year to compare against. This gives you an at-a-glance view of whether a field is trending up or down in productivity over time, without needing to open separate reports.</p>
+
+<h3>Harvest Dashboard</h3>
+<p>The Harvest Dashboard provides an at-a-glance summary of total yield, yield per hectare by crop type, and a comparison against the previous season. Use this to identify underperforming fields and to update your agronomic plan for the following season. Moisture content at harvest is important not just for grain quality but because it affects the dry-matter yield figure used in NMP calculations — the system applies a standard conversion factor when calculating dry-matter tonnes from the as-harvested moisture figure.</p>
+
+<p>For Red Tractor traceability purposes, each harvest record generates a unique batch reference that can be quoted on grain movement documents. This enables the system to build a chain of custody from field to store to dispatch, which is particularly important for assured combinable crops sold into the milling or malting market.</p>`,
     },
     {
       id: 20,
@@ -7832,6 +7849,13 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Fire Extinguisher Services</strong> — next annual service dates for extinguishers registered in Workshop</li>
 <li><strong>Workshop Job Deadlines</strong> — estimated completion dates for open job cards in Workshop</li>
 </ul>
+
+<h4>Fields &amp; Crops <span style="color:#22c55e">(green)</span></h4>
+<ul>
+<li><strong>Harvest Windows</strong> — when an expected harvest date recorded against a field–crop assignment falls within the view window, a green Harvest Window card appears for that field. The card names the crop and variety, prompts you to monitor ripeness, and reminds you to plan combining equipment and haulage logistics ahead of time. Clicking the card takes you to Fields &amp; Crops.</li>
+<li><strong>Planting Dates</strong> — when a planting date recorded against a field–crop assignment falls within the view window, a green Planting card appears. It names the crop and field, prompts you to confirm seed, equipment, and soil conditions are ready, and reminds you to log the actual sowing date in Fields &amp; Crops once drilling is complete.</li>
+</ul>
+<p>Expected harvest dates and planting dates are entered when you assign a crop to a field for a given season (or when editing an existing assignment). Both fields are optional but recommended — they are the source data for the Farm Planner cards above and for the planned-vs-actual harvest variance shown in the field's Season History.</p>
 
 <h4>Livestock <span style="color:#10b981">(green)</span></h4>
 <ul>

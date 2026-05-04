@@ -73,6 +73,7 @@ const MODULE_LABELS: Record<string, string> = {
   work_order: "Work Order",
   field_inspection: "Inspection",
   planner: "Planner",
+  "Fields & Crops": "Fields & Crops",
 };
 
 // ─── Assignment Card ──────────────────────────────────────────────────────────
