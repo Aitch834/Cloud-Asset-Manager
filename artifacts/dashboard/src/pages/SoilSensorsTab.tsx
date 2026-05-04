@@ -38,13 +38,78 @@ interface SoilSensorReading {
   ecUsPerCm: string | null; entryMethod: string; notes: string | null;
 }
 
-const MANUFACTURERS = ["METER Group", "Pessl Instruments (METOS)", "Sentek Technologies", "Delta-T Devices", "Stevens Water", "Vegetronix", "Other"];
 const SENSOR_TYPES: Record<string, string> = {
   moisture:          "Moisture only",
   moisture_temp:     "Moisture + Temperature",
   moisture_temp_ec:  "Moisture + Temperature + EC",
-  multi_depth:       "Multi-depth probe",
+  multi_depth:       "Multi-depth (moisture + temperature + EC)",
 };
+
+interface ProbeSpec { sensorType: string; typicalDepthsCm?: string; }
+
+// Knowledge base of manufacturers → models → known capabilities.
+// sensorType keys map to SENSOR_TYPES above.
+// typicalDepthsCm is suggested when the depths field is empty.
+const PROBE_CATALOGUE: Record<string, Record<string, ProbeSpec>> = {
+  "METER Group": {
+    "TEROS 10":          { sensorType: "moisture" },
+    "TEROS 11":          { sensorType: "moisture_temp_ec" },
+    "TEROS 12":          { sensorType: "moisture_temp_ec" },
+    "TEROS 21":          { sensorType: "moisture_temp" },
+    "TEROS 54":          { sensorType: "moisture_temp" },
+    "GS3":               { sensorType: "moisture_temp_ec" },
+    "5TM":               { sensorType: "moisture_temp" },
+    "5TE":               { sensorType: "moisture_temp_ec" },
+    "EC-5":              { sensorType: "moisture" },
+    "Em50 / Em50G":      { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 60" },
+  },
+  "Sentek Technologies": {
+    "Drill & Drop":      { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 50, 60" },
+    "EnviroSCAN":        { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 60, 100" },
+    "EasyAG 50":         { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 50" },
+    "EasyAG 70":         { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 50, 60, 70" },
+    "TriSCAN":           { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 60" },
+  },
+  "Delta-T Devices": {
+    "SM150T":            { sensorType: "moisture_temp" },
+    "SM300":             { sensorType: "moisture_temp_ec" },
+    "Profile Probe PR2": { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 60, 100" },
+    "GP2":               { sensorType: "moisture_temp_ec" },
+    "WET-2":             { sensorType: "moisture_temp_ec" },
+    "HH2 / PR2":         { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 60, 100" },
+  },
+  "Stevens Water": {
+    "HydraProbe":        { sensorType: "moisture_temp_ec" },
+    "HydraProbe 2":      { sensorType: "moisture_temp_ec" },
+    "Pico":              { sensorType: "moisture_temp" },
+    "Vitel":             { sensorType: "moisture_temp_ec" },
+  },
+  "Pessl Instruments (METOS)": {
+    "SMT100":            { sensorType: "moisture_temp" },
+    "iMETOS Soil":       { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 60" },
+    "PHOS":              { sensorType: "moisture_temp_ec" },
+  },
+  "Vegetronix": {
+    "VH400":             { sensorType: "moisture" },
+    "VH400-WB":          { sensorType: "moisture_temp" },
+    "THERM200":          { sensorType: "moisture_temp" },
+    "Aqua-Spy":          { sensorType: "multi_depth", typicalDepthsCm: "10, 20, 30, 40, 60" },
+  },
+  "Campbell Scientific": {
+    "CS616":             { sensorType: "moisture" },
+    "CS650":             { sensorType: "moisture_temp" },
+    "CS655":             { sensorType: "moisture_temp_ec" },
+    "Hydrosense II":     { sensorType: "moisture" },
+  },
+  "Acclima": {
+    "TDR-310S":          { sensorType: "moisture_temp_ec" },
+    "TDR-315L":          { sensorType: "moisture_temp_ec" },
+    "TDR-315H":          { sensorType: "moisture_temp_ec" },
+  },
+  "Other": {},
+};
+
+const MANUFACTURERS = Object.keys(PROBE_CATALOGUE);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmt(val: string | null | undefined): string {
@@ -116,9 +181,33 @@ function ProbeDialog({
     latitude: probe.latitude ?? "", longitude: probe.longitude ?? "",
     installDate: probe.installDate ? probe.installDate.slice(0, 10) : "", notes: probe.notes ?? "",
   } : EMPTY_PROBE);
+  const [sensorTypeAutoDetected, setSensorTypeAutoDetected] = useState(false);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // Derived: known models for the selected manufacturer (null = use free-text input)
+  const knownModels = form.manufacturer && form.manufacturer !== "Other"
+    ? Object.keys(PROBE_CATALOGUE[form.manufacturer] ?? {})
+    : null;
+
+  function handleManufacturerChange(mfr: string) {
+    setForm(f => ({ ...f, manufacturer: mfr === "__none__" ? "" : mfr, model: "" }));
+    setSensorTypeAutoDetected(false);
+  }
+
+  function handleModelSelect(modelValue: string) {
+    const model = modelValue === "__none__" ? "" : modelValue;
+    const spec = form.manufacturer ? PROBE_CATALOGUE[form.manufacturer]?.[model] : undefined;
+    setForm(f => ({
+      ...f,
+      model,
+      sensorType: spec ? spec.sensorType : f.sensorType,
+      // Suggest depths only when the field is currently empty
+      depthsCm: spec?.typicalDepthsCm && !f.depthsCm ? spec.typicalDepthsCm : f.depthsCm,
+    }));
+    setSensorTypeAutoDetected(!!spec);
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -151,30 +240,67 @@ function ProbeDialog({
             <label className="text-xs font-medium text-gray-600 mb-1 block">Probe Name *</label>
             <Input value={form.name} onChange={set("name")} placeholder="e.g. North Field — TEROS 12" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Manufacturer</label>
-              <Select value={form.manufacturer || "__none__"} onValueChange={v => setForm(f => ({ ...f, manufacturer: v === "__none__" ? "" : v }))}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+
+          {/* Manufacturer */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Manufacturer</label>
+            <Select value={form.manufacturer || "__none__"} onValueChange={handleManufacturerChange}>
+              <SelectTrigger><SelectValue placeholder="Select manufacturer…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Not specified —</SelectItem>
+                {MANUFACTURERS.filter(m => m !== "Other").map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+                <SelectItem value="Other">Other / not listed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Model — dropdown if manufacturer known, free-text if Other / unset */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Model</label>
+            {knownModels && knownModels.length > 0 ? (
+              <Select value={form.model || "__none__"} onValueChange={handleModelSelect}>
+                <SelectTrigger><SelectValue placeholder="Select model…" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">— Not specified —</SelectItem>
-                  {MANUFACTURERS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  <SelectItem value="__none__">— Select model —</SelectItem>
+                  {knownModels.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Model</label>
-              <Input value={form.model} onChange={set("model")} placeholder="e.g. TEROS 12" />
-            </div>
+            ) : (
+              <Input
+                value={form.model}
+                onChange={set("model")}
+                placeholder={form.manufacturer ? "Enter model name" : "Select a manufacturer first"}
+                disabled={!form.manufacturer}
+              />
+            )}
           </div>
+
+          {/* Sensor Type — auto-detected from model, still overridable */}
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Sensor Type</label>
-            <Select value={form.sensorType} onValueChange={v => setForm(f => ({ ...f, sensorType: v }))}>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-600">Sensor Type</label>
+              {sensorTypeAutoDetected && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> Auto-detected
+                </span>
+              )}
+            </div>
+            <Select
+              value={form.sensorType}
+              onValueChange={v => { setForm(f => ({ ...f, sensorType: v })); setSensorTypeAutoDetected(false); }}
+            >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(SENSOR_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            {sensorTypeAutoDetected && (
+              <p className="text-xs text-gray-400 mt-0.5">Detected from the selected model — you can override this if needed.</p>
+            )}
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Monitoring Depths (cm)</label>
