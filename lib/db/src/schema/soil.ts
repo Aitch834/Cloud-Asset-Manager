@@ -16,6 +16,8 @@ export const soilTestRecordsTable = pgTable("soil_test_records", {
   resultsReceivedDate: timestamp("results_received_date", { withTimezone: true }),
   sampleDepthCm: integer("sample_depth_cm"),
   sampledBy: text("sampled_by"),
+  samplerType: text("sampler_type"),
+  samplerOrganisation: text("sampler_organisation"),
   notes: text("notes"),
   latitude: text("latitude"),
   longitude: text("longitude"),

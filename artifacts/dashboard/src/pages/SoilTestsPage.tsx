@@ -21,6 +21,7 @@ import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
   TestTube, Printer, FlaskConical, ArrowRight, CheckCircle, Clock, Archive,
   MoreHorizontal, MapPin, Map, TrendingUp, TrendingDown, Minus, Activity,
+  Users, Building2, UserCheck,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -51,11 +52,14 @@ interface SoilTestRecord {
   sampleDate: string; sampleReference: string | null;
   status: string; laboratory: string | null;
   sentToLabDate: string | null; resultsReceivedDate: string | null;
-  sampleDepthCm: number | null; sampledBy: string | null; notes: string | null;
+  sampleDepthCm: number | null; sampledBy: string | null;
+  samplerType: string | null; samplerOrganisation: string | null;
+  notes: string | null;
   latitude: string | null; longitude: string | null; locationDescription: string | null;
   createdAt: string;
   results?: SoilTestResult[];
 }
+interface StaffMember { id: number; firstName: string; lastName: string; isActive: boolean; }
 interface Farm { id: number; name: string; address: string | null; postcode: string | null; cphNumber: string | null; redTractorId: string | null; }
 
 const COMMON_NUTRIENTS = ["pH", "Phosphorus (P)", "Potassium (K)", "Magnesium (Mg)", "Nitrogen (N)", "Sulphur (SO3)", "Organic Matter (OM)", "Calcium (Ca)", "Sodium (Na)", "Boron (B)"];
@@ -113,6 +117,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const [addResultFor, setAddResultFor] = useState<number | null>(null);
   const [resultForm, setResultForm] = useState<typeof EMPTY_RESULT>(EMPTY_RESULT);
   const [deleteResultInfo, setDeleteResultInfo] = useState<{ testId: number; resultId: number } | null>(null);
+  const [samplerType, setSamplerType] = useState<"staff" | "external">("external");
+  const [samplerOrganisation, setSamplerOrganisation] = useState("");
+  const [sampledByStaffId, setSampledByStaffId] = useState<number | null>(null);
 
   const fieldsQ = useQuery<{ records: FieldRecord[] }>({
     queryKey: ["fields-soil", farmId],
@@ -122,6 +129,11 @@ function RegisterTab({ farmId }: { farmId: number }) {
     queryKey: ["soil-tests", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/soil-tests`).then(r => r.json()),
   });
+  const staffQ = useQuery<{ members: StaffMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+  });
+  const activeStaff: StaffMember[] = (staffQ.data?.members ?? []).filter(m => m.isActive);
 
   const fields: FieldRecord[] = fieldsQ.data?.records ?? [];
   const allTests: SoilTestRecord[] = testsQ.data?.records ?? [];
@@ -147,6 +159,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST);
       setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
+      resetSamplerState();
       if (data?.record?.id) setExpanded(prev => new Set([...prev, data.record.id]));
     },
   });
@@ -157,6 +170,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setEditTest(null); setTestForm(EMPTY_TEST); setAddTestOpen(false);
       setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
+      resetSamplerState();
     },
   });
   const deleteTest = useMutation({
@@ -198,9 +212,15 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const counts: Record<string, number> = { all: yearTests.length };
   for (const t of yearTests) { counts[t.status] = (counts[t.status] ?? 0) + 1; }
 
+  function resetSamplerState() {
+    setSamplerType("external");
+    setSamplerOrganisation("");
+    setSampledByStaffId(null);
+  }
   function openAddTest() {
     setEditTest(null); setTestForm(EMPTY_TEST); setLabSupplierId(null);
     setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
+    resetSamplerState();
     setAddTestOpen(true);
   }
   function openEditTest(t: SoilTestRecord) {
@@ -208,16 +228,37 @@ function RegisterTab({ farmId }: { farmId: number }) {
     setTestForm({ fieldId: String(t.fieldId), sampleDate: t.sampleDate?.slice(0, 10) ?? "", laboratory: t.laboratory ?? "", sampleReference: t.sampleReference ?? "", sampleDepthCm: String(t.sampleDepthCm ?? ""), sampledBy: t.sampledBy ?? "", notes: t.notes ?? "" });
     setLabSupplierId((t as unknown as { labSupplierId?: number | null }).labSupplierId ?? null);
     setSampleLat(t.latitude ?? ""); setSampleLng(t.longitude ?? ""); setSampleLocationDesc(t.locationDescription ?? "");
+    const type = (t.samplerType === "staff" ? "staff" : "external") as "staff" | "external";
+    setSamplerType(type);
+    setSamplerOrganisation(t.samplerOrganisation ?? "");
+    if (type === "staff") {
+      const matched = activeStaff.find(s => `${s.firstName} ${s.lastName}` === t.sampledBy);
+      setSampledByStaffId(matched?.id ?? null);
+    } else {
+      setSampledByStaffId(null);
+    }
     setAddTestOpen(true);
   }
   function handleTestSubmit(e: React.FormEvent) {
     e.preventDefault();
+    let resolvedName: string | null = null;
+    let resolvedOrg: string | null = null;
+    if (samplerType === "staff") {
+      const staff = activeStaff.find(s => s.id === sampledByStaffId);
+      resolvedName = staff ? `${staff.firstName} ${staff.lastName}` : null;
+      resolvedOrg = null;
+    } else {
+      resolvedName = testForm.sampledBy || null;
+      resolvedOrg = samplerOrganisation || null;
+    }
     const body: Record<string, unknown> = {
       ...testForm,
       fieldId: Number(testForm.fieldId),
       sampleDate: new Date(testForm.sampleDate).toISOString(),
       sampleDepthCm: testForm.sampleDepthCm ? Number(testForm.sampleDepthCm) : null,
-      sampledBy: testForm.sampledBy || null,
+      sampledBy: resolvedName,
+      samplerType,
+      samplerOrganisation: resolvedOrg,
       sampleReference: testForm.sampleReference || null,
       labSupplierId: labSupplierId ?? null,
       latitude: sampleLat || null,
@@ -527,16 +568,73 @@ function RegisterTab({ farmId }: { farmId: number }) {
                 <Input type="number" min="0" max="200" placeholder="e.g. 15" value={testForm.sampleDepthCm} onChange={e => setTestForm(f => ({ ...f, sampleDepthCm: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Sample Reference</label>
-                <Input placeholder="Auto-generated if blank" value={testForm.sampleReference} onChange={e => setTestForm(f => ({ ...f, sampleReference: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Sampled By</label>
-                <Input placeholder="Name of sampler" value={testForm.sampledBy} onChange={e => setTestForm(f => ({ ...f, sampledBy: e.target.value }))} />
-              </div>
+            <div>
+              <label className="text-sm font-medium text-foreground/70 mb-1 block">Sample Reference</label>
+              <Input placeholder="Auto-generated if blank" value={testForm.sampleReference} onChange={e => setTestForm(f => ({ ...f, sampleReference: e.target.value }))} />
             </div>
+
+            {/* Sampled By — type toggle */}
+            <div>
+              <label className="text-sm font-medium text-foreground/70 mb-2 block">Sampled By</label>
+              <div className="flex rounded-md border border-border overflow-hidden mb-3">
+                <button
+                  type="button"
+                  onClick={() => { setSamplerType("staff"); setSampledByStaffId(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${samplerType === "staff" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Farm staff
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSamplerType("external"); setSampledByStaffId(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors border-l border-border ${samplerType === "external" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  External sampler
+                </button>
+              </div>
+
+              {samplerType === "staff" ? (
+                <select
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background"
+                  value={sampledByStaffId ?? ""}
+                  onChange={e => setSampledByStaffId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select staff member…</option>
+                  {activeStaff.map(s => (
+                    <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Sampler name"
+                    value={testForm.sampledBy}
+                    onChange={e => setTestForm(f => ({ ...f, sampledBy: e.target.value }))}
+                  />
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                      className="pl-8"
+                      placeholder="Organisation (e.g. lab name, consultancy)"
+                      value={samplerOrganisation}
+                      onChange={e => setSamplerOrganisation(e.target.value)}
+                    />
+                  </div>
+                  {testForm.laboratory && !samplerOrganisation && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => setSamplerOrganisation(testForm.laboratory)}
+                    >
+                      Use lab name: {testForm.laboratory}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <LabSelector

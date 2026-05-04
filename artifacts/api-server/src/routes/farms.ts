@@ -1754,6 +1754,8 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
   const rawDepth = body.sampleDepthCm ?? body.depth ?? null;
   const sampleDepthCm = rawDepth ? parseInt(String(rawDepth), 10) || null : null;
   const sampledBy = body.sampledBy ? String(body.sampledBy).trim() : null;
+  const samplerType = body.samplerType ? String(body.samplerType).trim() : null;
+  const samplerOrganisation = body.samplerOrganisation ? String(body.samplerOrganisation).trim() : null;
   const notes = body.notes ? String(body.notes).trim() : null;
   const latitude = body.latitude != null && body.latitude !== "" ? String(body.latitude).trim() : null;
   const longitude = body.longitude != null && body.longitude !== "" ? String(body.longitude).trim() : null;
@@ -1779,7 +1781,8 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
 
   const [record] = await db.insert(soilTestRecordsTable).values({
     farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(),
-    sampleReference, status: "sampled", laboratory, sampleDepthCm, sampledBy, notes,
+    sampleReference, status: "sampled", laboratory, sampleDepthCm, sampledBy,
+    samplerType, samplerOrganisation, notes,
     latitude, longitude, locationDescription,
   }).returning();
 
@@ -1823,7 +1826,7 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { fieldId, sampleDate, laboratory, sampleReference, sampleDepthCm, sampledBy, notes, latitude, longitude, locationDescription } = req.body;
+  const { fieldId, sampleDate, laboratory, sampleReference, sampleDepthCm, sampledBy, samplerType, samplerOrganisation, notes, latitude, longitude, locationDescription } = req.body;
   const updates: Record<string, unknown> = {};
   if (fieldId !== undefined) updates.fieldId = Number(fieldId);
   if (sampleDate !== undefined) updates.sampleDate = new Date(sampleDate).toISOString();
@@ -1831,6 +1834,8 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, re
   if (sampleReference !== undefined) updates.sampleReference = sampleReference;
   if (sampleDepthCm !== undefined) updates.sampleDepthCm = sampleDepthCm ? parseInt(String(sampleDepthCm), 10) : null;
   if (sampledBy !== undefined) updates.sampledBy = sampledBy;
+  if (samplerType !== undefined) updates.samplerType = samplerType;
+  if (samplerOrganisation !== undefined) updates.samplerOrganisation = samplerOrganisation ?? null;
   if (notes !== undefined) updates.notes = notes;
   if (latitude !== undefined) updates.latitude = latitude || null;
   if (longitude !== undefined) updates.longitude = longitude || null;
