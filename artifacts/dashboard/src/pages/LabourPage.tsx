@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
@@ -937,6 +937,10 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
   const [typeFilter, setTypeFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Absence | null>(null);
+  const [entEditOpen, setEntEditOpen] = useState(false);
+  const [entEditTarget, setEntEditTarget] = useState<{ name: string; year: number; ent: Entitlement | undefined } | null>(null);
+  const [entEditDays, setEntEditDays] = useState("");
+  const [entEditCarried, setEntEditCarried] = useState("");
 
   const emptyForm = () => ({ staffName: "", absenceType: "Annual Leave", startDate: "", endDate: "", daysCount: "", notes: "", approvedBy: "", status: "approved" });
   const [form, setForm] = useState(emptyForm());
@@ -1053,11 +1057,10 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
               <button
                 className="text-xs text-blue-600 underline mt-0.5"
                 onClick={() => {
-                  const newEnt = parseFloat(prompt(`Annual leave entitlement for ${name} in ${yearInt} (days):`, String(entDays)) ?? String(entDays));
-                  if (!isNaN(newEnt)) {
-                    if (ent) editEntMut.mutate({ id: ent.id, body: { entitlementDays: String(newEnt), carriedOverDays: ent.carriedOverDays, wtrOptOut: ent.wtrOptOut } });
-                    else addEntMut.mutate({ staffName: name, year: yearInt, entitlementDays: String(newEnt), carriedOverDays: "0" });
-                  }
+                  setEntEditTarget({ name, year: yearInt, ent });
+                  setEntEditDays(String(parseFloat(ent?.entitlementDays ?? "28")));
+                  setEntEditCarried(String(parseFloat(ent?.carriedOverDays ?? "0")));
+                  setEntEditOpen(true);
                 }}
               >Edit entitlement</button>
             </div>
@@ -1191,6 +1194,65 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Entitlement dialog ── */}
+      <Dialog open={entEditOpen} onOpenChange={v => { if (!v) setEntEditOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Leave Entitlement</DialogTitle>
+          </DialogHeader>
+          {entEditTarget && (
+            <div className="space-y-4 py-1">
+              <p className="text-sm text-muted-foreground">
+                {entEditTarget.name} — {entEditTarget.year}
+              </p>
+              <div>
+                <Label className="text-xs">Annual entitlement (days)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="mt-1"
+                  value={entEditDays}
+                  onChange={e => setEntEditDays(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Carried over from previous year (days)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  className="mt-1"
+                  value={entEditCarried}
+                  onChange={e => setEntEditCarried(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEntEditOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!entEditTarget) return;
+                const days = String(parseFloat(entEditDays) || 0);
+                const carried = String(parseFloat(entEditCarried) || 0);
+                const { ent, name, year } = entEditTarget;
+                if (ent) {
+                  editEntMut.mutate({ id: ent.id, body: { entitlementDays: days, carriedOverDays: carried, wtrOptOut: ent.wtrOptOut } });
+                } else {
+                  addEntMut.mutate({ staffName: name, year, entitlementDays: days, carriedOverDays: carried });
+                }
+                setEntEditOpen(false);
+              }}
+              disabled={editEntMut.isPending || addEntMut.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
