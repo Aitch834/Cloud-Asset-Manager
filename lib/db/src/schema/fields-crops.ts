@@ -56,6 +56,16 @@ export const cropsTable = pgTable("crops", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const cropDocumentsTable = pgTable("crop_documents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  cropId: integer("crop_id").notNull().references(() => cropsTable.id),
+  title: text("title").notNull(),
+  documentUrl: text("document_url").notNull(),
+  documentName: text("document_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   id: serial("id").primaryKey(),
   fieldId: integer("field_id").notNull().references(() => fieldsTable.id),

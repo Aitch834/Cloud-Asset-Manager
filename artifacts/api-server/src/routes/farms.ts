@@ -13,6 +13,7 @@ import {
   fieldTenureDocumentsTable,
   fieldBoundariesTable,
   cropsTable,
+  cropDocumentsTable,
   fieldCropAssignmentsTable,
   fieldSeasonLandUseTable,
   harvestRecordsTable,
@@ -838,6 +839,43 @@ router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, requ
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(cropsTable).where(and(eq(cropsTable.id, recordId), eq(cropsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Crop Documents (variety data sheets) ────────────────────────────────────
+router.get("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const cropId = parseInt(req.params.cropId, 10);
+  if (isNaN(cropId)) { res.status(400).json({ error: "Invalid crop ID" }); return; }
+  const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
+  if (!crop) { res.status(404).json({ error: "Crop not found" }); return; }
+  const docs = await db.select().from(cropDocumentsTable)
+    .where(and(eq(cropDocumentsTable.farmId, farmId), eq(cropDocumentsTable.cropId, cropId)))
+    .orderBy(desc(cropDocumentsTable.uploadedAt));
+  res.json({ documents: docs });
+});
+
+router.post("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const cropId = parseInt(req.params.cropId, 10);
+  if (isNaN(cropId)) { res.status(400).json({ error: "Invalid crop ID" }); return; }
+  const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
+  if (!crop) { res.status(404).json({ error: "Crop not found" }); return; }
+  const { title, documentUrl, documentName } = req.body;
+  if (!title || !documentUrl) { res.status(400).json({ error: "title and documentUrl are required" }); return; }
+  const [doc] = await db.insert(cropDocumentsTable).values({ farmId, cropId, title, documentUrl, documentName: documentName ?? null }).returning();
+  res.json({ document: doc });
+});
+
+router.delete("/farms/:farmId/crops/:cropId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const cropId = parseInt(req.params.cropId, 10);
+  const docId = parseInt(req.params.docId, 10);
+  if (isNaN(cropId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(cropDocumentsTable).where(and(eq(cropDocumentsTable.id, docId), eq(cropDocumentsTable.farmId, farmId), eq(cropDocumentsTable.cropId, cropId)));
+  res.json({ ok: true });
 });
 
 // ─── Field-Crop Assignments ─────────────────────────
@@ -13063,6 +13101,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     medicatedFeedWdRows,
     sheepTuppingScanningRows,
     mobilityAssessmentRows,
+    expectedHarvestRows,
+    plantingDateRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -13411,6 +13451,20 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: dairyMobilityScoringsTable.id, nextAssessmentDue: dairyMobilityScoringsTable.nextAssessmentDue, assessedBy: dairyMobilityScoringsTable.assessedBy, lamenessPrevalencePercent: dairyMobilityScoringsTable.lamenessPrevalencePercent })
       .from(dairyMobilityScoringsTable)
       .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd))),
+
+    // ── Field Crops: expected harvest dates ───────────────────────────────────
+    db.select({ id: fieldCropAssignmentsTable.id, expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
+      .from(fieldCropAssignmentsTable)
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd))),
+
+    // ── Field Crops: planting dates ───────────────────────────────────────────
+    db.select({ id: fieldCropAssignmentsTable.id, plantingDate: fieldCropAssignmentsTable.plantingDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
+      .from(fieldCropAssignmentsTable)
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -13982,6 +14036,18 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     const lamenessNote = prevLameness !== null ? ` Last assessment lameness: ${prevLameness.toFixed(1)}%.` : "";
     const byNote = r.assessedBy ? ` Last assessed by ${r.assessedBy}.` : "";
     tasks.push({ id: `mobility-${r.id}`, type: "dairy_mobility_assessment_due", title: `Dairy Mobility Assessment Due`, description: `Quarterly mobility scoring is due. Observe cows walking from the parlour and score each animal 0–3 in Dairy → Mobility Scoring. Red Tractor target: score 3 (lame) below 10% of herd.${lamenessNote}${byNote}`, dueDate: toISO(r.nextAssessmentDue)!, module: "Dairy", href: `/dairy?tab=mobility`, colour: "purple" });
+  }
+
+  for (const r of expectedHarvestRows) {
+    if (!r.expectedHarvestDate) continue;
+    const cropLabel = r.variety ? `${r.cropName} (${r.variety})` : r.cropName;
+    tasks.push({ id: `harvest-${r.id}`, type: "expected_harvest", title: `Harvest Window — ${r.fieldName}`, description: `${cropLabel} on ${r.fieldName} is expected to be ready for harvest. Monitor crop ripeness closely and plan combining equipment and haulage logistics in advance.`, dueDate: toISO(r.expectedHarvestDate)!, module: "Fields & Crops", href: `/fields`, colour: "green" });
+  }
+
+  for (const r of plantingDateRows) {
+    if (!r.plantingDate) continue;
+    const cropLabel = r.variety ? `${r.cropName} (${r.variety})` : r.cropName;
+    tasks.push({ id: `planting-${r.id}`, type: "crop_planting", title: `Planting — ${r.fieldName}`, description: `${cropLabel} is scheduled for planting on ${r.fieldName}. Ensure seed, equipment, and soil conditions are ready. Record the actual sowing date in Fields & Crops once drilling is complete.`, dueDate: toISO(r.plantingDate)!, module: "Fields & Crops", href: `/fields`, colour: "green" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());

@@ -63,6 +63,15 @@ interface CropRecord {
   category?: string;
 }
 
+interface CropDocRecord {
+  id: number;
+  cropId: number;
+  title: string;
+  documentUrl: string;
+  documentName: string | null;
+  uploadedAt: string;
+}
+
 interface FieldCropAssignment {
   id: number;
   fieldId: number;
@@ -1140,6 +1149,17 @@ export default function FieldsPage() {
   });
   const fieldHarvests: FieldHarvestRecord[] = fieldHarvestsQ.data ?? [];
 
+  const [isUploadingCropDoc, setIsUploadingCropDoc] = useState(false);
+  const cropDocsQ = useQuery<CropDocRecord[]>({
+    queryKey: ["crop-docs", safeFarmId, expandedVarietyId],
+    queryFn: () =>
+      fetch(`/api/farms/${safeFarmId}/crops/${expandedVarietyId}/documents`)
+        .then(r => r.json())
+        .then((d: { documents?: CropDocRecord[] }) => d.documents ?? []),
+    enabled: !!farmId && !!expandedVarietyId,
+  });
+  const cropDocs: CropDocRecord[] = cropDocsQ.data ?? [];
+
   const tenureDocsQ = useQuery({
     queryKey: ["field-tenure-docs", safeFarmId, selectedFieldForHistory?.id],
     queryFn: () => fetch(`/api/farms/${safeFarmId}/fields/${selectedFieldForHistory?.id}/tenure-documents`).then(r => r.json()).then(d => d.documents ?? []),
@@ -1747,6 +1767,79 @@ export default function FieldsPage() {
                                       })}
                                     </div>
                                   )}
+                                  {/* ── Variety Documents (data sheets, seed certs) ── */}
+                                  <div className="mt-3 pt-3 border-t border-border/30">
+                                    <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                      <Paperclip className="w-3 h-3" /> Variety Documents
+                                    </p>
+                                    {cropDocsQ.isLoading && expandedVarietyId === crop.id ? (
+                                      <p className="text-xs text-foreground/30 mb-2">Loading…</p>
+                                    ) : cropDocs.length > 0 ? (
+                                      <div className="space-y-1.5 mb-2">
+                                        {cropDocs.map(doc => (
+                                          <div key={doc.id} className="flex items-center gap-2 bg-white border border-border/50 rounded-lg px-3 py-2">
+                                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-xs font-medium truncate">{doc.title}</p>
+                                              {doc.documentName && doc.documentName !== doc.title && (
+                                                <p className="text-[10px] text-foreground/40 truncate">{doc.documentName}</p>
+                                              )}
+                                            </div>
+                                            <a
+                                              href={`/api/storage${doc.documentUrl}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex-shrink-0 p-1 rounded hover:bg-blue-50 text-blue-500 transition-colors"
+                                              title="Open document"
+                                            >
+                                              <Download className="w-3.5 h-3.5" />
+                                            </a>
+                                            <button
+                                              onClick={async () => {
+                                                if (!confirm("Remove this document?")) return;
+                                                await fetch(`/api/farms/${safeFarmId}/crops/${crop.id}/documents/${doc.id}`, { method: "DELETE" });
+                                                queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, crop.id] });
+                                              }}
+                                              className="flex-shrink-0 p-1 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors"
+                                              title="Remove"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-foreground/30 italic mb-2">No documents yet — attach the variety data sheet or seed certificate.</p>
+                                    )}
+                                    <label className={`flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-border/60 rounded-xl hover:border-green-400 hover:bg-green-50/50 transition-colors ${isUploadingCropDoc ? "opacity-50 pointer-events-none" : ""}`}>
+                                      <Paperclip className="w-3.5 h-3.5 text-foreground/35 flex-shrink-0" />
+                                      <span className="text-xs text-foreground/45">{isUploadingCropDoc ? "Uploading…" : "Attach variety data sheet or seed certificate"}</span>
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="application/pdf,image/*,.doc,.docx"
+                                        disabled={isUploadingCropDoc}
+                                        onChange={async e => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          setIsUploadingCropDoc(true);
+                                          try {
+                                            const result = await uploadFile(file);
+                                            if (!result) return;
+                                            await fetch(`/api/farms/${safeFarmId}/crops/${crop.id}/documents`, {
+                                              method: "POST",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, ""), documentUrl: result.objectPath, documentName: file.name }),
+                                            });
+                                            queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, crop.id] });
+                                            e.target.value = "";
+                                          } finally {
+                                            setIsUploadingCropDoc(false);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
                                 </div>
                               )}
                             </div>
