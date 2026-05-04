@@ -188,6 +188,8 @@ const TITLES: [string, string][] = [
   ["Multi-Farm Consolidated Dashboard — Group Compliance Overview Across Holdings", "Dashboards"],
   ["Settlement Notes — Recording Grain and Livestock Settlement Documents", "Financial"],
   ["Inspector Mode — Advisor Portal Filtered Compliance View", "Getting Started"],
+  ["Smart Date Validation — How Date Fields Work Across the Platform", "Getting Started"],
+  ["Staff Auto-Populate — Operator and Assessor Fields Pre-Fill from Your Login", "Getting Started"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
