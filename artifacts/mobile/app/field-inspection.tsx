@@ -38,10 +38,89 @@ const ACTIONS: { key: ActionRequired; label: string; color: string }[] = [
   { key: "urgent", label: "Urgent Action", color: "#7C3AED" },
 ];
 
-const GROWTH_STAGES = [
-  "Germination", "GS10–19", "GS20–29", "GS30–39",
-  "GS40–49", "GS50–59", "GS60–69", "GS70–79", "GS80–89", "Harvest",
+// ── UK standardised crop types ────────────────────────────────────────────────
+const UK_CROP_TYPES = [
+  { label: "Winter Wheat", group: "Cereals" },
+  { label: "Spring Wheat", group: "Cereals" },
+  { label: "Winter Barley", group: "Cereals" },
+  { label: "Spring Barley", group: "Cereals" },
+  { label: "Winter Oats", group: "Cereals" },
+  { label: "Spring Oats", group: "Cereals" },
+  { label: "Winter Rye", group: "Cereals" },
+  { label: "Triticale", group: "Cereals" },
+  { label: "Winter OSR", group: "Oilseeds" },
+  { label: "Spring OSR", group: "Oilseeds" },
+  { label: "Linseed", group: "Oilseeds" },
+  { label: "Field Beans", group: "Pulses" },
+  { label: "Spring Beans", group: "Pulses" },
+  { label: "Peas", group: "Pulses" },
+  { label: "Sugar Beet", group: "Roots" },
+  { label: "Fodder Beet", group: "Roots" },
+  { label: "Potatoes", group: "Roots" },
+  { label: "Maize", group: "Other" },
+  { label: "Grass / Herbage", group: "Other" },
+  { label: "Cover Crop", group: "Other" },
+  { label: "Fallow / Bare", group: "Other" },
+  { label: "Other", group: "Other" },
 ];
+
+type CropGroup = "cereal" | "osr" | "sugarbeet" | "potatoes" | "beans" | "peas" | "maize" | "grass" | "generic";
+
+function getCropGroup(c: string): CropGroup {
+  const l = c.toLowerCase();
+  if (/wheat|barley|oat|rye|triticale/.test(l)) return "cereal";
+  if (/osr|rapeseed/.test(l)) return "osr";
+  if (/sugar beet/.test(l)) return "sugarbeet";
+  if (/potato/.test(l)) return "potatoes";
+  if (/bean/.test(l)) return "beans";
+  if (/pea/.test(l)) return "peas";
+  if (/maize|corn/.test(l)) return "maize";
+  if (/grass|herbage/.test(l)) return "grass";
+  return "generic";
+}
+
+const GROWTH_STAGES_BY_GROUP: Record<CropGroup, string[]> = {
+  cereal: [
+    "Pre-emergence", "GS10–19 (Seedling)", "GS20–29 (Tillering)",
+    "GS30 (Stem extension)", "GS31 (1st node)", "GS32 (2nd node)",
+    "GS37–39 (Flag leaf)", "GS41–49 (Booting)", "GS51–59 (Ear emergence)",
+    "GS61–69 (Anthesis)", "GS71–79 (Grain fill)", "GS80–89 (Ripening)", "Harvest ripe",
+  ],
+  osr: [
+    "Pre-emergence", "Cotyledon stage", "1–3 true leaves", "Rosette (Autumn)",
+    "Over-wintered rosette", "Stem extension", "Green bud", "Yellow bud",
+    "Full flower", "Pod fill", "Ripening", "Harvest ripe",
+  ],
+  sugarbeet: [
+    "Pre-emergence", "Cotyledon stage", "2 true leaves", "4 true leaves",
+    "6 leaves", "8 leaves", "Canopy closure", "Mid-season", "Mature / Harvest",
+  ],
+  potatoes: [
+    "Pre-emergence", "Emergence", "Early vegetative", "Canopy development",
+    "Canopy closure", "Flowering", "Tuber bulking", "Senescence", "Harvest ready",
+  ],
+  beans: [
+    "Pre-emergence", "Germination", "Seedling (VC)", "2 true leaves",
+    "Vegetative growth", "Flowering (R1)", "Pod set (R3)", "Pod fill (R5)", "Harvest ripe",
+  ],
+  peas: [
+    "Pre-emergence", "Germination", "Seedling (1st node)", "2–4 nodes",
+    "Tendrils", "Flowering", "Pod set", "Pod fill", "Harvest ripe",
+  ],
+  maize: [
+    "Pre-emergence", "VE (Emergence)", "V2–V3", "V4–V6", "V8–V10",
+    "V12 (Knee high)", "VT (Tasselling)", "R1 (Silking)",
+    "R2–R3 (Grain fill)", "R4–R5 (Dough / Dent)", "R6 (Maturity)", "Harvest ripe",
+  ],
+  grass: [
+    "Pre-growth / Dormant", "Early growth", "Vegetative", "Stem extension",
+    "Heading", "Anthesis", "Post-cut recovery", "Post-grazing recovery",
+  ],
+  generic: [
+    "Pre-emergence", "Germination", "Seedling", "Early vegetative",
+    "Vegetative growth", "Flowering / Bolting", "Fruit / Seed / Tuber set", "Maturity", "Harvest ripe",
+  ],
+};
 
 export default function FieldInspectionScreen() {
   const insets = useSafeAreaInsets();
@@ -168,14 +247,26 @@ export default function FieldInspectionScreen() {
             <Feather name="layers" size={14} color={colors.fieldGreen} />
             <Text style={styles.sectionTitle}>Crop & Growth Stage</Text>
           </View>
-          <Input
-            label="Crop Type"
-            placeholder="e.g. Winter wheat, OSR"
-            value={cropType}
-            onChangeText={setCropType}
-          />
+          <Text style={styles.fieldLabel}>Crop</Text>
           <View style={styles.stageGrid}>
-            {GROWTH_STAGES.map((gs) => (
+            {UK_CROP_TYPES.map((c) => (
+              <Pressable
+                key={c.label}
+                onPress={() => { Haptics.selectionAsync(); setCropType(c.label); setGrowthStage(""); }}
+                style={[
+                  styles.stageChip,
+                  cropType === c.label && { backgroundColor: colors.fieldGreen, borderColor: colors.fieldGreen },
+                ]}
+              >
+                <Text style={[styles.stageText, cropType === c.label && { color: colors.textInverse }]}>{c.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[styles.fieldLabel, { marginTop: spacing.sm }]}>
+            Growth Stage{cropType ? ` — ${cropType}` : " (select crop first)"}
+          </Text>
+          <View style={styles.stageGrid}>
+            {(cropType ? GROWTH_STAGES_BY_GROUP[getCropGroup(cropType)] : []).map((gs) => (
               <Pressable
                 key={gs}
                 onPress={() => { Haptics.selectionAsync(); setGrowthStage(gs); }}
@@ -187,6 +278,9 @@ export default function FieldInspectionScreen() {
                 <Text style={[styles.stageText, growthStage === gs && { color: colors.textInverse }]}>{gs}</Text>
               </Pressable>
             ))}
+            {!cropType && (
+              <Text style={styles.stageHint}>Select a crop above to see relevant growth stages</Text>
+            )}
           </View>
 
           <View style={styles.sectionLabel}>
@@ -343,6 +437,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  stageHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    paddingVertical: spacing.xs,
   },
   actionGrid: {
     gap: spacing.sm,

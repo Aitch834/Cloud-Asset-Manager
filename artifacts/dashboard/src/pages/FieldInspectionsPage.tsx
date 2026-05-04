@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -17,6 +18,74 @@ import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, 
 import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
+
+// ── UK standardised crop list ─────────────────────────────────────────────────
+const UK_CROP_TYPES = [
+  "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
+  "Winter Oats", "Spring Oats", "Winter Rye", "Triticale",
+  "Winter OSR", "Spring OSR", "Linseed",
+  "Field Beans", "Spring Beans", "Peas",
+  "Sugar Beet", "Fodder Beet", "Potatoes",
+  "Maize", "Grass / Herbage", "Cover Crop", "Fallow / Bare", "Other",
+];
+
+type CropGroup = "cereal" | "osr" | "sugarbeet" | "potatoes" | "beans" | "peas" | "maize" | "grass" | "generic";
+
+function getCropGroup(c: string): CropGroup {
+  const l = c.toLowerCase();
+  if (/wheat|barley|oat|rye|triticale/.test(l)) return "cereal";
+  if (/osr|rapeseed/.test(l)) return "osr";
+  if (/sugar beet/.test(l)) return "sugarbeet";
+  if (/potato/.test(l)) return "potatoes";
+  if (/bean/.test(l)) return "beans";
+  if (/pea/.test(l)) return "peas";
+  if (/maize|corn/.test(l)) return "maize";
+  if (/grass|herbage/.test(l)) return "grass";
+  return "generic";
+}
+
+const GROWTH_STAGES_BY_GROUP: Record<CropGroup, string[]> = {
+  cereal: [
+    "Pre-emergence", "GS10–19 (Seedling)", "GS20–29 (Tillering)",
+    "GS30 (Stem extension)", "GS31 (1st node)", "GS32 (2nd node)",
+    "GS37–39 (Flag leaf)", "GS41–49 (Booting)", "GS51–59 (Ear emergence)",
+    "GS61–69 (Anthesis)", "GS71–79 (Grain fill)", "GS80–89 (Ripening)", "Harvest ripe",
+  ],
+  osr: [
+    "Pre-emergence", "Cotyledon stage", "1–3 true leaves", "Rosette (Autumn)",
+    "Over-wintered rosette", "Stem extension", "Green bud", "Yellow bud",
+    "Full flower", "Pod fill", "Ripening", "Harvest ripe",
+  ],
+  sugarbeet: [
+    "Pre-emergence", "Cotyledon stage", "2 true leaves", "4 true leaves",
+    "6 leaves", "8 leaves", "Canopy closure", "Mid-season", "Mature / Harvest",
+  ],
+  potatoes: [
+    "Pre-emergence", "Emergence", "Early vegetative", "Canopy development",
+    "Canopy closure", "Flowering", "Tuber bulking", "Senescence", "Harvest ready",
+  ],
+  beans: [
+    "Pre-emergence", "Germination", "Seedling (VC)", "2 true leaves",
+    "Vegetative growth", "Flowering (R1)", "Pod set (R3)", "Pod fill (R5)", "Harvest ripe",
+  ],
+  peas: [
+    "Pre-emergence", "Germination", "Seedling (1st node)", "2–4 nodes",
+    "Tendrils", "Flowering", "Pod set", "Pod fill", "Harvest ripe",
+  ],
+  maize: [
+    "Pre-emergence", "VE (Emergence)", "V2–V3", "V4–V6", "V8–V10",
+    "V12 (Knee high)", "VT (Tasselling)", "R1 (Silking)",
+    "R2–R3 (Grain fill)", "R4–R5 (Dough / Dent)", "R6 (Maturity)", "Harvest ripe",
+  ],
+  grass: [
+    "Pre-growth / Dormant", "Early growth", "Vegetative", "Stem extension",
+    "Heading", "Anthesis", "Post-cut recovery", "Post-grazing recovery",
+  ],
+  generic: [
+    "Pre-emergence", "Germination", "Seedling", "Early vegetative",
+    "Vegetative growth", "Flowering / Bolting", "Fruit / Seed / Tuber set", "Maturity", "Harvest ripe",
+  ],
+};
 
 interface Photo { id: number; objectPath: string; fileName: string | null; }
 
@@ -232,6 +301,8 @@ export default function FieldInspectionsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { user } = useUser();
+  const inspectorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "" : "";
 
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState<string>("all");
@@ -246,8 +317,13 @@ export default function FieldInspectionsPage() {
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<FieldInspection | null>(null);
-  const emptyForm = { fieldName: "", inspectionDate: new Date().toISOString().slice(0, 10), cropType: "", growthStage: "", pestDiseaseObservations: "", actionRequired: "none" as ActionRequired, recommendedAction: "", inspector: "", notes: "" };
-  const [form, setForm] = useState({ ...emptyForm });
+  const emptyForm = () => ({ fieldName: "", inspectionDate: new Date().toISOString().slice(0, 10), cropType: "", growthStage: "", pestDiseaseObservations: "", actionRequired: "none" as ActionRequired, recommendedAction: "", inspector: inspectorName, notes: "" });
+  const [form, setForm] = useState(emptyForm());
+
+  // Keep inspector pre-filled when Clerk loads asynchronously
+  useEffect(() => {
+    if (inspectorName && !form.inspector) setForm(f => ({ ...f, inspector: inspectorName }));
+  }, [inspectorName]);
   const formOpen = addOpen || !!editRecord;
   function openEditInspection(r: FieldInspection) {
     setEditRecord(r);
@@ -263,7 +339,7 @@ export default function FieldInspectionsPage() {
       notes: r.notes ?? "",
     });
   }
-  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm({ ...emptyForm }); }
+  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); }
 
   const raiseAfterSave = useRef(false);
 
@@ -396,6 +472,7 @@ export default function FieldInspectionsPage() {
 
   function openResolve(r: FieldInspection) {
     setDetailRecord(r);
+    setResolvedBy(inspectorName);
     setResolveOpen(true);
   }
 
@@ -648,7 +725,7 @@ export default function FieldInspectionsPage() {
                   <p>{detailRecord.inspector || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium uppercase mb-1">Crop Type</p>
+                  <p className="text-xs text-gray-500 font-medium uppercase mb-1">Crop</p>
                   <p>{detailRecord.cropType || "—"}</p>
                 </div>
                 <div>
@@ -774,12 +851,30 @@ export default function FieldInspectionsPage() {
                 <Input type="date" value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} />
               </div>
               <div>
-                <Label>Crop Type</Label>
-                <Input placeholder="e.g. Winter Wheat" value={form.cropType} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} />
+                <Label>Crop</Label>
+                <Select value={form.cropType || "__none__"} onValueChange={v => setForm(f => ({ ...f, cropType: v === "__none__" ? "" : v, growthStage: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {UK_CROP_TYPES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Growth Stage</Label>
-                <Input placeholder="e.g. BBCH 30" value={form.growthStage} onChange={e => setForm(f => ({ ...f, growthStage: e.target.value }))} />
+                <Select
+                  value={form.growthStage || "__none__"}
+                  onValueChange={v => setForm(f => ({ ...f, growthStage: v === "__none__" ? "" : v }))}
+                  disabled={!form.cropType}
+                >
+                  <SelectTrigger><SelectValue placeholder={form.cropType ? "Select stage…" : "Select crop first"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {(form.cropType ? GROWTH_STAGES_BY_GROUP[getCropGroup(form.cropType)] : []).map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
@@ -798,6 +893,9 @@ export default function FieldInspectionsPage() {
                     <SelectItem value="urgent">Urgent</SelectItem>
                   </SelectContent>
                 </Select>
+                {canRaiseTask && (
+                  <p className="text-xs text-indigo-600 mt-1">Use "Save &amp; Raise Task" to assign this to a staff member with SMS notification.</p>
+                )}
               </div>
               <div>
                 <Label>Inspector</Label>
