@@ -317,6 +317,7 @@ export default function FieldInspectionsPage() {
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<FieldInspection | null>(null);
+  const [fieldNameIsCustom, setFieldNameIsCustom] = useState(false);
   const emptyForm = () => ({ fieldName: "", inspectionDate: new Date().toISOString().slice(0, 10), cropType: "", growthStage: "", pestDiseaseObservations: "", actionRequired: "none" as ActionRequired, recommendedAction: "", inspector: inspectorName, notes: "" });
   const [form, setForm] = useState(emptyForm());
 
@@ -327,6 +328,7 @@ export default function FieldInspectionsPage() {
   const formOpen = addOpen || !!editRecord;
   function openEditInspection(r: FieldInspection) {
     setEditRecord(r);
+    setFieldNameIsCustom(!!r.fieldName && registeredFields.length > 0 && !registeredFields.includes(r.fieldName));
     setForm({
       fieldName: r.fieldName,
       inspectionDate: r.inspectionDate ? r.inspectionDate.slice(0, 10) : "",
@@ -339,7 +341,7 @@ export default function FieldInspectionsPage() {
       notes: r.notes ?? "",
     });
   }
-  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); }
+  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setFieldNameIsCustom(false); }
 
   const raiseAfterSave = useRef(false);
 
@@ -413,6 +415,13 @@ export default function FieldInspectionsPage() {
   }
 
   const canRaiseTask = (form.actionRequired === "monitor" || form.actionRequired === "treat" || form.actionRequired === "urgent");
+
+  const { data: fieldsData } = useQuery<{ records: Array<{ id: number; name: string; isActive?: boolean }> }>({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const registeredFields = (fieldsData?.records ?? []).filter(f => f.isActive !== false).map(f => f.name).sort();
 
   const { data, isLoading } = useQuery({
     queryKey: ["field-inspections", farmId],
@@ -844,7 +853,33 @@ export default function FieldInspectionsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Field Name <span className="text-red-500">*</span></Label>
-                <Input placeholder="e.g. North Field" value={form.fieldName} onChange={e => setForm(f => ({ ...f, fieldName: e.target.value }))} />
+                {registeredFields.length > 0 && !fieldNameIsCustom ? (
+                  <Select
+                    value={form.fieldName || "__none__"}
+                    onValueChange={v => {
+                      if (v === "__custom__") { setFieldNameIsCustom(true); setForm(f => ({ ...f, fieldName: "" })); }
+                      else { setForm(f => ({ ...f, fieldName: v === "__none__" ? "" : v })); }
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Select field —</SelectItem>
+                      {registeredFields.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      <SelectItem value="__custom__">✏ Enter manually…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <Input
+                      placeholder="e.g. North Field"
+                      value={form.fieldName}
+                      onChange={e => setForm(f => ({ ...f, fieldName: e.target.value }))}
+                    />
+                    {registeredFields.length > 0 && (
+                      <Button type="button" variant="ghost" size="sm" className="px-2 text-xs text-gray-400 hover:text-gray-600 shrink-0" onClick={() => { setFieldNameIsCustom(false); setForm(f => ({ ...f, fieldName: "" })); }}>↩</Button>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Inspection Date <span className="text-red-500">*</span></Label>
