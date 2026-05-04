@@ -97,7 +97,7 @@ type HourlyRate = {
 
 // ─── Tab Button ──────────────────────────────────────────────────────────────
 
-function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: React.ElementType; label: string }) {
+function TabBtn({ active, onClick, icon: Icon, label, badge }: { active: boolean; onClick: () => void; icon: React.ElementType; label: string; badge?: number }) {
   return (
     <button
       onClick={onClick}
@@ -107,6 +107,11 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onCli
     >
       <Icon size={15} />
       {label}
+      {badge != null && badge > 0 && (
+        <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -163,7 +168,8 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
       const day = s.days[todayIndex];
       return day && (day.status === "approved" || day.status === "pending");
     });
-    return { scheduled: scheduled.length, submitted: submitted.length };
+    const pendingCount = data.staff.filter(s => s.days[todayIndex]?.status === "pending").length;
+    return { scheduled: scheduled.length, submitted: submitted.length, pendingCount };
   })() : null;
 
   const cellCls = (status: string) => {
@@ -211,6 +217,16 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
           </Button>
         </div>
       </div>
+
+      {/* Pending approval banner */}
+      {summary !== null && summary.pendingCount > 0 && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-800">
+          <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+          <span>
+            <strong>{summary.pendingCount} timesheet{summary.pendingCount !== 1 ? "s" : ""} submitted today</strong> and awaiting your approval — open each entry in the table below and add your name to the <em>Approved By</em> field.
+          </span>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 px-4 py-1.5 border-b bg-gray-50/60 text-xs text-gray-500">
@@ -1584,7 +1600,7 @@ type LabourTab = "timesheets" | "rota" | "absence" | "pay" | "wtr";
 
 export default function LabourPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<LabourTab>("timesheets");
+  const [tab, setTab] = useState<LabourTab>("rota");
 
   const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean }> }>({
     queryKey: ["staff-members", farmId],
@@ -1600,6 +1616,22 @@ export default function LabourPage() {
       .sort(),
     [staffQ.data],
   );
+
+  // Pending timesheets badge for the Timesheets tab
+  const todayWeekStart = useMemo(() => isoDate(getMondayOfWeek(new Date())), []);
+  const pendingStatusQ = useQuery<{ staff: StaffStatus[] }>({
+    queryKey: ["labour-submission-status", farmId, todayWeekStart],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/submission-status?weekStart=${todayWeekStart}`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
+  const pendingBadge = useMemo(() => {
+    if (!pendingStatusQ.data?.staff?.length) return 0;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const d = new Date(todayStr + "T00:00:00Z"); const dow = d.getUTCDay();
+    const idx = dow === 0 ? 6 : dow - 1;
+    return pendingStatusQ.data.staff.filter(s => s.days[idx]?.status === "pending").length;
+  }, [pendingStatusQ.data]);
 
   if (!farmId) {
     return (
@@ -1617,8 +1649,8 @@ export default function LabourPage() {
 
       {/* Tab bar */}
       <div className="border-b flex gap-0 overflow-x-auto mb-6">
-        <TabBtn active={tab === "timesheets"} onClick={() => setTab("timesheets")} icon={Clock} label="Timesheets" />
         <TabBtn active={tab === "rota"} onClick={() => setTab("rota")} icon={CalendarDays} label="Rota & Shifts" />
+        <TabBtn active={tab === "timesheets"} onClick={() => setTab("timesheets")} icon={Clock} label="Timesheets" badge={pendingBadge} />
         <TabBtn active={tab === "absence"} onClick={() => setTab("absence")} icon={UmbrellaOff} label="Holiday & Absence" />
         <TabBtn active={tab === "pay"} onClick={() => setTab("pay")} icon={PoundSterling} label="Pay Summary" />
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />

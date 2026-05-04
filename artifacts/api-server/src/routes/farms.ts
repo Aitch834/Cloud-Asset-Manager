@@ -22684,6 +22684,28 @@ router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, asyn
   const b = req.body as Record<string, unknown>;
   const [row] = await db.insert(labourTimesheetEntriesTable).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
   res.json({ entry: row });
+  // Fire-and-forget: SMS managers when mobile staff submit without prior approval
+  if (!b.approvedBy) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const staffName = String(b.staffName ?? "A staff member");
+        const hours = parseFloat(String(b.hoursRegular ?? "0")).toFixed(1);
+        const msg = `BDE Farm Trac: ${staffName} submitted a timesheet (${hours}h) on ${farm.name} — awaiting your approval. Log in to Labour > Timesheets.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Timesheet SMS]", err); }
+    })();
+  }
 });
 router.put("/farms/:farmId/labour/timesheets/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
