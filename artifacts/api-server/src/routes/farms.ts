@@ -897,6 +897,13 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const allowed: Record<string, unknown> = {};
   if (req.body.notes !== undefined) allowed.notes = req.body.notes || null;
+  if (req.body.cropId !== undefined) {
+    const cropId = Number(req.body.cropId);
+    if (isNaN(cropId)) { res.status(400).json({ error: "Invalid cropId" }); return; }
+    const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
+    if (!crop) { res.status(400).json({ error: "Crop not found on this farm" }); return; }
+    allowed.cropId = cropId;
+  }
   if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
   const [existing] = await db
     .select({ id: fieldCropAssignmentsTable.id })
@@ -907,6 +914,22 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   const [record] = await db.update(fieldCropAssignmentsTable).set(allowed).where(eq(fieldCropAssignmentsTable.id, id)).returning();
   res.json({ record });
+});
+
+router.delete("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db
+    .select({ id: fieldCropAssignmentsTable.id })
+    .from(fieldCropAssignmentsTable)
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(eq(fieldCropAssignmentsTable.id, id), eq(fieldsTable.farmId, farmId)))
+    .limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(fieldCropAssignmentsTable).where(eq(fieldCropAssignmentsTable.id, id));
+  res.json({ success: true });
 });
 
 // ─── Field Season Land Use ───────────────────────────────────────

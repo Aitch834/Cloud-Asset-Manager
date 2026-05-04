@@ -80,6 +80,23 @@ A dedicated "Organic Farming" section in the sidebar includes four modules: Orga
 ### P1/P2 Compliance Gap Features
 Recent additions address Red Tractor / APHA compliance gaps, including new database tables for bovine TB tests, welfare outcome assessments, PPE issue records, contractors, and sheep dipping records. Schema changes include `ata_number` and `ata_expiry_date` in `livestock_movements` and the addition of `farm_departments`. New API routes and dashboard features provide full CRUD functionality for these new tables, staff department management, an enhanced task board, and dedicated compliance tabs within the dashboard (e.g., TB Tests, Welfare Outcomes, Sheep Dipping, PPE Register). A new standalone Contractors H&S File page and an AMRM Report tab in the Vet Ledger have also been implemented.
 
+### Crop Rotation Planner — Persistent DB-backed Implementation
+- **`CropRotationPlanner`** component in `artifacts/dashboard/src/pages/Fields.tsx` fully rewritten (was 100% ephemeral in-browser state):
+  - Fetches `GET /api/farms/:farmId/field-crops` and `GET /api/farms/:farmId/crops` on mount
+  - Dynamic year range: `currentYear - 4` to `currentYear + 4` (9 columns); current year highlighted in green
+  - Past year columns labelled "confirmed" (grey header), current year "▶ current", future "planned" (blue-tinted)
+  - Each cell maps to a real `field_crop_assignments` record; green dot indicates a saved DB record
+  - Cell change immediately persists: DELETE (clearing), PATCH `cropId` (updating), or POST (new assignment)
+  - "Find or create" crop logic: if a generic rotation category (e.g. "Wheat") isn't yet in `cropsTable`, creates it automatically
+  - Dropdown optgroups: "Farm Crops" (farm's registered varieties) and "Rotation Categories" (generic fallback list)
+  - OSR interval and diversity warnings calculated from live DB data plus any pending changes
+  - Per-field notes saved to the current year's assignment on blur
+  - `fieldsLoading` prop passed from parent to prevent premature "no fields" empty state during initial load
+- **Backend `artifacts/api-server/src/routes/farms.ts`**:
+  - `PATCH /farms/:farmId/field-crops/:id` extended to accept `cropId` updates (previously notes-only)
+  - New `DELETE /farms/:farmId/field-crops/:id` endpoint added (with farm ownership validation)
+- `useToast` import added to `Fields.tsx`; `useMemo` added to React import
+
 ### Dairy Management Module — Milk Records Overhaul
 - **`dairy_milk_records`** table gained 13 new columns: `milk_buyer`, `temp_tested_by`, `abr_tested_by`, `abr_test_kit_lot`, `abr_test_kit_batch`, `buyer_lab_results_status` (not-applicable/pending/received/concern), `buyer_lab_results_date`, `buyer_lab_ref`, `buyer_scc_thousands`, `buyer_tbc_cfu_ml`, `buyer_fat_percent`, `buyer_protein_percent`, `buyer_lactose_percent`.
 - **`dairy_milk_collections`** table gained 7 pricing columns: `pence_per_litre`, `gross_value_pence`, `quality_bonus_pence`, `quality_penalty_pence`, `transport_deduction_pence`, `net_payment_pence`, `statement_ref`.
