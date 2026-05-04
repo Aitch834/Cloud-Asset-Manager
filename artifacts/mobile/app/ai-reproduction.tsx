@@ -207,7 +207,7 @@ export default function AiReproductionScreen() {
           <Input label="Animal Tag / Ear Number *" value={animalId} onChangeText={setAnimalId} placeholder="e.g. UK123456 00001" />
 
           <Text style={styles.sectionTitle}>Service Details</Text>
-          <Input label="Service Date *" value={serviceDate} onChangeText={handleServiceDateChange} placeholder="YYYY-MM-DD" />
+          <Input label="Service Date *" value={serviceDate} onChangeText={handleServiceDateChange} placeholder="YYYY-MM-DD" maxDate="today" />
 
           <Text style={styles.label}>Service Method *</Text>
           <View style={styles.chipRow}>

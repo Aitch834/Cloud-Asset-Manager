@@ -139,7 +139,7 @@ export default function GrainTemperatureScreen() {
           <Text style={styles.sectionTitle}>Reading</Text>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <Input label="Date" value={readingDate} onChangeText={setReadingDate} placeholder="YYYY-MM-DD" />
+              <Input label="Date" value={readingDate} onChangeText={setReadingDate} placeholder="YYYY-MM-DD" maxDate="today" />
             </View>
             <View style={{ flex: 1 }}>
               <Input label="Time" value={readingTime} onChangeText={setReadingTime} placeholder="HH:MM" />

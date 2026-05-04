@@ -191,6 +191,7 @@ export default function BodyConditionScoreScreen() {
             value={assessmentDate}
             onChangeText={setAssessmentDate}
             keyboardType="numbers-and-punctuation"
+            maxDate="today"
           />
           <Text style={styles.label}>Life Stage</Text>
           <View style={styles.chipRow}>

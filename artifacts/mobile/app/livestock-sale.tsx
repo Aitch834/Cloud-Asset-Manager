@@ -144,7 +144,7 @@ export default function LivestockSaleScreen() {
             </Pressable>
           </View>
 
-          <Input label="Sale / Kill Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" />
+          <Input label="Sale / Kill Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" maxDate="today" />
 
           <Text style={styles.sectionLabel}>Species *</Text>
           <View style={styles.pillRow}>

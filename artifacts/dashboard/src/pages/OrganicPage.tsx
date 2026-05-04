@@ -403,7 +403,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
               <div><Label>Operator Number</Label><Input className={INPUT_CLS} value={form.operatorNumber} onChange={e => setForm(f => ({ ...f, operatorNumber: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Certification Date</Label><Input type="date" className={INPUT_CLS} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
+              <div><Label>Certification Date</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
               <div><Label>Annual Renewal Date</Label><Input type="date" className={INPUT_CLS} value={form.renewalDate} onChange={e => setForm(f => ({ ...f, renewalDate: e.target.value }))} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} /></div>
@@ -643,11 +643,11 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               </select>
             </div>
             {form.status === "in-conversion" && (
-              <div><Label>Conversion Start Date</Label><Input type="date" className={INPUT_CLS} value={form.conversionStartDate} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
+              <div><Label>Conversion Start Date</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.conversionStartDate} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
             )}
             {form.status === "certified" && (
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Certified From</Label><Input type="date" className={INPUT_CLS} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
+                <div><Label>Certified From</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
                 <div><Label>Certifier Reference</Label><Input className={INPUT_CLS} placeholder="e.g. SA-2024-F001" value={form.certifierRef} onChange={e => setForm(f => ({ ...f, certifierRef: e.target.value }))} /></div>
               </div>
             )}
@@ -822,7 +822,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                   {CERTIFIERS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div><Label>Inspection Date *</Label><Input type="date" className={INPUT_CLS} required value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} /></div>
+              <div><Label>Inspection Date *</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} required value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inspector Name</Label><Input className={INPUT_CLS} value={form.inspectorName} onChange={e => setForm(f => ({ ...f, inspectorName: e.target.value }))} /></div>
@@ -1305,7 +1305,7 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Date Applied *</Label><Input type="date" className={INPUT_CLS} required value={form.dateApplied} onChange={e => setForm(f => ({ ...f, dateApplied: e.target.value }))} /></div>
+              <div><Label>Date Applied *</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} required value={form.dateApplied} onChange={e => setForm(f => ({ ...f, dateApplied: e.target.value }))} /></div>
               <div>
                 <Label>Field / Area</Label>
                 <FieldPicker
@@ -1716,7 +1716,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                   {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
-              <div><Label>Date of Use</Label><Input type="date" className={INPUT_CLS} value={form.dateOfUse} onChange={e => setForm(f => ({ ...f, dateOfUse: e.target.value }))} /></div>
+              <div><Label>Date of Use</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.dateOfUse} onChange={e => setForm(f => ({ ...f, dateOfUse: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

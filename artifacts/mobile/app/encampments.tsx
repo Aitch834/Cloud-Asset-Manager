@@ -209,7 +209,7 @@ export default function EncampmentsScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Date Discovered *</Text>
-            <Input placeholder="YYYY-MM-DD" value={discoveredAt} onChangeText={setDiscoveredAt} />
+            <Input placeholder="YYYY-MM-DD" value={discoveredAt} onChangeText={setDiscoveredAt} maxDate="today" />
           </View>
 
           <View style={styles.field}>

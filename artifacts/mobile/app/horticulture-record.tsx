@@ -143,7 +143,7 @@ export default function HorticultureRecordScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Crop & Location</Text>
-          <Input label="Activity Date" value={activityDate} onChangeText={setActivityDate} placeholder="YYYY-MM-DD" />
+          <Input label="Activity Date" value={activityDate} onChangeText={setActivityDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Crop Name *" value={cropName} onChangeText={setCropName} placeholder="e.g. Strawberry, Lettuce, Leek" />
           <Input label="Variety" value={variety} onChangeText={setVariety} placeholder="e.g. Elsanta, Cos" />
           <Input label="Block / Field / Bed *" value={blockOrField} onChangeText={setBlockOrField} placeholder="e.g. Block A, Field 3" />

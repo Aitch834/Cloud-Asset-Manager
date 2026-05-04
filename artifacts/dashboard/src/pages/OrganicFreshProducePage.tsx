@@ -343,7 +343,7 @@ function SyntheticHistoryPanel({
               </select>
             </div>
             <div><Label className="text-xs">Active Ingredient</Label><Input className="h-7 text-xs" value={manualForm.activeIngredient} onChange={e => setManualForm(f => ({ ...f, activeIngredient: e.target.value }))} /></div>
-            <div><Label className="text-xs">Application Date</Label><Input type="date" className="h-7 text-xs" value={manualForm.applicationDate} onChange={e => setManualForm(f => ({ ...f, applicationDate: e.target.value }))} /></div>
+            <div><Label className="text-xs">Application Date</Label><Input type="date" className="h-7 text-xs" max={new Date().toISOString().slice(0, 10)} value={manualForm.applicationDate} onChange={e => setManualForm(f => ({ ...f, applicationDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={manualForm.notes} onChange={e => setManualForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. reason for application" /></div>
           </div>
           <div className="flex gap-2 justify-end">
@@ -708,7 +708,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Conversion Start Date</Label><Input type="date" value={form.conversionStartDate ?? ""} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
+            <div><Label>Conversion Start Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.conversionStartDate ?? ""} onChange={e => setForm(f => ({ ...f, conversionStartDate: e.target.value }))} /></div>
             <div><Label>Fully Organic Date</Label><Input type="date" value={form.fullyOrganicDate ?? ""} onChange={e => setForm(f => ({ ...f, fullyOrganicDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Land Use Before Conversion</Label><Input value={form.landUseBeforeConversion ?? ""} onChange={e => setForm(f => ({ ...f, landUseBeforeConversion: e.target.value }))} placeholder="e.g. Conventional arable, intensive vegetable production" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>

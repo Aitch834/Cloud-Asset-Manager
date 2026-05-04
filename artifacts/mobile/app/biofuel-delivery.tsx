@@ -141,6 +141,7 @@ export default function BiofuelDeliveryScreen() {
             onChangeText={setDeliveryDate}
             placeholder="YYYY-MM-DD"
             keyboardType="numeric"
+            maxDate="today"
           />
           <Input
             label="Quantity (tonnes)"

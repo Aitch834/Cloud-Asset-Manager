@@ -750,7 +750,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
               </div>
               <div>
                 <Label>Date *</Label>
-                <Input type="date" className="mt-1" value={form.date} onChange={e => sf("date", e.target.value)} />
+                <Input type="date" className="mt-1" max={new Date().toISOString().slice(0, 10)} value={form.date} onChange={e => sf("date", e.target.value)} />
               </div>
               <div>
                 <Label>Task Type *</Label>

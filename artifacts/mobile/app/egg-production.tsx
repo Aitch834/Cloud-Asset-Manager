@@ -115,7 +115,7 @@ export default function EggProductionScreen() {
               <Input label="House / Unit" value={house} onChangeText={setHouse} placeholder="House number" />
             </View>
             <View style={{ flex: 1 }}>
-              <Input label="Record Date" value={recordDate} onChangeText={setRecordDate} placeholder="YYYY-MM-DD" />
+              <Input label="Record Date" value={recordDate} onChangeText={setRecordDate} placeholder="YYYY-MM-DD" maxDate="today" />
             </View>
           </View>
           <Input label="Birds in Flock" value={birdsInFlock} onChangeText={setBirdsInFlock} placeholder="Head count" keyboardType="numeric" />

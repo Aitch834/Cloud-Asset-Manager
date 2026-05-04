@@ -2714,7 +2714,7 @@ function HireBookingDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Deposit Received Date</Label>
-              <Input type="date" value={form.depositPaidDate} onChange={(e) => setForm((f) => ({ ...f, depositPaidDate: e.target.value }))} />
+              <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.depositPaidDate} onChange={(e) => setForm((f) => ({ ...f, depositPaidDate: e.target.value }))} />
               <p className="text-xs text-muted-foreground">Leave blank if deposit not yet received</p>
             </div>
             <div className="flex items-end pb-6">
@@ -2817,7 +2817,7 @@ function ConditionCheckForm({
     <div className="bg-muted/40 border rounded-lg p-4 space-y-3">
       <h4 className="font-medium text-sm">{logType === "hire_out" ? "Pre-hire Condition Check" : "Return Condition Check"}</h4>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" value={form.logDate} onChange={(e) => setForm((f) => ({ ...f, logDate: e.target.value }))} /></div>
+        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.logDate} onChange={(e) => setForm((f) => ({ ...f, logDate: e.target.value }))} /></div>
         <div className="space-y-1"><Label className="text-xs">Time</Label><Input type="time" value={form.logTime} onChange={(e) => setForm((f) => ({ ...f, logTime: e.target.value }))} /></div>
         <div className="space-y-1"><Label className="text-xs">Hours Meter</Label><Input type="number" min="0" value={form.hoursReading} onChange={(e) => setForm((f) => ({ ...f, hoursReading: e.target.value }))} placeholder="e.g. 1450" /></div>
         <div className="space-y-1"><Label className="text-xs">Fuel Level %</Label><Input type="number" min="0" max="100" value={form.fuelLevelPercent} onChange={(e) => setForm((f) => ({ ...f, fuelLevelPercent: e.target.value }))} placeholder="0–100" /></div>
@@ -2874,7 +2874,7 @@ function FuelIssueForm({
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
       <h4 className="font-medium text-sm flex items-center gap-1.5"><Fuel className="h-4 w-4 text-amber-600" />Log Fuel Issue</h4>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} /></div>
+        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} /></div>
         <div className="space-y-1"><Label className="text-xs">Litres Issued</Label><Input type="number" step="0.1" min="0" value={form.litres} onChange={(e) => setForm((f) => ({ ...f, litres: e.target.value }))} placeholder="0.0" /></div>
         <div className="space-y-1"><Label className="text-xs">Price per Litre (£)</Label><Input type="number" step="0.001" min="0" value={form.pricePerLitrePence} onChange={(e) => setForm((f) => ({ ...f, pricePerLitrePence: e.target.value }))} placeholder="0.000" /></div>
         <div className="space-y-1"><Label className="text-xs">Issued By</Label><Input value={form.issuedBy} onChange={(e) => setForm((f) => ({ ...f, issuedBy: e.target.value }))} placeholder="Name" /></div>

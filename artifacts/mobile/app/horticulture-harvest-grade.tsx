@@ -111,7 +111,7 @@ export default function HorticultureHarvestGradeScreen() {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sectionTitle}>Crop & Date</Text>
-          <Input label="Grade Date" value={gradeDate} onChangeText={setGradeDate} placeholder="YYYY-MM-DD" />
+          <Input label="Grade Date" value={gradeDate} onChangeText={setGradeDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Crop Name *" value={cropName} onChangeText={setCropName} placeholder="e.g. Strawberry, Courgette" />
           <Input label="Block / Field" value={blockOrField} onChangeText={setBlockOrField} placeholder="e.g. Block B" />
 

@@ -6496,7 +6496,7 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
               </div>
               <div><Label>Cert. of Competence No.</Label><Input value={form.operatorCertNumber ?? ""} onChange={e => setF("operatorCertNumber", e.target.value || null)} className="font-mono" placeholder="PA6AW / equivalent" /></div>
               <div><Label>Cert. Expiry</Label><Input type="date" value={form.operatorCertExpiry ?? ""} onChange={e => setF("operatorCertExpiry", e.target.value || null)} /></div>
-              <div><Label>Bath Fill Date</Label><Input type="date" value={form.bathFillDate ?? ""} onChange={e => setF("bathFillDate", e.target.value || null)} /></div>
+              <div><Label>Bath Fill Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.bathFillDate ?? ""} onChange={e => setF("bathFillDate", e.target.value || null)} /></div>
               <div><Label>Days Since Last Use</Label><Input type="number" min={0} value={form.daysSinceLastUse ?? ""} onChange={e => setF("daysSinceLastUse", e.target.value ? Number(e.target.value) : null)} /></div>
               <div><Label>Top-Up Volume Added (L)</Label><Input value={form.topUpVolumeAdded ?? ""} onChange={e => setF("topUpVolumeAdded", e.target.value || null)} /></div>
               <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Dip Waste Disposal</p></div>
@@ -6511,7 +6511,7 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Disposal Quantity (L)</Label><Input type="number" min={0} value={form.disposalQuantityLitres ?? ""} onChange={e => setF("disposalQuantityLitres", e.target.value || null)} /></div>
-              <div><Label>Disposal Date</Label><Input type="date" value={form.disposalDate ?? ""} onChange={e => setF("disposalDate", e.target.value || null)} /></div>
+              <div><Label>Disposal Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.disposalDate ?? ""} onChange={e => setF("disposalDate", e.target.value || null)} /></div>
               <div><Label>Disposal Contractor</Label><Input value={form.disposalContractorName ?? ""} onChange={e => setF("disposalContractorName", e.target.value || null)} /></div>
               <div className="col-span-2"><Label>Waste Transfer Note Ref</Label><Input value={form.disposalWasteTransferNoteRef ?? ""} onChange={e => setF("disposalWasteTransferNoteRef", e.target.value || null)} className="font-mono" /></div>
               <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Withdrawal Period</p></div>

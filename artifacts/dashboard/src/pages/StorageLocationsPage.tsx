@@ -662,7 +662,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={movForm.movementDate} onChange={(e) => setMovForm((f) => ({ ...f, movementDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={movForm.movementDate} onChange={(e) => setMovForm((f) => ({ ...f, movementDate: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label>Movement type <span className="text-destructive">*</span></Label>
@@ -1024,7 +1024,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Date <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={chargeForm.chargeDate} onChange={(e) => setChargeForm((f) => ({ ...f, chargeDate: e.target.value }))} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={chargeForm.chargeDate} onChange={(e) => setChargeForm((f) => ({ ...f, chargeDate: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
                   <Label>Charge type</Label>
@@ -1061,7 +1061,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
                 </div>
                 <div className="space-y-1">
                   <Label>Statement date</Label>
-                  <Input type="date" value={chargeForm.statementDate} onChange={(e) => setChargeForm((f) => ({ ...f, statementDate: e.target.value }))} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={chargeForm.statementDate} onChange={(e) => setChargeForm((f) => ({ ...f, statementDate: e.target.value }))} />
                 </div>
               </div>
               <div className="space-y-1">
@@ -1102,11 +1102,11 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Period start <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={autoGenForm.periodStart} onChange={(e) => setAutoGenForm((f) => ({ ...f, periodStart: e.target.value }))} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={autoGenForm.periodStart} onChange={(e) => setAutoGenForm((f) => ({ ...f, periodStart: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
                   <Label>Period end <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={autoGenForm.periodEnd} onChange={(e) => setAutoGenForm((f) => ({ ...f, periodEnd: e.target.value }))} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={autoGenForm.periodEnd} onChange={(e) => setAutoGenForm((f) => ({ ...f, periodEnd: e.target.value }))} />
                 </div>
               </div>
               <div className="space-y-1">
@@ -1284,7 +1284,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Drying Run</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="col-span-2"><Label>Date *</Label><Input type="date" value={form.dryingDate} onChange={e => f("dryingDate")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.dryingDate} onChange={e => f("dryingDate")(e.target.value)} /></div>
             <div className="col-span-2"><Label>Crop Type *</Label><Input value={form.cropType} onChange={e => f("cropType")(e.target.value)} placeholder="e.g. Winter Wheat" /></div>
             <div><Label>Moisture In (%)</Label><Input type="number" step="0.1" value={form.moistureIn} onChange={e => f("moistureIn")(e.target.value)} /></div>
             <div><Label>Moisture Out (%)</Label><Input type="number" step="0.1" value={form.moistureOut} onChange={e => f("moistureOut")(e.target.value)} /></div>
@@ -1430,7 +1430,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Conditioning</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="col-span-2"><Label>Date *</Label><Input type="date" value={form.conditioningDate} onChange={e => f("conditioningDate")(e.target.value)} /></div>
+            <div className="col-span-2"><Label>Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.conditioningDate} onChange={e => f("conditioningDate")(e.target.value)} /></div>
             <div className="col-span-2"><Label>Crop Type *</Label><Input value={form.cropType} onChange={e => f("cropType")(e.target.value)} placeholder="e.g. Winter Wheat" /></div>
             <div className="col-span-2">
               <Label>Treatment Type</Label>
@@ -1814,7 +1814,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Test Date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={testForm.testDate} onChange={(e) => setTestForm((f) => ({ ...f, testDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={testForm.testDate} onChange={(e) => setTestForm((f) => ({ ...f, testDate: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label>Crop Type <span className="text-destructive">*</span></Label>
@@ -1916,7 +1916,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={tempForm.logDate} onChange={(e) => setTempForm((f) => ({ ...f, logDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={tempForm.logDate} onChange={(e) => setTempForm((f) => ({ ...f, logDate: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label>Time</Label>

@@ -883,7 +883,7 @@ export default function FieldInspectionsPage() {
               </div>
               <div>
                 <Label>Inspection Date <span className="text-red-500">*</span></Label>
-                <Input type="date" value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} />
               </div>
               <div>
                 <Label>Crop</Label>

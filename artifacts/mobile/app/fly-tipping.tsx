@@ -201,6 +201,7 @@ export default function FlyTippingScreen() {
               placeholder="YYYY-MM-DD"
               value={discoveredAt}
               onChangeText={setDiscoveredAt}
+              maxDate="today"
             />
           </View>
 

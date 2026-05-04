@@ -118,6 +118,7 @@ export default function EnvironmentalEventScreen() {
             placeholder={today}
             value={eventDate}
             onChangeText={setEventDate}
+            maxDate="today"
           />
 
           {/* Event type picker */}

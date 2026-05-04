@@ -158,7 +158,7 @@ export default function OrganicOutdoorAccessScreen() {
 
             <View style={styles.field}>
               <Text style={styles.label}>Date *</Text>
-              <Input placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} />
+              <Input placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} maxDate="today" />
             </View>
           </View>
 

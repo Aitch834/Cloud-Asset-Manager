@@ -329,7 +329,7 @@ export default function StaffTrainingScreen() {
             </Pressable>
           )}
 
-          <Input label="Training Date *" value={trainingDate} onChangeText={setTrainingDate} placeholder="YYYY-MM-DD" />
+          <Input label="Training Date *" value={trainingDate} onChangeText={setTrainingDate} placeholder="YYYY-MM-DD" maxDate="today" />
 
           <Text style={styles.sectionTitle}>Training Type</Text>
           <View style={styles.chipRow}>

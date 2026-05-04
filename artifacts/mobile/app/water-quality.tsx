@@ -348,6 +348,7 @@ export default function WaterQualityScreen() {
             value={testDate}
             onChangeText={setTestDate}
             keyboardType="numbers-and-punctuation"
+            maxDate="today"
           />
           <Text style={styles.label}>Test Result</Text>
           <OptionRow

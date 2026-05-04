@@ -171,7 +171,7 @@ export default function SlurryEventScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Details</Text>
-          <Input label="Event Date *" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" />
+          <Input label="Event Date *" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Store / Tank Reference *" value={storeReference} onChangeText={setStoreReference} placeholder="e.g. Slurry Store 1" />
           <Input label="Volume (m³)" value={volumeM3} onChangeText={setVolumeM3} placeholder="e.g. 150" keyboardType="decimal-pad" />
 

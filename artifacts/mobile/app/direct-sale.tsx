@@ -149,7 +149,7 @@ export default function DirectSaleScreen() {
             ))}
           </View>
 
-          <Input label="Sale Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" />
+          <Input label="Sale Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Product Name *" value={productName} onChangeText={setProductName} placeholder="e.g. Organic Carrots, Free Range Eggs" />
           <Input label="Product Category" value={productCategory} onChangeText={setProductCategory} placeholder="e.g. Vegetables, Meat, Eggs" />
 

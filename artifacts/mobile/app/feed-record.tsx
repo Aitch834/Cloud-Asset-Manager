@@ -345,6 +345,7 @@ export default function FeedRecordScreen() {
             value={feedDate}
             onChangeText={setFeedDate}
             keyboardType="numbers-and-punctuation"
+            maxDate="today"
           />
         </Section>
 

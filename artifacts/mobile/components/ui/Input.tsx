@@ -19,6 +19,8 @@ interface InputProps extends TextInputProps {
   icon?: keyof typeof Feather.glyphMap;
   containerStyle?: ViewStyle;
   required?: boolean;
+  /** Pass "today" (or a YYYY-MM-DD string) to prevent future dates being entered */
+  maxDate?: "today" | string;
 }
 
 export function Input({
@@ -27,9 +29,19 @@ export function Input({
   icon,
   containerStyle,
   required,
+  maxDate,
   ...props
 }: InputProps) {
   const [focused, setFocused] = useState(false);
+
+  const dateError = maxDate && props.value
+    ? (() => {
+        const max = maxDate === "today" ? new Date().toISOString().slice(0, 10) : maxDate;
+        const val = String(props.value);
+        return /^\d{4}-\d{2}-\d{2}$/.test(val) && val > max ? "Date cannot be in the future" : undefined;
+      })()
+    : undefined;
+  const displayError = error || dateError;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -43,7 +55,7 @@ export function Input({
         style={[
           styles.inputWrapper,
           focused && styles.inputFocused,
-          !!error && styles.inputError,
+          !!displayError && styles.inputError,
         ]}
       >
         {!!icon && (
@@ -62,7 +74,7 @@ export function Input({
           {...props}
         />
       </View>
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!displayError && <Text style={styles.error}>{displayError}</Text>}
     </View>
   );
 }

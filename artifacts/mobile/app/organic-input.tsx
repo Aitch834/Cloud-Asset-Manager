@@ -192,7 +192,7 @@ export default function OrganicInputScreen() {
             <View style={styles.row}>
               <View style={[styles.field, { flex: 1 }]}>
                 <Text style={styles.label}>Date of Use *</Text>
-                <Input placeholder="YYYY-MM-DD" value={dateOfUse} onChangeText={setDateOfUse} />
+                <Input placeholder="YYYY-MM-DD" value={dateOfUse} onChangeText={setDateOfUse} maxDate="today" />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
                 <Text style={styles.label}>Crop Year</Text>

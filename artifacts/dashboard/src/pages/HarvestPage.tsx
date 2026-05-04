@@ -944,11 +944,11 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Date In <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.dateIn} onChange={e => setForm((f: any) => ({ ...f, dateIn: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.dateIn} onChange={e => setForm((f: any) => ({ ...f, dateIn: e.target.value }))} />
               </div>
               <div>
                 <Label>Date Out (leave blank if still in store)</Label>
-                <Input type="date" value={form.dateOut} onChange={e => setForm((f: any) => ({ ...f, dateOut: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.dateOut} onChange={e => setForm((f: any) => ({ ...f, dateOut: e.target.value }))} />
               </div>
             </div>
             <div>

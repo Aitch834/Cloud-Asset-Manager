@@ -131,7 +131,7 @@ export default function DiversificationRecordScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Activity</Text>
-          <Input label="Date *" value={activityDate} onChangeText={setActivityDate} placeholder="YYYY-MM-DD" />
+          <Input label="Date *" value={activityDate} onChangeText={setActivityDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Text style={styles.label}>Activity Type</Text>
           <View style={styles.chipRow}>
             {ACTIVITY_TYPES.map((a) => (

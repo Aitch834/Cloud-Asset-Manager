@@ -179,7 +179,7 @@ export default function SfiActionScreen() {
           </Pressable>
 
           <Text style={styles.sectionTitle}>Completion</Text>
-          <Input label="Date Completed *" value={actionDate} onChangeText={setActionDate} placeholder="YYYY-MM-DD" />
+          <Input label="Date Completed *" value={actionDate} onChangeText={setActionDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Completed By" value={completedBy} onChangeText={setCompletedBy} placeholder="Name" />
           <Input label="Payment Rate (£/ha or £/unit)" value={paymentRate} onChangeText={setPaymentRate} placeholder="e.g. 28.00" keyboardType="decimal-pad" />
           <Input label="Evidence / Compliance Notes" value={evidenceNotes} onChangeText={setEvidenceNotes} placeholder="Describe the work done and evidence gathered…" multiline numberOfLines={4} />

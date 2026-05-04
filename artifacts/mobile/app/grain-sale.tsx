@@ -153,7 +153,7 @@ export default function GrainSaleScreen() {
             ))}
           </View>
 
-          <Input label="Sale Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" />
+          <Input label="Sale Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Buyer / Merchant *" value={buyer} onChangeText={setBuyer} placeholder="e.g. Frontier Agriculture" />
           <Input label="Merchant Reference" value={merchantRef} onChangeText={setMerchantRef} placeholder="Contract or lot reference" />
 

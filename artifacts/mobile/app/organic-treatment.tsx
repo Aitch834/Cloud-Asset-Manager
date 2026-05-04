@@ -178,7 +178,7 @@ export default function OrganicTreatmentScreen() {
 
             <View style={styles.field}>
               <Text style={styles.label}>Date of Treatment *</Text>
-              <Input placeholder="YYYY-MM-DD" value={dateOfTreatment} onChangeText={setDateOfTreatment} />
+              <Input placeholder="YYYY-MM-DD" value={dateOfTreatment} onChangeText={setDateOfTreatment} maxDate="today" />
             </View>
           </View>
 

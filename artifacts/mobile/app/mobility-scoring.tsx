@@ -182,6 +182,7 @@ export default function MobilityScoringScreen() {
             value={assessmentDate}
             onChangeText={setAssessmentDate}
             keyboardType="numbers-and-punctuation"
+            maxDate="today"
           />
           <Text style={styles.label}>Assessed By</Text>
           <Input placeholder="e.g. Tom Davies" value={assessedBy} onChangeText={setAssessedBy} />
