@@ -162,7 +162,7 @@ export default function StorageMovementScreen() {
           ))}
 
           <Text style={styles.sectionTitle}>Date</Text>
-          <Input label="Movement Date" value={movementDate} onChangeText={setMovementDate} placeholder="YYYY-MM-DD" />
+          <Input label="Movement Date" maxDate="today" value={movementDate} onChangeText={setMovementDate} placeholder="YYYY-MM-DD" />
 
           <Text style={styles.sectionTitle}>
             {movementType === "transfer" ? "Source Store" : "Store / Bin"}

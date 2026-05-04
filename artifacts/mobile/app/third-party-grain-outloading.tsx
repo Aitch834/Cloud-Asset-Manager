@@ -314,6 +314,7 @@ export default function ThirdPartyGrainOutloadingScreen() {
           <Text style={styles.sectionTitle}>Movement Details</Text>
           <Input
             label="Movement Date"
+            maxDate="today"
             value={movementDate}
             onChangeText={setMovementDate}
             placeholder="YYYY-MM-DD"

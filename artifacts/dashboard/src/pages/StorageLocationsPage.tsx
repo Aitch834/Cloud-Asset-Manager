@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@clerk/react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 
@@ -1194,6 +1195,8 @@ const emptyTempLog = () => ({
 function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user: clerkUser } = useUser();
+  const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [viewItem, setViewItem] = useState<any | null>(null);
@@ -1224,7 +1227,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
   });
 
-  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };
+  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm, operatorName: myName }); setOpen(true); };
   const openEdit = (r: any) => { setEditItem(r); setForm({ dryingDate: r.dryingDate?.slice(0,10) ?? "", cropType: r.cropType ?? "", moistureIn: r.moistureIn ?? "", moistureOut: r.moistureOut ?? "", tempC: r.tempC ?? "", durationHours: r.durationHours ?? "", fuelLitres: r.fuelLitres ?? "", operatorName: r.operatorName ?? "", notes: r.notes ?? "" }); setOpen(true); };
 
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -1344,6 +1347,8 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
 function GrainConditioningTab({ farmId, locationId }: { farmId: number; locationId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user: clerkUser } = useUser();
+  const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [viewItem, setViewItem] = useState<any | null>(null);
@@ -1374,7 +1379,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
   });
 
-  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };
+  const openAdd = () => { setEditItem(null); setForm({ ...emptyForm, operatorName: myName }); setOpen(true); };
   const openEdit = (r: any) => { setEditItem(r); setForm({ conditioningDate: r.conditioningDate?.slice(0,10) ?? "", cropType: r.cropType ?? "", treatmentType: r.treatmentType ?? "", productUsed: r.productUsed ?? "", rateKgT: r.rateKgT ?? "", totalKg: r.totalKg ?? "", targetMoisture: r.targetMoisture ?? "", operatorName: r.operatorName ?? "", notes: r.notes ?? "" }); setOpen(true); };
   const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
   const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -1495,6 +1500,8 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
 function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: number; locationId: number; locationType: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user: clerkUser } = useUser();
+  const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [tab, setTab] = useState<"stock" | "quality" | "temperature" | "drying" | "conditioning">("stock");
 
   const [testOpen, setTestOpen] = useState(false);
@@ -1591,7 +1598,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
     setTestOpen(true);
   }
 
-  function openAddTemp() { setEditTemp(null); setTempForm(emptyTempLog()); setTempOpen(true); }
+  function openAddTemp() { setEditTemp(null); setTempForm({ ...emptyTempLog(), recordedBy: myName }); setTempOpen(true); }
   function openEditTemp(l: TempLog) {
     setEditTemp(l);
     setTempForm({

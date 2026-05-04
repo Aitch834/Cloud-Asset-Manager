@@ -143,6 +143,7 @@ export default function PpeIssueScreen() {
           <Text style={styles.sectionTitle}>Issue Details</Text>
           <Input
             label="Date Issued *"
+            maxDate="today"
             value={dateIssued}
             onChangeText={setDateIssued}
             placeholder="YYYY-MM-DD"

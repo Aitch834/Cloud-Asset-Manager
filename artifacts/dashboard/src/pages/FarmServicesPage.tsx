@@ -1851,7 +1851,7 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
               </div>
               <div className="space-y-1">
                 <Label>Scheduled date</Label>
-                <Input type="date" value={woForm.dueDate} onChange={(e) => setWoForm((f) => ({ ...f, dueDate: e.target.value }))} />
+                <Input type="date" min={new Date().toISOString().slice(0, 10)} value={woForm.dueDate} onChange={(e) => setWoForm((f) => ({ ...f, dueDate: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2240,7 +2240,7 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
               <div className="space-y-1"><Label>Invoice number</Label>
                 <Input placeholder="INV-2024-001" value={form.invoiceNumber} onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Invoice date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={form.invoiceDate} onChange={(e) => setForm((f) => ({ ...f, invoiceDate: e.target.value }))} /></div>
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.invoiceDate} onChange={(e) => setForm((f) => ({ ...f, invoiceDate: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Due date</Label>
                 <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} /></div>
             </div>
@@ -2318,7 +2318,7 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
                     </div>
                     <div className="space-y-1">
                       <Label>Scheduled date</Label>
-                      <Input type="date" value={woForm.scheduledDate}
+                      <Input type="date" min={new Date().toISOString().slice(0, 10)} value={woForm.scheduledDate}
                         onChange={(e) => setWoForm((f) => ({ ...f, scheduledDate: e.target.value }))} />
                     </div>
                   </div>

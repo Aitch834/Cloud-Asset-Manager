@@ -146,7 +146,7 @@ export default function SireRegisterScreen() {
             <Input label="Breed" value={form.breed} onChangeText={v => setField("breed", v)} placeholder={({ Cattle: "e.g. Aberdeen Angus", Sheep: "e.g. Suffolk", Pig: "e.g. Large White", Goat: "e.g. Boer" } as Record<string, string>)[form.species] ?? "e.g. enter breed"} />
             <Input label="Ear Tag Number" value={form.tagNumber} onChangeText={v => setField("tagNumber", v)} placeholder="e.g. UK141092 12345" />
             <Input label="Passport Number" value={form.passportNumber} onChangeText={v => setField("passportNumber", v)} placeholder="Cattle passport / flock no." />
-            <Input label="Date of Birth" value={form.dateOfBirth} onChangeText={v => setField("dateOfBirth", v)} placeholder="YYYY-MM-DD" />
+            <Input label="Date of Birth" maxDate="today" value={form.dateOfBirth} onChangeText={v => setField("dateOfBirth", v)} placeholder="YYYY-MM-DD" />
 
             <Text style={styles.sectionTitle}>Ownership</Text>
             <View style={styles.chipRow}>
@@ -161,8 +161,8 @@ export default function SireRegisterScreen() {
               <>
                 <Input label="Supplier / Owner Name" value={form.supplierName} onChangeText={v => setField("supplierName", v)} placeholder="Farm or stud name" />
                 <Input label="Supplier Contact" value={form.supplierContact} onChangeText={v => setField("supplierContact", v)} placeholder="Phone or email" />
-                <Input label="Arrived on Farm" value={form.hireStartDate} onChangeText={v => setField("hireStartDate", v)} placeholder="YYYY-MM-DD" />
-                <Input label="Expected Return Date" value={form.hireEndDate} onChangeText={v => setField("hireEndDate", v)} placeholder="YYYY-MM-DD" />
+                <Input label="Arrived on Farm" maxDate="today" value={form.hireStartDate} onChangeText={v => setField("hireStartDate", v)} placeholder="YYYY-MM-DD" />
+                <Input label="Expected Return Date" minDate="today" value={form.hireEndDate} onChangeText={v => setField("hireEndDate", v)} placeholder="YYYY-MM-DD" />
               </>
             )}
 
@@ -176,7 +176,7 @@ export default function SireRegisterScreen() {
             {form.species === "Sheep" && (
               <Input label="Scrapie Genotype" value={form.scrapieGenotype} onChangeText={v => setField("scrapieGenotype", v)} placeholder="e.g. ARR/ARR" />
             )}
-            <Input label="Fertility Test Date" value={form.fertilityTestDate} onChangeText={v => setField("fertilityTestDate", v)} placeholder="YYYY-MM-DD" />
+            <Input label="Fertility Test Date" maxDate="today" value={form.fertilityTestDate} onChangeText={v => setField("fertilityTestDate", v)} placeholder="YYYY-MM-DD" />
             <Input label="Fertility Test Result" value={form.fertilityTestResult} onChangeText={v => setField("fertilityTestResult", v)} placeholder="e.g. Satisfactory" />
 
             <Input label="Notes" value={form.notes} onChangeText={v => setField("notes", v)} placeholder="Any additional notes…" multiline numberOfLines={3} />

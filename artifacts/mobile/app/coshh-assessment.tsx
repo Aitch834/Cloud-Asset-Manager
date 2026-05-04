@@ -238,10 +238,10 @@ export default function CoshhAssessmentScreen() {
               <Input label="Assessed By *" value={assessedBy} onChangeText={setAssessedBy} placeholder="Name" />
             </View>
             <View style={{ flex: 1 }}>
-              <Input label="Assessment Date" value={assessmentDate} onChangeText={setAssessmentDate} placeholder="YYYY-MM-DD" />
+              <Input label="Assessment Date" maxDate="today" value={assessmentDate} onChangeText={setAssessmentDate} placeholder="YYYY-MM-DD" />
             </View>
           </View>
-          <Input label="Review Date (auto-set to +1 year)" value={reviewDate} onChangeText={setReviewDate} placeholder="YYYY-MM-DD" />
+          <Input label="Review Date (auto-set to +1 year)" minDate="today" value={reviewDate} onChangeText={setReviewDate} placeholder="YYYY-MM-DD" />
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any additional information…" multiline numberOfLines={3} />
 
           <PhotoAttachButton

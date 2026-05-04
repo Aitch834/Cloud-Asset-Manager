@@ -123,7 +123,7 @@ export default function ServiceJobScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
           <Text style={styles.sectionTitle}>Job Details</Text>
-          <Input label="Job Date" value={jobDate} onChangeText={setJobDate} placeholder="YYYY-MM-DD" />
+          <Input label="Job Date" maxDate="today" value={jobDate} onChangeText={setJobDate} placeholder="YYYY-MM-DD" />
           <Input
             label="Customer / Farm Name *"
             value={customerName}

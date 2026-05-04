@@ -288,6 +288,7 @@ export default function LambingRecordScreen() {
           <Text style={styles.fieldLabel}>Lambing Date *</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={lambingDate}
             onChangeText={setLambingDate}
             keyboardType="numeric"

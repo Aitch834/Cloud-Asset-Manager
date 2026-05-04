@@ -298,6 +298,7 @@ export default function MortalityRecordScreen() {
           <Text style={styles.label}>Date of Death *</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={dateOfDeath}
             onChangeText={setDateOfDeath}
             keyboardType="numbers-and-punctuation"

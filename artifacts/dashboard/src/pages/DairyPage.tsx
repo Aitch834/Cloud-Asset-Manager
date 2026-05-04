@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useUser } from "@clerk/react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -2083,6 +2084,8 @@ interface BcsRecord {
 
 function BcsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { user: clerkUser } = useUser();
+  const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BcsRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<BcsRecord | null>(null);
@@ -2106,7 +2109,7 @@ function BcsTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-bcs", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm({ assessmentDate: today() }); setOpen(true); }
+  function openAdd() { setEditing(null); setForm({ assessmentDate: today(), assessedBy: myName }); setOpen(true); }
   function openEdit(r: BcsRecord) { setEditing(r); setForm({ ...r, assessmentDate: r.assessmentDate.slice(0, 10) }); setOpen(true); }
   function set(k: keyof BcsRecord, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -2336,6 +2339,8 @@ interface MobilityScoring {
 
 function MobilityTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { user: clerkUser } = useUser();
+  const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MobilityScoring | null>(null);
   const [viewRecord, setViewRecord] = useState<MobilityScoring | null>(null);
@@ -2365,7 +2370,7 @@ function MobilityTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-mobility", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm({ assessmentDate: today(), score0Count: 0, score1Count: 0, score2Count: 0, score3Count: 0 }); setOpen(true); }
+  function openAdd() { setEditing(null); setForm({ assessmentDate: today(), score0Count: 0, score1Count: 0, score2Count: 0, score3Count: 0, assessedBy: myName }); setOpen(true); }
   function openEdit(r: MobilityScoring) { setEditing(r); setForm({ ...r, assessmentDate: r.assessmentDate.slice(0, 10), nextAssessmentDue: r.nextAssessmentDue?.slice(0, 10) }); setOpen(true); }
   function set(k: keyof MobilityScoring, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 

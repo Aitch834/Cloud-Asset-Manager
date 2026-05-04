@@ -145,6 +145,7 @@ export default function WelfareOutcomeScreen() {
           <Text style={styles.sectionTitle}>Assessment Details</Text>
           <Input
             label="Assessment Date *"
+            maxDate="today"
             value={assessmentDate}
             onChangeText={setAssessmentDate}
             placeholder="YYYY-MM-DD"
@@ -259,6 +260,7 @@ export default function WelfareOutcomeScreen() {
 
           <Input
             label="Next Assessment Due"
+            minDate="today"
             value={nextAssessmentDate}
             onChangeText={setNextAssessmentDate}
             placeholder="YYYY-MM-DD"

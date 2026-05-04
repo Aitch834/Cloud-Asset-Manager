@@ -265,7 +265,7 @@ export default function StrawInventoryScreen() {
             <Input label="Supplier / AI Centre" value={form.supplierName} onChangeText={(v) => setField("supplierName", v)} placeholder="e.g. Cogent Breeding, Genus ABS" />
             <Input label="Straws Received *" value={form.strawsReceived} onChangeText={(v) => setField("strawsReceived", v)} placeholder="e.g. 10" keyboardType="numeric" />
             <Input label="Storage Location" value={form.storageLocation} onChangeText={(v) => setField("storageLocation", v)} placeholder="e.g. Tank 2, Goblet 3" />
-            <Input label="Delivery Date" value={form.deliveryDate} onChangeText={(v) => setField("deliveryDate", v)} placeholder="YYYY-MM-DD" />
+            <Input label="Delivery Date" maxDate="today" value={form.deliveryDate} onChangeText={(v) => setField("deliveryDate", v)} placeholder="YYYY-MM-DD" />
             <Input label="Unit Cost (£ each)" value={form.unitCost} onChangeText={(v) => setField("unitCost", v)} placeholder="e.g. 18.50" keyboardType="numeric" />
             <Input label="Notes" value={form.notes} onChangeText={(v) => setField("notes", v)} placeholder="Health cert reference, catalogue page, etc." multiline />
 

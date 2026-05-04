@@ -78,11 +78,11 @@ function ScoreCard({
 
 export default function MobilityScoringScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
 
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split("T")[0]);
-  const [assessedBy, setAssessedBy] = useState("");
+  const [assessedBy, setAssessedBy] = useState(user?.name || "");
   const [score0, setScore0] = useState("");
   const [score1, setScore1] = useState("");
   const [score2, setScore2] = useState("");

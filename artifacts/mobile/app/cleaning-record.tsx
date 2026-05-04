@@ -477,6 +477,7 @@ export default function CleaningRecordScreen() {
               <Text style={styles.fieldLabel}>Date cleaned <Text style={styles.required}>*</Text></Text>
               <Input
                 placeholder="YYYY-MM-DD"
+                maxDate="today"
                 value={cleanedDate}
                 onChangeText={setCleanedDate}
               />
@@ -485,6 +486,7 @@ export default function CleaningRecordScreen() {
               <Text style={styles.fieldLabel}>Next due date</Text>
               <Input
                 placeholder="YYYY-MM-DD"
+                minDate="today"
                 value={nextDueDate}
                 onChangeText={setNextDueDate}
               />

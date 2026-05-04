@@ -154,7 +154,7 @@ export default function MaintenanceLogScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Work Details</Text>
-          <Input label="Maintenance Date *" value={maintenanceDate} onChangeText={setMaintenanceDate} placeholder="YYYY-MM-DD" />
+          <Input label="Maintenance Date *" maxDate="today" value={maintenanceDate} onChangeText={setMaintenanceDate} placeholder="YYYY-MM-DD" />
           <Input label="Description of Work *" value={description} onChangeText={setDescription} placeholder="What was done…" multiline numberOfLines={3} />
           <Input label="Technician / Operator" value={technician} onChangeText={setTechnician} placeholder="Who carried out the work" />
           <Input label="External Garage / Contractor" value={externalGarage} onChangeText={setExternalGarage} placeholder="If applicable" />
@@ -180,7 +180,7 @@ export default function MaintenanceLogScreen() {
           <Text style={styles.sectionTitle}>Next Service</Text>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <Input label="Next Service Due (date)" value={nextServiceDue} onChangeText={setNextServiceDue} placeholder="YYYY-MM-DD" />
+              <Input label="Next Service Due (date)" minDate="today" value={nextServiceDue} onChangeText={setNextServiceDue} placeholder="YYYY-MM-DD" />
             </View>
             <View style={{ flex: 1 }}>
               <Input label="Next Service (hours)" value={nextServiceHours} onChangeText={setNextServiceHours} placeholder="e.g. 3670" keyboardType="numeric" />

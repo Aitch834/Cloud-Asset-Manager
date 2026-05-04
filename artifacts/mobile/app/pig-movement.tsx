@@ -131,7 +131,7 @@ export default function PigMovementScreen() {
             <Feather name="calendar" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Movement Details</Text>
           </View>
-          <Input label="Movement Date *" placeholder="YYYY-MM-DD" value={movementDate} onChangeText={setMovementDate} required />
+          <Input label="Movement Date *" placeholder="YYYY-MM-DD" maxDate="today" value={movementDate} onChangeText={setMovementDate} required />
           <Input label="Number of Animals *" placeholder="e.g. 50" value={numberOfAnimals} onChangeText={setNumberOfAnimals} keyboardType="number-pad" required />
 
           <View style={styles.sectionLabel}>

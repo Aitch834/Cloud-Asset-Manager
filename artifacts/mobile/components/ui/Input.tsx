@@ -21,6 +21,8 @@ interface InputProps extends TextInputProps {
   required?: boolean;
   /** Pass "today" (or a YYYY-MM-DD string) to prevent future dates being entered */
   maxDate?: "today" | string;
+  /** Pass "today" (or a YYYY-MM-DD string) to prevent past dates being entered */
+  minDate?: "today" | string;
 }
 
 export function Input({
@@ -30,6 +32,7 @@ export function Input({
   containerStyle,
   required,
   maxDate,
+  minDate,
   ...props
 }: InputProps) {
   const [focused, setFocused] = useState(false);
@@ -41,7 +44,16 @@ export function Input({
         return /^\d{4}-\d{2}-\d{2}$/.test(val) && val > max ? "Date cannot be in the future" : undefined;
       })()
     : undefined;
-  const displayError = error || dateError;
+
+  const dateMinError = minDate && props.value
+    ? (() => {
+        const min = minDate === "today" ? new Date().toISOString().slice(0, 10) : minDate;
+        const val = String(props.value);
+        return /^\d{4}-\d{2}-\d{2}$/.test(val) && val < min ? "Date cannot be in the past" : undefined;
+      })()
+    : undefined;
+
+  const displayError = error || dateError || dateMinError;
 
   return (
     <View style={[styles.container, containerStyle]}>

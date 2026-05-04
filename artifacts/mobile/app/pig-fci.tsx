@@ -125,7 +125,7 @@ export default function PigFciScreen() {
             <Text style={styles.sectionTitle}>Group &amp; Dispatch</Text>
           </View>
           <PigPenPicker label="Select Group (optional)" value={groupName} onChange={setGroupName} onChangeFlock={(f) => { setFlockId(f.id); if (!numberOfPigs) setNumberOfPigs(String(f.currentCount || "")); }} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Document Date *" placeholder="YYYY-MM-DD" value={documentDate} onChangeText={setDocumentDate} required />
+          <Input label="Document Date *" placeholder="YYYY-MM-DD" maxDate="today" value={documentDate} onChangeText={setDocumentDate} required />
           <Input label="Batch Reference" placeholder="e.g. Batch 2024-12" value={batchReference} onChangeText={setBatchReference} />
           <Input label="Destination Abattoir" placeholder="Name and address" value={destinationAbattoir} onChangeText={setDestinationAbattoir} />
           <Input label="Number of Pigs *" placeholder="e.g. 100" value={numberOfPigs} onChangeText={setNumberOfPigs} keyboardType="number-pad" required />

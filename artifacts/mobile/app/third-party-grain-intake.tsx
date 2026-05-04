@@ -156,6 +156,7 @@ export default function ThirdPartyGrainIntakeScreen() {
           <Text style={styles.sectionTitle}>Delivery Details</Text>
           <Input
             label="Intake Date"
+            maxDate="today"
             value={intakeDate}
             onChangeText={setIntakeDate}
             placeholder="YYYY-MM-DD"

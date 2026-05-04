@@ -131,7 +131,7 @@ export default function PoultryTreatmentScreen() {
             <Text style={styles.sectionTitle}>Flock &amp; Date</Text>
           </View>
           <FlockPicker label="Select Flock *" value={flockNumber} onChange={setFlockNumber} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Treatment Date *" placeholder="YYYY-MM-DD" value={treatmentDate} onChangeText={setTreatmentDate} required />
+          <Input label="Treatment Date *" placeholder="YYYY-MM-DD" maxDate="today" value={treatmentDate} onChangeText={setTreatmentDate} required />
           <Input label="Number of Birds Treated" placeholder="e.g. 5000" value={numberOfBirdsTreated} onChangeText={setNumberOfBirdsTreated} keyboardType="number-pad" />
 
           <View style={styles.sectionLabel}>

@@ -143,7 +143,7 @@ export default function VetPrescriptionScreen() {
           <Input label="Prescribing Vet Name *" value={prescribingVet} onChangeText={setPrescribingVet} placeholder="Full name" />
           <Input label="Veterinary Practice" value={vetPracticeName} onChangeText={setVetPracticeName} placeholder="Practice name" />
           <Input label="RCVS Registration Number" value={vetRcvsNumber} onChangeText={setVetRcvsNumber} placeholder="e.g. 1234567" keyboardType="numeric" />
-          <Input label="Prescription Date" value={prescriptionDate} onChangeText={setPrescriptionDate} placeholder="YYYY-MM-DD" />
+          <Input label="Prescription Date" maxDate="today" value={prescriptionDate} onChangeText={setPrescriptionDate} placeholder="YYYY-MM-DD" />
           <Input label="Prescription Expiry Date" value={expiryDate} onChangeText={setExpiryDate} placeholder="YYYY-MM-DD" />
           <Input label="Prescription Reference Number" value={prescriptionReference} onChangeText={setPrescriptionReference} placeholder="Vet's reference" />
 

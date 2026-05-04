@@ -193,6 +193,7 @@ export default function TbTestScreen() {
           <Text style={styles.sectionTitle}>Test Details</Text>
           <Input
             label="Test Date *"
+            maxDate="today"
             value={testDate}
             onChangeText={setTestDate}
             placeholder="YYYY-MM-DD"
@@ -354,6 +355,7 @@ export default function TbTestScreen() {
           {(result === "inconclusive" || result === "failed_reactors") && (
             <Input
               label="Retest Due Date"
+              minDate="today"
               value={retestDueDate}
               onChangeText={setRetestDueDate}
               placeholder="YYYY-MM-DD"

@@ -504,7 +504,7 @@ export default function EncampmentsScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Date Vacated</Text>
-            <Input placeholder="YYYY-MM-DD" value={vacatedAt} onChangeText={setVacatedAt} />
+            <Input placeholder="YYYY-MM-DD" maxDate="today" value={vacatedAt} onChangeText={setVacatedAt} />
           </View>
 
           <View style={styles.field}>

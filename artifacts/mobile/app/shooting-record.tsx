@@ -118,7 +118,7 @@ export default function ShootingRecordScreen() {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sectionTitle}>Shoot Details</Text>
-          <Input label="Shoot Date *" value={shootDate} onChangeText={setShootDate} placeholder="YYYY-MM-DD" />
+          <Input label="Shoot Date *" maxDate="today" value={shootDate} onChangeText={setShootDate} placeholder="YYYY-MM-DD" />
 
           <Text style={styles.label}>Shoot Type</Text>
           <View style={styles.chipRow}>

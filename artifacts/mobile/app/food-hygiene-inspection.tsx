@@ -123,7 +123,7 @@ export default function FoodHygieneInspectionScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Inspection</Text>
-          <Input label="Inspection Date *" value={inspectionDate} onChangeText={setInspectionDate} placeholder="YYYY-MM-DD" />
+          <Input label="Inspection Date *" maxDate="today" value={inspectionDate} onChangeText={setInspectionDate} placeholder="YYYY-MM-DD" />
 
           <Text style={styles.label}>Inspection Type</Text>
           <View style={styles.chipRow}>
@@ -171,7 +171,7 @@ export default function FoodHygieneInspectionScreen() {
             />
           </View>
           {reinspectionRequired && (
-            <Input label="Reinspection Date" value={reinspectionDate} onChangeText={setReinspectionDate} placeholder="YYYY-MM-DD" />
+            <Input label="Reinspection Date" minDate="today" value={reinspectionDate} onChangeText={setReinspectionDate} placeholder="YYYY-MM-DD" />
           )}
 
           <Text style={styles.sectionTitle}>Findings &amp; Actions</Text>

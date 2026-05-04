@@ -238,6 +238,7 @@ export default function CalvingRecordScreen() {
           <Text style={styles.label}>Calving Date *</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={calvingDate}
             onChangeText={setCalvingDate}
             keyboardType="numbers-and-punctuation"
@@ -322,6 +323,7 @@ export default function CalvingRecordScreen() {
             <Text style={styles.label}>Collection Date</Text>
             <Input
               placeholder="YYYY-MM-DD"
+              maxDate="today"
               value={perinatalCollectionDate}
               onChangeText={setPerinatalCollectionDate}
               keyboardType="numbers-and-punctuation"

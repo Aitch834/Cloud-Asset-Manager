@@ -141,7 +141,7 @@ export default function PoultryBroilerWelfareScreen() {
             <Text style={styles.sectionTitle}>Flock &amp; Assessor</Text>
           </View>
           <FlockPicker label="Select Flock *" value={flockNumber} onChange={setFlockNumber} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Assessment Date *" placeholder="YYYY-MM-DD" value={assessmentDate} onChangeText={setAssessmentDate} required />
+          <Input label="Assessment Date *" placeholder="YYYY-MM-DD" maxDate="today" value={assessmentDate} onChangeText={setAssessmentDate} required />
           <Input label="Assessed By *" placeholder="Assessor name" value={assessedBy} onChangeText={setAssessedBy} required />
           <View style={styles.row}>
             <Input label="Bird Age (days)" placeholder="e.g. 35" value={ageAtAssessmentDays} onChangeText={setAgeAtAssessmentDays} keyboardType="number-pad" containerStyle={styles.flex} />

@@ -147,11 +147,11 @@ export default function OrganicInspectionScreen() {
             <View style={styles.row}>
               <View style={[styles.field, { flex: 1 }]}>
                 <Text style={styles.label}>Inspection Date *</Text>
-                <Input placeholder="YYYY-MM-DD" value={inspectionDate} onChangeText={setInspectionDate} />
+                <Input placeholder="YYYY-MM-DD" maxDate="today" value={inspectionDate} onChangeText={setInspectionDate} />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
                 <Text style={styles.label}>Next Due Date</Text>
-                <Input placeholder="YYYY-MM-DD" value={nextDueDate} onChangeText={setNextDueDate} />
+                <Input placeholder="YYYY-MM-DD" minDate="today" value={nextDueDate} onChangeText={setNextDueDate} />
               </View>
             </View>
 

@@ -404,7 +404,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Certification Date</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
-              <div><Label>Annual Renewal Date</Label><Input type="date" className={INPUT_CLS} value={form.renewalDate} onChange={e => setForm(f => ({ ...f, renewalDate: e.target.value }))} /></div>
+              <div><Label>Annual Renewal Date</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} className={INPUT_CLS} value={form.renewalDate} onChange={e => setForm(f => ({ ...f, renewalDate: e.target.value }))} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} /></div>
             <DialogFooter>
@@ -834,7 +834,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Certificate Reference</Label><Input className={INPUT_CLS} placeholder="e.g. SA-2024-12345" value={form.certificateReference} onChange={e => setForm(f => ({ ...f, certificateReference: e.target.value }))} /></div>
-              <div><Label>Next Inspection Due</Label><Input type="date" className={INPUT_CLS} value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
+              <div><Label>Next Inspection Due</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} className={INPUT_CLS} value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
             </div>
             {(form.outcome.includes("Non-conformance") || form.outcome.includes("Suspension")) && (
               <>

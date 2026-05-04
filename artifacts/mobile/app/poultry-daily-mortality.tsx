@@ -127,6 +127,7 @@ export default function PoultryDailyMortalityScreen() {
           <Input
             label="Record Date *"
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={recordDate}
             onChangeText={setRecordDate}
             required

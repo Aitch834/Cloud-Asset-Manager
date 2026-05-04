@@ -177,6 +177,7 @@ export default function MastitisRecordScreen() {
           <Text style={styles.label}>Date of Onset *</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={onsetDate}
             onChangeText={setOnsetDate}
             keyboardType="numbers-and-punctuation"
@@ -227,6 +228,7 @@ export default function MastitisRecordScreen() {
           <Text style={styles.label}>Treatment Start Date</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={treatmentStartDate}
             onChangeText={setTreatmentStartDate}
             keyboardType="numbers-and-punctuation"

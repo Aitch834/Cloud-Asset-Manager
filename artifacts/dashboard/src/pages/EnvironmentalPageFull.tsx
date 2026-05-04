@@ -709,7 +709,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
                 <Input placeholder="e.g. John Smith" value={form.assessorName} onChange={e => setForm((f: any) => ({ ...f, assessorName: e.target.value }))} />
               </div>
               <div><Label>Assessment Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.assessmentDate} onChange={e => setForm((f: any) => ({ ...f, assessmentDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.assessmentDate} onChange={e => setForm((f: any) => ({ ...f, assessmentDate: e.target.value }))} />
               </div>
             </div>
             <div><Label>Assessor Organisation</Label>
@@ -729,7 +729,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
               <Textarea placeholder="Any conditions placed on the pass, or corrective actions required..." value={form.conditions} onChange={e => setForm((f: any) => ({ ...f, conditions: e.target.value }))} rows={3} />
             </div>
             <div><Label>Next Assessment Due</Label>
-              <Input type="date" value={form.nextAssessmentDue} onChange={e => setForm((f: any) => ({ ...f, nextAssessmentDue: e.target.value }))} />
+              <Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.nextAssessmentDue} onChange={e => setForm((f: any) => ({ ...f, nextAssessmentDue: e.target.value }))} />
             </div>
             <div><Label>Notes</Label>
               <Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
@@ -1081,7 +1081,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
                 <Label>Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <input type="date" value={form.eventDate} onChange={e => setForm((f: any) => ({ ...f, eventDate: e.target.value }))}
+                <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.eventDate} onChange={e => setForm((f: any) => ({ ...f, eventDate: e.target.value }))}
                   style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
               </div>
               <div className="space-y-1.5">
@@ -1470,7 +1470,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             </div>
             <div><Label>Design Standard</Label><Input value={storeForm.designStandard ?? ""} onChange={e => setStoreForm(f => ({ ...f, designStandard: e.target.value }))} placeholder="e.g. CIRIA 126" /></div>
             <div><Label>Required Storage (months)</Label><Input type="number" value={storeForm.requiredStorage ?? ""} onChange={e => setStoreForm(f => ({ ...f, requiredStorage: e.target.value }))} /></div>
-            <div><Label>Next Inspection Date</Label><Input type="date" value={storeForm.nextInspectionDate ?? ""} onChange={e => setStoreForm(f => ({ ...f, nextInspectionDate: e.target.value }))} /></div>
+            <div><Label>Next Inspection Date</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={storeForm.nextInspectionDate ?? ""} onChange={e => setStoreForm(f => ({ ...f, nextInspectionDate: e.target.value }))} /></div>
             <div><Label>Status</Label>
               <Select value={storeForm.status ?? "Compliant"} onValueChange={v => setStoreForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1491,7 +1491,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Log Slurry / Manure Spreading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Spreading Date *</Label><Input type="date" value={spreadForm.spreadingDate ?? ""} onChange={e => setSpreadForm(f => ({ ...f, spreadingDate: e.target.value }))} /></div>
+            <div><Label>Spreading Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={spreadForm.spreadingDate ?? ""} onChange={e => setSpreadForm(f => ({ ...f, spreadingDate: e.target.value }))} /></div>
             <div>
               <Label>Field *</Label>
               <Select

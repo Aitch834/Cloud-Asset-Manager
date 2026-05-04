@@ -814,11 +814,11 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                 <div><Label>Assigned To</Label><Input value={form.assignedTo || ""} onChange={e => set("assignedTo", e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Opened Date</Label><Input type="date" value={form.openedAt?.slice(0, 10) || ""} onChange={e => set("openedAt", e.target.value)} /></div>
-                <div><Label>Est. Completion</Label><Input type="date" value={form.estimatedCompletionDate || ""} onChange={e => set("estimatedCompletionDate", e.target.value)} /></div>
+                <div><Label>Opened Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.openedAt?.slice(0, 10) || ""} onChange={e => set("openedAt", e.target.value)} /></div>
+                <div><Label>Est. Completion</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.estimatedCompletionDate || ""} onChange={e => set("estimatedCompletionDate", e.target.value)} /></div>
               </div>
               {(form.status === "completed" || form.status === "cancelled") && (
-                <div><Label>Completed Date</Label><Input type="date" value={form.completedAt || ""} onChange={e => set("completedAt", e.target.value)} /></div>
+                <div><Label>Completed Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.completedAt || ""} onChange={e => set("completedAt", e.target.value)} /></div>
               )}
               <div className="rounded-md border p-3 space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cost</p>
@@ -1112,7 +1112,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date Performed <span className="text-red-500">*</span></Label>
-                <Input type="date" value={logForm.performedDate} onChange={e => setLogForm(f => ({ ...f, performedDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={logForm.performedDate} onChange={e => setLogForm(f => ({ ...f, performedDate: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label>Performed By</Label>
@@ -1122,7 +1122,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Next Due Date</Label>
-                <Input type="date" value={logForm.nextDueDate} onChange={e => setLogForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                <Input type="date" min={new Date().toISOString().slice(0, 10)} value={logForm.nextDueDate} onChange={e => setLogForm(f => ({ ...f, nextDueDate: e.target.value }))} />
                 <p className="text-xs text-gray-400">Set this to keep the item on the schedule going forward.</p>
               </div>
               <div className="space-y-1.5">
@@ -1606,7 +1606,7 @@ function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) 
                 </div>
                 <div>
                   <Label>Dispatched Date</Label>
-                  <Input type="date" value={editForm.dispatchedAt} onChange={e => setEF("dispatchedAt", e.target.value)} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.dispatchedAt} onChange={e => setEF("dispatchedAt", e.target.value)} />
                 </div>
                 <div>
                   <Label>Credit Amount Received (£)</Label>
@@ -1614,7 +1614,7 @@ function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) 
                 </div>
                 <div>
                   <Label>Credit Received Date</Label>
-                  <Input type="date" value={editForm.creditReceivedAt} onChange={e => setEF("creditReceivedAt", e.target.value)} />
+                  <Input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.creditReceivedAt} onChange={e => setEF("creditReceivedAt", e.target.value)} />
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>
@@ -2231,7 +2231,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 py-2">
               <div><Label>Quantity Received *{receivePart.unit ? ` (${receivePart.unit})` : ""}</Label><Input type="number" step={qtyStep(receivePart.unit)} min={qtyMin(receivePart.unit)} value={receiveForm.qty} onChange={e => setReceiveForm(f => ({ ...f, qty: e.target.value }))} placeholder={qtyPlaceholder(receivePart.unit)} /></div>
               <div><Label>Unit Cost (£ per {receivePart.unit ?? "unit"})</Label><Input type="number" step="0.01" min="0" value={receiveForm.unitCostPence} onChange={e => setReceiveForm(f => ({ ...f, unitCostPence: e.target.value }))} placeholder="0.00" /></div>
-              <div><Label>Delivery Date</Label><Input type="date" value={receiveForm.date} onChange={e => setReceiveForm(f => ({ ...f, date: e.target.value }))} /></div>
+              <div><Label>Delivery Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={receiveForm.date} onChange={e => setReceiveForm(f => ({ ...f, date: e.target.value }))} /></div>
               <div>
                 <Label>Supplier</Label>
                 <Select value={receiveForm.supplierId || "__none__"} onValueChange={v => setReceiveForm(f => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
@@ -2788,7 +2788,7 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>New Parts Stocktake</DialogTitle></DialogHeader>
           <p className="text-xs text-muted-foreground -mt-1">Snaps the current system stock for all active workshop parts. You'll then count and enter physical quantities.</p>
           <div className="space-y-3">
-            <div><Label>Stocktake Date *</Label><Input type="date" value={newForm.stocktakeDate} onChange={e => setNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            <div><Label>Stocktake Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={newForm.stocktakeDate} onChange={e => setNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
             <div><Label>Notes</Label><Input value={newForm.notes} placeholder="e.g. Monthly audit" onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>

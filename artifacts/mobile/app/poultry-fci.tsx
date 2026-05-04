@@ -123,8 +123,8 @@ export default function PoultryFciScreen() {
             <Text style={styles.sectionTitle}>Flock &amp; Dispatch Details</Text>
           </View>
           <FlockPicker label="Select Flock *" value={flockNumber} onChange={setFlockNumber} onChangeFlock={(f) => { setFlockId(f.id); if (!numberOfBirds) setNumberOfBirds(String(f.placementCount || "")); }} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Document Date *" placeholder="YYYY-MM-DD" value={documentDate} onChangeText={setDocumentDate} required />
-          <Input label="Catching Date" placeholder="YYYY-MM-DD" value={catchingDate} onChangeText={setCatchingDate} />
+          <Input label="Document Date *" placeholder="YYYY-MM-DD" maxDate="today" value={documentDate} onChangeText={setDocumentDate} required />
+          <Input label="Catching Date" placeholder="YYYY-MM-DD" maxDate="today" value={catchingDate} onChangeText={setCatchingDate} />
           <Input label="Destination Abattoir / Slaughterhouse" placeholder="Name and address" value={destinationAbattoir} onChangeText={setDestinationAbattoir} />
           <Input label="Number of Birds *" placeholder="e.g. 20000" value={numberOfBirds} onChangeText={setNumberOfBirds} keyboardType="number-pad" required />
           <Input label="Catching Contractor" placeholder="Company name" value={catchingContractor} onChangeText={setCatchingContractor} />

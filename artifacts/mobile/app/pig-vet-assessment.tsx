@@ -127,7 +127,7 @@ export default function PigVetAssessmentScreen() {
             <Text style={styles.sectionTitle}>Group &amp; Date</Text>
           </View>
           <PigPenPicker label="Select Group (optional)" value={groupName} onChange={setGroupName} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Assessment Date *" placeholder="YYYY-MM-DD" value={assessmentDate} onChangeText={setAssessmentDate} required />
+          <Input label="Assessment Date *" placeholder="YYYY-MM-DD" maxDate="today" value={assessmentDate} onChangeText={setAssessmentDate} required />
 
           <View style={styles.sectionLabel}>
             <Feather name="user" size={14} color={colors.primary} />
@@ -168,7 +168,7 @@ export default function PigVetAssessmentScreen() {
             <Feather name="calendar" size={14} color="#db2777" />
             <Text style={styles.sectionTitle}>Follow-Up</Text>
           </View>
-          <Input label="Next Review Date" placeholder="YYYY-MM-DD" value={nextReviewDate} onChangeText={setNextReviewDate} />
+          <Input label="Next Review Date" placeholder="YYYY-MM-DD" minDate="today" value={nextReviewDate} onChangeText={setNextReviewDate} />
 
           <Button title="Save Vet Assessment" onPress={handleSave} loading={saving} fullWidth icon="check" />
           <View style={{ height: insets.bottom + spacing.xxxl }} />

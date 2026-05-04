@@ -168,6 +168,7 @@ export default function WasteDisposalScreen() {
               <Text style={styles.label}>Disposal Date *</Text>
               <Input
                 placeholder="YYYY-MM-DD"
+                maxDate="today"
                 value={disposalDate}
                 onChangeText={setDisposalDate}
               />

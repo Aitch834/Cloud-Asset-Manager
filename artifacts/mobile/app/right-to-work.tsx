@@ -362,6 +362,7 @@ export default function RightToWorkScreen() {
             {documentList === "B" && (
               <Input
                 label="Follow-up / Repeat Check Date"
+                minDate="today"
                 value={followUpDate}
                 onChangeText={setFollowUpDate}
                 placeholder="YYYY-MM-DD"

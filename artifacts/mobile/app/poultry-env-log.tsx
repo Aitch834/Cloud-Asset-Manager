@@ -117,7 +117,7 @@ export default function PoultryEnvLogScreen() {
           </View>
           <FlockPicker label="Select Flock *" value={flockNumber} onChange={setFlockNumber} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
           <View style={styles.row}>
-            <Input label="Date *" placeholder="YYYY-MM-DD" value={logDate} onChangeText={setLogDate} containerStyle={styles.flex} />
+            <Input label="Date *" placeholder="YYYY-MM-DD" maxDate="today" value={logDate} onChangeText={setLogDate} containerStyle={styles.flex} />
             <Input label="Time" placeholder="HH:MM" value={logTime} onChangeText={setLogTime} containerStyle={styles.flex} />
           </View>
 

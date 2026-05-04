@@ -148,7 +148,7 @@ export default function GrainQualityTestScreen() {
             emptyMessage="No bins cached yet — sync when online to populate, or enter manually."
             icon="package"
           />
-          <Input label="Sample Date" value={sampleDate} onChangeText={setSampleDate} placeholder="YYYY-MM-DD" />
+          <Input label="Sample Date" maxDate="today" value={sampleDate} onChangeText={setSampleDate} placeholder="YYYY-MM-DD" />
 
           <Text style={styles.sectionTitle}>Crop</Text>
           <Text style={styles.label}>Crop Type *</Text>

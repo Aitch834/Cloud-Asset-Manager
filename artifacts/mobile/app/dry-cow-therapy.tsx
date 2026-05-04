@@ -224,6 +224,7 @@ export default function DryCowtTherapyScreen() {
           <Text style={styles.label}>Dry-Off Date *</Text>
           <Input
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={dryOffDate}
             onChangeText={setDryOffDate}
             keyboardType="numbers-and-punctuation"

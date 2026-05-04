@@ -125,7 +125,7 @@ export default function SprayerCalibrationScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sectionTitle}>Sprayer</Text>
           <Input label="Sprayer Name / Registration *" value={sprayerName} onChangeText={setSprayerName} placeholder="e.g. Amazone UX5200" />
-          <Input label="Calibration Date *" value={calibrationDate} onChangeText={setCalibrationDate} placeholder="YYYY-MM-DD" />
+          <Input label="Calibration Date *" maxDate="today" value={calibrationDate} onChangeText={setCalibrationDate} placeholder="YYYY-MM-DD" />
           <Input label="Calibrated By" value={calibratedBy} onChangeText={setCalibratedBy} placeholder="Name or NSTS engineer" />
           <Input label="NSTS / Certification Number" value={certificationNumber} onChangeText={setCertificationNumber} placeholder="Certificate reference" />
 
@@ -178,7 +178,7 @@ export default function SprayerCalibrationScreen() {
             ))}
           </View>
 
-          <Input label="Next Calibration Due (auto-set to +1 year)" value={nextCalibrationDue} onChangeText={setNextCalibrationDue} placeholder="YYYY-MM-DD" />
+          <Input label="Next Calibration Due (auto-set to +1 year)" minDate="today" value={nextCalibrationDue} onChangeText={setNextCalibrationDue} placeholder="YYYY-MM-DD" />
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any observations or remedial actions…" multiline numberOfLines={3} />
 
           <Button title={saving ? "Saving…" : "Save Calibration Record"} onPress={handleSave} disabled={saving} style={styles.saveButton} />

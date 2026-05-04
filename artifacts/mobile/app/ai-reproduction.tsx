@@ -277,7 +277,7 @@ export default function AiReproductionScreen() {
 
           {pregnancyConfirmed && (
             <>
-              <Input label="Pregnancy Check Date" value={pregnancyCheckDate} onChangeText={setPregnancyCheckDate} placeholder="YYYY-MM-DD" />
+              <Input label="Pregnancy Check Date" maxDate="today" value={pregnancyCheckDate} onChangeText={setPregnancyCheckDate} placeholder="YYYY-MM-DD" />
               <Text style={styles.label}>Check Method</Text>
               <View style={styles.chipRow}>
                 {PREG_METHODS.map((m) => (

@@ -176,6 +176,7 @@ export default function SeedDrillingScreen() {
               <Text style={styles.label}>Drilling Date *</Text>
               <Input
                 placeholder="YYYY-MM-DD"
+                maxDate="today"
                 value={drillingDate}
                 onChangeText={setDrillingDate}
               />

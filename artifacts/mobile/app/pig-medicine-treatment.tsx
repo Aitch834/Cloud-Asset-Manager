@@ -138,7 +138,7 @@ export default function PigMedicineTreatmentScreen() {
             <Text style={styles.sectionTitle}>Group / Pen &amp; Date</Text>
           </View>
           <PigPenPicker label="Select Group (optional)" value={groupName} onChange={setGroupName} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
-          <Input label="Treatment Date *" placeholder="YYYY-MM-DD" value={treatmentDate} onChangeText={setTreatmentDate} required />
+          <Input label="Treatment Date *" placeholder="YYYY-MM-DD" maxDate="today" value={treatmentDate} onChangeText={setTreatmentDate} required />
           <View style={styles.row}>
             <Input label="Batch / Pen Ref" placeholder="e.g. Pen 4, Batch 12" value={batchOrPenRef} onChangeText={setBatchOrPenRef} containerStyle={styles.flex} />
             <Input label="Number of Animals *" placeholder="e.g. 20" value={numberOfAnimals} onChangeText={setNumberOfAnimals} keyboardType="number-pad" containerStyle={styles.flex} />

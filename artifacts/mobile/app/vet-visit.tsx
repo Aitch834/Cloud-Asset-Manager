@@ -241,6 +241,7 @@ export default function VetVisitScreen() {
           <Input
             label="Visit date *"
             placeholder="YYYY-MM-DD"
+            maxDate="today"
             value={visitDate}
             onChangeText={setVisitDate}
           />
@@ -400,6 +401,7 @@ export default function VetVisitScreen() {
             <Input
               label="Follow-up due date"
               placeholder="YYYY-MM-DD"
+              minDate="today"
               value={followUpDate}
               onChangeText={setFollowUpDate}
             />

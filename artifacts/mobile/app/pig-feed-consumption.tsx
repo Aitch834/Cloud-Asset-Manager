@@ -95,7 +95,7 @@ export default function PigFeedConsumptionScreen() {
           </View>
           <PigPenPicker label="Select Group (optional)" value={groupName} onChange={setGroupName} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
           <View style={styles.row}>
-            <Input label="Date *" placeholder="YYYY-MM-DD" value={consumptionDate} onChangeText={setConsumptionDate} containerStyle={styles.flex} required />
+            <Input label="Date *" placeholder="YYYY-MM-DD" maxDate="today" value={consumptionDate} onChangeText={setConsumptionDate} containerStyle={styles.flex} required />
             <Input label="Pen Name" placeholder="e.g. Pen 3" value={penName} onChangeText={setPenName} containerStyle={styles.flex} />
           </View>
 

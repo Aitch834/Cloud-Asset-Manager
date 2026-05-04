@@ -186,7 +186,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Reading Date *</Label><Input type="date" value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
+            <div><Label>Reading Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
             <div><Label>Licence *</Label>
               <Select value={form.licenceId ?? ""} onValueChange={v => setForm(f => ({ ...f, licenceId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
@@ -318,7 +318,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Irrigation Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Date *</Label><Input type="date" value={form.irrigationDate ?? ""} onChange={e => setForm(f => ({ ...f, irrigationDate: e.target.value }))} /></div>
+            <div><Label>Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.irrigationDate ?? ""} onChange={e => setForm(f => ({ ...f, irrigationDate: e.target.value }))} /></div>
             <div><Label>Licence</Label>
               <Select value={form.licenceId ?? ""} onValueChange={v => setForm(f => ({ ...f, licenceId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
@@ -406,8 +406,8 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
             <div><Label>Serial Number</Label><Input value={form.serialNumber ?? ""} onChange={e => setForm(f => ({ ...f, serialNumber: e.target.value }))} /></div>
             <div><Label>Application Rate (L/hr)</Label><Input type="number" step="0.1" value={form.applicationRateLph ?? ""} onChange={e => setForm(f => ({ ...f, applicationRateLph: e.target.value }))} /></div>
             <div><Label>Uniformity Coefficient</Label><Input type="number" step="0.1" value={form.uniformityCoefficient ?? ""} onChange={e => setForm(f => ({ ...f, uniformityCoefficient: e.target.value }))} /></div>
-            <div><Label>Last Calibration Date</Label><Input type="date" value={form.lastCalibrationDate ?? ""} onChange={e => setForm(f => ({ ...f, lastCalibrationDate: e.target.value }))} /></div>
-            <div><Label>Next Calibration Due</Label><Input type="date" value={form.nextCalibrationDue ?? ""} onChange={e => setForm(f => ({ ...f, nextCalibrationDue: e.target.value }))} /></div>
+            <div><Label>Last Calibration Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.lastCalibrationDate ?? ""} onChange={e => setForm(f => ({ ...f, lastCalibrationDate: e.target.value }))} /></div>
+            <div><Label>Next Calibration Due</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.nextCalibrationDue ?? ""} onChange={e => setForm(f => ({ ...f, nextCalibrationDue: e.target.value }))} /></div>
             <div><Label>Status</Label>
               <Select value={form.status ?? "active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -476,7 +476,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Soil Moisture Reading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Reading Date *</Label><Input type="date" value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
+            <div><Label>Reading Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
             <div><Label>Depth (cm)</Label><Input type="number" value={form.depthCm ?? ""} onChange={e => setForm(f => ({ ...f, depthCm: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Field / Block *</Label><Input value={form.fieldOrBlockDescription ?? ""} onChange={e => setForm(f => ({ ...f, fieldOrBlockDescription: e.target.value }))} /></div>
             <div><Label>Sensor ID</Label><Input value={form.sensorId ?? ""} onChange={e => setForm(f => ({ ...f, sensorId: e.target.value }))} /></div>
@@ -667,8 +667,8 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
                 <SelectContent><SelectItem value="__none__">— Select —</SelectItem>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Period Start *</Label><Input type="date" value={String(form.returnPeriodStart ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodStart: e.target.value }))} /></div>
-            <div><Label>Period End *</Label><Input type="date" value={String(form.returnPeriodEnd ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodEnd: e.target.value }))} /></div>
+            <div><Label>Period Start *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={String(form.returnPeriodStart ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodStart: e.target.value }))} /></div>
+            <div><Label>Period End *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={String(form.returnPeriodEnd ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodEnd: e.target.value }))} /></div>
             <div><Label>Total Abstracted (m³)</Label><Input type="number" step="1" value={String(form.totalAbstractedM3 ?? "")} onChange={e => setForm(f => ({ ...f, totalAbstractedM3: e.target.value }))} /></div>
             <div><Label>Compliance Status</Label>
               <Select value={String(form.complianceStatus ?? "compliant")} onValueChange={v => setForm(f => ({ ...f, complianceStatus: v }))}>
@@ -677,7 +677,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div className="flex items-center gap-2 col-span-2 mt-1"><Checkbox id="subEA" checked={Boolean(form.submittedToEa)} onCheckedChange={v => setForm(f => ({ ...f, submittedToEa: Boolean(v) }))} /><Label htmlFor="subEA">Submitted to Environment Agency?</Label></div>
-            <div><Label>Submission Date</Label><Input type="date" value={String(form.submissionDate ?? "")} onChange={e => setForm(f => ({ ...f, submissionDate: e.target.value }))} /></div>
+            <div><Label>Submission Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={String(form.submissionDate ?? "")} onChange={e => setForm(f => ({ ...f, submissionDate: e.target.value }))} /></div>
             <div><Label>EA Return Reference</Label><Input value={String(form.eaReturnReference ?? "")} onChange={e => setForm(f => ({ ...f, eaReturnReference: e.target.value }))} /></div>
             <div><Label>Submitted By</Label><Input value={String(form.submittedBy ?? "")} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Exceedance / Non-compliance Notes</Label><Textarea value={String(form.exceedanceNotes ?? "")} onChange={e => setForm(f => ({ ...f, exceedanceNotes: e.target.value }))} rows={2} /></div>

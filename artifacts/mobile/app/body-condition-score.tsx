@@ -86,7 +86,7 @@ function BcsHint({ score }: { score: string }) {
 
 export default function BodyConditionScoreScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
 
   const [cowEarTag, setCowEarTag] = useState("");
@@ -94,7 +94,7 @@ export default function BodyConditionScoreScreen() {
   const [lifeStage, setLifeStage] = useState("");
   const [bcsScore, setBcsScore] = useState("");
   const [targetScore, setTargetScore] = useState("");
-  const [assessedBy, setAssessedBy] = useState("");
+  const [assessedBy, setAssessedBy] = useState(user?.name || "");
   const [actionRequired, setActionRequired] = useState(false);
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");

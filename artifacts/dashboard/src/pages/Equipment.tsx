@@ -471,7 +471,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Date Reported</label>
-                <Input type="date" value={form.reportedDate} onChange={e => setForm(f => ({ ...f, reportedDate: e.target.value }))} />
+                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.reportedDate} onChange={e => setForm(f => ({ ...f, reportedDate: e.target.value }))} />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Reported By</label>
@@ -1251,7 +1251,7 @@ export default function EquipmentPage() {
                     </div>
                     <div>
                       <Label>Date Performed <span style={{ color: "#ef4444" }}>*</span></Label>
-                      <Input type="date" className="mt-1" value={serviceForm.performedDate} onChange={e => setServiceForm(f => ({ ...f, performedDate: e.target.value }))} />
+                      <Input type="date" className="mt-1" max={new Date().toISOString().slice(0, 10)} value={serviceForm.performedDate} onChange={e => setServiceForm(f => ({ ...f, performedDate: e.target.value }))} />
                     </div>
                     <div className="col-span-2">
                       <Label>Description / Work Done <span style={{ color: "#ef4444" }}>*</span></Label>
@@ -1263,7 +1263,7 @@ export default function EquipmentPage() {
                     </div>
                     <div>
                       <Label>Next Due Date</Label>
-                      <Input type="date" className="mt-1" value={serviceForm.nextDueDate} onChange={e => setServiceForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                      <Input type="date" className="mt-1" min={new Date().toISOString().slice(0, 10)} value={serviceForm.nextDueDate} onChange={e => setServiceForm(f => ({ ...f, nextDueDate: e.target.value }))} />
                     </div>
                     <div>
                       <Label>Cost (£)</Label>
@@ -1367,11 +1367,11 @@ export default function EquipmentPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Last Assessment Date</label>
-                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerLastAssessmentDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerLastAssessmentDate: e.target.value }))} />
+                    <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerLastAssessmentDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerLastAssessmentDate: e.target.value }))} />
                   </div>
                   <div>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Next Review Date</label>
-                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerNextReviewDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNextReviewDate: e.target.value }))} />
+                    <input type="date" min={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerNextReviewDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNextReviewDate: e.target.value }))} />
                     {compForm.puwerNextReviewDate && (() => { const d = dueStatus(compForm.puwerNextReviewDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
                   </div>
                   <div>
@@ -1436,7 +1436,7 @@ export default function EquipmentPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Purchase Date</label>
-                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.purchaseDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, purchaseDate: e.target.value }))} />
+                    <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.purchaseDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, purchaseDate: e.target.value }))} />
                   </div>
                   <div>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Purchase Price (£)</label>
@@ -1555,6 +1555,7 @@ export default function EquipmentPage() {
                   <Label>Date of Disposal <span style={{ color: "#ef4444" }}>*</span></Label>
                   <Input
                     type="date"
+                    max={new Date().toISOString().slice(0, 10)}
                     className="mt-1"
                     value={disposeForm.disposalDate}
                     onChange={e => setDisposeForm(f => ({ ...f, disposalDate: e.target.value }))}

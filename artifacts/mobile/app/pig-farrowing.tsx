@@ -284,6 +284,7 @@ export default function PigFarrowingScreen() {
               <Input
                 label="Collection Date"
                 placeholder="YYYY-MM-DD"
+                maxDate="today"
                 value={perinatalCollectionDate}
                 onChangeText={setPerinatalCollectionDate}
                 keyboardType="numbers-and-punctuation"
