@@ -504,7 +504,7 @@ function FieldCardMenu({
     const win = window.open("", "_blank");
     if (!win || !qrRef.current) return;
     win.document.write(`<html><head><title>Field Label — ${displayCode}</title><style>${FIELD_LABEL_CSS}</style></head><body>${qrRef.current.innerHTML}</body></html>`);
-    win.document.close(); win.focus(); win.print(); win.close();
+    win.document.close(); win.focus(); win.addEventListener("afterprint", () => win.close()); win.print();
   }
 
   const saveFieldCode = async (code: string) => {

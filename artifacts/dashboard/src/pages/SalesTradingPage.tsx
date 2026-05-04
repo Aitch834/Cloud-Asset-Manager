@@ -2195,7 +2195,7 @@ function ReportsTab({ farmId }: { farmId: number }) {
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); }, 400);
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
   };
 
   return (

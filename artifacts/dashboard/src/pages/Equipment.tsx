@@ -253,8 +253,8 @@ function EquipQRDialog({ equip, farmId, farmName, onClose }: {
     win.document.write(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
     win.document.close();
     win.focus();
+    win.addEventListener("afterprint", () => win.close());
     win.print();
-    win.close();
   }
 
   return (

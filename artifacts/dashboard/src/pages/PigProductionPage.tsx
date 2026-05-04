@@ -1047,7 +1047,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
 <p class="note">This farrowing records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Pigs audit. Printed: ${printedDate}</p>
 </body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   }
 
   return (

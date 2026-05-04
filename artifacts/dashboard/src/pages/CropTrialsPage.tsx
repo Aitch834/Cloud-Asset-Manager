@@ -249,7 +249,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       </p>
     </body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   }
   const deletePlotMut = useMutation({
     mutationFn: (plotId: number) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${plotId}`, { method: "DELETE" }),

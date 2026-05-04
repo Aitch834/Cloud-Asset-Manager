@@ -371,7 +371,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
     const rows = filtered.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${e.staffName}</td><td>${e.taskType}</td><td style="text-align:right">${parseFloat(e.hoursRegular || "0").toFixed(1)}</td><td style="text-align:right">${parseFloat(e.hoursOvertime || "0") > 0 ? parseFloat(e.hoursOvertime).toFixed(1) : "—"}</td><td>${e.approvedBy || "—"}</td><td>${e.notes || ""}</td></tr>`).join("");
     const html = `<!DOCTYPE html><html><head><title>Labour Timesheets</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px;margin-bottom:4px}p{color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f5f5f5;font-weight:600}tr:nth-child(even){background:#fafafa}.totals{margin-top:12px;font-size:13px}</style></head><body><h1>Labour Timesheets</h1><p>${periodLabel} — All staff</p><table><thead><tr><th>Date</th><th>Staff Member</th><th>Task</th><th>Reg Hrs</th><th>OT Hrs</th><th>Approved By</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><strong>Total regular: ${totalReg.toFixed(1)} hrs</strong> &nbsp;&nbsp; <strong>Total overtime: ${totalOT.toFixed(1)} hrs</strong> &nbsp;&nbsp; <strong>Total working time: ${(totalReg + totalOT).toFixed(1)} hrs</strong></div></body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   };
 
   const printStaffTimesheet = () => {
@@ -388,7 +388,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
     }).join("");
     const html = `<!DOCTYPE html><html><head><title>Timesheet — ${name}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0 0 2px}.sub{color:#666;font-size:12px;margin:0 0 14px}table{width:100%;border-collapse:collapse;margin-bottom:14px}th{background:#efefef;border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em}td{border:1px solid #ddd;padding:6px 8px}.wtr-note{background:#fff8e1;border:1px solid #e8cc50;border-radius:4px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:#555}.totals{background:#f0f7f0;border:1px solid #b8d8b8;border-radius:4px;padding:10px 14px;margin-bottom:18px;font-size:13px}.signoff{border-top:2px solid #222;padding-top:14px;margin-top:20px}.sig-box{border-bottom:1px solid #222;height:36px;margin-top:4px}.signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:10px}@media print{body{margin:12px}}</style></head><body><h1>Staff Timesheet — ${name}</h1><p class="sub">${periodLabel} &nbsp;·&nbsp; Printed ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p><div class="wtr-note"><strong>Working Time note:</strong> Hours recorded represent time actively working on each task. Rest breaks (including the statutory 20-minute break) are <em>not</em> working time under the Working Time Regulations 1998 and should not be included. Travel between work sites during the working day <em>is</em> working time and should be recorded as "Travel (between sites)".</div><table><thead><tr><th>Task</th><th style="text-align:right">Reg Hrs</th><th style="text-align:right">OT Hrs</th><th>Approved By</th><th>Notes</th></tr></thead><tbody>${dayRows}</tbody></table><div class="totals">Total regular hours: <strong>${totalReg.toFixed(1)} hrs</strong> &nbsp;&nbsp;&nbsp; Total overtime: <strong>${totalOT.toFixed(1)} hrs</strong> &nbsp;&nbsp;&nbsp; Total working time: <strong>${(totalReg + totalOT).toFixed(1)} hrs</strong></div><div class="signoff"><p style="margin:0 0 4px;font-size:13px;font-weight:600">Declaration</p><p style="margin:0;font-size:11px;color:#555">I confirm that the above is an accurate record of my working hours and the tasks undertaken during the period shown. Rest breaks are not included in the hours recorded.</p><div class="signoff-grid"><div><p style="margin:10px 0 2px;font-size:11px">Staff member: <strong>${name}</strong></p><div class="sig-box"></div><p style="margin:3px 0 0;font-size:10px;color:#888">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: _______________</p></div><div><p style="margin:10px 0 2px;font-size:11px">Countersigned by (supervisor / farm manager)</p><div class="sig-box"></div><p style="margin:3px 0 0;font-size:10px;color:#888">Name: _________________________ &nbsp; Date: _______________</p></div></div></div></body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   };
 
   const printBlankTimesheet = () => {
@@ -509,7 +509,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
 </body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   };
 
   return (
@@ -842,7 +842,7 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
     }).join("");
     const html = `<!DOCTYPE html><html><head><title>Weekly Rota</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:center}th{background:#f5f5f5;font-weight:600}td:first-child{text-align:left}</style></head><body><h1>Weekly Rota — w/c ${fmtDate(isoDate(weekStart))}</h1><table><thead>${header}</thead><tbody>${rows}</tbody></table></body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   };
 
   const dayDates = DAYS.map((_, i) => addDays(weekStart, i));

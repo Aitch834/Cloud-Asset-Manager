@@ -76,7 +76,7 @@ export function openPrintWindow(html: string): void {
   w.document.write(html);
   w.document.close();
   w.focus();
-  setTimeout(() => { w.print(); w.close(); }, 600);
+  setTimeout(() => { w.addEventListener("afterprint", () => w.close()); w.print(); }, 600);
 }
 
 export function printProReport(opts: ProReportOptions): void {

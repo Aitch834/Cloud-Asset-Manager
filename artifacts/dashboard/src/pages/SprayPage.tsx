@@ -1138,7 +1138,7 @@ function PrintTab({ applications, farm }: any) {
     </head><body>${content}</body></html>`);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 600);
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 600);
   };
 
   const farmName = farm?.name;

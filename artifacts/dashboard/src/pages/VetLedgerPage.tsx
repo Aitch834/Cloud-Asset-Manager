@@ -280,6 +280,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
     if (!w) return;
     w.document.write(html);
     w.document.close();
+    w.addEventListener("afterprint", () => w.close());
     w.print();
   }
 

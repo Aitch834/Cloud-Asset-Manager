@@ -196,7 +196,7 @@ function MilkMonthlySummary({ records, monthLabel }: { records: MilkRecord[]; mo
     w.document.write("</body></html>");
     w.document.close();
     w.focus();
-    setTimeout(() => { w.print(); }, 400);
+    setTimeout(() => { w.addEventListener("afterprint", () => w.close()); w.print(); }, 400);
   }
 
   const sccColour = (v: number | null) =>

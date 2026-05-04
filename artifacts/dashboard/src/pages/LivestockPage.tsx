@@ -3703,7 +3703,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
           const win = window.open("", "_blank");
           if (!win || !qrPrintRef.current) return;
           win.document.write(`<html><head><title>Animal Label</title><style>${LCSS}</style></head><body>${qrPrintRef.current.innerHTML}</body></html>`);
-          win.document.close(); win.focus(); win.print(); win.close();
+          win.document.close(); win.focus(); win.addEventListener("afterprint", () => win.close()); win.print();
         }
         return (
           <Dialog open onOpenChange={o => { if (!o) setQrAnimal(null); }}>

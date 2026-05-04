@@ -456,7 +456,7 @@ export default function SeasonReportsPage() {
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 600);
   }
 
   return (

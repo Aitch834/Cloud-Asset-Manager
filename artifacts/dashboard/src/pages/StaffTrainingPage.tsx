@@ -1346,7 +1346,7 @@ ${certificates.length === 0
 </div></body></html>`;
 
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); w.print(); }
+  if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
 }
 
 // ─── Competency Matrix Tab ────────────────────────────────────────────────────
