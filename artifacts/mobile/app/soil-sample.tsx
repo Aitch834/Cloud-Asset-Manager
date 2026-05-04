@@ -36,7 +36,7 @@ type GpsStatus = "idle" | "capturing" | "captured" | "denied" | "error";
 
 export default function SoilSampleScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading, error: fieldsError, fromCache: fieldsCached } = useApiFields(currentFarm?.id);
   const { labs, loading: labsLoading, error: labsError, fromCache: labsCached } = useApiLabs(currentFarm?.id);
@@ -46,7 +46,7 @@ export default function SoilSampleScreen() {
   const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
   const [sampleReference, setSampleReference] = useState("");
-  const [sampledBy, setSampledBy] = useState("");
+  const [sampledBy, setSampledBy] = useState(user?.name || "");
   const [labId, setLabId] = useState<number | null>(null);
   const [labName, setLabName] = useState("");
   const [depth, setDepth] = useState("");

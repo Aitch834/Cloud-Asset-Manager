@@ -77,7 +77,7 @@ function ToggleRow({
 
 export default function DryCowtTherapyScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
 
   const [cowEarTag, setCowEarTag] = useState("");
@@ -96,7 +96,7 @@ export default function DryCowtTherapyScreen() {
   const [sccAtDryOff, setSccAtDryOff] = useState("");
   const [mastitisEpisodes12m, setMastitisEpisodes12m] = useState("");
 
-  const [administeredBy, setAdministeredBy] = useState("");
+  const [administeredBy, setAdministeredBy] = useState(user?.name || "");
   const [pomvAuthorised, setPomvAuthorised] = useState(false);
   const [prescribingVet, setPrescribingVet] = useState("");
 
