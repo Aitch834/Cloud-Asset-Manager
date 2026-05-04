@@ -1605,11 +1605,11 @@ export default function FieldsPage() {
                 <form onSubmit={cropForm.handleSubmit(onSubmitCrop)} className="space-y-4 mt-4">
                   <div>
                     <label className="text-sm font-medium mb-1.5 block">Crop Name</label>
-                    <Input {...cropForm.register("name", { required: true })} placeholder="e.g. Winter Wheat, Oil Seed Rape" />
+                    <Input {...cropForm.register("name", { required: true })} placeholder="e.g. Winter Wheat, Oil Seed Rape" autoComplete="off" />
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1.5 block">Variety (optional)</label>
-                    <Input {...cropForm.register("variety")} placeholder="e.g. KWS Zyatt, Extase" />
+                    <Input {...cropForm.register("variety")} placeholder="e.g. KWS Zyatt, Extase" autoComplete="off" />
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1.5 block">Category</label>
