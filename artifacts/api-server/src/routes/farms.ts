@@ -22760,9 +22760,32 @@ router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async 
 router.put("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
   const b = req.body as Record<string, unknown>;
+  const [existing] = await db.select({ status: labourAbsencesTable.status }).from(labourAbsencesTable).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId))).limit(1);
   const [row] = await db.update(labourAbsencesTable).set({ staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ absence: row });
+  // Fire-and-forget: SMS staff member when their absence status changes to approved/declined
+  const newStatus = String(b.status ?? "approved");
+  if (existing && existing.status !== newStatus && (newStatus === "approved" || newStatus === "declined")) {
+    void (async () => {
+      try {
+        const staffName = String(b.staffName ?? "");
+        const members = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone }).from(farmMembersTable).where(and(eq(farmMembersTable.farmId, farmId), isNotNull(farmMembersTable.phone)));
+        const match = members.find(m => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() === staffName);
+        if (match?.phone) {
+          const absType = String(b.absenceType ?? "Leave");
+          const start = String(b.startDate ?? ""); const end = String(b.endDate ?? "");
+          const days = b.daysCount ? `${b.daysCount} day${String(b.daysCount) === "1" ? "" : "s"}, ` : "";
+          const dateRange = start === end ? start : `${start} to ${end}`;
+          const approver = String(b.approvedBy ?? "your manager");
+          const msg = newStatus === "approved"
+            ? `BDE Farm Trac: Your ${absType} (${days}${dateRange}) has been approved by ${approver}.`
+            : `BDE Farm Trac: Your ${absType} request (${dateRange}) has been declined by ${approver}. Please speak to your manager.`;
+          await sendSms(match.phone, msg);
+        }
+      } catch (err) { console.error("[Absence status SMS]", err); }
+    })();
+  }
 });
 router.delete("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);

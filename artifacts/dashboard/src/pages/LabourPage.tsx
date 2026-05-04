@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -950,6 +951,8 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
 function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useUser();
+  const managerName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "Manager" : "Manager";
   const thisYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(thisYear));
   const [staffFilter, setStaffFilter] = useState("all");
@@ -1011,7 +1014,8 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
   };
 
   const save = () => {
-    const body = { ...form, daysCount: form.daysCount || autoCalcDays(form.startDate, form.endDate) };
+    const autoApprovedBy = (form.status === "approved" || form.status === "declined") ? managerName : null;
+    const body = { ...form, daysCount: form.daysCount || autoCalcDays(form.startDate, form.endDate), approvedBy: autoApprovedBy };
     if (editItem) editMut.mutate({ id: editItem.id, body });
     else addMut.mutate(body);
   };
@@ -1197,9 +1201,12 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2">
-                <Label>Approved By</Label>
-                <Input className="mt-1" value={form.approvedBy} onChange={e => sf("approvedBy", e.target.value)} placeholder="Supervisor name" />
+              <div className="col-span-2 text-xs text-gray-500 -mt-1">
+                {form.status === "approved" || form.status === "declined"
+                  ? <span>Will be recorded as approved/declined by <strong>{managerName}</strong></span>
+                  : editItem?.approvedBy
+                    ? <span>Previously actioned by <strong>{editItem.approvedBy}</strong> — cleared on save as status is now Pending</span>
+                    : null}
               </div>
               <div className="col-span-2">
                 <Label>Notes</Label>
