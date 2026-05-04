@@ -182,6 +182,7 @@ const TITLES: [string, string][] = [
   ["Crop Rotation Planner — Field × Year Grid, OSR Interval Warnings and Sequence Planning", "Fields & Crops"],
   ["Labour Management — Setup Order, Rota, Timesheet Submission & Approval Workflow", "Staff & Training"],
   ["Labour Management — Timesheet Approval, SMS Notifications & Submission Status Grid", "Staff & Training"],
+  ["Labour Management — Mobile Leave Requests, Pending Approval Panel & SMS Notifications", "Staff & Training"],
   ["Benchmarking Panels — AHDB and Andersons Performance Comparisons", "Finance & Business"],
   ["NVZ Budget Calculator — Per-Field Nitrogen Budget vs DEFRA Field Limit", "Nutrient Management"],
   ["Multi-Farm Consolidated Dashboard — Group Compliance Overview Across Holdings", "Dashboards"],
