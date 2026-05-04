@@ -58,7 +58,10 @@ function getMondayOfWeek(date: Date): Date {
   return d;
 }
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function addDays(d: Date, n: number): Date {
   const r = new Date(d);
@@ -151,7 +154,7 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
   });
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoDate(new Date());
   const data = statusQ.data;
 
   const todayIndex = (() => {
@@ -299,14 +302,14 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
   const [filterStaff, setFilterStaff] = useState("all");
   const [filterMode, setFilterMode] = useState<"month" | "week">("month");
-  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [filterMonth, setFilterMonth] = useState(() => isoDate(new Date()).slice(0, 7));
   const [filterWeekStart, setFilterWeekStart] = useState(() => isoDate(getMondayOfWeek(new Date())));
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<TimesheetEntry | null>(null);
 
   const emptyForm = () => ({
     staffName: filterStaff !== "all" ? filterStaff : "",
-    date: new Date().toISOString().slice(0, 10),
+    date: isoDate(new Date()),
     taskType: "", hoursRegular: "", hoursOvertime: "", notes: "", approvedBy: "",
   });
   const [form, setForm] = useState(emptyForm());
@@ -1280,10 +1283,10 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
 function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [filterMonth, setFilterMonth] = useState(() => isoDate(new Date()).slice(0, 7));
   const [rateOpen, setRateOpen] = useState(false);
   const [editRate, setEditRate] = useState<HourlyRate | null>(null);
-  const emptyRate = () => ({ staffName: "", regularRatePence: "", overtimeRatePence: "", effectiveFrom: new Date().toISOString().slice(0, 10), notes: "" });
+  const emptyRate = () => ({ staffName: "", regularRatePence: "", overtimeRatePence: "", effectiveFrom: isoDate(new Date()), notes: "" });
   const [rateForm, setRateForm] = useState(emptyRate());
 
   const tsQ = useQuery<{ entries: TimesheetEntry[] }>({
@@ -1627,7 +1630,7 @@ export default function LabourPage() {
   });
   const pendingBadge = useMemo(() => {
     if (!pendingStatusQ.data?.staff?.length) return 0;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = isoDate(new Date());
     const d = new Date(todayStr + "T00:00:00Z"); const dow = d.getUTCDay();
     const idx = dow === 0 ? 6 : dow - 1;
     return pendingStatusQ.data.staff.filter(s => s.days[idx]?.status === "pending").length;
