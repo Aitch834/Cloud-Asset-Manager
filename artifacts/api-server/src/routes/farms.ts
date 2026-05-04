@@ -1010,6 +1010,10 @@ router.delete("/farms/:farmId/field-season-land-use/:id", requireAuth, requireTe
 router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  const fieldId = req.query.fieldId ? Number(req.query.fieldId) : null;
+  const whereClause = fieldId && !isNaN(fieldId)
+    ? and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.id, fieldId))
+    : eq(fieldsTable.farmId, farmId);
   const records = await db
     .select()
     .from(harvestRecordsTable)
@@ -1017,7 +1021,7 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
     .leftJoin(equipmentTable, eq(harvestRecordsTable.equipmentId, equipmentTable.id))
-    .where(eq(fieldsTable.farmId, farmId))
+    .where(whereClause)
     .orderBy(desc(harvestRecordsTable.harvestDate));
   res.json({
     records: records.map((r) => ({

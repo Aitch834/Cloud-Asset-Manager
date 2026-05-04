@@ -22,7 +22,7 @@ import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
-  TreePine, Layers3,
+  TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
@@ -1120,6 +1120,25 @@ export default function FieldsPage() {
     enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "nmp",
     select: (d: any) => d.entries ?? [],
   });
+
+  type FieldHarvestRecord = {
+    id: number;
+    fieldCropAssignmentId: number;
+    yieldTonnes: string | null;
+    areaHarvestedHa: string | null;
+    moisturePercent: string | null;
+    qualityGrade: string | null;
+    harvestDate: string;
+  };
+  const fieldHarvestsQ = useQuery<FieldHarvestRecord[]>({
+    queryKey: ["field-harvests", safeFarmId, selectedFieldForHistory?.id],
+    queryFn: () =>
+      fetch(`/api/farms/${safeFarmId}/harvests?fieldId=${selectedFieldForHistory?.id}`)
+        .then(r => r.json())
+        .then((d: { records?: FieldHarvestRecord[] }) => d.records ?? []),
+    enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "history",
+  });
+  const fieldHarvests: FieldHarvestRecord[] = fieldHarvestsQ.data ?? [];
 
   const tenureDocsQ = useQuery({
     queryKey: ["field-tenure-docs", safeFarmId, selectedFieldForHistory?.id],
@@ -2444,6 +2463,35 @@ export default function FieldsPage() {
                                     return <div className="flex items-center gap-2 mt-0.5 flex-wrap"><p className="text-xs text-foreground/60 flex items-center gap-1.5"><Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />Actual harvest {formatDate(a.actualHarvestDate)}</p>{days !== null && <VarianceBadge days={days} size="xs" />}</div>;
                                   })()}
                                   {a.actualHarvestDate && <div className="mt-1.5"><HarvestNoteEditor assignmentId={a.id} farmId={farmId} initialNote={a.notes} /></div>}
+                                  {(() => {
+                                    const harvests = fieldHarvests.filter(h => h.fieldCropAssignmentId === a.id);
+                                    if (!harvests.length) return null;
+                                    const totalYield = harvests.reduce((s, h) => s + (h.yieldTonnes ? parseFloat(h.yieldTonnes) : 0), 0);
+                                    const totalArea = harvests.reduce((s, h) => s + (h.areaHarvestedHa ? parseFloat(h.areaHarvestedHa) : 0), 0);
+                                    const fieldArea = f.areaHectares ? parseFloat(String(f.areaHectares)) : null;
+                                    const effectiveArea = totalArea > 0 ? totalArea : fieldArea;
+                                    const yieldTha = effectiveArea && effectiveArea > 0 ? totalYield / effectiveArea : null;
+                                    const moistureVals = harvests.filter(h => h.moisturePercent).map(h => parseFloat(h.moisturePercent!));
+                                    const avgMoisture = moistureVals.length > 0 ? moistureVals.reduce((s, v) => s + v, 0) / moistureVals.length : null;
+                                    const grades = [...new Set(harvests.map(h => h.qualityGrade).filter(Boolean))];
+                                    return (
+                                      <div className="mt-2.5 pt-2.5 border-t border-border/30 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                                          <Scale className="w-3 h-3" />
+                                          {yieldTha ? `${yieldTha.toFixed(1)} t/ha` : `${totalYield.toFixed(1)} t`}
+                                        </span>
+                                        {yieldTha && totalYield > 0 && (
+                                          <span className="text-xs text-foreground/45">{totalYield.toFixed(1)} t total</span>
+                                        )}
+                                        {avgMoisture !== null && (
+                                          <span className="text-xs text-foreground/45">{avgMoisture.toFixed(1)}% moisture</span>
+                                        )}
+                                        {grades.length > 0 && (
+                                          <span className="text-xs text-foreground/45">Grade {grades.join(", ")}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             );
@@ -2477,9 +2525,78 @@ export default function FieldsPage() {
                             );
                           }
                         })}
+                        {(() => {
+                          const yieldRows = fieldAssignments
+                            .map(a => {
+                              const harvests = fieldHarvests.filter(h => h.fieldCropAssignmentId === a.id);
+                              if (!harvests.length) return null;
+                              const totalYield = harvests.reduce((s, h) => s + (h.yieldTonnes ? parseFloat(h.yieldTonnes) : 0), 0);
+                              const totalArea = harvests.reduce((s, h) => s + (h.areaHarvestedHa ? parseFloat(h.areaHarvestedHa) : 0), 0);
+                              const fieldArea = f.areaHectares ? parseFloat(String(f.areaHectares)) : null;
+                              const effectiveArea = totalArea > 0 ? totalArea : fieldArea;
+                              const yieldTha = effectiveArea && effectiveArea > 0 ? totalYield / effectiveArea : null;
+                              return { year: a.year ?? 0, cropName: a.cropName, yieldTha, totalYield };
+                            })
+                            .filter((r): r is { year: number; cropName: string; yieldTha: number | null; totalYield: number } => r !== null)
+                            .sort((a, b) => b.year - a.year);
+                          if (!yieldRows.length) return null;
+                          const cropAvgs: Record<string, number> = {};
+                          const cropCounts: Record<string, number> = {};
+                          for (const row of yieldRows) {
+                            if (row.yieldTha) {
+                              cropAvgs[row.cropName] = (cropAvgs[row.cropName] ?? 0) + row.yieldTha;
+                              cropCounts[row.cropName] = (cropCounts[row.cropName] ?? 0) + 1;
+                            }
+                          }
+                          for (const crop of Object.keys(cropAvgs)) {
+                            cropAvgs[crop] = cropAvgs[crop] / (cropCounts[crop] ?? 1);
+                          }
+                          return (
+                            <div className="mt-4 pt-4 border-t border-border/50">
+                              <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <Scale className="w-3.5 h-3.5" /> Yield History
+                              </p>
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-border/30">
+                                    <th className="text-left pb-1.5 font-semibold text-foreground/40">Year</th>
+                                    <th className="text-left pb-1.5 font-semibold text-foreground/40">Crop</th>
+                                    <th className="text-right pb-1.5 font-semibold text-foreground/40">t/ha</th>
+                                    <th className="text-right pb-1.5 font-semibold text-foreground/40">vs avg</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {yieldRows.map((row, i) => {
+                                    const avg = cropAvgs[row.cropName] ?? 0;
+                                    const diff = row.yieldTha !== null ? row.yieldTha - avg : null;
+                                    const isAbove = diff !== null && cropCounts[row.cropName] > 1 && diff > 0.1;
+                                    const isBelow = diff !== null && cropCounts[row.cropName] > 1 && diff < -0.1;
+                                    return (
+                                      <tr key={i} className="border-b border-border/20 last:border-0">
+                                        <td className="py-1.5 font-medium text-foreground/70">{row.year}</td>
+                                        <td className="py-1.5 text-foreground/60 truncate max-w-[80px]">{row.cropName}</td>
+                                        <td className="py-1.5 text-right font-semibold text-foreground">
+                                          {row.yieldTha ? row.yieldTha.toFixed(1) : `${row.totalYield.toFixed(1)} t`}
+                                        </td>
+                                        <td className="py-1.5 text-right">
+                                          {isAbove && <span className="inline-flex items-center gap-0.5 text-green-600 font-semibold"><TrendingUp className="w-3 h-3" />+{diff!.toFixed(1)}</span>}
+                                          {isBelow && <span className="inline-flex items-center gap-0.5 text-amber-600 font-semibold"><TrendingDown className="w-3 h-3" />{diff!.toFixed(1)}</span>}
+                                          {!isAbove && !isBelow && row.yieldTha && <span className="text-foreground/30"><Minus className="w-3 h-3 inline" /></span>}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              {Object.keys(cropCounts).some(c => cropCounts[c] > 1) && (
+                                <p className="text-[10px] text-foreground/30 mt-2">Trend vs. this field's average per crop type</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <button
                           onClick={() => { setLandUseForField(f); landUseForm.reset({ landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: f.areaHectares ? String(f.areaHectares) : "", startDate: "", endDate: "", managementNotes: "" }); }}
-                          className="w-full mt-1 flex items-center justify-center gap-2 py-2 border-2 border-dashed border-stone-200 rounded-xl text-xs text-stone-500 font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+                          className="w-full mt-4 flex items-center justify-center gap-2 py-2 border-2 border-dashed border-stone-200 rounded-xl text-xs text-stone-500 font-medium hover:bg-stone-50 transition-colors cursor-pointer"
                         >
                           <TreePine className="w-3.5 h-3.5" />
                           Record another season's land use
