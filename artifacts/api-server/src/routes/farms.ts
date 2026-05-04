@@ -22756,6 +22756,31 @@ router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async 
   const b = req.body as Record<string, unknown>;
   const [row] = await db.insert(labourAbsencesTable).values({ farmId, staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).returning();
   res.json({ absence: row });
+  // Fire-and-forget: SMS managers when a mobile staff member submits a pending leave request
+  if (String(b.status ?? "") === "pending") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const staffName = String(b.staffName ?? "A staff member");
+        const absType = String(b.absenceType ?? "Leave");
+        const start = String(b.startDate ?? ""); const end = String(b.endDate ?? "");
+        const days = b.daysCount ? `${b.daysCount} day${String(b.daysCount) === "1" ? "" : "s"}, ` : "";
+        const dateRange = start === end ? start : `${start} to ${end}`;
+        const msg = `BDE Farm Trac: ${staffName} has requested ${absType} (${days}${dateRange}) on ${farm.name}. Review it in Labour > Holiday & Absence.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Leave Request SMS]", err); }
+    })();
+  }
 });
 router.put("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);

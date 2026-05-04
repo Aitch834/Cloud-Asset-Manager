@@ -1039,6 +1039,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["staff-training"],
   },
   {
+    id: "leave-request",
+    title: "Request Annual Leave",
+    description: "Submit a leave request (annual leave, compassionate leave, unpaid leave or other) to your manager — they approve or decline from the dashboard and you receive a text message with the outcome",
+    icon: "calendar",
+    color: "#059669",
+    bgColor: "#d1fae5",
+    route: "/leave-request",
+    moduleKeys: ["staff-training"],
+  },
+  {
     id: "grain-sale",
     title: "Grain Sale",
     description: "Record a grain sale — commodity, buyer, tonnage, price, moisture and quality results",

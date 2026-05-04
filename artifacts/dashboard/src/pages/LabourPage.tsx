@@ -948,7 +948,7 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
 
 // ─── Holiday & Absence Tab ───────────────────────────────────────────────────
 
-function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; staffNames: string[]; onPendingCount?: (n: number) => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useUser();
@@ -963,6 +963,8 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
   const [entEditTarget, setEntEditTarget] = useState<{ name: string; year: number; ent: Entitlement | undefined } | null>(null);
   const [entEditDays, setEntEditDays] = useState("");
   const [entEditCarried, setEntEditCarried] = useState("");
+  const [declineTarget, setDeclineTarget] = useState<Absence | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
 
   const emptyForm = () => ({ staffName: "", absenceType: "Annual Leave", startDate: "", endDate: "", daysCount: "", notes: "", approvedBy: "", status: "approved" });
   const [form, setForm] = useState(emptyForm());
@@ -1024,6 +1026,9 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
   const entitlements = entQ.data?.entitlements ?? [];
   const yearInt = parseInt(yearFilter);
 
+  const pendingAbsences = useMemo(() => absences.filter(a => a.status === "pending"), [absences]);
+  useEffect(() => { onPendingCount?.(pendingAbsences.length); }, [pendingAbsences.length, onPendingCount]);
+
   const filtered = absences.filter(a => {
     if (staffFilter !== "all" && a.staffName !== staffFilter) return false;
     if (typeFilter !== "all" && a.absenceType !== typeFilter) return false;
@@ -1051,6 +1056,56 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
 
   return (
     <div className="space-y-5">
+
+      {/* ── Pending leave requests panel ── */}
+      {pendingAbsences.length > 0 && (
+        <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-100 border-b border-amber-200">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+            <span className="text-sm font-semibold text-amber-800">
+              Pending Leave Request{pendingAbsences.length !== 1 ? "s" : ""} — {pendingAbsences.length} awaiting approval
+            </span>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {pendingAbsences.map(a => (
+              <div key={a.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-sm text-gray-800">{a.staffName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.absenceType === "Annual Leave" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                      {a.absenceType}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    {fmtDate(a.startDate)}{a.startDate !== a.endDate ? ` — ${fmtDate(a.endDate)}` : ""}
+                    {a.daysCount ? ` · ${a.daysCount} day${a.daysCount === "1" ? "" : "s"}` : ""}
+                  </p>
+                  {a.notes && <p className="text-xs text-gray-500 mt-0.5 italic">{a.notes}</p>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => editMut.mutate({ id: a.id, body: { staffName: a.staffName, absenceType: a.absenceType, startDate: a.startDate, endDate: a.endDate, daysCount: a.daysCount, notes: a.notes, status: "approved", approvedBy: managerName } })}
+                    disabled={editMut.isPending}
+                  >
+                    <CheckCircle2 size={12} className="mr-1" /> Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => { setDeclineTarget(a); setDeclineReason(""); }}
+                  >
+                    <XCircle size={12} className="mr-1" /> Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Leave entitlement summary */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -1220,6 +1275,50 @@ function AbsenceTab({ farmId, staffNames }: { farmId: number; staffNames: string
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Decline leave request dialog ── */}
+      <Dialog open={!!declineTarget} onOpenChange={o => { if (!o) setDeclineTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Decline Leave Request</DialogTitle>
+          </DialogHeader>
+          {declineTarget && (
+            <div className="space-y-4 py-1">
+              <p className="text-sm text-gray-600">
+                Declining <strong>{declineTarget.absenceType}</strong> for <strong>{declineTarget.staffName}</strong>
+                {" "}({fmtDate(declineTarget.startDate)}{declineTarget.startDate !== declineTarget.endDate ? ` — ${fmtDate(declineTarget.endDate)}` : ""}).
+                The staff member will receive an SMS with the outcome.
+              </p>
+              <div>
+                <Label>Reason <span className="text-gray-400 font-normal">(optional — included in SMS)</span></Label>
+                <textarea
+                  className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[70px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={declineReason}
+                  onChange={e => setDeclineReason(e.target.value)}
+                  placeholder="e.g. Farm too short-staffed during harvest period — please re-request after September."
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDeclineTarget(null)}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  disabled={editMut.isPending}
+                  onClick={() => {
+                    const notes = [declineTarget.notes, declineReason.trim()].filter(Boolean).join(" — Decline reason: ");
+                    editMut.mutate({
+                      id: declineTarget.id,
+                      body: { staffName: declineTarget.staffName, absenceType: declineTarget.absenceType, startDate: declineTarget.startDate, endDate: declineTarget.endDate, daysCount: declineTarget.daysCount, notes, status: "declined", approvedBy: managerName },
+                    });
+                    setDeclineTarget(null);
+                  }}
+                >
+                  Confirm Decline
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1611,6 +1710,7 @@ type LabourTab = "timesheets" | "rota" | "absence" | "pay" | "wtr";
 export default function LabourPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<LabourTab>("rota");
+  const [absencePendingBadge, setAbsencePendingBadge] = useState(0);
 
   const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean }> }>({
     queryKey: ["staff-members", farmId],
@@ -1661,14 +1761,14 @@ export default function LabourPage() {
       <div className="border-b flex gap-0 overflow-x-auto mb-6">
         <TabBtn active={tab === "rota"} onClick={() => setTab("rota")} icon={CalendarDays} label="Rota & Shifts" />
         <TabBtn active={tab === "timesheets"} onClick={() => setTab("timesheets")} icon={Clock} label="Timesheets" badge={pendingBadge} />
-        <TabBtn active={tab === "absence"} onClick={() => setTab("absence")} icon={UmbrellaOff} label="Holiday & Absence" />
+        <TabBtn active={tab === "absence"} onClick={() => setTab("absence")} icon={UmbrellaOff} label="Holiday & Absence" badge={absencePendingBadge} />
         <TabBtn active={tab === "pay"} onClick={() => setTab("pay")} icon={PoundSterling} label="Pay Summary" />
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />
       </div>
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} />}
       {tab === "rota" && <RotaTab farmId={farmId} staffNames={staffNames} />}
-      {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} />}
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} />}
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} />}
     </AppLayout>
