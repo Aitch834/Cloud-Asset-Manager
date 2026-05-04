@@ -588,6 +588,7 @@ export default function TaskBoardPage() {
   })();
 
   const [view, setView] = useState<"board" | "reports">("board");
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
@@ -653,6 +654,10 @@ export default function TaskBoardPage() {
   const filtered = memberFiltered.filter(r => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false;
     if (moduleFilter !== "all" && (r.module ?? "General") !== moduleFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!r.title.toLowerCase().includes(q) && !(r.staffName ?? "").toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
@@ -728,6 +733,26 @@ export default function TaskBoardPage() {
           })}
         </div>
 
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search tasks or staff…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 placeholder:text-foreground/30"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/30 hover:text-foreground/60 text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           {departments.length > 0 && (
@@ -760,12 +785,12 @@ export default function TaskBoardPage() {
               {moduleNames.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
-          {(statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all" || moduleFilter !== "all") && (
+          {(searchQuery || statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all" || moduleFilter !== "all") && (
             <button
-              onClick={() => { setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); setModuleFilter("all"); }}
+              onClick={() => { setSearchQuery(""); setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); setModuleFilter("all"); }}
               className="text-xs text-foreground/50 hover:text-foreground underline underline-offset-2"
             >
-              Clear filters
+              Clear all
             </button>
           )}
           <span className="text-xs text-foreground/40 ml-auto">
