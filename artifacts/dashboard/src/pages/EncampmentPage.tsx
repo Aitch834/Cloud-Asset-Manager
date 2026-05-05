@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tent, Plus, Trash2, Camera, File, Upload, Loader2, MapPin, Phone, Printer, ChevronDown, ChevronUp } from "lucide-react";
+import { Tent, Plus, Trash2, Camera, File, Upload, Loader2, MapPin, Phone, Printer, ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 const STATUSES = [
   { value: "active", label: "Active", bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
@@ -217,6 +218,7 @@ export default function EncampmentPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Encampment | null>(null);
   const [form, setForm] = useState<Omit<Encampment, "id" | "farmId" | "photos">>({ ...EMPTY });
 
   function openAdd() {
@@ -405,6 +407,10 @@ export default function EncampmentPage() {
                       <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); openEdit(r); }}>Edit</Button>
                       <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); setDeleteId(r.id); }}
                         style={{ color: "#ef4444", borderColor: "#fecaca" }}><Trash2 size={13} /></Button>
+                      {r.status !== "resolved" && (
+                        <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); setRaiseTaskFor(r); }}
+                          style={{ color: "#f59e0b", borderColor: "#fde68a" }} title="Raise Task"><ClipboardList size={13} /></Button>
+                      )}
                       {expanded ? <ChevronUp size={16} style={{ color: "#9ca3af" }} /> : <ChevronDown size={16} style={{ color: "#9ca3af" }} />}
                     </div>
                   </div>
@@ -673,6 +679,15 @@ export default function EncampmentPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <RaiseTaskDialog
+          farmId={farmId!}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={raiseTaskFor ? `Encampment ${raiseTaskFor.status === "legal_action" ? "Legal Follow-up" : "Action"} — ${raiseTaskFor.locationDescription}` : ""}
+          defaultDescription={raiseTaskFor ? `Discovered: ${fmt(raiseTaskFor.discoveredAt)}. Status: ${statusLabel(raiseTaskFor.status)}.${raiseTaskFor.remediationRequired ? " Remediation required." : ""}` : ""}
+          module="environment"
+        />
       </div>
     </AppLayout>
   );

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, Clipboard } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,6 +289,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
@@ -328,9 +330,23 @@ function WeighTab({ farmId }: { farmId: number }) {
             {[["Date", fmtDate(viewing.weighDate)], ["Batch Ref", fmt(viewing.weighBatchRef)], ["Category", fmt(viewing.animalCategory)], ["Animals Weighed", fmt(viewing.numberOfAnimalsWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Total Weight (kg)", fmtNum(viewing.totalWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
             {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
           </div>}
-          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+            <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Sheep Weigh Review — ${raiseTaskFor.weighBatchRef ?? raiseTaskFor.animalCategory ?? "Batch"}`}
+          defaultDescription={`Avg weight: ${raiseTaskFor.averageWeightKg ?? "—"} kg · DLWG: ${raiseTaskFor.dlwgGPerDay ?? "—"} g/day · BCS: ${raiseTaskFor.bodyConditionScore ?? "—"}`}
+          module="sheep"
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

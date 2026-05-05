@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { QrScanModal, type BdeScanResult } from "@/components/ui/QrScanModal";
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -57,6 +58,7 @@ export default function EquipmentDefectScreen() {
   const [severity, setSeverity] = useState<Severity>("low");
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
+  const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
   const handleSave = async () => {
     if (!equipmentName.trim() || !defectDescription.trim()) {
@@ -109,12 +111,10 @@ export default function EquipmentDefectScreen() {
     await refreshPendingCount();
     setSaving(false);
 
-    const msg = severity === "critical"
-      ? "Defect reported. This item has been flagged as CRITICAL — remove from service immediately."
-      : severity === "high"
-        ? "Defect reported. Equipment must not be used until this defect is repaired."
-        : "Equipment defect report saved successfully.";
-    Alert.alert("Saved", msg, [{ text: "OK", onPress: () => router.back() }]);
+    setTaskSheet({
+      title: `Equipment Defect — ${equipmentName.trim()}${severity === "critical" ? " [CRITICAL]" : severity === "high" ? " [High]" : ""}`,
+      description: `Severity: ${severity} · ${defectDescription.trim().slice(0, 100)}${actionTaken.trim() ? ` · Action taken: ${actionTaken.trim().slice(0, 80)}` : ""}`,
+    });
   };
 
   return (
@@ -261,6 +261,17 @@ export default function EquipmentDefectScreen() {
           <View style={{ height: insets.bottom + spacing.xxxl }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      {taskSheet && (
+        <RaiseTaskSheet
+          visible={!!taskSheet}
+          farmId={currentFarm?.id ?? ""}
+          defaultTitle={taskSheet.title}
+          defaultDescription={taskSheet.description}
+          module="workshop"
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
+        />
+      )}
     </View>
   );
 }

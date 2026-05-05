@@ -18,6 +18,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
@@ -1210,6 +1211,7 @@ function ActionPointsDialog({ farmId, plan, onClose }: { farmId: number; plan: V
   const [markingAction, setMarkingAction] = useState<VetHealthPlanAction | null>(null);
   const [historyAction, setHistoryAction] = useState<VetHealthPlanAction | null>(null);
   const [deletingActionId, setDeletingActionId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
 
   const actionsUrl = `/api/farms/${farmId}/vet-health-plans/${plan.id}/actions`;
 
@@ -1447,6 +1449,7 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
                       </Button>
                       <button onClick={() => openEditAction(a)} className="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => setDeletingActionId(a.id)} className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      {(status === "overdue" || status === "due-soon") && <button onClick={() => setRaiseTaskFor(a)} className="p-1.5 rounded hover:bg-purple-50 text-muted-foreground hover:text-purple-600" title="Raise Task"><ClipboardList className="w-3.5 h-3.5" /></button>}
                     </div>
                   </div>
                 </div>
@@ -1474,6 +1477,16 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`VHP Action Overdue — ${String(raiseTaskFor.description ?? "Action Point").slice(0, 60)}`}
+          defaultDescription={`Category: ${raiseTaskFor.category ?? "—"} · Due: ${raiseTaskFor.nextDueDate ? new Date(String(raiseTaskFor.nextDueDate)).toLocaleDateString("en-GB") : "—"} · Assigned: ${raiseTaskFor.assignedTo ?? "—"}`}
+          module="livestock"
+        />
       )}
     </Dialog>
   );

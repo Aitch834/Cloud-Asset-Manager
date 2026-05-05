@@ -23,6 +23,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useToast } from "@/hooks/use-toast";
 
 type MainTab = "visitors" | "pest-control" | "cleaning" | "coshh" | "biosecurity-plan";
@@ -646,6 +647,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
   const [form, setForm] = useState<typeof EMPTY_PEST>(EMPTY_PEST);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<PestRecord | null>(null);
 
   const { data, isLoading } = useQuery<{ records: PestRecord[] }>({
     queryKey: ["pest-control", farmId],
@@ -753,6 +755,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
                             </button>
                             <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                             <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                            {p.followUpDate && <button onClick={() => setRaiseTaskFor(p)} className="p-1.5 rounded-md hover:bg-purple-50 text-foreground/40 hover:text-purple-600" title="Raise Task"><ClipboardList className="w-4 h-4" /></button>}
                           </div>
                         </td>
                       </tr>
@@ -880,6 +883,16 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Pest Control Follow-up — ${raiseTaskFor.pestType}`}
+          defaultDescription={`Follow-up due ${raiseTaskFor.followUpDate ? new Date(raiseTaskFor.followUpDate).toLocaleDateString("en-GB") : ""}${raiseTaskFor.location ? ` at ${raiseTaskFor.location}` : ""}${raiseTaskFor.outcome ? ` · Outcome: ${raiseTaskFor.outcome}` : ""}`}
+          module="biosecurity"
+        />
+      )}
     </>
   );
 }

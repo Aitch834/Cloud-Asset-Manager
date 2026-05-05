@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from "rea
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff, Receipt, Users } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff, Receipt, Users, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -537,6 +538,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   const [editing, setEditing] = useState<WorkshopJob["job"] | null>(null);
   const [form, setForm] = useState<Partial<WorkshopJob["job"]>>(EMPTY_JOB);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? "all");
+  const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
   const [issuePartId, setIssuePartId] = useState("");
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
@@ -687,6 +689,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                   <div className="flex gap-1 shrink-0">
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(job)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => del.mutate(job.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    {job.status === "awaiting-parts" && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-purple-600" onClick={() => setRaiseTaskFor(job)} title="Raise Task — awaiting parts"><ClipboardList className="h-3.5 w-3.5" /></Button>}
                   </div>
                 </div>
               </CardHeader>
@@ -730,6 +733,17 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
             </Card>
           ))}
         </div>
+      )}
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Parts Chase — ${raiseTaskFor.title ?? "Workshop Job"}`}
+          defaultDescription={`Job ${raiseTaskFor.jobNumber ?? ""} is awaiting parts${raiseTaskFor.equipmentName ? ` for ${raiseTaskFor.equipmentName}` : ""}. Assigned: ${raiseTaskFor.assignedTo ?? "—"}`}
+          module="workshop"
+        />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

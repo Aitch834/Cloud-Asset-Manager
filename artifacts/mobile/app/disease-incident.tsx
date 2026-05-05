@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -83,6 +84,7 @@ export default function DiseaseIncidentScreen() {
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   const isNotifiable = incidentType === "notifiable-disease";
+  const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
   const toggleAction = (key: string) => {
     Haptics.selectionAsync();
@@ -149,13 +151,25 @@ export default function DiseaseIncidentScreen() {
     await refreshPendingCount();
     setSaving(false);
 
-    Alert.alert(
-      "Incident Logged",
-      isNotifiable
-        ? "Notifiable disease incident recorded and queued for sync. Ensure APHA has been notified on 03000 200 301 and do not move animals off the farm."
-        : "Disease incident recorded and queued for dashboard sync.",
-      [{ text: "Done", onPress: () => router.back() }],
-    );
+    if (isNotifiable) {
+      Alert.alert(
+        "Incident Logged",
+        "Notifiable disease incident recorded. Ensure APHA has been notified on 03000 200 301 and do not move animals off the farm.",
+        [{
+          text: "Raise Follow-up Task",
+          onPress: () => setTaskSheet({
+            title: `NOTIFIABLE DISEASE SUSPICION — ${notifiableDisease || species}`,
+            description: `Species: ${species} · Animals: ${animalCount} · Location: ${location.trim() || "—"} · Symptoms: ${symptoms.trim().slice(0, 100)}`,
+          }),
+        },
+        { text: "Done", onPress: () => router.back() }],
+      );
+    } else {
+      setTaskSheet({
+        title: `Disease Incident Follow-up — ${species}`,
+        description: `Type: ${incidentType} · Symptoms: ${symptoms.trim().slice(0, 120)} · Vet: ${vetName.trim() || "—"}`,
+      });
+    }
   };
 
   return (
@@ -375,6 +389,18 @@ export default function DiseaseIncidentScreen() {
             loading={saving}
             style={isNotifiable ? { ...styles.saveButton, backgroundColor: "#dc2626" } : styles.saveButton}
           />
+
+          {taskSheet && (
+            <RaiseTaskSheet
+              visible={!!taskSheet}
+              farmId={currentFarm?.id ?? ""}
+              defaultTitle={taskSheet.title}
+              defaultDescription={taskSheet.description}
+              module="biosecurity"
+              onRaised={() => { setTaskSheet(null); router.back(); }}
+              onSkip={() => { setTaskSheet(null); router.back(); }}
+            />
+          )}
 
           {isNotifiable && (
             <Pressable onPress={callAPHA} style={styles.aphaFooter}>

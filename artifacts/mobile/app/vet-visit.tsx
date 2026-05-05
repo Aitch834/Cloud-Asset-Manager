@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { HerdPicker } from "@/components/ui/HerdPicker";
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -155,6 +156,7 @@ export default function VetVisitScreen() {
   const [callOutCost, setCallOutCost] = useState("");
   const [medicines, setMedicines] = useState<MedicineRow[]>([]);
   const [notes, setNotes] = useState("");
+  const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
   function addMedicine() {
     Haptics.selectionAsync();
@@ -216,11 +218,18 @@ export default function VetVisitScreen() {
     await refreshPendingCount();
     setSaving(false);
 
-    Alert.alert(
-      "Visit Logged",
-      "Vet visit recorded and queued for dashboard sync. Remember to add the vet invoice in the Vet Ledger on the dashboard once received.",
-      [{ text: "Done", onPress: () => router.back() }],
-    );
+    if (followUpRequired) {
+      setTaskSheet({
+        title: `Vet Follow-up Required — ${vetName.trim() || "Vet Visit"}`,
+        description: `Reason: ${visitReason} · Diagnosis: ${diagnosis.trim() || "—"} · Follow-up due: ${followUpDate || "TBD"} · Vet: ${vetName.trim() || "—"} / ${vetPractice.trim() || "—"}`,
+      });
+    } else {
+      Alert.alert(
+        "Visit Logged",
+        "Vet visit recorded and queued for dashboard sync. Remember to add the vet invoice in the Vet Ledger on the dashboard once received.",
+        [{ text: "Done", onPress: () => router.back() }],
+      );
+    }
   }
 
   return (
@@ -440,6 +449,17 @@ export default function VetVisitScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      {taskSheet && (
+        <RaiseTaskSheet
+          visible={!!taskSheet}
+          farmId={currentFarm?.id ?? ""}
+          defaultTitle={taskSheet.title}
+          defaultDescription={taskSheet.description}
+          module="livestock"
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
+        />
+      )}
     </View>
   );
 }

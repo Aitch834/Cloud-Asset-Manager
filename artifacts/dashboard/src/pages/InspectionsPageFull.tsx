@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, Printer, RefreshCw } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -487,6 +488,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
   const [ncAddOpen, setNcAddOpen] = useState(false);
   const [ncEdit, setNcEdit] = useState<any | null>(null);
   const [ncDeleteId, setNcDeleteId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
   const [caAddForNc, setCaAddForNc] = useState<any | null>(null);
   const [caEdit, setCaEdit] = useState<any | null>(null);
   const [caDeleteId, setCaDeleteId] = useState<number | null>(null);
@@ -696,6 +698,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
                   <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                     <button onClick={() => openEditNc(nc)} title="Edit NC" style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><Pencil size={13} /></button>
                     <button onClick={() => setNcDeleteId(nc.id)} title="Delete NC" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={13} /></button>
+                    <button onClick={() => setRaiseTaskFor(nc)} title="Raise Task" style={{ background: "none", border: "none", cursor: "pointer", color: "#8b5cf6", padding: 4 }}><ClipboardList size={13} /></button>
                   </div>
                 </div>
 
@@ -781,6 +784,17 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
             <ChevronDown size={13} /> Show {archivedCount} archived {archivedCount === 1 ? "issue" : "issues"} from prior years
           </button>
         </div>
+      )}
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`NC Resolution — ${raiseTaskFor.category ?? "Non-Conformance"}`}
+          defaultDescription={`${raiseTaskFor.description ?? ""}${raiseTaskFor.severity ? ` · Severity: ${raiseTaskFor.severity}` : ""}${raiseTaskFor.identifiedDate ? ` · Identified: ${new Date(raiseTaskFor.identifiedDate).toLocaleDateString("en-GB")}` : ""}`}
+          module="inspections"
+        />
       )}
 
       {/* ── Log / Edit NC Dialog ── */}

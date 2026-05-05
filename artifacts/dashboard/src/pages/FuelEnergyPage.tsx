@@ -22,6 +22,7 @@ import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Area } from "recharts";
 import { useUpload } from "@workspace/object-storage-web";
 import { IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
   const aug = new Date(date.getFullYear(), 7, 1);
@@ -1397,6 +1398,7 @@ export default function FuelEnergyPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
 
   const tanksQ = useQuery({
     queryKey: ["fuel-tanks", farmId],
@@ -1818,6 +1820,7 @@ export default function FuelEnergyPage() {
                             }
                             <Button size="sm" variant="ghost" onClick={() => openTankEdit(tank)} className="h-7 px-2 text-xs"><Edit2 className="w-3 h-3" /></Button>
                             <Button size="sm" variant="ghost" onClick={() => delTankMut.mutate(tankId)} className="h-7 px-2 text-xs text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                            {isOverdue && <Button size="sm" variant="ghost" onClick={() => setRaiseTaskFor(tank)} className="h-7 px-2 text-xs text-purple-600" title="Raise inspection task"><ClipboardList className="w-3 h-3" /></Button>}
                           </div>
                         </div>
                         {String(tank.fuelType) !== "lpg_bottles" && (
@@ -2871,6 +2874,16 @@ export default function FuelEnergyPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Tank Inspection Overdue — ${raiseTaskFor.tankName ?? raiseTaskFor.fuelType ?? "Fuel Tank"}`}
+          defaultDescription={`Location: ${raiseTaskFor.location ?? "—"} · Capacity: ${raiseTaskFor.capacityLitres ?? "—"} L · Inspect by: ${raiseTaskFor.nextInspectionDue ?? "—"}`}
+          module="fuel-energy"
+        />
+      )}
     </AppLayout>
   );
 }

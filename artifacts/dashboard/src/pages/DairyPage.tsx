@@ -12,7 +12,8 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -335,6 +336,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MilkRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<MilkRecord | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<MilkRecord | null>(null);
   const [form, setForm] = useState<Partial<MilkRecord>>({});
   const [abrKitStockId, setAbrKitStockId] = useState<string>("");
 
@@ -519,6 +521,9 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    {(r.antibioticResidueTestResult === "positive" || (r.sccThousands && parseFloat(r.sccThousands) > 200) || (r.buyerSccThousands && parseFloat(r.buyerSccThousands) > 200)) && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" title="Raise Task — quality alert" onClick={() => setRaiseTaskFor(r)}><ClipboardList className="h-3.5 w-3.5" /></Button>
+                    )}
                   </div>
                 </div>
                 {r.notes && <p className="text-xs text-gray-400 mt-1 truncate">{r.notes}</p>}
@@ -526,6 +531,17 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
             </Card>
           ))}
         </div>
+      )}
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Milk Quality Alert — ${raiseTaskFor.antibioticResidueTestResult === "positive" ? "ABR Positive" : "High SCC"}`}
+          defaultDescription={`Date: ${raiseTaskFor.recordDate ?? "—"} · ABR: ${raiseTaskFor.antibioticResidueTestResult ?? "—"} · SCC: ${raiseTaskFor.sccThousands ?? raiseTaskFor.buyerSccThousands ?? "—"} k/mL · Buyer: ${raiseTaskFor.milkBuyer ?? "—"}`}
+          module="dairy"
+        />
       )}
 
       {/* ── Add / Edit Dialog ───────────────────────────────────────────────── */}

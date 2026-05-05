@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const { data: licences = [], isLoading } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/water-abstraction-licences/${editing.id}`) : api(`farms/${farmId}/water-abstraction-licences`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-licences", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-abstraction-licences/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-licences", farmId] }) });
@@ -105,6 +107,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewRecord); setViewRecord(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
@@ -144,6 +147,16 @@ function LicencesTab({ farmId }: { farmId: number }) {
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Licence Review — ${raiseTaskFor.licenceNumber ?? "Water Abstraction Licence"}`}
+          defaultDescription={`Authority: ${raiseTaskFor.issuingAuthority ?? "—"} · Expiry: ${raiseTaskFor.licenceExpiryDate ? new Date(String(raiseTaskFor.licenceExpiryDate)).toLocaleDateString("en-GB") : "—"} · Return deadline: ${raiseTaskFor.returnDeadline ?? "—"}`}
+          module="water-irrigation"
+        />
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FieldPicker } from "@/components/ui/FieldPicker";
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -138,6 +139,7 @@ export default function FieldInspectionScreen() {
   const [inspector, setInspector] = useState(user?.name || "");
   const [notes, setNotes] = useState("");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -211,9 +213,16 @@ export default function FieldInspectionScreen() {
     await appendToList(STORAGE_KEYS.FIELD_INSPECTIONS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Field inspection saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
-    ]);
+    if (actionRequired === "treat" || actionRequired === "urgent") {
+      setTaskSheet({
+        title: `Field Inspection Follow-up — ${fieldName.trim()}`,
+        description: `Crop: ${cropType.trim() || "—"} · Action: ${actionRequired} · ${(recommendedAction.trim() || pestDiseaseObservations.trim()).slice(0, 120)}`,
+      });
+    } else {
+      Alert.alert("Saved", "Field inspection saved successfully.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    }
   };
 
   return (
@@ -389,6 +398,17 @@ export default function FieldInspectionScreen() {
           <View style={{ height: insets.bottom + spacing.xxxl }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      {taskSheet && (
+        <RaiseTaskSheet
+          visible={!!taskSheet}
+          farmId={currentFarm?.id ?? ""}
+          defaultTitle={taskSheet.title}
+          defaultDescription={taskSheet.description}
+          module="field-inspection"
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
+        />
+      )}
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -748,6 +749,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
 
 function MortalityTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const CURRENT_YEAR = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
   const [flockFilterMort, setFlockFilterMort] = useState("all");
@@ -989,10 +991,23 @@ function MortalityTab({ farmId }: { farmId: number }) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              {Number(viewRecord.mortalityPercentage) > 3 && (
+                <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewRecord); setViewRecord(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
+              )}
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`High Mortality Investigation — ${raiseTaskFor.mortalityPercentage ? `${Number(raiseTaskFor.mortalityPercentage).toFixed(2)}%` : "Alert"}`}
+          defaultDescription={`Date: ${raiseTaskFor.recordDate ?? "—"} · Deaths: ${raiseTaskFor.mortalityCount ?? 0} · Culled: ${raiseTaskFor.culledCount ?? 0} · Cause: ${raiseTaskFor.mainCause ?? "—"}`}
+          module="poultry"
+        />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>

@@ -8,8 +8,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer } from "lucide-react";
+import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer, ClipboardList } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 const POLICY_TYPES = [
   { value: "employers_liability", label: "Employers Liability", critical: true, legalNote: "Legally required under the Employers' Liability (Compulsory Insurance) Act 1969" },
@@ -364,6 +365,7 @@ export default function InsurancePage() {
   const [viewItem, setViewItem] = useState<InsuranceRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<InsuranceRecord | null>(null);
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const autoOpened = useRef(false);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
@@ -585,6 +587,11 @@ export default function InsurancePage() {
                             <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Delete">
                               <Trash2 style={{ width: 14, height: 14 }} />
                             </button>
+                            {(status === "expired" || status === "warning") && (
+                              <button onClick={() => setRaiseTaskFor(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#f59e0b", borderRadius: 4 }} title="Raise Task">
+                                <ClipboardList style={{ width: 14, height: 14 }} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -640,6 +647,15 @@ export default function InsurancePage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <RaiseTaskDialog
+        farmId={farmId!}
+        open={!!raiseTaskFor}
+        onClose={() => setRaiseTaskFor(null)}
+        defaultTitle={raiseTaskFor ? `Insurance Renewal — ${policyLabel(raiseTaskFor.policyType)}${raiseTaskFor.insurer ? ` (${raiseTaskFor.insurer})` : ""}` : ""}
+        defaultDescription={raiseTaskFor?.expiryDate ? `Policy expires ${new Date(raiseTaskFor.expiryDate).toLocaleDateString("en-GB")}. Arrange renewal and update certificate.` : ""}
+        module="insurance"
+      />
 
       <InsuranceDialog
         open={addOpen}

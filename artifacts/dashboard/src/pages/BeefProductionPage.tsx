@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
@@ -122,9 +124,23 @@ function WeighTab({ farmId }: { farmId: number }) {
             {[["Date", fmtDate(viewing.weighDate)], ["Group Ref", fmt(viewing.groupRef)], ["Breed", fmt(viewing.breed)], ["Category", fmt(viewing.category)], ["Animals Weighed", fmt(viewing.numberOfAnimals)], ["Avg Live Weight (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Total Live Weight (kg)", fmtNum(viewing.totalLiveWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["Avg BCS", fmt(viewing.averageBcsScore)], ["Location", fmt(viewing.location)], ["Weighed By", fmt(viewing.weighedBy)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
             {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
           </div>}
-          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+            <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Beef Weigh Review — ${raiseTaskFor.groupRef ?? raiseTaskFor.breed ?? "Group"}`}
+          defaultDescription={`Avg weight: ${raiseTaskFor.averageLiveWeightKg ?? "—"} kg · DLWG: ${raiseTaskFor.dlwgGPerDay ?? "—"} g/day · BCS: ${raiseTaskFor.averageBcsScore ?? "—"}`}
+          module="beef"
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>

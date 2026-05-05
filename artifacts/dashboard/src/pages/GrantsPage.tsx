@@ -8,7 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 // ─── FETF Item Reference Data ──────────────────────
 const FETF_ITEMS: { code: string; description: string; category: string }[] = [
@@ -146,6 +147,7 @@ export default function GrantsPage() {
   const [editing, setEditing] = useState<GrantRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<GrantRecord | null>(null);
   const [deleting, setDeleting] = useState<GrantRecord | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<GrantRecord | null>(null);
   const [form, setForm] = useState({ ...BLANK_FORM });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [hlId, setHlId] = useState<number | null>(openId);
@@ -491,6 +493,11 @@ export default function GrantsPage() {
                           <button onClick={() => setDeleting(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4, borderRadius: 4 }}>
                             <Trash2 size={15} />
                           </button>
+                          {!["claimed","rejected","withdrawn"].includes(r.status) && (
+                            <button onClick={() => setRaiseTaskFor(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#f59e0b", padding: 4, borderRadius: 4 }} title="Raise Task">
+                              <ClipboardList size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -717,6 +724,18 @@ export default function GrantsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <RaiseTaskDialog
+          farmId={farmId!}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={raiseTaskFor ? `Grant Action — ${raiseTaskFor.schemeName}` : ""}
+          defaultDescription={raiseTaskFor ? [
+            raiseTaskFor.purchaseDeadline ? `Purchase deadline: ${new Date(raiseTaskFor.purchaseDeadline).toLocaleDateString("en-GB")}` : "",
+            raiseTaskFor.claimDeadline ? `Claim deadline: ${new Date(raiseTaskFor.claimDeadline).toLocaleDateString("en-GB")}` : "",
+          ].filter(Boolean).join("\n") : ""}
+          module="grants"
+        />
       </div>
     </AppLayout>
   );

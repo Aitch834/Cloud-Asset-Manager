@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera } from "lucide-react";
+import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera, ClipboardList } from "lucide-react";
 import { PhotoPanel } from "./fly-tipping/PhotoPanel";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 function parseWasteTypes(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -167,6 +168,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   const [viewItem, setViewItem] = useState<Incident | null>(null);
   const [editItem, setEditItem] = useState<Incident | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Incident | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
@@ -420,6 +422,9 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
                                 </Button>
                                 <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => setViewItem(inc)}>View</Button>
                                 <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(inc.id)}>Del</Button>
+                                {inc.clearanceStatus !== "cleared" && (
+                                  <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#f59e0b", borderColor: "#fde68a" }} onClick={() => setRaiseTaskFor(inc)} title="Raise Task"><ClipboardList size={11} /></Button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -650,6 +655,15 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
             </DialogContent>
           </Dialog>
         )}
+
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={raiseTaskFor ? `Fly-Tipping ${raiseTaskFor.clearanceStatus === "pending" ? "Clearance" : "Follow-up"} — ${raiseTaskFor.locationDescription}` : ""}
+          defaultDescription={raiseTaskFor ? `Discovered: ${fmt(raiseTaskFor.discoveredAt)}. Status: ${raiseTaskFor.clearanceStatus}.${raiseTaskFor.isHazardous ? " ⚠ HAZARDOUS waste — special disposal rules apply." : ""}` : ""}
+          module="environment"
+        />
       </div>
     </AppLayout>
   );

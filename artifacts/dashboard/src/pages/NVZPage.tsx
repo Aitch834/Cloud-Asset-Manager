@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { TabButton } from "@/components/ui/tab-button";
 import {
   AlertTriangle, CheckCircle2, Info, Plus, Trash2,
-  Leaf, FlaskConical, Droplets, Eye, Pencil,
+  Leaf, FlaskConical, Droplets, Eye, Pencil, ClipboardList,
 } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 const PRODUCT_TYPES: { value: string; label: string; isOrganic: boolean; isLiquid: boolean }[] = [
   { value: "synthetic-n", label: "Synthetic N (AN/Urea/UAN)", isOrganic: false, isLiquid: false },
@@ -395,6 +396,7 @@ export default function NVZPage() {
   const [form, setForm] = useState<typeof emptyForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<NvzApplication | null>(null);
   const formOpen = addOpen || !!editRecord;
   function openEditApp(r: NvzApplication) {
     setEditRecord(r);
@@ -786,6 +788,9 @@ export default function NVZPage() {
                               <button onClick={() => setViewRecord(a)} className="text-foreground/30 hover:text-blue-500 transition-colors p-1 rounded" title="View details"><Eye className="w-3.5 h-3.5" /></button>
                               <button onClick={() => openEditApp(a)} className="text-foreground/30 hover:text-primary transition-colors p-1 rounded" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
                               <button onClick={() => setDeleteId(a.id)} className="text-foreground/30 hover:text-red-500 transition-colors p-1 rounded" title="Delete record"><Trash2 className="w-3.5 h-3.5" /></button>
+                              {cp.closed && (
+                                <button onClick={() => setRaiseTaskFor(a)} className="text-amber-500 hover:text-amber-700 transition-colors p-1 rounded" title="Raise Task — closed period breach"><ClipboardList className="w-3.5 h-3.5" /></button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1346,6 +1351,15 @@ function NvzBudgetCalcTab({ fields, applications, selectedYear }: NvzBudgetCalcP
           </tbody>
         </table>
       </div>
+
+      <RaiseTaskDialog
+        farmId={farmId!}
+        open={!!raiseTaskFor}
+        onClose={() => setRaiseTaskFor(null)}
+        defaultTitle={raiseTaskFor ? `NVZ Closed Period Breach — ${raiseTaskFor.fieldName ?? `Field #${raiseTaskFor.fieldId}`}` : ""}
+        defaultDescription={raiseTaskFor ? `Application of ${raiseTaskFor.productName} (${PRODUCT_TYPES.find(p => p.value === raiseTaskFor.productType)?.label ?? raiseTaskFor.productType}) on ${raiseTaskFor.applicationDate ? new Date(raiseTaskFor.applicationDate).toLocaleDateString("en-GB") : "unknown date"} may be within a closed spreading period. Review and notify EA if required.` : ""}
+        module="nvz"
+      />
 
       <div className="text-xs text-gray-400 space-y-0.5">
         <p>Logged N is taken from your NVZ Application Log for {selectedYear}. Use the +Synthetic N / +Organic N columns to add any additional applications not yet recorded.</p>

@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
-import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 interface WasteRecord {
   id: number;
@@ -116,6 +117,7 @@ export default function WasteDisposalPage() {
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<WasteRecord | null>(null);
   const [reportFrom, setReportFrom] = useState(() => {
     const d = new Date(); d.setFullYear(d.getFullYear() - 1);
     return d.toISOString().slice(0, 10);
@@ -494,6 +496,9 @@ export default function WasteDisposalPage() {
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                        {!r.wasteTransferNote && (
+                          <button onClick={() => setRaiseTaskFor(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#f59e0b", padding: 4 }} title="Raise Task — missing WTN"><ClipboardList size={13} /></button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1016,6 +1021,15 @@ export default function WasteDisposalPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <RaiseTaskDialog
+          farmId={farmId!}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={raiseTaskFor ? `Obtain Waste Transfer Note — ${raiseTaskFor.wasteType} (${fmt(raiseTaskFor.disposalDate)})` : ""}
+          defaultDescription={raiseTaskFor ? `Disposal on ${fmt(raiseTaskFor.disposalDate)} via ${raiseTaskFor.disposalMethod || "unknown method"}. Carrier: ${raiseTaskFor.carrierName || "not recorded"}. WTN missing — required for Duty of Care compliance.` : ""}
+          module="waste"
+        />
       </div>
     </AppLayout>
   );

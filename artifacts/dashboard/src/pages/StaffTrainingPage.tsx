@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printProReport } from "@/lib/print-report";
-import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil } from "lucide-react";
+import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useUpload } from "@workspace/object-storage-web";
 
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -610,6 +611,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   const [viewItem, setViewItem] = useState<CertificateRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<CertificateRecord | null>(null);
 
   const membersQ = useFarmMembers(farmId);
   const memberNameMap = React.useMemo(() => {
@@ -779,6 +781,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#059669" }} onClick={() => openRenew(r)} title="Create a new renewal record — keeps this one intact">Renew</Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
+                        {r.expiryDate && <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#7c3aed" }} onClick={() => setRaiseTaskFor(r)} title="Raise certificate renewal task"><ClipboardList style={{ width: 11, height: 11, marginRight: 3 }} />Task</Button>}
                       </div>
                     </td>
                   </tr>
@@ -794,6 +797,17 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             </tbody>
           </table>
         </div>
+      )}
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Certificate Renewal — ${raiseTaskFor.certificateType ?? "Training Certificate"}`}
+          defaultDescription={`Holder: ${resolveStaffName(raiseTaskFor.userId)} · Expiry: ${raiseTaskFor.expiryDate ? new Date(raiseTaskFor.expiryDate).toLocaleDateString("en-GB") : "—"} · Issuer: ${raiseTaskFor.issuer ?? "—"}`}
+          module="staff-training"
+        />
       )}
 
       {viewItem && (

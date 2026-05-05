@@ -14,9 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import {
-  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2,
+  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2, ClipboardList,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 const PERSON_TYPES = ["Employee", "Contractor", "Self-employed", "Visitor", "Member of public"];
 
@@ -165,7 +166,7 @@ function RiddorBadge({ record }: { record: AccidentRecord }) {
   );
 }
 
-function RecordCard({ record, farmId, onEdit, onDelete }: { record: AccidentRecord; farmId: number; onEdit: () => void; onDelete: () => void }) {
+function RecordCard({ record, farmId, onEdit, onDelete, onRaiseTask }: { record: AccidentRecord; farmId: number; onEdit: () => void; onDelete: () => void; onRaiseTask: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -192,6 +193,9 @@ function RecordCard({ record, farmId, onEdit, onDelete }: { record: AccidentReco
           </button>
           <button onClick={onDelete} style={{ background: "none", border: "1px solid #fca5a5", borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: "#dc2626", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
             <Trash2 size={12} /> Delete
+          </button>
+          <button onClick={onRaiseTask} style={{ background: "none", border: "1px solid #fde68a", borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: "#92400e", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }} title="Raise Task">
+            <ClipboardList size={12} /> Task
           </button>
           <button onClick={() => setExpanded(e => !e)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}>
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -240,6 +244,7 @@ export default function AccidentBookPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [raiseTaskFor, setRaiseTaskFor] = useState<AccidentRecord | null>(null);
 
   const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
     queryKey: ["farm-detail", farmId],
@@ -458,7 +463,7 @@ export default function AccidentBookPage() {
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
                 {filtered.map(record => (
-                  <RecordCard key={record.id} record={record} farmId={farmId!} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} />
+                  <RecordCard key={record.id} record={record} farmId={farmId!} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} onRaiseTask={() => setRaiseTaskFor(record)} />
                 ))}
               </div>
             )}
@@ -595,6 +600,15 @@ export default function AccidentBookPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        <RaiseTaskDialog
+          farmId={farmId!}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={raiseTaskFor ? `${raiseTaskFor.riddorReportable && !raiseTaskFor.riddorReference ? "RIDDOR Report" : "Corrective Action"} — ${raiseTaskFor.personName} (${raiseTaskFor.incidentDate ? new Date(raiseTaskFor.incidentDate).toLocaleDateString("en-GB") : ""})` : ""}
+          defaultDescription={raiseTaskFor?.correctiveAction || ""}
+          module="health_safety"
+        />
 
         {/* Delete confirm */}
         {deleteId !== null && (
