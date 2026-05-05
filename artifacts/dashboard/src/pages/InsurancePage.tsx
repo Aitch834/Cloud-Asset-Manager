@@ -567,7 +567,7 @@ export default function InsurancePage() {
                             {isCrit && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
                             <span style={{ fontWeight: 600, color: "#111827" }}>{policyLabel(r.policyType)}</span>
                           </div>
-                          {isCrit && <span style={{ fontSize: "0.68rem", color: "#9ca3af", display: "block" }}>Required</span>}
+                          {isCrit && <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.63rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: 4 }}>Required</span>}
                         </td>
                         <td style={{ padding: "11px 14px", color: "#374151" }}>{r.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
                         <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
