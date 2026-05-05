@@ -8,7 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer, ClipboardList } from "lucide-react";
+import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer, ClipboardList, RefreshCw } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { printProReport } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
@@ -59,6 +60,7 @@ interface InsuranceRecord {
   coversContractWork: boolean | null;
   coversEmployerLiability: boolean | null;
   lastReviewedDate: string | null;
+  supersededByRenewal: boolean | null;
 }
 
 function expiryStatus(dateStr: string | null): "expired" | "warning" | "ok" | "none" {
@@ -140,7 +142,7 @@ function DocCell({ record, farmId, onRefresh }: { record: InsuranceRecord; farmI
 
 const emptyForm = { policyType: "employers_liability" as PolicyTypeValue, insurer: "", policyNumber: "", policyholderName: "", coverLevelMillion: "", startDate: "", expiryDate: "", notes: "", annualPremium: "", renewalDate: "", broker: "", brokerContact: "", coversThirdPartyGoods: false, coversContractWork: false, coversEmployerLiability: false, lastReviewedDate: "" };
 
-function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: boolean; onClose: () => void; initial: InsuranceRecord | null; farmId: number; onSaved: () => void }) {
+function InsuranceDialog({ open, onClose, initial, farmId, onSaved, renewalOfId }: { open: boolean; onClose: () => void; initial: InsuranceRecord | null; farmId: number; onSaved: () => void; renewalOfId?: number }) {
   const { toast } = useToast();
   const [form, setForm] = useState(() => initial ? {
     policyType: initial.policyType as PolicyTypeValue,
@@ -185,8 +187,10 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
         coversEmployerLiability: form.coversEmployerLiability,
         lastReviewedDate: form.lastReviewedDate || null,
       };
-      const url = initial ? `/api/farms/${farmId}/insurance/${initial.id}` : `/api/farms/${farmId}/insurance`;
-      const method = initial ? "PUT" : "POST";
+      const url = renewalOfId
+        ? `/api/farms/${farmId}/insurance/${renewalOfId}/renew`
+        : initial ? `/api/farms/${farmId}/insurance/${initial.id}` : `/api/farms/${farmId}/insurance`;
+      const method = (renewalOfId || !initial) ? "POST" : "PUT";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error("Save failed");
       return res.json() as Promise<{ id: number }>;
@@ -229,7 +233,7 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent style={{ maxWidth: 520 }}>
         <DialogHeader>
-          <DialogTitle>{initial ? "Edit Insurance Policy" : "Add Insurance Policy"}</DialogTitle>
+          <DialogTitle>{renewalOfId ? "Renew Insurance Policy" : initial ? "Edit Insurance Policy" : "Add Insurance Policy"}</DialogTitle>
         </DialogHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
@@ -356,6 +360,49 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
 const labelStyle: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 4 };
 const selectStyle: React.CSSProperties = { width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "7px 10px", fontSize: "0.875rem", background: "#fff", outline: "none" };
 
+const CHART_COLORS = ["#2563eb", "#16a34a", "#dc2626", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#ea580c", "#0284c7"];
+
+function PremiumTrendChart({ records }: { records: InsuranceRecord[] }) {
+  const dataRecords = records.filter(r => r.startDate && r.annualPremiumPence);
+  if (dataRecords.length < 2) return null;
+
+  const policyTypes = [...new Set(dataRecords.map(r => r.policyType))];
+  const policyLabels = policyTypes.map(pt => policyLabel(pt));
+
+  const yearMap = new Map<number, Record<string, number>>();
+  for (const r of dataRecords) {
+    const year = new Date(r.startDate!).getFullYear();
+    if (!yearMap.has(year)) yearMap.set(year, {});
+    const label = policyLabel(r.policyType);
+    yearMap.get(year)![label] = (yearMap.get(year)![label] || 0) + r.annualPremiumPence! / 100;
+  }
+
+  const chartData = Array.from(yearMap.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, data]) => ({ year: String(year), ...data }));
+
+  if (chartData.length < 2) return null;
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "16px 20px" }}>
+      <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827", margin: "0 0 2px" }}>Annual Premium History</h3>
+      <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "0 0 16px" }}>Insurance premiums recorded by policy start year — showing cost trends across all policy types to help identify when to shop around</p>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <XAxis dataKey="year" tick={{ fontSize: 12, fill: "#6b7280" }} />
+          <YAxis tickFormatter={(v: number) => v >= 1000 ? `£${(v / 1000).toFixed(0)}k` : `£${v}`} tick={{ fontSize: 11, fill: "#6b7280" }} width={52} />
+          <Tooltip formatter={(value: number, name: string) => [`£${value.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, name]} />
+          <Legend wrapperStyle={{ fontSize: "0.75rem", paddingTop: 8 }} />
+          {policyLabels.map((label, i) => (
+            <Bar key={label} dataKey={label} stackId="a" fill={CHART_COLORS[i % CHART_COLORS.length]} radius={i === policyLabels.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function InsurancePage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
@@ -366,6 +413,7 @@ export default function InsurancePage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const [raiseTaskFor, setRaiseTaskFor] = useState<InsuranceRecord | null>(null);
+  const [renewRecord, setRenewRecord] = useState<InsuranceRecord | null>(null);
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const autoOpened = useRef(false);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
@@ -388,11 +436,14 @@ export default function InsurancePage() {
   const twoYearsCutoff = new Date();
   twoYearsCutoff.setFullYear(twoYearsCutoff.getFullYear() - 2);
 
-  const olderRecords = records.filter(r => r.expiryDate && new Date(r.expiryDate) < twoYearsCutoff);
+  const hiddenRecords = records.filter(r =>
+    r.supersededByRenewal || (r.expiryDate && new Date(r.expiryDate) < twoYearsCutoff)
+  );
+  const olderRecords = hiddenRecords;
   const visibleRecords = showOlder
     ? records
-    : records.filter(r => !r.expiryDate || new Date(r.expiryDate) >= twoYearsCutoff);
-  const hiddenCount = olderRecords.length;
+    : records.filter(r => !r.supersededByRenewal && (!r.expiryDate || new Date(r.expiryDate) >= twoYearsCutoff));
+  const hiddenCount = hiddenRecords.length;
 
   useEffect(() => {
     if (!openId || autoOpened.current || records.length === 0) return;
@@ -415,9 +466,10 @@ export default function InsurancePage() {
     onSuccess: () => { toast({ title: "Policy removed" }); onRefresh(); setDeleteId(null); },
   });
 
-  const expiredOrWarning = records.filter(r => ["expired", "warning"].includes(expiryStatus(r.expiryDate)));
+  const activeRecords = records.filter(r => !r.supersededByRenewal);
+  const expiredOrWarning = activeRecords.filter(r => ["expired", "warning"].includes(expiryStatus(r.expiryDate)));
   const missingCritical = (["employers_liability", "public_liability"] as PolicyTypeValue[]).filter(pt =>
-    !records.some(r => r.policyType === pt && expiryStatus(r.expiryDate) !== "expired")
+    !activeRecords.some(r => r.policyType === pt && expiryStatus(r.expiryDate) !== "expired")
   );
 
   const handlePrint = () => {
@@ -551,7 +603,7 @@ export default function InsurancePage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                    {["Policy Type", "Insurer", "Policy No.", "Policyholder", "Cover", "Start", "Expiry", "Certificate", ""].map(h => (
+                    {["Policy Type", "Insurer", "Policy No.", "Policyholder", "Cover", "Premium p.a.", "Start", "Expiry", "Certificate", ""].map(h => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "0.73rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -573,6 +625,9 @@ export default function InsurancePage() {
                         <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
                         <td style={{ padding: "11px 14px", color: "#374151" }}>{r.policyholderName ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
                         <td style={{ padding: "11px 14px", color: "#374151", whiteSpace: "nowrap" }}>{formatCover(r.coverLevelPence)}</td>
+                        <td style={{ padding: "11px 14px", color: "#374151", whiteSpace: "nowrap" }}>
+                          {r.annualPremiumPence ? `£${(r.annualPremiumPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : <span style={{ color: "#d1d5db" }}>—</span>}
+                        </td>
                         <td style={{ padding: "11px 14px", color: "#6b7280", whiteSpace: "nowrap" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
                         <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}><ExpiryBadge dateStr={r.expiryDate} /></td>
                         <td style={{ padding: "11px 14px" }}><DocCell record={r} farmId={farmId!} onRefresh={onRefresh} /></td>
@@ -583,6 +638,9 @@ export default function InsurancePage() {
                             </button>
                             <button onClick={() => setEditItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Edit">
                               <Pencil style={{ width: 14, height: 14 }} />
+                            </button>
+                            <button onClick={() => setRenewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#6366f1", borderRadius: 4 }} title="Renew Policy">
+                              <RefreshCw style={{ width: 14, height: 14 }} />
                             </button>
                             <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Delete">
                               <Trash2 style={{ width: 14, height: 14 }} />
@@ -606,12 +664,14 @@ export default function InsurancePage() {
                   onClick={() => setShowOlder(v => !v)}
                   style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#6b7280", padding: "6px 12px", borderRadius: 6, textDecoration: "underline" }}
                 >
-                  {showOlder ? `Hide older records` : `Show ${hiddenCount} older record${hiddenCount === 1 ? "" : "s"} (expired more than 2 years ago)`}
+                  {showOlder ? `Hide archived records` : `Show ${hiddenCount} archived record${hiddenCount === 1 ? "" : "s"} (renewed or expired more than 2 years ago)`}
                 </button>
               </div>
             )}
           </>
         )}
+
+        <PremiumTrendChart records={records} />
 
         {/* Info note */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8 }}>
@@ -664,6 +724,27 @@ export default function InsurancePage() {
         farmId={farmId!}
         onSaved={onRefresh}
       />
+
+      {renewRecord && (
+        <InsuranceDialog
+          open={!!renewRecord}
+          onClose={() => setRenewRecord(null)}
+          initial={{
+            ...renewRecord,
+            startDate: null,
+            expiryDate: null,
+            renewalDate: null,
+            policyNumber: null,
+            annualPremiumPence: null,
+            notes: null,
+            documentPath: null,
+            documentName: null,
+          }}
+          farmId={farmId!}
+          onSaved={() => { setRenewRecord(null); onRefresh(); }}
+          renewalOfId={renewRecord.id}
+        />
+      )}
 
       {editItem && (
         <InsuranceDialog

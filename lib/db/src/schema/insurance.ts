@@ -22,5 +22,6 @@ export const farmInsuranceTable = pgTable("farm_insurance", {
   notes: text("notes"),
   documentPath: text("document_path"),
   documentName: text("document_name"),
+  supersededByRenewal: boolean("superseded_by_renewal").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

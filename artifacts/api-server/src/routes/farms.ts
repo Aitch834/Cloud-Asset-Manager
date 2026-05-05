@@ -6492,6 +6492,14 @@ router.delete("/farms/:farmId/insurance/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+router.post("/farms/:farmId/insurance/:recordId/renew", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  await db.update(farmInsuranceTable).set({ supersededByRenewal: true }).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId)));
+  const [newRecord] = await db.insert(farmInsuranceTable).values({ ...req.body, farmId }).returning();
+  res.json(newRecord);
+});
+
 router.patch("/farms/:farmId/insurance/:recordId/document", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
   const recordId = Number(req.params.recordId);
