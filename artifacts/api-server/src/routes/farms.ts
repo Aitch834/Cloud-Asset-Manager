@@ -223,6 +223,7 @@ import {
   usersTable,
   rolesTable,
   farmInsuranceTable,
+  farmInsuranceDocumentsTable,
   farmPlannerEventsTable,
   farmGrantsTable,
   farmTaskAssignmentsTable,
@@ -6489,6 +6490,30 @@ router.delete("/farms/:farmId/insurance/:recordId", requireAuth, requireTenant, 
   const farmId = req.tenantId!;
   const recordId = Number(req.params.recordId);
   await db.delete(farmInsuranceTable).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/insurance/:recordId/documents", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const documents = await db.select().from(farmInsuranceDocumentsTable).where(and(eq(farmInsuranceDocumentsTable.insuranceRecordId, recordId), eq(farmInsuranceDocumentsTable.farmId, farmId))).orderBy(farmInsuranceDocumentsTable.createdAt);
+  res.json({ documents });
+});
+
+router.post("/farms/:farmId/insurance/:recordId/documents", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const { documentType, documentPath, documentName } = req.body;
+  if (!documentPath || !documentName) { res.status(400).json({ error: "documentPath and documentName are required" }); return; }
+  const [doc] = await db.insert(farmInsuranceDocumentsTable).values({ insuranceRecordId: recordId, farmId, documentType: documentType || "other", documentPath, documentName }).returning();
+  res.status(201).json(doc);
+});
+
+router.delete("/farms/:farmId/insurance/:recordId/documents/:docId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const docId = Number(req.params.docId);
+  await db.delete(farmInsuranceDocumentsTable).where(and(eq(farmInsuranceDocumentsTable.id, docId), eq(farmInsuranceDocumentsTable.insuranceRecordId, recordId), eq(farmInsuranceDocumentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -1,6 +1,8 @@
 import { pgTable, text, serial, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
+export const DOC_TYPE_VALUES = ["certificate", "insurance_schedule", "insurance_policy", "renewal_invitation", "policy_document", "other"] as const;
+
 export const farmInsuranceTable = pgTable("farm_insurance", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
@@ -23,5 +25,15 @@ export const farmInsuranceTable = pgTable("farm_insurance", {
   documentPath: text("document_path"),
   documentName: text("document_name"),
   supersededByRenewal: boolean("superseded_by_renewal").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const farmInsuranceDocumentsTable = pgTable("farm_insurance_documents", {
+  id: serial("id").primaryKey(),
+  insuranceRecordId: integer("insurance_record_id").notNull().references(() => farmInsuranceTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  documentType: text("document_type").notNull().default("other"),
+  documentPath: text("document_path").notNull(),
+  documentName: text("document_name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

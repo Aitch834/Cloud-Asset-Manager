@@ -357,6 +357,118 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved, renewalOfId 
   );
 }
 
+const DOC_TYPES = [
+  { value: "certificate", label: "Certificate" },
+  { value: "insurance_schedule", label: "Insurance Schedule" },
+  { value: "insurance_policy", label: "Insurance Policy" },
+  { value: "renewal_invitation", label: "Renewal Invitation" },
+  { value: "policy_document", label: "Policy Document" },
+  { value: "other", label: "Other" },
+] as const;
+
+function docTypeLabel(v: string) {
+  return DOC_TYPES.find(d => d.value === v)?.label ?? v;
+}
+
+interface InsuranceDocument {
+  id: number;
+  documentType: string;
+  documentPath: string;
+  documentName: string;
+}
+
+function InsuranceDocs({ farmId, recordId, legacyPath, legacyName }: { farmId: number; recordId: number; legacyPath: string | null; legacyName: string | null }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [uploadType, setUploadType] = useState("certificate");
+  const [uploading, setUploading] = useState(false);
+
+  const { data, isLoading } = useQuery<{ documents: InsuranceDocument[] }>({
+    queryKey: ["insurance-docs", farmId, recordId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance/${recordId}/documents`).then(r => r.json()),
+    enabled: !!farmId && !!recordId,
+  });
+
+  const docs = data?.documents ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ["insurance-docs", farmId, recordId] });
+
+  const uploadDoc = async (file: File) => {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Could not get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      const fileName = objectPath.split("/").pop() ?? file.name;
+      await fetch(`/api/farms/${farmId}/insurance/${recordId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentType: uploadType, documentPath: objectPath, documentName: fileName }),
+      });
+      toast({ title: "Document saved" });
+      refresh();
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteDoc = async (docId: number) => {
+    await fetch(`/api/farms/${farmId}/insurance/${recordId}/documents/${docId}`, { method: "DELETE" });
+    refresh();
+  };
+
+  const allDocs: (InsuranceDocument & { isLegacy?: boolean })[] = [
+    ...(legacyPath && !docs.some(d => d.documentPath === legacyPath)
+      ? [{ id: -1, documentType: "certificate", documentPath: legacyPath, documentName: legacyName ?? "Certificate", isLegacy: true }]
+      : []),
+    ...docs,
+  ];
+
+  return (
+    <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 14, marginTop: 6 }}>
+      <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280", margin: "0 0 10px" }}>Documents</p>
+      {isLoading && <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#9ca3af", fontSize: "0.8rem" }}><Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Loading…</div>}
+      {!isLoading && allDocs.length === 0 && (
+        <p style={{ fontSize: "0.8rem", color: "#9ca3af", margin: "0 0 10px" }}>No documents attached yet — use the form below to add one.</p>
+      )}
+      {allDocs.map(d => (
+        <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 6, background: "#f9fafb", border: "1px solid #e5e7eb", marginBottom: 6 }}>
+          <FileText style={{ width: 14, height: 14, color: "#6b7280", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#9ca3af", margin: "0 0 1px" }}>{docTypeLabel(d.documentType)}</p>
+            <p style={{ fontSize: "0.8rem", color: "#374151", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.documentName}</p>
+          </div>
+          <a href={`/api/storage${d.documentPath}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.75rem", color: "#2563eb", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontWeight: 500 }}>
+            <ExternalLink style={{ width: 12, height: 12 }} /> Open
+          </a>
+          {!d.isLegacy && (
+            <button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#d1d5db", flexShrink: 0, display: "flex" }} title="Remove document">
+              <X style={{ width: 13, height: 13 }} />
+            </button>
+          )}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+        <select value={uploadType} onChange={e => setUploadType(e.target.value)} style={{ fontSize: "0.78rem", border: "1px solid #e5e7eb", borderRadius: 5, padding: "5px 8px", background: "#fff", color: "#374151", outline: "none" }}>
+          {DOC_TYPES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+        </select>
+        <label style={{ cursor: uploading ? "default" : "pointer", flex: 1 }}>
+          <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) { uploadDoc(f); (e.target as HTMLInputElement).value = ""; } }} />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.78rem", padding: "5px 12px", border: "1px dashed #d1d5db", borderRadius: 5, color: "#6b7280", background: "#fafafa", cursor: uploading ? "default" : "pointer" }}>
+            {uploading ? <><Loader2 style={{ width: 11, height: 11, animation: "spin 1s linear infinite" }} /> Uploading…</> : <><Upload style={{ width: 11, height: 11 }} /> Choose file (PDF, JPG, PNG)</>}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 const labelStyle: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 4 };
 const selectStyle: React.CSSProperties = { width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "7px 10px", fontSize: "0.875rem", background: "#fff", outline: "none" };
 
@@ -599,8 +711,8 @@ export default function InsurancePage() {
           </div>
         ) : (
           <>
-            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
+              <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse", fontSize: "0.85rem" }}>
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                     {["Policy Type", "Insurer", "Policy No.", "Policyholder", "Cover", "Premium p.a.", "Start", "Expiry", "Certificate", ""].map(h => (
@@ -630,7 +742,11 @@ export default function InsurancePage() {
                         </td>
                         <td style={{ padding: "11px 14px", color: "#6b7280", whiteSpace: "nowrap" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
                         <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}><ExpiryBadge dateStr={r.expiryDate} /></td>
-                        <td style={{ padding: "11px 14px" }}><DocCell record={r} farmId={farmId!} onRefresh={onRefresh} /></td>
+                        <td style={{ padding: "11px 14px" }}>
+                          <button onClick={() => setViewItem(r)} style={{ background: "none", border: "1px dashed #d1d5db", cursor: "pointer", padding: "2px 8px", borderRadius: 5, display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#6b7280" }} title="Manage documents">
+                            <FileText style={{ width: 11, height: 11 }} /> Docs
+                          </button>
+                        </td>
                         <td style={{ padding: "11px 14px" }}>
                           <div style={{ display: "flex", gap: 4 }}>
                             <button onClick={() => setViewItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="View">
@@ -685,20 +801,35 @@ export default function InsurancePage() {
       {/* View dialog */}
       {viewItem && (
         <Dialog open onOpenChange={() => setViewItem(null)}>
-          <DialogContent style={{ maxWidth: 480 }}>
-            <DialogHeader><DialogTitle>Insurance Policy</DialogTitle></DialogHeader>
-            <div className="space-y-3 text-sm py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policy Type</p><p className="font-medium">{policyLabel(viewItem.policyType)}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Insurer</p><p>{viewItem.insurer || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policy Number</p><p className="font-mono text-xs">{viewItem.policyNumber || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policyholder</p><p>{viewItem.policyholderName || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Cover Level</p><p>{formatCover(viewItem.coverLevelPence)}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Start Date</p><p>{viewItem.startDate ? new Date(viewItem.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Expiry Date</p><ExpiryBadge dateStr={viewItem.expiryDate} /></div>
+          <DialogContent style={{ maxWidth: 580 }}>
+            <DialogHeader>
+              <DialogTitle>
+                {policyLabel(viewItem.policyType)}
+                {policyIsCritical(viewItem.policyType) && (
+                  <span style={{ marginLeft: 8, fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 6px", borderRadius: 4, verticalAlign: "middle" }}>Required</span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <div style={{ overflowY: "auto", maxHeight: "70vh", paddingRight: 2 }}>
+              <div className="space-y-3 text-sm py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Insurer</p><p>{viewItem.insurer || "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policy Number</p><p className="font-mono text-xs">{viewItem.policyNumber || "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policyholder</p><p>{viewItem.policyholderName || "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Cover Level</p><p>{formatCover(viewItem.coverLevelPence)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Annual Premium</p><p>{viewItem.annualPremiumPence ? `£${(viewItem.annualPremiumPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Broker</p><p>{viewItem.broker || "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Start Date</p><p>{viewItem.startDate ? new Date(viewItem.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Expiry Date</p><ExpiryBadge dateStr={viewItem.expiryDate} /></div>
+                </div>
+                {viewItem.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewItem.notes}</p></div>}
+                <InsuranceDocs
+                  farmId={farmId!}
+                  recordId={viewItem.id}
+                  legacyPath={viewItem.documentPath}
+                  legacyName={viewItem.documentName}
+                />
               </div>
-              {viewItem.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewItem.notes}</p></div>}
-              {viewItem.documentPath && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Certificate</p><a href={`/api/storage${viewItem.documentPath}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 text-sm"><FileText size={14} />{viewItem.documentName ?? "View Certificate"}</a></div>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setEditItem(viewItem); setViewItem(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
