@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer, ClipboardList, RefreshCw } from "lucide-react";
+import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer, ClipboardList, RefreshCw, Shield, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { printProReport } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -469,6 +469,282 @@ function InsuranceDocs({ farmId, recordId, legacyPath, legacyName }: { farmId: n
   );
 }
 
+interface InsuranceClaim {
+  id: number;
+  insuranceRecordId: number | null;
+  policyType: string | null;
+  insurer: string | null;
+  incidentDate: string | null;
+  reportedDate: string | null;
+  claimRef: string | null;
+  description: string | null;
+  status: string;
+  settledAmountPence: number | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+const CLAIM_STATUSES = [
+  { value: "draft",               label: "Draft",               bg: "#f3f4f6", color: "#374151", border: "#e5e7eb" },
+  { value: "reported",            label: "Reported",            bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  { value: "acknowledged",        label: "Acknowledged",        bg: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+  { value: "under_investigation", label: "Under Investigation", bg: "#fffbeb", color: "#92400e", border: "#fde68a" },
+  { value: "settled",             label: "Settled",             bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+  { value: "rejected",            label: "Rejected",            bg: "#fef2f2", color: "#991b1b", border: "#fecaca" },
+  { value: "withdrawn",           label: "Withdrawn",           bg: "#fafafa", color: "#9ca3af", border: "#e5e7eb" },
+] as const;
+
+function ClaimStatusBadge({ status }: { status: string }) {
+  const s = CLAIM_STATUSES.find(c => c.value === status) ?? CLAIM_STATUSES[0];
+  return (
+    <span style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
+      {s.label}
+    </span>
+  );
+}
+
+const emptyClaimForm = { insuranceRecordId: "" as string | number, policyType: "", insurer: "", incidentDate: "", reportedDate: "", claimRef: "", description: "", status: "draft", settledAmountPence: "", notes: "" };
+
+function ClaimDialog({ open, onClose, initial, farmId, records, onSaved }: { open: boolean; onClose: () => void; initial: InsuranceClaim | null; farmId: number; records: InsuranceRecord[]; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState(() => initial ? {
+    insuranceRecordId: initial.insuranceRecordId ?? ("" as string | number),
+    policyType: initial.policyType ?? "",
+    insurer: initial.insurer ?? "",
+    incidentDate: initial.incidentDate ?? "",
+    reportedDate: initial.reportedDate ?? "",
+    claimRef: initial.claimRef ?? "",
+    description: initial.description ?? "",
+    status: initial.status,
+    settledAmountPence: initial.settledAmountPence != null ? String(initial.settledAmountPence / 100) : "",
+    notes: initial.notes ?? "",
+  } : { ...emptyClaimForm });
+  const [saving, setSaving] = useState(false);
+
+  const onPolicyChange = (val: string) => {
+    const rid = Number(val);
+    const rec = records.find(r => r.id === rid);
+    setForm(f => ({ ...f, insuranceRecordId: val, policyType: rec?.policyType ?? f.policyType, insurer: rec?.insurer ?? f.insurer }));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        insuranceRecordId: form.insuranceRecordId !== "" ? Number(form.insuranceRecordId) : null,
+        policyType: form.policyType || null,
+        insurer: form.insurer || null,
+        incidentDate: form.incidentDate || null,
+        reportedDate: form.reportedDate || null,
+        claimRef: form.claimRef || null,
+        description: form.description || null,
+        status: form.status,
+        settledAmountPence: form.settledAmountPence !== "" ? Math.round(Number(form.settledAmountPence) * 100) : null,
+        notes: form.notes || null,
+      };
+      const url = initial ? `/api/farms/${farmId}/insurance-claims/${initial.id}` : `/api/farms/${farmId}/insurance-claims`;
+      const res = await fetch(url, { method: initial ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Save failed");
+      toast({ title: initial ? "Claim updated" : "Claim logged" });
+      onSaved();
+      onClose();
+    } catch {
+      toast({ title: "Could not save claim", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp: React.CSSProperties = { width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "7px 10px", fontSize: "0.875rem", background: "#fff", outline: "none", boxSizing: "border-box" };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent style={{ maxWidth: 520 }}>
+        <DialogHeader><DialogTitle>{initial ? "Edit Claim" : "Log Incident / Claim"}</DialogTitle></DialogHeader>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: "65vh", overflowY: "auto", paddingRight: 2 }}>
+          <div>
+            <label style={labelStyle}>Linked Policy <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional)</span></label>
+            <select value={String(form.insuranceRecordId)} onChange={e => onPolicyChange(e.target.value)} style={inp}>
+              <option value="">— Not linked to a specific policy —</option>
+              {records.map(r => (
+                <option key={r.id} value={r.id}>{policyLabel(r.policyType)}{r.insurer ? ` — ${r.insurer}` : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Policy Type</label>
+              <select value={form.policyType} onChange={e => setForm(f => ({ ...f, policyType: e.target.value }))} style={inp}>
+                <option value="">— Select —</option>
+                {POLICY_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Insurer</label>
+              <input value={form.insurer} onChange={e => setForm(f => ({ ...f, insurer: e.target.value }))} style={inp} placeholder="e.g. NFU Mutual" />
+            </div>
+            <div>
+              <label style={labelStyle}>Incident Date</label>
+              <input type="date" value={form.incidentDate} onChange={e => setForm(f => ({ ...f, incidentDate: e.target.value }))} style={inp} />
+            </div>
+            <div>
+              <label style={labelStyle}>Date Reported to Insurer</label>
+              <input type="date" value={form.reportedDate} onChange={e => setForm(f => ({ ...f, reportedDate: e.target.value }))} style={inp} />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Claim Reference <span style={{ fontWeight: 400, color: "#9ca3af" }}>(from insurer)</span></label>
+            <input value={form.claimRef} onChange={e => setForm(f => ({ ...f, claimRef: e.target.value }))} style={inp} placeholder="e.g. CLM-2025-001234" />
+          </div>
+          <div>
+            <label style={labelStyle}>Description <span style={{ color: "#dc2626" }}>*</span></label>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ ...inp, minHeight: 72, resize: "vertical" }} placeholder="What happened? What was damaged or lost?" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} style={inp}>
+                {CLAIM_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Settled Amount (£) <span style={{ fontWeight: 400, color: "#9ca3af" }}>if known</span></label>
+              <input type="number" min="0" step="0.01" value={form.settledAmountPence} onChange={e => setForm(f => ({ ...f, settledAmountPence: e.target.value }))} style={inp} placeholder="0.00" />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...inp, minHeight: 56, resize: "vertical" }} placeholder="e.g. Assessor appointed, waiting on loss adjuster…" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !form.description?.trim()}>{saving ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite", marginRight: 6 }} /> : null}{initial ? "Save Changes" : "Log Claim"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ClaimsSection({ farmId, records }: { farmId: number; records: InsuranceRecord[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editClaim, setEditClaim] = useState<InsuranceClaim | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(true);
+
+  const { data, isLoading } = useQuery<{ claims: InsuranceClaim[] }>({
+    queryKey: ["insurance-claims", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance-claims`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const claims = data?.claims ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ["insurance-claims", farmId] });
+
+  const deleteClaim = async () => {
+    if (!deleteId) return;
+    await fetch(`/api/farms/${farmId}/insurance-claims/${deleteId}`, { method: "DELETE" });
+    toast({ title: "Claim removed" });
+    refresh();
+    setDeleteId(null);
+  };
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+      <div
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", cursor: "pointer", borderBottom: expanded ? "1px solid #f3f4f6" : "none" }}
+        onClick={() => setExpanded(v => !v)}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Shield style={{ width: 15, height: 15, color: "#6366f1" }} />
+          <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#111827" }}>Incident &amp; Claims Register</span>
+          {claims.length > 0 && <span style={{ fontSize: "0.72rem", fontWeight: 700, background: "#ede9fe", color: "#6d28d9", border: "1px solid #ddd6fe", padding: "1px 7px", borderRadius: 10 }}>{claims.length}</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {expanded && (
+            <button
+              onClick={e => { e.stopPropagation(); setEditClaim(null); setDialogOpen(true); }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.8rem", fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}
+            >
+              <Plus style={{ width: 13, height: 13 }} /> Log Claim
+            </button>
+          )}
+          {expanded ? <ChevronUp style={{ width: 15, height: 15, color: "#9ca3af" }} /> : <ChevronDown style={{ width: 15, height: 15, color: "#9ca3af" }} />}
+        </div>
+      </div>
+
+      {expanded && (
+        <>
+          {isLoading && (
+            <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
+              <Loader2 style={{ width: 22, height: 22, animation: "spin 1s linear infinite", color: "#9ca3af" }} />
+            </div>
+          )}
+          {!isLoading && claims.length === 0 && (
+            <div style={{ textAlign: "center", padding: "36px 24px" }}>
+              <CheckCircle2 style={{ width: 30, height: 30, color: "#d1d5db", margin: "0 auto 10px" }} />
+              <p style={{ fontWeight: 600, color: "#374151", margin: "0 0 4px", fontSize: "0.9rem" }}>No claims on record</p>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "0 0 14px" }}>Log any incidents or insurance claims here — useful for proving coverage history during audits and policy renewals.</p>
+              <button onClick={() => { setEditClaim(null); setDialogOpen(true); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.82rem", fontWeight: 600, background: "#6366f1", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
+                <Plus style={{ width: 13, height: 13 }} /> Log first claim
+              </button>
+            </div>
+          )}
+          {!isLoading && claims.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: "0.84rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb" }}>
+                    {["Incident Date", "Policy Type", "Insurer", "Claim Ref", "Description", "Status", "Settled", ""].map(h => (
+                      <th key={h} style={{ padding: "9px 14px", textAlign: "left", fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#6b7280", whiteSpace: "nowrap", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {claims.map((c, i) => (
+                    <tr key={c.id} style={{ borderBottom: i < claims.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                      <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{fmtDate(c.incidentDate)}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{c.policyType ? policyLabel(c.policyType) : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151" }}>{c.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                      <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151", whiteSpace: "nowrap" }}>{c.claimRef ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", maxWidth: 220 }}>
+                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.description ?? "—"}</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}><ClaimStatusBadge status={c.status} /></td>
+                      <td style={{ padding: "10px 14px", whiteSpace: "nowrap", color: "#374151" }}>
+                        {c.settledAmountPence != null ? `£${(c.settledAmountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : <span style={{ color: "#d1d5db" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => { setEditClaim(c); setDialogOpen(true); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Edit"><Pencil style={{ width: 14, height: 14 }} /></button>
+                          <button onClick={() => setDeleteId(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Delete"><Trash2 style={{ width: 14, height: 14 }} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      <ClaimDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditClaim(null); }} initial={editClaim} farmId={farmId} records={records} onSaved={refresh} />
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Remove this claim?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the claim record. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteClaim} style={{ background: "#dc2626" }}>Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 const labelStyle: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 4 };
 const selectStyle: React.CSSProperties = { width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "7px 10px", fontSize: "0.875rem", background: "#fff", outline: "none" };
 
@@ -726,12 +1002,12 @@ export default function InsurancePage() {
                     const isCrit = policyIsCritical(r.policyType);
                     return (
                       <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < visibleRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : status === "expired" ? "#fff5f5" : "transparent", outline: hlId === r.id ? "2px solid #f59e0b" : "none", outlineOffset: -2, transition: "background 0.5s, outline 0.5s" }}>
-                        <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {isCrit && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
-                            <span style={{ fontWeight: 600, color: "#111827" }}>{policyLabel(r.policyType)}</span>
+                        <td style={{ padding: "11px 14px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            {isCrit && <span style={{ width: 7, height: 7, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
+                            <span style={{ fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>{policyLabel(r.policyType)}</span>
+                            {isCrit && <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>Required</span>}
                           </div>
-                          {isCrit && <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.63rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: 4 }}>Required</span>}
                         </td>
                         <td style={{ padding: "11px 14px", color: "#374151" }}>{r.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
                         <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
@@ -788,6 +1064,8 @@ export default function InsurancePage() {
         )}
 
         <PremiumTrendChart records={records} />
+
+        <ClaimsSection farmId={farmId!} records={records} />
 
         {/* Info note */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8 }}>

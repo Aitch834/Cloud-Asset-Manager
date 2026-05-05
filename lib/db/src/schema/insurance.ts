@@ -28,6 +28,24 @@ export const farmInsuranceTable = pgTable("farm_insurance", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const CLAIM_STATUS_VALUES = ["draft", "reported", "acknowledged", "under_investigation", "settled", "rejected", "withdrawn"] as const;
+
+export const farmInsuranceClaimsTable = pgTable("farm_insurance_claims", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  insuranceRecordId: integer("insurance_record_id").references(() => farmInsuranceTable.id, { onDelete: "set null" }),
+  policyType: text("policy_type"),
+  insurer: text("insurer"),
+  incidentDate: date("incident_date"),
+  reportedDate: date("reported_date"),
+  claimRef: text("claim_ref"),
+  description: text("description"),
+  status: text("status").notNull().default("draft"),
+  settledAmountPence: integer("settled_amount_pence"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const farmInsuranceDocumentsTable = pgTable("farm_insurance_documents", {
   id: serial("id").primaryKey(),
   insuranceRecordId: integer("insurance_record_id").notNull().references(() => farmInsuranceTable.id, { onDelete: "cascade" }),

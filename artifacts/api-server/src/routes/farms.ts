@@ -224,6 +224,7 @@ import {
   rolesTable,
   farmInsuranceTable,
   farmInsuranceDocumentsTable,
+  farmInsuranceClaimsTable,
   farmPlannerEventsTable,
   farmGrantsTable,
   farmTaskAssignmentsTable,
@@ -6523,6 +6524,33 @@ router.post("/farms/:farmId/insurance/:recordId/renew", requireAuth, requireTena
   await db.update(farmInsuranceTable).set({ supersededByRenewal: true }).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId)));
   const [newRecord] = await db.insert(farmInsuranceTable).values({ ...req.body, farmId }).returning();
   res.json(newRecord);
+});
+
+router.get("/farms/:farmId/insurance-claims", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const claims = await db.select().from(farmInsuranceClaimsTable).where(eq(farmInsuranceClaimsTable.farmId, farmId)).orderBy(farmInsuranceClaimsTable.incidentDate);
+  res.json({ claims });
+});
+
+router.post("/farms/:farmId/insurance-claims", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [claim] = await db.insert(farmInsuranceClaimsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json(claim);
+});
+
+router.put("/farms/:farmId/insurance-claims/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = Number(req.params.id);
+  const [claim] = await db.update(farmInsuranceClaimsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmInsuranceClaimsTable.id, id), eq(farmInsuranceClaimsTable.farmId, farmId))).returning();
+  if (!claim) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(claim);
+});
+
+router.delete("/farms/:farmId/insurance-claims/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = Number(req.params.id);
+  await db.delete(farmInsuranceClaimsTable).where(and(eq(farmInsuranceClaimsTable.id, id), eq(farmInsuranceClaimsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 router.patch("/farms/:farmId/insurance/:recordId/document", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
