@@ -147,6 +147,7 @@ const specialistNav: NavItem[] = [
   { name: "Sheep Production", href: "/sheep-production", icon: Scissors, moduleKeys: ["sheep-production"] },
   { name: "Beef Production", href: "/beef-production", icon: Scale, moduleKeys: ["beef-production"] },
   { name: "Fresh Produce", href: "/fresh-produce", icon: ShoppingBag, moduleKeys: ["fresh-produce"] },
+  { name: "Viticulture", href: "/viticulture", icon: TreePine, moduleKeys: ["viticulture"] },
   { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },
   { name: "Water & Irrigation", href: "/water-irrigation", icon: Waves, moduleKeys: ["water-irrigation"] },

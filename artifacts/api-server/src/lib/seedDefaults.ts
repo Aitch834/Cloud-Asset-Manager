@@ -45,6 +45,7 @@ const MODULES = [
   { key: "organic-fresh-produce", name: "Organic Fresh Produce", description: "Growing block conversion status, organic input log with prohibited-substance checks, Soil Association / OF&G certification records, and buyer organic declarations for fresh produce operations", monthlyPricePence: 2000 },
   { key: "sheep-production", name: "Sheep Production", description: "Flock register, tupping & scanning records, weigh-in & DLWG, shearing, cull records, vaccination programmes, disease monitoring and Red Tractor sheep checklist", monthlyPricePence: 2500 },
   { key: "beef-production", name: "Beef & Cattle Production", description: "Beef herd weigh-in & DLWG recording, finishing records, deadweight settlement tracking, body condition scoring and Red Tractor cattle checklist", monthlyPricePence: 2500 },
+  { key: "viticulture", name: "Viticulture (Vineyard Growing)", description: "HMRC Vine Register, vineyard block management, BBCH phenology tracking, pruning & canopy operation records, vintage harvest data, and disease scouting (Downy/Powdery Mildew, Botrytis, Xylella watch) for UK vineyard compliance", monthlyPricePence: 2500 },
 ];
 
 export async function seedDefaults() {

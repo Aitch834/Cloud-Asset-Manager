@@ -12,6 +12,7 @@ import { notificationsRouter } from "./notifications";
 import storageRouter from "./storage";
 import accountRouter from "./account";
 import eaRouter from "./ea";
+import viticultureRouter from "./viticulture";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(notificationsRouter);
 router.use(storageRouter);
 router.use(accountRouter);
 router.use(eaRouter);
+router.use(viticultureRouter);
 
 export default router;
