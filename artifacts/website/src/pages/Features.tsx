@@ -5,7 +5,7 @@ import {
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
-  Warehouse, Wrench, HeartPulse, Milk,
+  Warehouse, Wrench, HeartPulse, Milk, Grape,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -737,6 +737,24 @@ const sections: Section[] = [
           "Allergen & traceability chain records",
           "Red Tractor Fresh Produce, LEAF and GlobalG.A.P. readiness",
           "Assured Produce / BRCGS-ready audit evidence trail",
+        ],
+      },
+      {
+        title: "Viticulture",
+        icon: Grape,
+        color: "bg-purple-50 text-purple-700 border-purple-100",
+        badge: "module",
+        features: [
+          "Vine register — record each vine variety with UK variety Select (24 varieties incl. Bacchus, Pinot Noir, Pinot Gris, Rondo, Solaris, Chardonnay, Sauvignon Blanc and more), UK rootstock Select (14 rootstocks incl. SO4, 5C Teleki, 3309 Couderc, Gravesac, 41B), vine count, plant spacing, date planted, wine colour (White / Rosé / Red / Sparkling base), and removal status with removal date and reason; view-before-edit dialogs on all entries",
+          "Vineyard block management — block name, area (ha), number of vines, training system, trellis type, aspect, soil type, organic status badge, active / inactive status; each block links to vine register entries for full block-to-vine traceability",
+          "BBCH phenology records — log 23 standard BBCH growth stages (dormancy through to harvest ripeness, 00–97) with percentage reached at time of observation, date, block, observer name (auto-filled from logged-in user), and temperature; export all phenology records to CSV for season-by-season comparison",
+          "Canopy & pruning operations — record operation type (Winter Pruning, Spur Pruning, Guyot Pruning, Cane Renewal, Shoot Positioning, Leaf Removal, Green Harvest, Mechanical Harvest, Hand Harvest and more), date, block, pruning system, target and actual buds per vine, pruning weight (kg/vine), shoots removed percentage, leaves removed zone, machine used, operator (auto-filled), contractor, and hours worked",
+          "Harvest records — log vintage harvest events per block with total yield (kg), yield per vine (kg/vine), yield per hectare (t/ha), Brix degrees, pH, titratable acidity (g/L), potential alcohol percentage, botrytis present flag with affected percentage, destination winery, and operator name; export to CSV for winery submission",
+          "Disease & pest scouting — walkabout scouting records with leafhopper pressure (0–3 scale), spider mite pressure (0–3 scale), vine weevil sighted flag, Eutypa dieback sighted flag, Xylella fastidiosa suspected flag (APHA notifiable — a mandatory alert prompts immediate reporting on 03000 200 301), Phytophthora viticola suspected flag (also APHA notifiable), spray applied flag with product name, action taken notes, next scout date, and observer name",
+          "Per-section Raise Task buttons — contextual task assignment from any view dialog (vine register, block, phenology, operation, harvest, or scouting record) with the record details pre-populated in the task title and description",
+          "CSV export on every tab — all six data tabs (vine register, vineyard blocks, phenology, operations, harvest, scouting) have an Export CSV button; cells are sanitised for Excel compatibility with UTF-8 BOM",
+          "Staff auto-fill — Observer (phenology), Operator (operations, harvest), and Scouted By (disease scouting) fields pre-populate from the logged-in user's name on every new record form",
+          "Mobile app — 4 dedicated viticulture screens: Vine Scouting (tap-to-set pressure pickers per disease/pest, notifiable organism alert flow, raise task on high pressure), Vine Phenology (BBCH stage picker with season filter tabs), Vine Operation (operation type grouped by season/canopy, pruning sub-form with bud counts), Vine Harvest (yield, must chemistry, grape condition chips, botrytis flow, raise task on poor condition)",
         ],
       },
       {

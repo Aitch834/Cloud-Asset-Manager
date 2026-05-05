@@ -190,6 +190,14 @@ const TITLES: [string, string][] = [
   ["Inspector Mode — Advisor Portal Filtered Compliance View", "Getting Started"],
   ["Smart Date Validation — How Date Fields Work Across the Platform", "Getting Started"],
   ["Staff Auto-Populate — Operator and Assessor Fields Pre-Fill from Your Login", "Getting Started"],
+  ["Viticulture Module Overview — Vine Register, Blocks, Phenology, Operations, Harvest & Scouting", "Viticulture"],
+  ["Vine Register — UK Variety and Rootstock Selects, Removal Status and Audit Trail", "Viticulture"],
+  ["Vineyard Block Management — Training System, Soil Type, Organic Status and Block Records", "Viticulture"],
+  ["BBCH Phenology Records — Growth Stage Observation Log and Season Comparison", "Viticulture"],
+  ["Canopy & Pruning Operations — Operation Types, Pruning Systems and Bud Count Records", "Viticulture"],
+  ["Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag", "Viticulture"],
+  ["Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags", "Viticulture"],
+  ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest", "Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
