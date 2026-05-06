@@ -232,6 +232,7 @@ export default function EncampmentPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [raiseTaskFor, setRaiseTaskFor] = useState<Encampment | null>(null);
+  const [viewItem, setViewItem] = useState<Encampment | null>(null);
   const [form, setForm] = useState<Omit<Encampment, "id" | "farmId" | "photos">>({ ...EMPTY });
   const [claimDropdownVal, setClaimDropdownVal] = useState("");
 
@@ -428,7 +429,7 @@ export default function EncampmentPage() {
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                      <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); openEdit(r); }}>Edit</Button>
+                      <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); setViewItem(r); }}>View</Button>
                       <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); setDeleteId(r.id); }}
                         style={{ color: "#ef4444", borderColor: "#fecaca" }}><Trash2 size={13} /></Button>
                       {r.status !== "resolved" && (
@@ -470,6 +471,141 @@ export default function EncampmentPage() {
               );
             })}
           </div>
+        )}
+
+        {/* View Dialog */}
+        {viewItem && (
+          <Dialog open onOpenChange={() => setViewItem(null)}>
+            <DialogContent style={{ maxWidth: 620, maxHeight: "88vh", overflowY: "auto" }}>
+              <DialogHeader>
+                <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Tent size={17} style={{ color: "#b91c1c", flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>{viewItem.locationDescription}</span>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div style={{ display: "grid", gap: 18 }}>
+                {/* Status row */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: "0.8rem", fontWeight: 600, ...statusStyle(viewItem.status) }}>{statusLabel(viewItem.status)}</span>
+                  {viewItem.cropsAffected && <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: "0.8rem", fontWeight: 600, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" }}>Crops Affected</span>}
+                  <span style={{ fontSize: "0.82rem", color: "#6b7280" }}>Discovered: <strong>{fmt(viewItem.discoveredAt)}</strong></span>
+                  {viewItem.vacatedAt && <span style={{ fontSize: "0.82rem", color: "#15803d" }}>Vacated: <strong>{fmt(viewItem.vacatedAt)}</strong></span>}
+                </div>
+
+                {/* Location details */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                  {viewItem.fieldParcel && <InfoRow label="Field / Parcel" value={viewItem.fieldParcel} />}
+                  {(viewItem.latitude || viewItem.longitude) && <InfoRow label="GPS" value={`${viewItem.latitude ?? ""}, ${viewItem.longitude ?? ""}`} />}
+                  {viewItem.entryPoint && <InfoRow label="Entry Point" value={viewItem.entryPoint} span />}
+                </div>
+
+                {/* Persons & Vehicles */}
+                {(viewItem.vehicleCount != null || viewItem.personCount != null || viewItem.caravanCount != null || viewItem.vehicleDescriptions) && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Persons &amp; Vehicles</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.vehicleCount != null && <InfoRow label="Vehicles" value={String(viewItem.vehicleCount)} />}
+                      {viewItem.personCount != null && <InfoRow label="Persons (approx)" value={String(viewItem.personCount)} />}
+                      {viewItem.caravanCount != null && <InfoRow label="Caravans" value={String(viewItem.caravanCount)} />}
+                      {viewItem.vehicleDescriptions && <InfoRow label="Descriptions" value={viewItem.vehicleDescriptions} span />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Land Damage */}
+                {(viewItem.landDamageDescription || viewItem.estimatedDamage) && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Land Damage</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.landDamageDescription && <InfoRow label="Description" value={viewItem.landDamageDescription} span />}
+                      {viewItem.estimatedDamage && <InfoRow label="Estimated Damage Value" value={viewItem.estimatedDamage} />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Authority Reports */}
+                {(viewItem.policeNotified || viewItem.councilNotified) && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Authority Reports</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.policeNotified && <InfoRow label="Police Reference" value={viewItem.policeRefNumber || "No ref recorded"} />}
+                      {viewItem.policeAction && <InfoRow label="Police Action" value={viewItem.policeAction} span />}
+                      {viewItem.councilNotified && <InfoRow label="Council Reference" value={viewItem.councilRefNumber || "No ref recorded"} />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Legal Action */}
+                {viewItem.legalActionTaken && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Legal Action</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.legalActionDetails && <InfoRow label="Details" value={viewItem.legalActionDetails} span />}
+                      <InfoRow label="Solicitor Instructed" value={viewItem.solicitorInstructed ? "Yes" : "No"} />
+                      {viewItem.courtOrderObtained && <InfoRow label="Court Order Reference" value={viewItem.courtOrderRef || "Obtained"} />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Clearance */}
+                {viewItem.landConditionAfter && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Land Condition After Vacation</p>
+                    <p style={{ fontSize: "0.85rem", color: "#374151" }}>{viewItem.landConditionAfter}</p>
+                  </div>
+                )}
+
+                {/* Insurance */}
+                {viewItem.insuranceClaimMade && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Insurance</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.insurancePolicyId && (() => { const pol = policies.find(p => p.id === viewItem.insurancePolicyId); return pol ? (
+                        <>
+                          <InfoRow label="Policy" value={pol.policyType + (pol.insurer ? ` — ${pol.insurer}` : "")} />
+                          {pol.policyNumber && <InfoRow label="Policy Number" value={pol.policyNumber} />}
+                        </>
+                      ) : null; })()}
+                      {viewItem.insuranceClaimRef && <InfoRow label="Claim Reference" value={viewItem.insuranceClaimRef} />}
+                    </div>
+                    {viewItem.insurancePolicyId && (
+                      <a href={`/dashboard/insurance?open=${viewItem.insurancePolicyId}`} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, fontSize: "0.8rem", color: "#2563eb", textDecoration: "none", fontWeight: 500 }}>
+                        View policy &amp; documents <ExternalLink size={11} />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Remediation */}
+                {viewItem.remediationRequired && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 8 }}>Remediation</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px 20px" }}>
+                      {viewItem.remediationNotes && <InfoRow label="Notes" value={viewItem.remediationNotes} span />}
+                      {viewItem.remediationCost && <InfoRow label="Estimated Cost" value={`£${viewItem.remediationCost}`} />}
+                    </div>
+                  </div>
+                )}
+
+                {viewItem.notes && (
+                  <div>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 4 }}>Additional Notes</p>
+                    <p style={{ fontSize: "0.85rem", color: "#374151", whiteSpace: "pre-wrap" }}>{viewItem.notes}</p>
+                  </div>
+                )}
+
+                {/* Photos */}
+                <PhotoPanel incidentId={viewItem.id} farmId={farmId!} photos={viewItem.photos} />
+              </div>
+
+              <DialogFooter className="mt-2">
+                <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
+                <Button onClick={() => { const r = viewItem; setViewItem(null); openEdit(r); }}>Edit Encampment</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Add / Edit Dialog */}
