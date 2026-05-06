@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Link, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useUserRole } from "@/hooks/use-user-role";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { UpcomingDatesPanel } from "./dashboard/UpcomingDatesPanel";
 import { ComplianceHealthPanel } from "./dashboard/ComplianceHealthPanel";
@@ -73,6 +74,15 @@ export default function Dashboard() {
     enabled: !!farmId,
   });
   const { data: activities } = useGetFarmActivity(farmId ?? 0);
+
+  const { isAtLeast } = useUserRole();
+  const { data: poCounts } = useQuery({
+    queryKey: ["po-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders/counts`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const pendingApprovals = poCounts?.counts?.submitted ?? 0;
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -245,6 +255,30 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Approvals Card — managers only */}
+      {isAtLeast("manager") && pendingApprovals > 0 && (
+        <div style={{ background: "linear-gradient(135deg, #6d28d9, #7c3aed)", borderRadius: 16, padding: "1.25rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, color: "white", boxShadow: "0 4px 16px rgba(109,40,217,0.25)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 12, padding: 10, flexShrink: 0 }}>
+              <ClipboardList style={{ width: 22, height: 22 }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: "1.1rem" }}>
+                {pendingApprovals} Purchase Order{pendingApprovals !== 1 ? "s" : ""} Awaiting Your Approval
+              </p>
+              <p style={{ margin: "3px 0 0", fontSize: "0.82rem", opacity: 0.85 }}>
+                Staff have submitted these orders — review, approve, or return to draft in Trade Contacts & Stock
+              </p>
+            </div>
+          </div>
+          <Link href="/stock">
+            <div style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 8, padding: "8px 18px", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", color: "white" }}>
+              Review Now →
+            </div>
+          </Link>
+        </div>
+      )}
 
       {/* Upcoming Key Dates */}
       <UpcomingDatesPanel farmId={farmId} />

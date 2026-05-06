@@ -958,7 +958,7 @@ function poStatusBadge(status: string) {
 }
 
 function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
-  const { isAtLeast } = useUserRole();
+  const { isAtLeast, displayName } = useUserRole();
   const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
   const emptyLine = { lineType: "item", stockItemId: "", description: "", category: "", quantityOrdered: "", unit: "", unitPricePence: "", notes: "" };
   const [open, setOpen] = useState(!!prefilledPo);
@@ -1000,7 +1000,23 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
     onError: () => toast({ title: "Failed to delete PO", variant: "destructive" }),
   });
 
-  const filtered = (orders ?? []).filter((po: any) => !search || po.poNumber?.toLowerCase().includes(search.toLowerCase()) || po.supplierName?.toLowerCase().includes(search.toLowerCase()));
+  const [statusFilter, setStatusFilter] = useState<string>("outstanding");
+  const OUTSTANDING_STATUSES = ["draft", "submitted", "sent", "partially_received"];
+
+  const statusCounts = (orders ?? []).reduce((acc: Record<string, number>, po: any) => {
+    acc[po.status] = (acc[po.status] || 0) + 1;
+    acc.all = (acc.all || 0) + 1;
+    if (OUTSTANDING_STATUSES.includes(po.status)) acc.outstanding = (acc.outstanding || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const statusFiltered = (orders ?? []).filter((po: any) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "outstanding") return OUTSTANDING_STATUSES.includes(po.status);
+    return po.status === statusFilter;
+  });
+
+  const filtered = statusFiltered.filter((po: any) => !search || po.poNumber?.toLowerCase().includes(search.toLowerCase()) || po.supplierName?.toLowerCase().includes(search.toLowerCase()));
 
   const addLine = () => setLines(ls => [...ls, emptyLine]);
   const removeLine = (i: number) => setLines(ls => ls.filter((_, idx) => idx !== i));
@@ -1013,6 +1029,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
     );
     createMut.mutate({
       ...form,
+      submittedByName: displayName || undefined,
       lines: validLines.map(l => ({
         stockItemId: l.lineType !== "service" && l.stockItemId ? Number(l.stockItemId) : null,
         quantityOrdered: parseFloat(l.quantityOrdered),
@@ -1027,33 +1044,99 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
 
   const detail = viewQ.data;
 
+  const STATUS_TABS = [
+    { key: "outstanding", label: "Outstanding", color: "#166534", bg: "#f0fdf4" },
+    { key: "submitted", label: "Awaiting Approval", color: "#6d28d9", bg: "#ede9fe" },
+    { key: "draft", label: "Draft", color: "#374151", bg: "#f3f4f6" },
+    { key: "sent", label: "Sent", color: "#1e40af", bg: "#dbeafe" },
+    { key: "partially_received", label: "Part. Received", color: "#92400e", bg: "#fef3c7" },
+    { key: "fully_received", label: "Fully Received", color: "#065f46", bg: "#d1fae5" },
+    { key: "all", label: "All", color: "#6b7280", bg: "#f9fafb" },
+  ];
+
   return (
     <div>
+      {/* ── Manager Approval Banner ── */}
+      {isAtLeast("manager") && (statusCounts["submitted"] ?? 0) > 0 && (
+        <div style={{ background: "linear-gradient(135deg, #6d28d9, #7c3aed)", color: "white", borderRadius: 10, padding: "0.875rem 1rem", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: "50%", padding: 6, flexShrink: 0 }}>
+              <ClipboardList size={16} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem" }}>
+                {statusCounts["submitted"]} Purchase Order{statusCounts["submitted"] !== 1 ? "s" : ""} awaiting your approval
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: "0.78rem", opacity: 0.9 }}>
+                Review, approve, or return to draft — click to filter the list below
+              </p>
+            </div>
+          </div>
+          <button onClick={() => setStatusFilter("submitted")} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 7, color: "white", cursor: "pointer", padding: "6px 14px", fontSize: "0.8rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+            Review POs →
+          </button>
+        </div>
+      )}
+
+      {/* ── Status Filter Tabs ── */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        {STATUS_TABS.map(tab => {
+          const count = tab.key === "outstanding" ? (statusCounts.outstanding ?? 0) : tab.key === "all" ? (statusCounts.all ?? 0) : (statusCounts[tab.key] ?? 0);
+          const active = statusFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 20,
+                border: active ? `2px solid ${tab.color}` : "1px solid #e5e7eb",
+                background: active ? tab.bg : "white",
+                color: active ? tab.color : "#6b7280",
+                fontWeight: active ? 700 : 500,
+                fontSize: "0.78rem", cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              {tab.label}
+              {count > 0 && (
+                <span style={{ background: active ? tab.color : "#e5e7eb", color: active ? "white" : "#374151", borderRadius: 10, padding: "0px 6px", fontSize: "0.7rem", fontWeight: 700 }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Search + Raise PO ── */}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search purchase orders..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
+          <Input placeholder="Search by PO number or supplier..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
         <Button size="sm" onClick={() => { setForm(emptyForm); setLines([{ ...emptyLine }]); setOpen(true); }}>
           <Plus size={14} className="mr-1" />Raise Purchase Order
         </Button>
       </div>
 
-      {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
+      {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : (orders ?? []).length === 0 ? (
         <EmptyState icon={ClipboardList} title="No purchase orders yet" subtitle="Raise a PO to track what you've ordered from suppliers, then link GRNs when goods arrive" />
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af", fontSize: "0.85rem" }}>
+          No orders match this filter. <button onClick={() => setStatusFilter("all")} style={{ color: "#166534", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Show all</button>
+        </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Lines", "Status", ""].map(h => (
+                {["PO Number", "Supplier", "Order Date", "Expected Delivery", ...(statusFilter === "submitted" ? ["Submitted By"] : []), "Lines", "Est. Value", "Status", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((po: any, i: number) => (
-                <tr key={po.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                <tr key={po.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none", background: po.status === "submitted" && isAtLeast("manager") ? "#faf5ff" : "white" }}>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
                     <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 700, color: "#166534" }}>{po.poNumber}</span>
                     {po.poNumber?.startsWith("AUTO-") && (
@@ -1063,10 +1146,18 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                   <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{po.supplierName || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(po.orderDate)}</td>
                   <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: po.expectedDeliveryDate ? "#374151" : "#9ca3af" }}>{po.expectedDeliveryDate ? fmt(po.expectedDeliveryDate) : "Not set"}</td>
+                  {statusFilter === "submitted" && (
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6d28d9", fontSize: "0.82rem" }}>{po.submittedByName || "—"}</td>
+                  )}
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{po.lineCount ?? 0} line{po.lineCount !== 1 ? "s" : ""}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: po.totalPence ? "#111827" : "#9ca3af", fontWeight: po.totalPence ? 600 : 400, whiteSpace: "nowrap" }}>
+                    {po.totalPence ? `£${(Number(po.totalPence) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                  </td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{poStatusBadge(po.status)}</td>
                   <td style={{ padding: "0.5rem 0.875rem" }}>
-                    <button onClick={() => setViewPo(po)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", fontWeight: 500 }}>View</button>
+                    <button onClick={() => setViewPo(po)} style={{ fontSize: "0.75rem", color: po.status === "submitted" && isAtLeast("manager") ? "#6d28d9" : "#166534", cursor: "pointer", background: "none", border: "none", fontWeight: 600 }}>
+                      {po.status === "submitted" && isAtLeast("manager") ? "Review" : "View"}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -1309,10 +1400,13 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
           </DialogHeader>
           {viewQ.isLoading ? <p className="text-sm text-gray-400 py-6 text-center">Loading...</p> : detail ? (
             <div className="space-y-4 py-1">
-              <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Supplier</span><br /><strong>{detail.record?.supplierName || "—"}</strong></div>
                 <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Order Date</span><br /><strong>{fmt(detail.record?.orderDate)}</strong></div>
                 <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Expected Delivery</span><br /><strong>{detail.record?.expectedDeliveryDate ? fmt(detail.record.expectedDeliveryDate) : "—"}</strong></div>
+                {detail.record?.submittedByName && (
+                  <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Submitted By</span><br /><strong style={{ color: "#6d28d9" }}>{detail.record.submittedByName}</strong></div>
+                )}
               </div>
               {viewPo?.poNumber?.startsWith("AUTO-") && (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: "0.625rem 0.875rem" }}>
@@ -1400,6 +1494,37 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                 </div>
               )}
 
+              {/* Approval panel — submitted, for managers */}
+              {viewPo?.status === "submitted" && isAtLeast("manager") && (
+                <div style={{ background: "linear-gradient(135deg, #6d28d9, #7c3aed)", borderRadius: 10, padding: "0.875rem 1rem", color: "white", marginBottom: 8 }}>
+                  <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: "0.9rem" }}>Approval Required</p>
+                  <p style={{ margin: "0 0 10px", fontSize: "0.78rem", opacity: 0.9 }}>
+                    {viewPo?.submittedByName ? `Submitted by ${viewPo.submittedByName} — ` : ""}Review the order lines and either approve (send to supplier) or return to draft for amendment.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button size="sm" style={{ background: "rgba(255,255,255,0.95)", color: "#166534", fontWeight: 700 }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>
+                      ✓ Approve &amp; Send to Supplier
+                    </Button>
+                    <Button size="sm" style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.35)" }} variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "draft" })} disabled={updateStatusMut.isPending}>
+                      Return to Draft
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {/* Awaiting approval — for non-managers */}
+              {viewPo?.status === "submitted" && !isAtLeast("manager") && (
+                <div style={{ background: "#ede9fe", border: "1px solid #c4b5fd", borderRadius: 10, padding: "0.75rem 1rem", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ background: "#6d28d9", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <ClipboardList size={14} color="white" />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: "0.85rem", color: "#4c1d95" }}>Awaiting Manager Approval</p>
+                    <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "#6d28d9" }}>
+                      This order has been submitted and is pending approval by a Farm Manager or Owner.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {viewPo?.status === "draft" && (
                   <Button size="sm" variant="outline" style={{ background: "#ede9fe", color: "#6d28d9", borderColor: "#c4b5fd" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "submitted" })} disabled={updateStatusMut.isPending}>
@@ -1408,21 +1533,6 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                 )}
                 {viewPo?.status === "draft" && isAtLeast("manager") && (
                   <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>Mark as Sent</Button>
-                )}
-                {viewPo?.status === "submitted" && isAtLeast("manager") && (
-                  <>
-                    <Button size="sm" style={{ background: "#166534", color: "#fff" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>
-                      Approve &amp; Send to Supplier
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "draft" })} disabled={updateStatusMut.isPending}>
-                      Return to Draft
-                    </Button>
-                  </>
-                )}
-                {viewPo?.status === "submitted" && !isAtLeast("manager") && (
-                  <p style={{ fontSize: "0.8rem", color: "#6d28d9", background: "#ede9fe", borderRadius: 6, padding: "4px 12px", margin: 0 }}>
-                    Awaiting manager approval
-                  </p>
                 )}
                 {viewPo?.status !== "cancelled" && viewPo?.status !== "fully_received" && (
                   <>

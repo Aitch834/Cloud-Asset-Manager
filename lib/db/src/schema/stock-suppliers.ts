@@ -53,6 +53,7 @@ export const purchaseOrdersTable = pgTable("purchase_orders", {
   expectedDeliveryDate: timestamp("expected_delivery_date", { withTimezone: true }),
   status: text("status").notNull().default("draft"),
   notes: text("notes"),
+  submittedByName: text("submitted_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
