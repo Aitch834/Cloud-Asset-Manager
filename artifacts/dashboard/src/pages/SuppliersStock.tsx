@@ -65,7 +65,20 @@ const SUPPLIER_CATEGORIES = [
   "General",
 ];
 
-const UNITS = ["kg", "L", "t", "bags", "boxes", "units", "m³", "bales"];
+const SERVICE_CATEGORIES = [
+  "Agronomy",
+  "Veterinary Services",
+  "Haulage / Transport",
+  "Contracting / Labour",
+  "Waste Disposal",
+  "Repairs & Maintenance",
+  "Professional Services",
+  "Other Services",
+];
+
+const ALL_UNITS = ["kg", "L", "t", "bags", "boxes", "units", "m³", "bales", "hours", "days", "visits", "loads", "items"];
+/** @deprecated use ALL_UNITS */
+const UNITS = ALL_UNITS;
 
 function fmt(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -947,7 +960,7 @@ function poStatusBadge(status: string) {
 function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
   const { isAtLeast } = useUserRole();
   const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
-  const emptyLine = { stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "", feedStockItemId: "" };
+  const emptyLine = { lineType: "item", stockItemId: "", description: "", category: "", quantityOrdered: "", unit: "", unitPricePence: "", notes: "" };
   const [open, setOpen] = useState(!!prefilledPo);
   const [viewPo, setViewPo] = useState<any>(null);
   const [search, setSearch] = useState("");
@@ -971,7 +984,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/purchase-orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Purchase Order created" }); onRefresh(); setOpen(false); setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); },
+    onSuccess: () => { toast({ title: "Purchase Order created" }); onRefresh(); setOpen(false); setForm(emptyForm); setLines([{ ...emptyLine }]); },
     onError: () => toast({ title: "Failed to create PO", variant: "destructive" }),
   });
 
@@ -994,15 +1007,20 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
   const updateLine = (i: number, field: string, val: string) => setLines(ls => ls.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
 
   const handleCreate = () => {
-    const validLines = lines.filter(l => l.stockItemId && l.quantityOrdered);
+    const validLines = lines.filter(l =>
+      (l.lineType !== "service" && l.stockItemId && l.quantityOrdered) ||
+      (l.lineType === "service" && l.description && l.quantityOrdered)
+    );
     createMut.mutate({
       ...form,
       lines: validLines.map(l => ({
-        stockItemId: Number(l.stockItemId),
+        stockItemId: l.lineType !== "service" && l.stockItemId ? Number(l.stockItemId) : null,
         quantityOrdered: parseFloat(l.quantityOrdered),
         unitPricePence: l.unitPricePence ? Math.round(parseFloat(l.unitPricePence) * 100) : null,
-        notes: l.notes || null,
-        feedStockItemId: l.feedStockItemId ? Number(l.feedStockItemId) : null,
+        notes: l.lineType === "service"
+          ? [l.description, l.category ? `[${l.category}]` : ""].filter(Boolean).join(" ") + (l.notes ? ` — ${l.notes}` : "")
+          : (l.notes || null),
+        feedStockItemId: null,
       })),
     });
   };
@@ -1016,7 +1034,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search purchase orders..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
-        <Button size="sm" onClick={() => { setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); setOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setLines([{ ...emptyLine }]); setOpen(true); }}>
           <Plus size={14} className="mr-1" />Raise Purchase Order
         </Button>
       </div>
@@ -1057,101 +1075,226 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); } }}>
-        <DialogContent style={{ maxWidth: 680 }}>
-          <DialogHeader><DialogTitle>Raise Purchase Order</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Supplier</Label>
-                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select supplier..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No supplier</SelectItem>
-                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(emptyForm); setLines([{ ...emptyLine }]); } }}>
+        <DialogContent style={{ maxWidth: 860, maxHeight: "92vh", overflowY: "auto" }}>
+          <DialogHeader>
+            <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ClipboardList size={17} style={{ color: "#166534" }} />
+              Raise Purchase Order
+            </DialogTitle>
+            <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: 0 }}>Order stock items, goods or services from any supplier across the holding</p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* ── Header: Supplier / Status / Dates / Notes ── */}
+            <div style={{ background: "#f9fafb", borderRadius: 10, padding: "0.875rem 1rem", border: "1px solid #e5e7eb" }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Supplier</Label>
+                  <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select supplier..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No supplier / TBC</SelectItem>
+                      {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="submitted">Submit for Approval</SelectItem>
+                      {isAtLeast("manager") && <SelectItem value="sent">Sent to Supplier</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <Label>Status</Label>
-                <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="submitted">Submit for Approval</SelectItem>
-                    {isAtLeast("manager") && <SelectItem value="sent">Sent to Supplier</SelectItem>}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <Label>Order Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Input type="date" value={form.orderDate} onChange={e => setForm((f: any) => ({ ...f, orderDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Expected Delivery</Label>
+                  <Input type="date" value={form.expectedDeliveryDate} onChange={e => setForm((f: any) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+                </div>
+              </div>
+              <div className="mt-3">
+                <Label>Notes / Special Instructions</Label>
+                <Input placeholder="e.g. Deliver to grain store, call ahead — contract ref 2024-A" value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Order Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.orderDate} onChange={e => setForm((f: any) => ({ ...f, orderDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Expected Delivery</Label>
-                <Input type="date" value={form.expectedDeliveryDate} onChange={e => setForm((f: any) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
-              </div>
-            </div>
+
+            {/* ── Order Lines ── */}
             <div>
-              <Label>Notes</Label>
-              <Input placeholder="Optional notes or special instructions..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <Label style={{ marginBottom: 0 }}>Order Lines</Label>
-                <button onClick={addLine} style={{ fontSize: "0.75rem", color: "#166534", background: "none", border: "none", cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><Plus size={12} />Add Line</button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: "0.85rem", color: "#111827", margin: 0 }}>Order Lines</p>
+                  <p style={{ fontSize: "0.72rem", color: "#9ca3af", margin: "2px 0 0" }}>Mix catalogue stock items and free-text services or one-off goods on the same order</p>
+                </div>
+                <button onClick={addLine} style={{ fontSize: "0.75rem", color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4, padding: "4px 10px" }}>
+                  <Plus size={12} />Add Line
+                </button>
               </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                   <thead>
                     <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                      {["Product", "Qty Ordered", "Unit Price (£)", "Feed Stock Bin", "Notes", ""].map(h => (
-                        <th key={h} style={{ padding: "0.5rem 0.625rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
-                      ))}
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", width: 110 }}>Type</th>
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem" }}>Product / Description</th>
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", width: 64 }}>Qty</th>
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", width: 76 }}>Unit</th>
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", width: 88 }}>£ / Unit</th>
+                      <th style={{ padding: "0.5rem 0.5rem", textAlign: "right", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", width: 72 }}>Total</th>
+                      <th style={{ width: 30 }} />
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((l, i) => (
-                      <tr key={i} style={{ borderBottom: i < lines.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <Select value={l.stockItemId} onValueChange={v => updateLine(i, "stockItemId", v)}>
-                            <SelectTrigger style={{ height: 32, fontSize: "0.8rem" }}><SelectValue placeholder="Select product..." /></SelectTrigger>
-                            <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </td>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <Input type="number" step="0.01" placeholder="0" value={l.quantityOrdered} onChange={e => updateLine(i, "quantityOrdered", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
-                        </td>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <Input type="number" step="0.01" placeholder="0.00" value={l.unitPricePence} onChange={e => updateLine(i, "unitPricePence", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
-                        </td>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <Select value={l.feedStockItemId || "__none__"} onValueChange={v => updateLine(i, "feedStockItemId", v === "__none__" ? "" : v)}>
-                            <SelectTrigger style={{ height: 32, fontSize: "0.75rem", minWidth: 160 }}><SelectValue placeholder="Link feed bin..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">Not linked</SelectItem>
-                              {(feedStock ?? []).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.productName || s.feedType} — {s.storageLocation || "no location"}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <Input placeholder="Optional" value={l.notes} onChange={e => updateLine(i, "notes", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
-                        </td>
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          {lines.length > 1 && <button onClick={() => removeLine(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}><Trash2 size={13} /></button>}
-                        </td>
-                      </tr>
-                    ))}
+                    {lines.map((l: any, i: number) => {
+                      const isService = l.lineType === "service";
+                      const selectedProduct = !isService && l.stockItemId ? (products ?? []).find((p: any) => String(p.id) === String(l.stockItemId)) : null;
+                      const lineTotal = l.quantityOrdered && l.unitPricePence ? parseFloat(l.quantityOrdered) * parseFloat(l.unitPricePence) : null;
+                      return (
+                        <tr key={i} style={{ borderBottom: i < lines.length - 1 ? "1px solid #f3f4f6" : "none", background: isService ? "#fafaf9" : "white" }}>
+                          {/* Type toggle */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            <Select value={l.lineType || "item"} onValueChange={v => updateLine(i, "lineType", v)}>
+                              <SelectTrigger style={{ height: 30, fontSize: "0.72rem", borderColor: isService ? "#d97706" : "#166534", color: isService ? "#92400e" : "#166534", background: isService ? "#fffbeb" : "#f0fdf4" }}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="item">📦 Stock Item</SelectItem>
+                                <SelectItem value="service">🔧 Service / Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+
+                          {/* Product / Description */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            {isService ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <Input
+                                  placeholder="What are you ordering? e.g. Agronomy visit, Haulage, Lab testing..."
+                                  value={l.description}
+                                  onChange={e => updateLine(i, "description", e.target.value)}
+                                  style={{ height: 30, fontSize: "0.78rem" }}
+                                />
+                                <Select value={l.category || "__none__"} onValueChange={v => updateLine(i, "category", v === "__none__" ? "" : v)}>
+                                  <SelectTrigger style={{ height: 26, fontSize: "0.72rem" }}>
+                                    <SelectValue placeholder="Category (optional)..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Uncategorised service</SelectItem>
+                                    {SERVICE_CATEGORIES.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              <Select value={l.stockItemId} onValueChange={v => {
+                                const prod = (products ?? []).find((p: any) => String(p.id) === v);
+                                setLines((ls: any[]) => ls.map((ll, idx) => idx === i ? { ...ll, stockItemId: v, unit: prod?.unit || ll.unit } : ll));
+                              }}>
+                                <SelectTrigger style={{ height: 30, fontSize: "0.78rem" }}>
+                                  <SelectValue placeholder="Select from catalogue..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(products ?? []).length === 0 && <SelectItem value="__empty__" disabled>No products in catalogue yet</SelectItem>}
+                                  {(products ?? []).map((p: any) => (
+                                    <SelectItem key={p.id} value={String(p.id)}>
+                                      {p.name}{p.category ? <span style={{ color: "#9ca3af" }}> · {p.category}</span> : ""}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </td>
+
+                          {/* Qty */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            <Input type="number" step="0.01" min="0" placeholder="0" value={l.quantityOrdered} onChange={e => updateLine(i, "quantityOrdered", e.target.value)} style={{ height: 30, fontSize: "0.78rem" }} />
+                          </td>
+
+                          {/* Unit */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            {selectedProduct?.unit && !isService ? (
+                              <span style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: "30px", display: "block", paddingLeft: 4 }}>{selectedProduct.unit}</span>
+                            ) : (
+                              <Select value={l.unit || "__none__"} onValueChange={v => updateLine(i, "unit", v === "__none__" ? "" : v)}>
+                                <SelectTrigger style={{ height: 30, fontSize: "0.72rem" }}>
+                                  <SelectValue placeholder="Unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">—</SelectItem>
+                                  {ALL_UNITS.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </td>
+
+                          {/* Unit Price */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            <div style={{ position: "relative" }}>
+                              <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: "0.7rem", pointerEvents: "none" }}>£</span>
+                              <Input type="number" step="0.01" min="0" placeholder="0.00" value={l.unitPricePence} onChange={e => updateLine(i, "unitPricePence", e.target.value)} style={{ height: 30, fontSize: "0.78rem", paddingLeft: 20 }} />
+                            </div>
+                          </td>
+
+                          {/* Line total */}
+                          <td style={{ padding: "0.375rem 0.5rem", textAlign: "right", verticalAlign: "top" }}>
+                            <span style={{ fontSize: "0.78rem", fontWeight: 600, color: lineTotal ? "#111827" : "#d1d5db", lineHeight: "30px" }}>
+                              {lineTotal != null ? `£${lineTotal.toFixed(2)}` : "—"}
+                            </span>
+                          </td>
+
+                          {/* Delete */}
+                          <td style={{ padding: "0.375rem 0.5rem", verticalAlign: "top" }}>
+                            {lines.length > 1 && (
+                              <button onClick={() => removeLine(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2, marginTop: 2 }} title="Remove line">
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Order total */}
+              {(() => {
+                const total = (lines as any[]).reduce((sum, l) => {
+                  if (l.quantityOrdered && l.unitPricePence) return sum + parseFloat(l.quantityOrdered) * parseFloat(l.unitPricePence);
+                  return sum;
+                }, 0);
+                return total > 0 ? (
+                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6, paddingTop: 8, paddingRight: 36 }}>
+                    <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>Estimated Order Total:</span>
+                    <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>£{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
+
+            {/* Feed stock link — only shown if any line is linked to a Feed item */}
+            {(lines as any[]).some(l => l.lineType !== "service" && l.stockItemId && (products ?? []).find((p: any) => String(p.id) === String(l.stockItemId) && p.category === "Feed")) && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.625rem 0.875rem" }}>
+                <p style={{ fontSize: "0.78rem", color: "#166534", fontWeight: 600, margin: "0 0 4px" }}>🌾 Feed Stock Bin Links</p>
+                <p style={{ fontSize: "0.75rem", color: "#4b7c6f", margin: 0 }}>
+                  Feed items on this PO will update Feed Stock awaiting quantities automatically when the order is active. To link a specific bin, record the GRN after delivery.
+                </p>
+              </div>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!form.orderDate || createMut.isPending}>Create Purchase Order</Button>
+            <Button onClick={handleCreate} disabled={!form.orderDate || createMut.isPending}>
+              {createMut.isPending ? "Creating…" : "Create Purchase Order"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1198,7 +1341,15 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                           const pct = l.quantityOrdered > 0 ? Math.min(100, Math.round((parseFloat(l.quantityReceived ?? 0) / parseFloat(l.quantityOrdered)) * 100)) : 0;
                           return (
                             <tr key={l.id} style={{ borderBottom: i < detail.lines.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                              <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{l.stockItemName || "—"}</td>
+                              <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>
+                                {l.stockItemName ? (
+                                  <span>{l.stockItemName}</span>
+                                ) : l.notes ? (
+                                  <span style={{ color: "#374151" }}>{l.notes}</span>
+                                ) : (
+                                  <span style={{ color: "#9ca3af" }}>—</span>
+                                )}
+                              </td>
                               <td style={{ padding: "0.5rem 0.75rem" }}>{fmtQty(l.quantityOrdered, l.stockItemUnit)}</td>
                               <td style={{ padding: "0.5rem 0.75rem", color: pct >= 100 ? "#166534" : "#374151" }}>{fmtQty(l.quantityReceived ?? 0, l.stockItemUnit)}</td>
                               <td style={{ padding: "0.5rem 0.75rem" }}>{l.unitPricePence ? `£${(l.unitPricePence / 100).toFixed(2)}` : "—"}</td>

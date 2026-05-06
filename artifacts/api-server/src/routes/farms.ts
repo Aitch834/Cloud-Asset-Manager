@@ -4314,7 +4314,7 @@ router.post("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requir
   const { lines, ...poBody } = req.body;
   const [po] = await db.insert(purchaseOrdersTable).values({ ...poBody, farmId, poNumber, status: poBody.status || "draft" }).returning();
   if (lines && Array.isArray(lines) && lines.length > 0) {
-    await db.insert(purchaseOrderLinesTable).values(lines.map((l: any) => ({ poId: po.id, stockItemId: Number(l.stockItemId), quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? Number(l.unitPricePence) : null, notes: l.notes || null, feedStockItemId: l.feedStockItemId ? Number(l.feedStockItemId) : null })));
+    await (db.insert(purchaseOrderLinesTable) as any).values(lines.map((l: any) => ({ poId: po.id, ...(l.stockItemId ? { stockItemId: Number(l.stockItemId) } : {}), quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? Number(l.unitPricePence) : null, notes: l.notes || null, feedStockItemId: l.feedStockItemId ? Number(l.feedStockItemId) : null })));
   }
   if (ACTIVE_PO_STATUSES.includes(po.status)) await recalcFeedStockForPO(farmId, po.id);
   res.status(201).json({ record: po });

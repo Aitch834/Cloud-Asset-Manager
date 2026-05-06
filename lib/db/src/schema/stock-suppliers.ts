@@ -60,7 +60,7 @@ export const purchaseOrdersTable = pgTable("purchase_orders", {
 export const purchaseOrderLinesTable = pgTable("purchase_order_lines", {
   id: serial("id").primaryKey(),
   poId: integer("po_id").notNull().references(() => purchaseOrdersTable.id, { onDelete: "cascade" }),
-  stockItemId: integer("stock_item_id").notNull().references(() => stockItemsTable.id),
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
   quantityOrdered: numeric("quantity_ordered", { precision: 10, scale: 2 }).notNull(),
   unitPricePence: integer("unit_price_pence"),
   quantityReceived: numeric("quantity_received", { precision: 10, scale: 2 }).notNull().default("0"),
