@@ -29,7 +29,7 @@ function UserRow({ user, tenantId, isLast, onUpdated }: {
     setSaving(true);
     try {
       const secret = getSecret();
-      await api.updateUserReceiveAlerts(tenantId, user.userId, !user.receiveAlerts, secret);
+      await api.updateUserReceiveAlerts(tenantId, user.userId ?? "", !user.receiveAlerts, secret ?? "");
       onUpdated({ ...user, receiveAlerts: !user.receiveAlerts });
     } catch {
     } finally {

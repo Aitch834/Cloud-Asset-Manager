@@ -182,13 +182,13 @@ function BlocksTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmt(viewRecord.blockName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Code</p><p className="font-mono text-sm">{fmt(viewRecord.blockCode)}</p></div>
-              {viewRecord.fieldId && (
+              {!!viewRecord.fieldId && (
                 <div className="col-span-2 bg-muted/40 rounded p-2">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Parent Field</p>
                   <p className="font-medium">{fmt(viewRecord.fieldName)}{viewRecord.fieldReference ? <span className="text-muted-foreground text-xs ml-1">({fmt(viewRecord.fieldReference)})</span> : null}</p>
                   <div className="flex gap-3 mt-1">
-                    {viewRecord.fieldIsNvz && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">NVZ</span>}
-                    {viewRecord.fieldIsOrganic && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
+                    {!!viewRecord.fieldIsNvz && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">NVZ</span>}
+                    {!!viewRecord.fieldIsOrganic && <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
                   </div>
                 </div>
               )}
@@ -560,7 +560,7 @@ function IntakeTab({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>Intake Record — {fmtDate(viewRecord.intakeDate)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 py-2 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Intake Date</p><p className="font-medium">{fmtDate(viewRecord.intakeDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Harvest Batch Ref</p><p className="font-medium">{fmt(viewRecord.harvestBatchRef)}{viewRecord.harvestRecordId && <span className="ml-1.5 text-xs text-green-600">● Linked</span>}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Harvest Batch Ref</p><p className="font-medium">{fmt(viewRecord.harvestBatchRef)}{!!viewRecord.harvestRecordId && <span className="ml-1.5 text-xs text-green-600">● Linked</span>}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{fmt(viewRecord.productName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity (kg)</p><p className="font-medium">{fmt(viewRecord.quantityKg)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Condition on Arrival</p><p className="font-medium">{fmt(viewRecord.conditionOnArrival)}</p></div>
@@ -698,8 +698,8 @@ function PackhouseTab({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>Packhouse Record — {fmtDate(viewRecord.packingDate)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 py-2 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Packing Date</p><p className="font-medium">{fmtDate(viewRecord.packingDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Harvest Batch Ref</p><p className="font-medium">{fmt(viewRecord.harvestBatchRef)}{viewRecord.harvestRecordId && <span className="ml-1.5 text-xs text-green-600">● Linked to harvest</span>}</p></div>
-              {viewRecord.intakeRecordId && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Intake Record</p><p className="font-medium text-green-700">● Linked to pre-cooling intake record</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Harvest Batch Ref</p><p className="font-medium">{fmt(viewRecord.harvestBatchRef)}{!!viewRecord.harvestRecordId && <span className="ml-1.5 text-xs text-green-600">● Linked to harvest</span>}</p></div>
+              {!!viewRecord.intakeRecordId && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Intake Record</p><p className="font-medium text-green-700">● Linked to pre-cooling intake record</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{fmt(viewRecord.productName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Traceability Code</p><p className="font-medium">{fmt(viewRecord.traceabilityCode)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity Packed (kg)</p><p className="font-medium">{fmt(viewRecord.quantityPackedKg)}</p></div>

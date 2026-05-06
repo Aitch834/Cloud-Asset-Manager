@@ -31,7 +31,7 @@ router.get("/ea/carriers", async (req, res): Promise<void> => {
       return;
     }
 
-    const data = await upstream.json();
+    const data = await upstream.json() as any;
     const raw: any[] = Array.isArray(data.items) ? data.items : [];
 
     const results = raw.map((item: any) => {
@@ -77,7 +77,7 @@ router.get("/ea/permitted-sites", async (req, res): Promise<void> => {
       return;
     }
 
-    const data = await upstream.json();
+    const data = await upstream.json() as any;
     const raw: any[] = Array.isArray(data.items) ? data.items : [];
 
     const results = raw.map((item: any) => {

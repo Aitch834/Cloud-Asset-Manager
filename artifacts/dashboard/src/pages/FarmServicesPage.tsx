@@ -3549,7 +3549,7 @@ function EquipmentHireTab({
                     <td className="px-3 py-2.5 font-medium">
                       <div className="flex items-center gap-1.5">
                         {b.bookingRef || `#${b.id}`}
-                        {insWarn && <ShieldAlert className="h-3.5 w-3.5 text-red-500 shrink-0" title="Insurance not verified" />}
+                        {insWarn && <ShieldAlert className="h-3.5 w-3.5 text-red-500 shrink-0" />}
                       </div>
                       {b.jobReference && <div className="text-xs text-muted-foreground truncate max-w-[160px]">{b.jobReference}</div>}
                     </td>

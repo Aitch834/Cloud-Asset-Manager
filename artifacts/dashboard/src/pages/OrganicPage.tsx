@@ -772,7 +772,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                           recordId={r.id}
                           documentPath={r.documentPath}
                           documentName={r.documentName}
-                          queryKey={["organic-inspections", farmId]}
+                          queryKey={["organic-inspections", String(farmId)]}
                         />
                       </p>
                     </div>

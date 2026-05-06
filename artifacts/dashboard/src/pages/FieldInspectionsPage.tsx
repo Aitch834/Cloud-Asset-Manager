@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList, MoreHorizontal, CheckSquare } from "lucide-react";
+import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList, MoreHorizontal, CheckSquare, ChevronUp } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
@@ -497,7 +497,7 @@ export default function FieldInspectionsPage() {
             <h1 className="text-xl font-semibold text-gray-900">Field Inspections</h1>
             <p className="text-sm text-gray-500">Track crop inspection findings and resolve field actions</p>
           </div>
-          <Button size="sm" onClick={() => { setForm({ ...emptyForm }); setEditRecord(null); setAddOpen(true); }}>
+          <Button size="sm" onClick={() => { setForm(emptyForm()); setEditRecord(null); setAddOpen(true); }}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />Log Inspection
           </Button>
         </div>

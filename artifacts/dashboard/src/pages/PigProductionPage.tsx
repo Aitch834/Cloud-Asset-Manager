@@ -141,7 +141,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
             { key: "movementDate", label: "Date", fmt: r => fmtDate(r.movementDate) }, { key: "movementType", label: "Type" },
             { key: "fromLocation", label: "From" }, { key: "toLocation", label: "To" },
             { key: "numberOfAnimals", label: "Animals" }, { key: "eaml2Reference", label: "eAML2 Ref" },
-            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-movements" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-movements", farmId]} /> },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-movements" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-movements", String(farmId)]} /> },
           ]}
           rows={movements}
           onEdit={openEdit}
@@ -240,7 +240,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
             { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfPigs", label: "Pigs" },
             { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "Yes" : "No" },
             { key: "signedByFarmer", label: "Signed", fmt: r => r.signedByFarmer ? "Yes" : "No" },
-            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-fci", farmId]} /> },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-fci", String(farmId)]} /> },
           ]}
           rows={docs}
           onEdit={openEdit}
@@ -600,7 +600,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
             { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) }, { key: "vetName", label: "Vet" },
             { key: "practiceName", label: "Practice" }, { key: "lameness", label: "Lameness" },
             { key: "respiratoryHealth", label: "Respiratory" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) },
-            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-vet-assessments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-vet", farmId]} /> },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-vet-assessments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-vet", String(farmId)]} /> },
           ]}
           rows={assessments}
           onEdit={openEdit}
@@ -1275,7 +1275,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Weaning Date</p><p className="font-medium">{viewRecord.weaningDate ? fmtDate(viewRecord.weaningDate) : "Not yet weaned"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Piglets Weaned</p><p className="font-medium">{viewRecord.pigletsWeanedCount ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Weaning Weight</p><p className="font-medium">{viewRecord.averageWeaningWeightKg ? `${viewRecord.averageWeaningWeightKg} kg` : "—"}</p></div>
-              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+              {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
               <div className="col-span-2 border-t pt-3">
                 <RecordAttachments farmId={farmId} recordType="farrowing" recordId={viewRecord.id} />
               </div>
@@ -1553,7 +1553,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
           { key: "overallStatus", label: "Overall Status" },
           { key: "nextAssessmentDue", label: "Next Due", fmt: r => fmtDate(r.nextAssessmentDue) },
           { key: "nonConformances", label: "Non-conformances" },
-          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-red-tractor-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-rt-checklist", farmId]} /> },
+          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-red-tractor-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-rt-checklist", String(farmId)]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={openEdit}
@@ -1790,7 +1790,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
                 </div>
               </div>
               <div className="mt-1.5 pt-1.5 border-t">
-                <DocAttach farmId={farmId} endpoint="pig-medicine-treatments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-medicine-treatments", farmId]} />
+                <DocAttach farmId={farmId} endpoint="pig-medicine-treatments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-medicine-treatments", String(farmId)]} />
               </div>
             </div>
           ))}
@@ -2112,7 +2112,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
                   <td className="py-2 pr-3 text-right">{r.netPaymentPence ? `£${(Number(r.netPaymentPence) / 100).toFixed(2)}` : "—"}</td>
                   <td className="py-2 pr-3">{fmt(r.killSheetRef)}</td>
                   <td className="py-2 pr-3" onClick={e => e.stopPropagation()}>
-                    <DocAttach farmId={farmId} endpoint="pig-kill-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-kill-records", farmId]} />
+                    <DocAttach farmId={farmId} endpoint="pig-kill-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-kill-records", String(farmId)]} />
                   </td>
                   <td className="py-2 pl-2 flex gap-1" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -2179,10 +2179,10 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
                 ["Herd Mark", viewRecord.herdMark],["Premium Scheme", viewRecord.premiumScheme],
                 ["Premium Value", viewRecord.premiumPence ? `£${(Number(viewRecord.premiumPence) / 100).toFixed(2)}` : "—"],
                 ["Payment Date", fmtDate(viewRecord.paymentDate)],
-              ].map(([l, v]) => (
+              ].map(([l, v]: [string, string]) => (
                 <div key={String(l)}><p className="text-xs text-muted-foreground">{l}</p><p className="font-medium">{fmt(v)}</p></div>
               ))}
-              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{String(viewRecord.notes)}</p></div>}
+              {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{String(viewRecord.notes)}</p></div>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>

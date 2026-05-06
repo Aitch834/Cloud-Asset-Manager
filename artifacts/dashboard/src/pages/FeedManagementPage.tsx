@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
   Edit2, MapPin, Clock, CheckCircle2, XCircle, AlertCircle,
-  GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp, ShoppingCart
+  GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp, ShoppingCart, Eye
 } from "lucide-react";
 
 type Tab = "deliveries" | "stock" | "trace" | "orders" | "medicated";
@@ -882,7 +882,7 @@ export default function FeedManagementPage() {
             </div>
           </div>
           {editDelivery && farmId && (
-            <RecordAttachments farmId={farmId} recordType="feed_delivery" recordId={editDelivery.id} />
+            <RecordAttachments farmId={farmId} recordType="feed_delivery" recordId={editDelivery.id as number} />
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
@@ -1296,13 +1296,13 @@ export default function FeedManagementPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {isOverdue && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
-                          {isReceived && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                          {!!isOverdue && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                          {!!isReceived && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
                           <span className="font-mono text-sm font-semibold text-gray-800">{String(fpo.poNumber)}</span>
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isReceived ? "bg-green-100 text-green-700" : fpo.status === "confirmed" ? "bg-blue-100 text-blue-700" : fpo.status === "sent" ? "bg-amber-100 text-amber-700" : fpo.status === "draft" ? "bg-gray-100 text-gray-600" : isCancelled ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"}`}>
                             {String(fpo.status).charAt(0).toUpperCase() + String(fpo.status).slice(1)}
                           </span>
-                          {isOverdue && (
+                          {!!isOverdue && (
                             <span className="text-xs text-red-600 font-medium">Overdue since {fmtDate(String(fpo.expectedDeliveryDate))}</span>
                           )}
                         </div>
@@ -1311,14 +1311,14 @@ export default function FeedManagementPage() {
                           {String(fpo.productName)}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {fmtKg(fpo.quantityKg)}
-                          {fpo.speciesIntended && fpo.speciesIntended !== "__none__" && <span> · For {String(fpo.speciesIntended).charAt(0).toUpperCase() + String(fpo.speciesIntended).slice(1)}</span>}
-                          {fpo.feedType && <span> · {FEED_TYPES.find(t => t.value === fpo.feedType)?.label ?? String(fpo.feedType)}</span>}
-                          {fpo.expectedDeliveryDate && !isOverdue && !isReceived && <span> · Expected {fmtDate(String(fpo.expectedDeliveryDate))}</span>}
-                          {fpo.actualDeliveryDate && <span> · Delivered {fmtDate(String(fpo.actualDeliveryDate))}</span>}
-                          {fpo.orderedBy && <span> · Raised by {String(fpo.orderedBy)}</span>}
+                          {fmtKg(fpo.quantityKg as number | null)}
+                          {!!fpo.speciesIntended && fpo.speciesIntended !== "__none__" && <span> · For {String(fpo.speciesIntended).charAt(0).toUpperCase() + String(fpo.speciesIntended).slice(1)}</span>}
+                          {!!fpo.feedType && <span> · {FEED_TYPES.find(t => t.value === fpo.feedType)?.label ?? String(fpo.feedType)}</span>}
+                          {!!fpo.expectedDeliveryDate && !isOverdue && !isReceived && <span> · Expected {fmtDate(String(fpo.expectedDeliveryDate))}</span>}
+                          {!!fpo.actualDeliveryDate && <span> · Delivered {fmtDate(String(fpo.actualDeliveryDate))}</span>}
+                          {!!fpo.orderedBy && <span> · Raised by {String(fpo.orderedBy)}</span>}
                         </p>
-                        {fpo.notes && <p className="text-xs text-gray-400 mt-1 italic truncate max-w-md">{String(fpo.notes)}</p>}
+                        {!!fpo.notes && <p className="text-xs text-gray-400 mt-1 italic truncate max-w-md">{String(fpo.notes)}</p>}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         {!isReceived && !isCancelled && (

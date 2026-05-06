@@ -521,7 +521,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    {(r.antibioticResidueTestResult === "positive" || (r.sccThousands && parseFloat(r.sccThousands) > 200) || (r.buyerSccThousands && parseFloat(r.buyerSccThousands) > 200)) && (
+                    {(r.antibioticResidueTestResult === "positive" || (r.sccThousands && Number(r.sccThousands ?? 0) > 200) || (r.buyerSccThousands && Number(r.buyerSccThousands ?? 0) > 200)) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" title="Raise Task — quality alert" onClick={() => setRaiseTaskFor(r)}><ClipboardList className="h-3.5 w-3.5" /></Button>
                     )}
                   </div>
@@ -3012,7 +3012,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
 
   const tankComplianceSummary = React.useMemo(() => {
     const tempRecords = monRecords.filter(r => r.recordType === "daily-temperature" && r.tankTemperatureCelsius != null);
-    const tempInRange = tempRecords.filter(r => r.tankTemperatureCelsius! <= 4).length;
+    const tempInRange = tempRecords.filter(r => Number(r.tankTemperatureCelsius!) <= 4).length;
     const cleaningCount = monRecords.filter(r => r.tankCleaned).length;
     const abrTests = monRecords.filter(r => r.antibioticResidueResult);
     const abrPositive = abrTests.filter(r => r.antibioticResidueResult === "positive").length;
@@ -3030,7 +3030,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
       <td>${new Date(r.recordDate).toLocaleDateString("en-GB")}</td>
       <td>${tanks.find(t => t.id === r.tankId)?.name ?? "—"}</td>
       <td>${r.recordType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td>
-      <td>${r.tankTemperatureCelsius != null ? `${r.tankTemperatureCelsius}°C${r.tankTemperatureCelsius <= 4 ? "" : " ⚠"}` : "—"}</td>
+      <td>${r.tankTemperatureCelsius != null ? `${r.tankTemperatureCelsius}°C${Number(r.tankTemperatureCelsius) <= 4 ? "" : " ⚠"}` : "—"}</td>
       <td>${r.tankCleaned ? "Yes" : "No"}</td>
       <td>${r.cleaningProductUsed || "—"}</td>
       <td>${r.antibioticResidueResult ? (r.antibioticResidueResult === "positive" ? "<b style='color:#b91c1c'>POSITIVE ⚠</b>" : "Negative") : "—"}</td>

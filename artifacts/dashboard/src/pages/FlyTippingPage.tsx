@@ -799,7 +799,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
         )}
 
         <RaiseTaskDialog
-          farmId={farmId}
+          farmId={farmId!}
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
           defaultTitle={raiseTaskFor ? `Fly-Tipping ${raiseTaskFor.clearanceStatus === "pending" ? "Clearance" : "Follow-up"} — ${raiseTaskFor.locationDescription}` : ""}

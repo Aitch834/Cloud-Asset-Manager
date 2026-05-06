@@ -24,7 +24,7 @@ router.get("/farms/:farmId/vineyard-blocks", requireAuth, requireTenant, require
 
 router.post("/farms/:farmId/vineyard-blocks", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineyardBlocksTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineyardBlocksTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 
@@ -52,7 +52,7 @@ router.get("/farms/:farmId/vine-register", requireAuth, requireTenant, requireMo
 
 router.post("/farms/:farmId/vine-register", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineRegisterTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineRegisterTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 
@@ -80,14 +80,14 @@ router.get("/farms/:farmId/vineyard-phenology", requireAuth, requireTenant, requ
 
 router.post("/farms/:farmId/vineyard-phenology", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineyardPhenologyTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineyardPhenologyTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/vineyard-phenology/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await db.update(vineyardPhenologyTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardPhenologyTable.id, id), eq(vineyardPhenologyTable.farmId, farmId))).returning();
+  const [record] = await (db.update(vineyardPhenologyTable) as any).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardPhenologyTable.id, id), eq(vineyardPhenologyTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -108,14 +108,14 @@ router.get("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, req
 
 router.post("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineyardOperationsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineyardOperationsTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/vineyard-operations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await db.update(vineyardOperationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardOperationsTable.id, id), eq(vineyardOperationsTable.farmId, farmId))).returning();
+  const [record] = await (db.update(vineyardOperationsTable) as any).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardOperationsTable.id, id), eq(vineyardOperationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -136,7 +136,7 @@ router.get("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requir
 
 router.post("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineyardHarvestTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineyardHarvestTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 
@@ -164,7 +164,7 @@ router.get("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requi
 
 router.post("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(vineyardScoutingTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [record] = await (db.insert(vineyardScoutingTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
 });
 

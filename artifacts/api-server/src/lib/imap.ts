@@ -89,9 +89,10 @@ export async function fetchInbox(limit = 50): Promise<InboxEmail[]> {
       flags: true,
       bodyStructure: true,
       bodyParts: ["TEXT"],
-      source: { partial: "0.512" },
+      source: { partial: "0.512" } as any,
     })) {
       const env = msg.envelope;
+      if (!env) continue;
       const seen = msg.flags?.has("\\Seen") ?? false;
 
       const fromAddr = env.from?.[0];
@@ -164,6 +165,7 @@ export async function fetchEmail(uid: number): Promise<FullEmail> {
 
       const seen = msg.flags?.has("\\Seen") ?? false;
       const env = msg.envelope;
+      if (!env) continue;
       const fromAddr = env.from?.[0];
       const fromName = fromAddr?.name ?? fromAddr?.address ?? "Unknown";
       const fromEmail = fromAddr?.address ?? "";

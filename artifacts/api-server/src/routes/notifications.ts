@@ -6,7 +6,7 @@ import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
 const router: Router = Router();
 
 async function validateFarmAccess(req: Request, res: Response): Promise<number | null> {
-  const farmId = parseInt(req.params.farmId, 10);
+  const farmId = parseInt(req.params.farmId as string, 10);
   if (isNaN(farmId)) { res.status(400).json({ error: "Invalid farm ID" }); return null; }
   return farmId;
 }
@@ -32,7 +32,7 @@ router.get("/farms/:farmId/notifications", requireAuth, requireTenant, async (re
 router.put("/farms/:farmId/notifications/:id/read", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const notifId = parseInt(req.params.id, 10);
+  const notifId = parseInt(req.params.id as string, 10);
   if (isNaN(notifId)) { res.status(400).json({ error: "Invalid notification ID" }); return; }
 
   const [record] = await db
@@ -67,7 +67,7 @@ router.put("/farms/:farmId/notifications/read-all", requireAuth, requireTenant, 
 router.delete("/farms/:farmId/notifications/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const notifId = parseInt(req.params.id, 10);
+  const notifId = parseInt(req.params.id as string, 10);
   if (isNaN(notifId)) { res.status(400).json({ error: "Invalid notification ID" }); return; }
 
   await db

@@ -419,7 +419,7 @@ ${livestockHerds.map((h: any) => `<tr>
 }
 
 export default function SeasonReportsPage() {
-  const { currentFarmId } = useAppStore();
+  const { farmId: currentFarmId } = useAppStore();
   const farmId = currentFarmId;
   const [tab, setTab] = useState<Tab>("arable");
   const [year, setYear] = useState<number>(new Date().getFullYear());

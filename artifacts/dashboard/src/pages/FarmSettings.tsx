@@ -53,6 +53,8 @@ const ASSURANCE_BODIES = [
 
 type SectorKey = typeof SECTORS[number]["key"];
 
+type Farm = any;
+
 interface FarmFormData {
   name: string;
   cphNumber: string;

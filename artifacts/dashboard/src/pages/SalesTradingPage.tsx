@@ -2903,7 +2903,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
         <Button size="sm" onClick={openAdd}><Plus style={{ width: 14, height: 14, marginRight: 4 }} />Add Settlement Note</Button>
       </div>
 
-      <TabBar style={{ marginBottom: 16 }}>
+      <TabBar className="mb-4">
         <TabButton active={subTab === "livestock"} onClick={() => { setSubTab("livestock"); setViewItem(null); setDeleteId(null); }}>
           Livestock ({lsRecords.length})
         </TabButton>

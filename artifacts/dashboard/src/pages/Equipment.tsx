@@ -288,6 +288,7 @@ interface DefectReport {
   description: string; severity: string | null; status: string;
   reportedDate: string | null; reportedBy: string | null;
   resolvedDate: string | null; notes: string | null; mobileId: string | null;
+  _type?: string; _equipName?: string;
 }
 
 const DEFECT_EMPTY = { equipmentId: "", description: "", severity: "medium", reportedDate: new Date().toISOString().slice(0, 10), reportedBy: "", notes: "" };

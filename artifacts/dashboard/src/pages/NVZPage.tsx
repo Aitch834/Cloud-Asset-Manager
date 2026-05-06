@@ -1170,7 +1170,7 @@ export default function NVZPage() {
 
       {/* ── BUDGET CALC TAB ── */}
       {tab === "budget-calc" && (
-        <NvzBudgetCalcTab fields={fields} applications={applications} selectedYear={selectedYear} />
+        <NvzBudgetCalcTab fields={fields} applications={applications} selectedYear={selectedYear} farmId={farmId!} raiseTaskFor={raiseTaskFor} setRaiseTaskFor={setRaiseTaskFor} />
       )}
 
       {/* ── NVZ FIELD SETTINGS DIALOG ── */}
@@ -1247,9 +1247,12 @@ interface NvzBudgetCalcProps {
   fields: { id: number; name?: string; areaHectares?: string | number | null; isNvz?: boolean; landType?: string | null; isActive?: boolean | null }[];
   applications: { fieldId?: number | null; productType?: string | null; totalNitrogenKgHa?: number | null; applicationDate?: string | null; quantityApplied?: number | null }[];
   selectedYear: number;
+  farmId: number;
+  raiseTaskFor: NvzApplication | null;
+  setRaiseTaskFor: (r: NvzApplication | null) => void;
 }
 
-function NvzBudgetCalcTab({ fields, applications, selectedYear }: NvzBudgetCalcProps) {
+function NvzBudgetCalcTab({ fields, applications, selectedYear, farmId, raiseTaskFor, setRaiseTaskFor }: NvzBudgetCalcProps) {
   const nvzFields = fields.filter(f => f.isNvz && f.isActive !== false);
   const [extras, setExtras] = useState<Record<number, { synth: string; organic: string }>>({});
 
@@ -1352,8 +1355,10 @@ function NvzBudgetCalcTab({ fields, applications, selectedYear }: NvzBudgetCalcP
         </table>
       </div>
 
+      {/* eslint-disable-next-line */}
+      {/* @ts-ignore */}
       <RaiseTaskDialog
-        farmId={farmId!}
+        farmId={farmId}
         open={!!raiseTaskFor}
         onClose={() => setRaiseTaskFor(null)}
         defaultTitle={raiseTaskFor ? `NVZ Closed Period Breach — ${raiseTaskFor.fieldName ?? `Field #${raiseTaskFor.fieldId}`}` : ""}

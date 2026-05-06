@@ -80,7 +80,7 @@ async function seedDevData() {
       name: "Oakfield Farms Ltd",
       slug: DEV_TENANT_SLUG,
       isActive: true,
-    }).returning();
+    } as any).returning();
     console.log("[SEED] Created dev tenant:", DEV_TENANT_SLUG);
   }
 

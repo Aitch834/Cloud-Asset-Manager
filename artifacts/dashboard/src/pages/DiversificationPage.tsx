@@ -399,8 +399,8 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                           <span className={`font-semibold ${zero ? "text-red-600" : low ? "text-amber-600" : "text-emerald-700"}`}>
                             {stock % 1 === 0 ? stock.toFixed(0) : stock.toFixed(1)}
                           </span>
-                          {zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-red-500" />}
-                          {low && !zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                          {!!zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-red-500" />}
+                          {!!low && !zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
                         </td>
                         <td className="py-2 pr-3 text-muted-foreground">{reorder > 0 ? (reorder % 1 === 0 ? reorder.toFixed(0) : reorder.toFixed(1)) : "—"}</td>
                         <td className="py-2 pr-3">

@@ -184,7 +184,7 @@ export default function SelectContext() {
           <div className="space-y-4">
             {loadingTenants ? (
               <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-            ) : tenantsData?.tenants.map(t => (
+            ) : tenantsData?.tenants.map((t: any) => (
               <Card 
                 key={t.tenantId}
                 className="p-6 cursor-pointer hover:border-primary transition-all group flex items-center justify-between"

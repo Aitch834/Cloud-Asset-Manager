@@ -15,12 +15,12 @@ export function SignaturePad({ value, onChange, label, height = 160 }: Signature
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const [hasStrokes, setHasStrokes] = useState(false);
 
-  function getPos(e: MouseEvent | Touch, canvas: HTMLCanvasElement) {
+  function getPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const clientX = "clientX" in e ? e.clientX : e.clientX;
-    const clientY = "clientY" in e ? e.clientY : e.clientY;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 

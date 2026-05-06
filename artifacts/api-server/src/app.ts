@@ -76,7 +76,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Key by authenticated userId when available, fall back to IP (IPv6-safe).
-  keyGenerator: (req: Request) => (req as Request & { userId?: string }).userId ?? ipKeyGenerator(req),
+  keyGenerator: (req: Request) => (req as Request & { userId?: string }).userId ?? (req.ip ?? req.socket?.remoteAddress ?? "unknown"),
   message: { error: "Too many requests, please try again later." },
 });
 
@@ -86,7 +86,7 @@ const uploadLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => (req as Request & { userId?: string }).userId ?? ipKeyGenerator(req),
+  keyGenerator: (req: Request) => (req as Request & { userId?: string }).userId ?? (req.ip ?? req.socket?.remoteAddress ?? "unknown"),
   message: { error: "Upload request limit reached, please wait before uploading more files." },
 });
 

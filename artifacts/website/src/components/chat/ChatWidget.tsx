@@ -45,7 +45,7 @@ export function ChatWidget() {
     chatMutation.mutate(
       { data: { message: input, conversationHistory: newHistory } },
       {
-        onSuccess: (data) => {
+        onSuccess: (data: { reply: string; suggestEscalation?: boolean }) => {
           setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
           if (data.suggestEscalation) {
             setShowEscalationForm(true);

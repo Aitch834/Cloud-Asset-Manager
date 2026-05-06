@@ -4298,8 +4298,8 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Straw Batch Ref</p><p className="font-medium font-mono">{String(viewAIRecord.strawBatchRef ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conception Confirmed</p><p className="font-medium">{viewAIRecord.conceptionConfirmed ? "Yes ✓" : "No"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Due Date</p><p className="font-medium">{viewAIRecord.expectedDueDate ? new Date(viewAIRecord.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
-              {viewAIRecord.pregnancyDiagDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pregnancy Diag Date</p><p className="font-medium">{new Date(viewAIRecord.pregnancyDiagDate as string).toLocaleDateString("en-GB")}</p></div>}
-              {viewAIRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewAIRecord.notes)}</p></div>}
+              {!!viewAIRecord.pregnancyDiagDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pregnancy Diag Date</p><p className="font-medium">{new Date(viewAIRecord.pregnancyDiagDate as string).toLocaleDateString("en-GB")}</p></div>}
+              {!!viewAIRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewAIRecord.notes)}</p></div>}
             </div>
             <div className="mt-4">
               <RecordAttachments farmId={farmId} recordType="ai_breeding" recordId={viewAIRecord.id as number} />
@@ -5882,8 +5882,8 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                 <Label>Test Document</Label>
                 <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
-                  const path = await uploadFile({ file, prefix: `farms/${farmId}/tb-tests/docs` });
-                  if (path) { setPendingDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                  const upload = await uploadFile(file);
+                  if (upload?.objectPath) { setPendingDoc({ path: upload.objectPath, name: file.name }); setF("documentPath", upload.objectPath); setF("documentName", file.name); }
                   if (docInputRef.current) docInputRef.current.value = "";
                 }} />
                 {(pendingDoc || form.documentPath || form.documentName) ? (
@@ -6187,8 +6187,8 @@ function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 <Label>Assessment Document</Label>
                 <input type="file" ref={woaDocRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
-                  const path = await uploadWoaDoc({ file, prefix: `farms/${farmId}/welfare-assessments/docs` });
-                  if (path) { setPendingWoaDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                  const upload = await uploadWoaDoc(file);
+                  if (upload?.objectPath) { setPendingWoaDoc({ path: upload.objectPath, name: file.name }); setF("documentPath", upload.objectPath); setF("documentName", file.name); }
                   if (woaDocRef.current) woaDocRef.current.value = "";
                 }} />
                 {(pendingWoaDoc || form.documentPath || form.documentName) ? (
@@ -6541,8 +6541,8 @@ function SheepDippingSection({ farmId }: { farmId: number }) {
                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                   onChange={async e => {
                     const file = e.target.files?.[0]; if (!file) return;
-                    const path = await uploadDipDoc({ file, prefix: `farms/${farmId}/sheep-dipping/docs` });
-                    if (path) { setPendingDoc({ path, name: file.name }); setF("documentPath", path); setF("documentName", file.name); }
+                    const upload = await uploadDipDoc(file);
+                    if (upload?.objectPath) { setPendingDoc({ path: upload.objectPath, name: file.name }); setF("documentPath", upload.objectPath); setF("documentName", file.name); }
                     if (dipDocRef.current) dipDocRef.current.value = "";
                   }}
                 />

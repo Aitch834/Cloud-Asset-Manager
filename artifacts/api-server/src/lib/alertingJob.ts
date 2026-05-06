@@ -1071,6 +1071,7 @@ async function checkOverdueVetPlanActions() {
       tenantId: a.farmId,
       farmId: a.farmId,
       type: "warning",
+      severity: "warning",
       title: `Overdue Health Plan Action — ${a.description.slice(0, 60)}${a.description.length > 60 ? "…" : ""}`,
       message: `${farm.name}: an action from the ${a.planYear} vet health plan (${a.vetName}) was due ${dueStr} but has not been marked complete. Open Livestock → Vet Health Plans → Action Points to record completion or update the due date.`,
       relatedModule: "livestock-management",

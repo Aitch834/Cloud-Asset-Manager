@@ -127,7 +127,7 @@ function SectionHeader({ icon: Icon, label, colour = "#1a6b3a" }: { icon: React.
 export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { upload, uploading } = useUpload();
+  const { uploadFile, isUploading } = useUpload();
 
   // ── Fetch checklist data ────────────────────────────────────────────────────
   const { data: movData, isLoading: movLoading } = useQuery({
@@ -243,13 +243,13 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
   });
 
   const handleDocUpload = async (file: File) => {
-    const result = await upload(file, "livestock-movement-docs");
-    if (result?.path) {
-      set("movementDocumentUrl", result.path);
+    const result = await uploadFile(file);
+    if (result?.objectPath) {
+      set("movementDocumentUrl", result.objectPath);
       await fetch(`/api/farms/${farmId}/livestock-movements/${movementId}/checklist`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ movementDocumentUrl: result.path }),
+        body: JSON.stringify({ movementDocumentUrl: result?.objectPath }),
       });
       qc.invalidateQueries({ queryKey: ["movement-detail", farmId, movementId] });
       toast({ title: "Document uploaded" });
@@ -569,15 +569,15 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
                 <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 8 }}>
                   Upload the signed AML2 / movement licence or eAML2 reference document.
                 </p>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f3f4f6", border: "1px dashed #d1d5db", borderRadius: 8, padding: "10px 16px", cursor: uploading ? "wait" : "pointer", fontSize: "0.875rem", color: "#374151" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f3f4f6", border: "1px dashed #d1d5db", borderRadius: 8, padding: "10px 16px", cursor: isUploading ? "wait" : "pointer", fontSize: "0.875rem", color: "#374151" }}>
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png"
                     style={{ display: "none" }}
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleDocUpload(f); }}
-                    disabled={uploading}
+                    disabled={isUploading}
                   />
-                  {uploading ? "Uploading…" : "Upload movement document (PDF / image)"}
+                  {isUploading ? "Uploading…" : "Upload movement document (PDF / image)"}
                 </label>
               </div>
             )}

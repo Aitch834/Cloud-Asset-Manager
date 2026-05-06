@@ -976,7 +976,7 @@ async function seedHaulage(farmId: number) {
       { farmId, companyName: "J. Haigh Haulage Ltd", contactName: "John Haigh", phone: "07711 122334", vehicleTypes: "curtainsider artic", operatorLicence: "OF0012345", notes: "Main haulier. Grain and livestock." },
       { farmId, companyName: "ABP Transport Ltd", phone: "01775 712233", vehicleTypes: "livestock trailer", notes: "Livestock collections for ABP deadweight." },
       { farmId, companyName: "Sleaford Agricultural Haulage", contactName: "Steve Petch", phone: "07712 223344", vehicleTypes: "grain trailer", notes: "Local short-haul grain." },
-    ]);
+    ] as any);
   }
 
   const haulageExists = await db.select().from(haulageRecordsTable).where(eq(haulageRecordsTable.farmId, farmId)).limit(1);

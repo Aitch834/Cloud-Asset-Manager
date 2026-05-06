@@ -596,7 +596,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{fmtRaw(b.certifyingBody)}</p>
 
-                    {b.status === "in-conversion" && b.conversionStartDate && (
+                    {b.status === "in-conversion" && !!b.conversionStartDate && (
                       <div className="mt-3">
                         <div className="flex justify-between text-xs text-muted-foreground mb-1">
                           <span>Conversion progress</span>
@@ -607,11 +607,11 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
                         </div>
                         <div className="flex justify-between text-xs mt-1 text-muted-foreground">
                           <span>Started {fmt(b.conversionStartDate as string)}</span>
-                          {b.fullyOrganicDate && <span>Full organic {fmt(b.fullyOrganicDate as string)} {daysLeft != null && daysLeft > 0 ? `(${daysLeft}d)` : ""}</span>}
+                          {!!b.fullyOrganicDate && <span>Full organic {fmt(b.fullyOrganicDate as string)} {daysLeft != null && daysLeft > 0 ? `(${daysLeft}d)` : ""}</span>}
                         </div>
                       </div>
                     )}
-                    {b.status === "fully-organic" && b.fullyOrganicDate && (
+                    {b.status === "fully-organic" && !!b.fullyOrganicDate && (
                       <p className="text-xs text-green-700 mt-1">Certified organic from {fmt(b.fullyOrganicDate as string)}</p>
                     )}
                   </div>
@@ -651,7 +651,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fully Organic Date</p><p className="font-medium">{fmt(viewRecord.fullyOrganicDate as string)}</p></div>
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Land Use Before</p><p className="font-medium">{fmtRaw(viewRecord.landUseBeforeConversion)}</p></div>
                 <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
-                {viewRecord.id && <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />}
+                {!!viewRecord.id && <SyntheticHistoryPanel farmId={farmId} blockStatusId={viewRecord.id as number} />}
               </div>
               <DialogFooter><Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
             </DialogContent>
@@ -904,22 +904,22 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <Package className="w-4 h-4 text-green-600 shrink-0" />
                       <span className="font-semibold text-sm">{fmtRaw(row.inputName)}</span>
-                      {row.inputType && <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{fmtRaw(row.inputType)}</span>}
+                      {!!row.inputType && <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{fmtRaw(row.inputType)}</span>}
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor}`}>
                         {APPROVAL_STATUS_LABELS[status] ?? status}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                      {row.applicationDate && <span>{fmt(row.applicationDate as string)}</span>}
-                      {row.blockId && <span>Block: {blockName(row.blockId)}</span>}
-                      {row.supplier && <span>Supplier: {fmtRaw(row.supplier)}</span>}
-                      {row.quantityApplied && <span>Qty: {fmtRaw(row.quantityApplied)}{row.quantityUnit ? ` ${fmtRaw(row.quantityUnit)}` : ""}</span>}
-                      {row.approvedByBody && <span>Certifier: {fmtRaw(row.approvedByBody)}</span>}
+                      {!!row.applicationDate && <span>{fmt(row.applicationDate as string)}</span>}
+                      {!!row.blockId && <span>Block: {blockName(row.blockId)}</span>}
+                      {!!row.supplier && <span>Supplier: {fmtRaw(row.supplier)}</span>}
+                      {!!row.quantityApplied && <span>Qty: {fmtRaw(row.quantityApplied)}{row.quantityUnit ? ` ${fmtRaw(row.quantityUnit)}` : ""}</span>}
+                      {!!row.approvedByBody && <span>Certifier: {fmtRaw(row.approvedByBody)}</span>}
                     </div>
-                    {(row.poReference || row.grnReference) && (
+                    {!!(row.poReference || row.grnReference) && (
                       <div className="text-xs text-muted-foreground flex gap-3 mt-0.5">
-                        {row.poReference && <span>PO: {fmtRaw(row.poReference)}</span>}
-                        {row.grnReference && <span>GRN: {fmtRaw(row.grnReference)}</span>}
+                        {!!row.poReference && <span>PO: {fmtRaw(row.poReference)}</span>}
+                        {!!row.grnReference && <span>GRN: {fmtRaw(row.grnReference)}</span>}
                       </div>
                     )}
                   </div>
@@ -1231,8 +1231,8 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
                     <p className="text-xs text-muted-foreground mt-0.5">{fmtRaw(c.scope)}</p>
                     <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
                       <span>Issued {fmt(c.issueDate as string)}</span>
-                      {c.expiryDate && <span>Expires {fmt(c.expiryDate as string)}</span>}
-                      {c.annualRenewalDue && (
+                      {!!c.expiryDate && <span>Expires {fmt(c.expiryDate as string)}</span>}
+                      {!!c.annualRenewalDue && (
                         <span className={expired ? "text-red-600 font-semibold" : expiring ? "text-amber-700 font-semibold" : ""}>
                           Renewal due {fmt(c.annualRenewalDue as string)}
                           {expiring && ` (${days}d)`}

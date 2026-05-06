@@ -1820,7 +1820,7 @@ export default function FuelEnergyPage() {
                             }
                             <Button size="sm" variant="ghost" onClick={() => openTankEdit(tank)} className="h-7 px-2 text-xs"><Edit2 className="w-3 h-3" /></Button>
                             <Button size="sm" variant="ghost" onClick={() => delTankMut.mutate(tankId)} className="h-7 px-2 text-xs text-red-600"><Trash2 className="w-3 h-3" /></Button>
-                            {isOverdue && <Button size="sm" variant="ghost" onClick={() => setRaiseTaskFor(tank)} className="h-7 px-2 text-xs text-purple-600" title="Raise inspection task"><ClipboardList className="w-3 h-3" /></Button>}
+                            {!!isOverdue && <Button size="sm" variant="ghost" onClick={() => setRaiseTaskFor(tank)} className="h-7 px-2 text-xs text-purple-600" title="Raise inspection task"><ClipboardList className="w-3 h-3" /></Button>}
                           </div>
                         </div>
                         {String(tank.fuelType) !== "lpg_bottles" && (
@@ -1972,7 +1972,7 @@ export default function FuelEnergyPage() {
                           <td className="px-4 py-3 text-right font-medium text-green-700">{fmtL(d.quantityLitres as string)}</td>
                           <td className="px-4 py-3 text-right text-gray-600">
                             {fmtCost(d.totalCostPence as number)}
-                            {d.unitPricePence && <p className="text-xs text-gray-400">{Number(d.unitPricePence)}p/L</p>}
+                            {!!d.unitPricePence && <p className="text-xs text-gray-400">{Number(d.unitPricePence)}p/L</p>}
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500 capitalize">{String(d.qualifyingUse ?? "agriculture").replace(/_/g, " ")}</td>
                           <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -2300,7 +2300,7 @@ export default function FuelEnergyPage() {
                               <td className="px-4 py-3 text-xs text-gray-400">{String(r.invoiceReference ?? "—")}</td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-1">
-                                  {r.documentUrl && (
+                                  {!!r.documentUrl && (
                                     <a href={`/api/storage${String(r.documentUrl)}`} target="_blank" rel="noopener noreferrer" title="View meter photo">
                                       <Button size="sm" variant="ghost" className="h-7 px-2 text-blue-600"><Camera className="w-3 h-3" /></Button>
                                     </a>
@@ -2376,8 +2376,8 @@ export default function FuelEnergyPage() {
                   <div><p className="text-xs text-gray-400">Invoice ref</p><p className="font-medium">{String(viewDelivery.invoiceReference ?? "—")}</p></div>
                 </div>
                 <div><p className="text-xs text-gray-400">Qualifying use</p><p className="font-medium capitalize">{String(viewDelivery.qualifyingUse ?? "agriculture").replace(/_/g, " ")}</p></div>
-                {viewDelivery.notes && <div><p className="text-xs text-gray-400">Notes</p><p className="font-medium">{String(viewDelivery.notes)}</p></div>}
-                {viewDelivery.documentUrl ? (
+                {!!viewDelivery.notes && <div><p className="text-xs text-gray-400">Notes</p><p className="font-medium">{String(viewDelivery.notes)}</p></div>}
+                {viewDelivery.documentUrl != null ? (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-xs text-gray-400 mb-1">Attached document</p>
                     <a href={`/api/storage${String(viewDelivery.documentUrl)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:underline">
@@ -2876,7 +2876,7 @@ export default function FuelEnergyPage() {
       </Dialog>
       {raiseTaskFor && (
         <RaiseTaskDialog
-          farmId={farmId}
+          farmId={farmId!}
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
           defaultTitle={`Tank Inspection Overdue — ${raiseTaskFor.tankName ?? raiseTaskFor.fuelType ?? "Fuel Tank"}`}

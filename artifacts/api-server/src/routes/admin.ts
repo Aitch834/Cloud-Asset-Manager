@@ -113,7 +113,7 @@ router.get("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Re
 
 router.patch("/admin/tenants/:tenantId/users/:userId/alerts", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const tenantId = parseInt(req.params.tenantId, 10);
+  const tenantId = parseInt(req.params.tenantId as string, 10);
   const userId = req.params.userId;
   const { receiveAlerts } = req.body as { receiveAlerts: boolean };
 
@@ -125,7 +125,7 @@ router.patch("/admin/tenants/:tenantId/users/:userId/alerts", requireAuth, async
   await db
     .update(userTenantsTable)
     .set({ receiveAlerts })
-    .where(and(eq(userTenantsTable.tenantId, tenantId), eq(userTenantsTable.userId, userId)));
+    .where(and(eq(userTenantsTable.tenantId, tenantId), eq(userTenantsTable.userId, userId as any)));
 
   res.json({ success: true });
 });
@@ -794,7 +794,7 @@ function generateReferralCode(): string {
 router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const tenantId = parseInt(req.params.tenantId, 10);
+  const tenantId = parseInt(req.params.tenantId as string, 10);
   if (isNaN(tenantId)) { res.status(400).json({ error: "Invalid tenant ID" }); return; }
 
   const { isActive, cancelReason, cancelledAt, referredBy } = req.body as {
@@ -823,7 +823,7 @@ router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: 
 router.post("/admin/tenants/:tenantId/referral-code", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const tenantId = parseInt(req.params.tenantId, 10);
+  const tenantId = parseInt(req.params.tenantId as string, 10);
   if (isNaN(tenantId)) { res.status(400).json({ error: "Invalid tenant ID" }); return; }
 
   const [existing] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
@@ -1208,7 +1208,7 @@ router.post("/admin/help-articles", requireAuth, async (req: Request, res: Respo
 
 router.put("/admin/help-articles/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { title, slug, category, content, excerpt, published, sortOrder } = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -1226,7 +1226,7 @@ router.put("/admin/help-articles/:id", requireAuth, async (req: Request, res: Re
 
 router.delete("/admin/help-articles/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(helpArticlesTable).where(eq(helpArticlesTable.id, id));
   res.json({ success: true });

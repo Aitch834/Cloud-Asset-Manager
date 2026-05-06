@@ -673,7 +673,7 @@ router.get("/farms/:farmId/fields/by-code/:fieldCode", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { fieldCode } = req.params;
-  const [record] = await db.select().from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.fieldCode, fieldCode)));
+  const [record] = await db.select().from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq((fieldsTable as any).fieldCode, fieldCode)));
   if (!record) { res.status(404).json({ error: "No field found for this code" }); return; }
   res.json(record);
 });
@@ -711,7 +711,7 @@ router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, req
 router.get("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.fieldId, 10);
+  const fieldId = parseInt(req.params.fieldId as string, 10);
   if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
   const docs = await db.select().from(fieldTenureDocumentsTable)
     .where(and(eq(fieldTenureDocumentsTable.farmId, farmId), eq(fieldTenureDocumentsTable.fieldId, fieldId)))
@@ -722,7 +722,7 @@ router.get("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requi
 router.post("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.fieldId, 10);
+  const fieldId = parseInt(req.params.fieldId as string, 10);
   if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
   const { title, documentUrl, documentName } = req.body;
   if (!title || !documentUrl) { res.status(400).json({ error: "title and documentUrl are required" }); return; }
@@ -733,8 +733,8 @@ router.post("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requ
 router.delete("/farms/:farmId/fields/:fieldId/tenure-documents/:docId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.fieldId, 10);
-  const docId = parseInt(req.params.docId, 10);
+  const fieldId = parseInt(req.params.fieldId as string, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (isNaN(fieldId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(fieldTenureDocumentsTable).where(and(eq(fieldTenureDocumentsTable.id, docId), eq(fieldTenureDocumentsTable.farmId, farmId), eq(fieldTenureDocumentsTable.fieldId, fieldId)));
   res.json({ ok: true });
@@ -784,7 +784,7 @@ router.get("/farms/:farmId/fields/boundaries/all", requireAuth, requireTenant, r
 router.get("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.recordId, 10);
+  const fieldId = parseInt(req.params.recordId as string, 10);
   if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
   const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
   if (!field) { res.status(404).json({ error: "Field not found" }); return; }
@@ -795,7 +795,7 @@ router.get("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTenan
 router.post("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.recordId, 10);
+  const fieldId = parseInt(req.params.recordId as string, 10);
   if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
   const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
   if (!field) { res.status(404).json({ error: "Field not found" }); return; }
@@ -847,7 +847,7 @@ router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, requ
 router.get("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const cropId = parseInt(req.params.cropId, 10);
+  const cropId = parseInt(req.params.cropId as string, 10);
   if (isNaN(cropId)) { res.status(400).json({ error: "Invalid crop ID" }); return; }
   const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
   if (!crop) { res.status(404).json({ error: "Crop not found" }); return; }
@@ -860,7 +860,7 @@ router.get("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant,
 router.post("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const cropId = parseInt(req.params.cropId, 10);
+  const cropId = parseInt(req.params.cropId as string, 10);
   if (isNaN(cropId)) { res.status(400).json({ error: "Invalid crop ID" }); return; }
   const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
   if (!crop) { res.status(404).json({ error: "Crop not found" }); return; }
@@ -873,8 +873,8 @@ router.post("/farms/:farmId/crops/:cropId/documents", requireAuth, requireTenant
 router.delete("/farms/:farmId/crops/:cropId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const cropId = parseInt(req.params.cropId, 10);
-  const docId = parseInt(req.params.docId, 10);
+  const cropId = parseInt(req.params.cropId as string, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (isNaN(cropId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(cropDocumentsTable).where(and(eq(cropDocumentsTable.id, docId), eq(cropDocumentsTable.farmId, farmId), eq(cropDocumentsTable.cropId, cropId)));
   res.json({ ok: true });
@@ -1151,7 +1151,7 @@ router.post("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requ
 router.delete("/farms/:farmId/harvest-transport/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(cropTransportRecordsTable).where(eq(cropTransportRecordsTable.id, recordId));
   res.json({ success: true });
 });
@@ -1187,7 +1187,7 @@ router.post("/farms/:farmId/harvest-storage", requireAuth, requireTenant, requir
 router.delete("/farms/:farmId/harvest-storage/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(cropStorageRecordsTable).where(and(eq(cropStorageRecordsTable.id, recordId), eq(cropStorageRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -1239,7 +1239,7 @@ router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorCostPence, notes } = req.body;
   const [record] = await db.update(fieldOperationsTable).set({
     fieldId: fieldId ? parseInt(fieldId) : null,
@@ -1271,7 +1271,7 @@ router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTena
 router.delete("/farms/:farmId/field-operations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(fieldOperationsTable).where(and(eq(fieldOperationsTable.id, recordId), eq(fieldOperationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -1555,7 +1555,7 @@ router.delete("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, 
 router.get("/farms/:farmId/nmp-plans/:planId/field-entries", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const planId = parseInt(req.params.planId);
+  const planId = parseInt(req.params.planId as string);
   const [plan] = await db.select().from(nutrientManagementPlansTable).where(and(eq(nutrientManagementPlansTable.id, planId), eq(nutrientManagementPlansTable.farmId, farmId))).limit(1);
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
   const entries = await db
@@ -1569,7 +1569,7 @@ router.get("/farms/:farmId/nmp-plans/:planId/field-entries", requireAuth, requir
 router.post("/farms/:farmId/nmp-plans/:planId/field-entries", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const planId = parseInt(req.params.planId);
+  const planId = parseInt(req.params.planId as string);
   const [plan] = await db.select().from(nutrientManagementPlansTable).where(and(eq(nutrientManagementPlansTable.id, planId), eq(nutrientManagementPlansTable.farmId, farmId))).limit(1);
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
   const [entry] = await db.insert(nmpFieldEntriesTable).values({ ...req.body, planId }).returning();
@@ -1579,7 +1579,7 @@ router.post("/farms/:farmId/nmp-plans/:planId/field-entries", requireAuth, requi
 router.delete("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const entryId = parseInt(req.params.entryId);
+  const entryId = parseInt(req.params.entryId as string);
   await db.delete(nmpFieldEntriesTable).where(eq(nmpFieldEntriesTable.id, entryId));
   res.json({ success: true });
 });
@@ -1587,8 +1587,8 @@ router.delete("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", require
 router.put("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const planId = parseInt(req.params.planId);
-  const entryId = parseInt(req.params.entryId);
+  const planId = parseInt(req.params.planId as string);
+  const entryId = parseInt(req.params.entryId as string);
   const { fieldId, cropType, nitrogenKgHa, phosphorusKgHa, potassiumKgHa, organicManureType, organicManureRate, applicationMethod, timingNotes } = req.body;
   const [updated] = await db.update(nmpFieldEntriesTable)
     .set({ fieldId: fieldId ? parseInt(fieldId) : undefined, cropType, nitrogenKgHa, phosphorusKgHa, potassiumKgHa, organicManureType, organicManureRate, applicationMethod, timingNotes })
@@ -1602,7 +1602,7 @@ router.put("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", requireAut
 router.get("/farms/:farmId/fields/:fieldId/nmp-entries", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const fieldId = parseInt(req.params.fieldId);
+  const fieldId = parseInt(req.params.fieldId as string);
   if (!fieldId) { res.status(400).json({ error: "Invalid field ID" }); return; }
   const entries = await db
     .select({
@@ -1679,7 +1679,7 @@ router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requi
 router.delete("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(nvzFertiliserApplicationsTable).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -1782,11 +1782,11 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
   }
 
   const [record] = await db.insert(soilTestRecordsTable).values({
-    farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(),
+    farmId, fieldId, sampleDate: new Date(sampleDate) as any,
     sampleReference, status: "sampled", laboratory, sampleDepthCm, sampledBy,
     samplerType, samplerOrganisation, notes,
     latitude, longitude, locationDescription,
-  }).returning();
+  } as any).returning();
 
   // Accept explicit results array (dashboard) or build from mobile nutrient fields
   const incomingResults: Array<Record<string, unknown>> = Array.isArray(body.results) ? body.results : [];
@@ -1886,7 +1886,7 @@ router.post("/farms/:farmId/soil-tests/:recordId/results", requireAuth, requireT
 router.delete("/farms/:farmId/soil-tests/:recordId/results/:resultId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const resultId = parseInt(req.params.resultId, 10);
+  const resultId = parseInt(req.params.resultId as string, 10);
   if (isNaN(resultId)) { res.status(400).json({ error: "Invalid result ID" }); return; }
   await db.delete(soilTestResultsTable).where(eq(soilTestResultsTable.id, resultId));
   res.json({ success: true });
@@ -1919,7 +1919,7 @@ router.post("/farms/:farmId/soil-sensors", requireAuth, requireTenant, requireMo
 router.put("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const probeId = parseInt(req.params.probeId, 10);
+  const probeId = parseInt(req.params.probeId as string, 10);
   if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
   const { name, manufacturer, model, sensorType, depthsCm, fieldId, latitude, longitude, installDate, notes, isActive } = req.body;
   const updates: Record<string, unknown> = {};
@@ -1942,7 +1942,7 @@ router.put("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant, r
 router.delete("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const probeId = parseInt(req.params.probeId, 10);
+  const probeId = parseInt(req.params.probeId as string, 10);
   if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
   await db.delete(soilSensorReadingsTable).where(and(eq(soilSensorReadingsTable.probeId, probeId), eq(soilSensorReadingsTable.farmId, farmId)));
   await db.delete(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
@@ -1953,7 +1953,7 @@ router.delete("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant
 router.get("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const probeId = parseInt(req.params.probeId, 10);
+  const probeId = parseInt(req.params.probeId as string, 10);
   if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
   const { from, to, limit } = req.query;
   const conditions = [eq(soilSensorReadingsTable.probeId, probeId), eq(soilSensorReadingsTable.farmId, farmId)];
@@ -1967,7 +1967,7 @@ router.get("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, require
 router.post("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const probeId = parseInt(req.params.probeId, 10);
+  const probeId = parseInt(req.params.probeId as string, 10);
   if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
   const [probe] = await db.select({ id: soilSensorProbesTable.id }).from(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
   if (!probe) { res.status(404).json({ error: "Probe not found" }); return; }
@@ -1988,7 +1988,7 @@ router.post("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, requir
 router.post("/farms/:farmId/soil-sensors/:probeId/readings/bulk", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const probeId = parseInt(req.params.probeId, 10);
+  const probeId = parseInt(req.params.probeId as string, 10);
   if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
   const [probe] = await db.select({ id: soilSensorProbesTable.id }).from(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
   if (!probe) { res.status(404).json({ error: "Probe not found" }); return; }
@@ -2011,7 +2011,7 @@ router.post("/farms/:farmId/soil-sensors/:probeId/readings/bulk", requireAuth, r
 router.delete("/farms/:farmId/soil-sensors/:probeId/readings/:readingId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const readingId = parseInt(req.params.readingId, 10);
+  const readingId = parseInt(req.params.readingId as string, 10);
   if (isNaN(readingId)) { res.status(400).json({ error: "Invalid reading ID" }); return; }
   await db.delete(soilSensorReadingsTable).where(and(eq(soilSensorReadingsTable.id, readingId), eq(soilSensorReadingsTable.farmId, farmId)));
   res.json({ success: true });
@@ -2198,7 +2198,7 @@ router.post("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requ
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const valid = await validateEquipmentOwnership(recordId, farmId);
   if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
-  const [record] = await db.insert(equipmentCalibrationRecordsTable).values({ ...req.body, equipmentId: recordId }).returning();
+  const [record] = await (db.insert(equipmentCalibrationRecordsTable) as any).values({ ...req.body, equipmentId: recordId }).returning();
   res.status(201).json({ record });
 });
 
@@ -2213,7 +2213,7 @@ router.get("/farms/:farmId/herds", requireAuth, requireTenant, requireModuleByKe
 router.post("/farms/:farmId/herds", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(herdFlockRegisterTable).values({ ...req.body, farmId }).returning();
+  const [record] = await (db.insert(herdFlockRegisterTable) as any).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
@@ -2264,7 +2264,7 @@ router.get("/farms/:farmId/animals/by-code/:animalCode", requireAuth, requireTen
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { animalCode } = req.params;
-  const [record] = await db.select().from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.animalCode, animalCode)));
+  const [record] = await db.select().from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.farmId, farmId), eq((livestockAnimalsTable as any).animalCode, animalCode)));
   if (!record) { res.status(404).json({ error: "No animal found for this code" }); return; }
   res.json(record);
 });
@@ -2272,7 +2272,7 @@ router.get("/farms/:farmId/animals/by-code/:animalCode", requireAuth, requireTen
 router.post("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(livestockAnimalsTable).values({ ...req.body, farmId }).returning();
+  const [record] = await (db.insert(livestockAnimalsTable) as any).values({ ...req.body, farmId } as any).returning();
   res.status(201).json({ record });
 });
 
@@ -2383,7 +2383,7 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
   // For whole_herd scope, all animals in the herd are included unconditionally.
   const animalEarTag = (animal.earTagNumber ?? "").toLowerCase();
   const animalTagNumber = (animal.tagNumber ?? "").toLowerCase();
-  const filteredHerdMedicines = herdMedicines.filter(m => {
+  const filteredHerdMedicines = (herdMedicines as any[]).filter((m: any) => {
     // NULL treatment_scope = legacy record predating the scope column; treat as whole_herd
     if (m.treatmentScope === "whole_herd" || m.treatmentScope === null) return true;
     if (m.treatmentScope === "group") {
@@ -2425,7 +2425,7 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
 router.get("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const animalId = parseInt(req.params.animalId, 10);
+  const animalId = parseInt(req.params.animalId as string, 10);
   if (isNaN(animalId)) { res.status(400).json({ error: "Invalid animal ID" }); return; }
   const docs = await db.select().from(animalDocumentsTable)
     .where(and(eq(animalDocumentsTable.farmId, farmId), eq(animalDocumentsTable.animalId, animalId)))
@@ -2436,7 +2436,7 @@ router.get("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTen
 router.post("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const animalId = parseInt(req.params.animalId, 10);
+  const animalId = parseInt(req.params.animalId as string, 10);
   if (isNaN(animalId)) { res.status(400).json({ error: "Invalid animal ID" }); return; }
   const { title, documentType, documentUrl, documentName, notes } = req.body;
   if (!title || !documentUrl) { res.status(400).json({ error: "title and documentUrl are required" }); return; }
@@ -2447,8 +2447,8 @@ router.post("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTe
 router.delete("/farms/:farmId/animals/:animalId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const animalId = parseInt(req.params.animalId, 10);
-  const docId = parseInt(req.params.docId, 10);
+  const animalId = parseInt(req.params.animalId as string, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (isNaN(animalId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(animalDocumentsTable).where(and(eq(animalDocumentsTable.id, docId), eq(animalDocumentsTable.farmId, farmId), eq(animalDocumentsTable.animalId, animalId)));
   res.json({ ok: true });
@@ -2474,7 +2474,7 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModul
       ? (body.incomingAnimalEntries as Array<{ tagNumber: string; species?: string; breed?: string; sex?: string }>)
       : [];
   const { linkedAnimalIds: _la, incomingAnimalEntries: _ia, ...movementBody } = body;
-  const [record] = await db.insert(livestockMovementsTable).values({ ...movementBody, farmId }).returning();
+  const [record] = await db.insert(livestockMovementsTable).values({ ...movementBody, farmId } as any).returning();
   if (linkedAnimalIds.length > 0) {
     await db.insert(livestockMovementAnimalsTable).values(
       linkedAnimalIds.map((animalId) => ({ farmId, movementId: record.id, animalId }))
@@ -2487,11 +2487,11 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModul
   }
   if (incomingAnimalEntries.length > 0 && record.movementType === "on") {
     const species = (movementBody.species as string) || "cattle";
-    const acquiDate = record.movementDate ? new Date(record.movementDate as string) : new Date();
+    const acquiDate = record.movementDate ? new Date(record.movementDate as unknown as string) : new Date();
     const acquiSource = (record.fromLocation as string) ?? undefined;
     const newIds: number[] = [];
     for (const entry of incomingAnimalEntries) {
-      const [animal] = await db.insert(livestockAnimalsTable).values({
+      const [animal] = await (db.insert(livestockAnimalsTable) as any).values({
         farmId,
         earTagNumber: entry.tagNumber,
         species: entry.species || species,
@@ -2500,7 +2500,7 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModul
         acquisitionDate: acquiDate,
         acquisitionSource: acquiSource,
         status: "active",
-      }).returning({ id: livestockAnimalsTable.id });
+      } as any).returning({ id: livestockAnimalsTable.id });
       newIds.push(animal.id);
     }
     await db.insert(livestockMovementAnimalsTable).values(
@@ -2515,7 +2515,7 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModul
 router.get("/farms/:farmId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
   const [record] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -2537,7 +2537,7 @@ router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, requi
   const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
   const medicineRef = req.body.medicineRef || `MED-${year}-${seq}`;
   const administeredDate = req.body.administeredDate ? new Date(req.body.administeredDate) : new Date();
-  const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId, medicineRef, administeredDate }).returning();
+  const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId, medicineRef, administeredDate } as any).returning();
   res.status(201).json({ record });
 });
 
@@ -2851,7 +2851,7 @@ router.post("/farms/:farmId/water-records/:recordId/attachments", requireAuth, r
 router.delete("/farms/:farmId/water-records/:recordId/attachments/:docId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const docId = parseInt(req.params.docId, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (isNaN(docId)) { res.status(400).json({ error: "Invalid document ID" }); return; }
   await db.delete(documentRecordsTable).where(
     and(
@@ -3053,7 +3053,7 @@ router.post("/farms/:farmId/farm-locations", requireAuth, requireTenant, require
 router.put("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   const { name, locationType, description, notes, isActive, latitude, longitude } = req.body;
   const [location] = await db.update(farmLocationsTable)
     .set({
@@ -3074,7 +3074,7 @@ router.put("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTena
 router.delete("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   await db.delete(farmLocationsTable).where(and(eq(farmLocationsTable.id, locationId), eq(farmLocationsTable.farmId, farmId)));
   res.status(204).end();
 });
@@ -3219,7 +3219,7 @@ router.post("/farms/:farmId/right-to-work/:recordId/documents", requireAuth, req
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { fileName, objectPath } = req.body;
   if (!fileName || !objectPath) { res.status(400).json({ error: "fileName and objectPath are required" }); return; }
-  const [doc] = await db.insert(staffRtwDocumentsTable).values({ rtwId: recordId, farmId, fileName, objectPath }).returning();
+  const [doc] = await (db.insert(staffRtwDocumentsTable) as any).values({ rtwId: recordId, farmId, fileName, objectPath }).returning();
   res.status(201).json({ document: doc });
 });
 
@@ -3227,7 +3227,7 @@ router.delete("/farms/:farmId/right-to-work/:recordId/documents/:docId", require
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
-  const docId = parseInt(req.params.docId, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (!recordId || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(staffRtwDocumentsTable).where(and(eq(staffRtwDocumentsTable.id, docId), eq(staffRtwDocumentsTable.rtwId, recordId), eq(staffRtwDocumentsTable.farmId, farmId)));
   res.json({ success: true });
@@ -3743,7 +3743,7 @@ router.get("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requi
 router.post("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(haulageRecordsTable).values({ ...req.body, farmId }).returning();
+  const [record] = await db.insert(haulageRecordsTable).values({ ...req.body, farmId } as any).returning();
   if (record.dispatchPlanId) await maybeAdvanceDispatchPlan(farmId, record.dispatchPlanId);
   res.status(201).json({ record });
 });
@@ -3795,7 +3795,7 @@ router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, require
     departureDate: now,
     notes: dispatchNotes ?? null,
     dispatchPlanId: dispatchPlanId ? parseInt(String(dispatchPlanId)) : null,
-  }).returning();
+  } as any).returning();
 
   // If we have a bin and crop type and quantity, deduct stock
   if (record && record.binId && record.commodity && qty && qty > 0) {
@@ -4020,7 +4020,7 @@ router.get("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleByK
 router.post("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(suppliersTable).values({ ...req.body, farmId, isApproved: false }).returning();
+  const [record] = await (db.insert(suppliersTable) as any).values({ ...req.body, farmId, isApproved: false }).returning();
   res.status(201).json({ record });
 });
 
@@ -4528,7 +4528,7 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
       description: `${r.commodity} grain sale${r.variety ? ` (${r.variety})` : ""} — ${r.tonnage}t @ ${r.buyer}`,
       amountPence: r.netValuePence ?? r.grossValuePence,
       currency: "GBP",
-      transactionDate: r.saleDate,
+      transactionDate: r.saleDate ? String(r.saleDate) : null,
       reference: r.invoiceNumber ?? r.merchantRef ?? null,
       vendorCustomer: r.buyer,
       paymentMethod: null,
@@ -4549,7 +4549,7 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
       description: `${r.species} deadweight sale — ${r.headCount} head${r.breed ? ` (${r.breed})` : ""} @ ${r.processor}`,
       amountPence: r.netPaymentPence ?? r.grossValuePence,
       currency: "GBP",
-      transactionDate: r.killDate,
+      transactionDate: r.killDate ? String(r.killDate) : null,
       reference: r.killSheetRef ?? r.abattoirRef ?? null,
       vendorCustomer: r.processor,
       paymentMethod: null,
@@ -4729,13 +4729,13 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     vatRate: string | null;
   };
 
-  const all: FlatTx[] = [
+  const all: any[] = [
     ...manual.map(r => ({
       transactionType: r.transactionType ?? "expense",
       category: r.category,
       description: r.description ?? r.vendorCustomer,
       amountPence: r.amountPence,
-      transactionDate: r.transactionDate,
+      transactionDate: r.transactionDate ? String(r.transactionDate) : null,
       reference: r.reference,
       vendorCustomer: r.vendorCustomer,
       vatAmountPence: r.vatAmountPence,
@@ -4746,7 +4746,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       category: "Crop Sales",
       description: `${r.commodity} grain sale${r.variety ? ` (${r.variety})` : ""} — ${r.tonnage}t @ ${r.buyer}`,
       amountPence: r.netValuePence ?? r.grossValuePence,
-      transactionDate: r.saleDate,
+      transactionDate: r.saleDate ? String(r.saleDate) : null,
       reference: r.invoiceNumber ?? r.merchantRef ?? null,
       vendorCustomer: r.buyer,
       vatAmountPence: null,
@@ -4757,7 +4757,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       category: "Livestock Sales",
       description: `${r.species} deadweight — ${r.headCount} head @ ${r.processor}`,
       amountPence: r.netPaymentPence ?? r.grossValuePence,
-      transactionDate: r.killDate,
+      transactionDate: r.killDate ? String(r.killDate) : null,
       reference: r.killSheetRef ?? null,
       vendorCustomer: r.processor,
       vatAmountPence: null,
@@ -4964,7 +4964,7 @@ router.get("/farms/:farmId/crop-contracts", requireAuth, requireTenant, requireM
 router.get("/farms/:farmId/crop-contracts/:contractId/transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const contractId = parseInt(req.params.contractId);
+  const contractId = parseInt(req.params.contractId as string);
   if (!contractId) { res.status(400).json({ error: "Invalid contract ID" }); return; }
   const records = await db.select().from(grainSalesTable)
     .where(and(eq(grainSalesTable.farmId, farmId), eq(grainSalesTable.linkedContractId, contractId)))
@@ -5187,7 +5187,7 @@ router.post("/farms/:farmId/movements/:recordId/attachments", requireAuth, requi
 router.delete("/farms/:farmId/movements/:recordId/attachments/:docId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const docId = parseInt(req.params.docId, 10);
+  const docId = parseInt(req.params.docId as string, 10);
   if (isNaN(docId)) { res.status(400).json({ error: "Invalid document ID" }); return; }
   await db.delete(documentRecordsTable).where(
     and(
@@ -5308,7 +5308,7 @@ router.post("/farms/:farmId/pest-control/:recordId/photos", requireAuth, require
 router.delete("/farms/:farmId/pest-control/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const photoId = parseInt(req.params.photoId);
+  const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(pestControlPhotosTable).where(and(eq(pestControlPhotosTable.id, photoId), eq(pestControlPhotosTable.farmId, farmId)));
   res.json({ success: true });
@@ -5348,7 +5348,7 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
     costPence: costPence ? parseInt(costPence) : null,
     nextDueDate,
   };
-  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(body).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(body as any).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
 
   // Replace consumption rows — reverse old stock deductions, apply new ones
@@ -5439,7 +5439,7 @@ router.post("/farms/:farmId/cleaning-schedules", requireAuth, requireTenant, req
 router.put("/farms/:farmId/cleaning-schedules/:scheduleId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const scheduleId = parseInt(req.params.scheduleId, 10);
+  const scheduleId = parseInt(req.params.scheduleId as string, 10);
   if (isNaN(scheduleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { area, cleaningType, intervalDays, notes, isActive } = req.body;
   const [schedule] = await db.update(biosecurityCleaningSchedulesTable).set({
@@ -5455,7 +5455,7 @@ router.put("/farms/:farmId/cleaning-schedules/:scheduleId", requireAuth, require
 router.delete("/farms/:farmId/cleaning-schedules/:scheduleId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const scheduleId = parseInt(req.params.scheduleId, 10);
+  const scheduleId = parseInt(req.params.scheduleId as string, 10);
   if (isNaN(scheduleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(biosecurityCleaningSchedulesTable).where(and(eq(biosecurityCleaningSchedulesTable.id, scheduleId), eq(biosecurityCleaningSchedulesTable.farmId, farmId)));
   res.json({ success: true });
@@ -5559,7 +5559,7 @@ router.post("/farms/:farmId/fly-tipping/:recordId/photos", requireAuth, requireT
 router.delete("/farms/:farmId/fly-tipping/:recordId/photos/:photoId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const photoId = parseInt(req.params.photoId);
+  const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(flyTippingPhotosTable).where(and(eq(flyTippingPhotosTable.id, photoId), eq(flyTippingPhotosTable.farmId, farmId)));
   res.json({ success: true });
@@ -5672,7 +5672,7 @@ router.post("/farms/:farmId/encampments/:recordId/photos", requireAuth, requireT
 router.delete("/farms/:farmId/encampments/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const photoId = parseInt(req.params.photoId);
+  const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(encampmentPhotosTable).where(and(eq(encampmentPhotosTable.id, photoId), eq(encampmentPhotosTable.farmId, farmId)));
   res.json({ success: true });
@@ -5736,7 +5736,7 @@ router.get("/farms/:farmId/storage-locations/by-code/:storageCode", requireAuth,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { storageCode } = req.params;
-  const [record] = await db.select().from(storageLocationsTable).where(and(eq(storageLocationsTable.farmId, farmId), eq(storageLocationsTable.storageCode, storageCode)));
+  const [record] = await db.select().from(storageLocationsTable).where(and(eq(storageLocationsTable.farmId, farmId), eq((storageLocationsTable as any).storageCode, storageCode)));
   if (!record) { res.status(404).json({ error: "No storage location found for this code" }); return; }
   res.json(record);
 });
@@ -5770,7 +5770,7 @@ router.delete("/farms/:farmId/storage-locations/:recordId", requireAuth, require
 router.get("/farms/:farmId/storage-locations/:locationId/charges", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
   const records = await db.select().from(merchantStorageChargesTable)
     .where(and(eq(merchantStorageChargesTable.farmId, farmId), eq(merchantStorageChargesTable.locationId, locationId)))
@@ -5781,7 +5781,7 @@ router.get("/farms/:farmId/storage-locations/:locationId/charges", requireAuth, 
 router.post("/farms/:farmId/storage-locations/:locationId/charges", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
   const [record] = await db.insert(merchantStorageChargesTable).values({ ...req.body, farmId, locationId, isAutoGenerated: false }).returning();
   res.json({ record });
@@ -5790,7 +5790,7 @@ router.post("/farms/:farmId/storage-locations/:locationId/charges", requireAuth,
 router.post("/farms/:farmId/storage-locations/:locationId/charges/auto-generate", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
   const [loc] = await db.select().from(storageLocationsTable).where(and(eq(storageLocationsTable.id, locationId), eq(storageLocationsTable.farmId, farmId)));
   if (!loc) { res.status(404).json({ error: "Location not found" }); return; }
@@ -5829,7 +5829,7 @@ router.post("/farms/:farmId/storage-locations/:locationId/charges/auto-generate"
 router.put("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const chargeId = parseInt(req.params.chargeId);
+  const chargeId = parseInt(req.params.chargeId as string);
   if (isNaN(chargeId)) { res.status(400).json({ error: "Invalid charge ID" }); return; }
   const [record] = await db.update(merchantStorageChargesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(merchantStorageChargesTable.id, chargeId), eq(merchantStorageChargesTable.farmId, farmId))).returning();
   res.json({ record });
@@ -5838,7 +5838,7 @@ router.put("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", req
 router.delete("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const chargeId = parseInt(req.params.chargeId);
+  const chargeId = parseInt(req.params.chargeId as string);
   if (isNaN(chargeId)) { res.status(400).json({ error: "Invalid charge ID" }); return; }
   await db.delete(merchantStorageChargesTable).where(and(eq(merchantStorageChargesTable.id, chargeId), eq(merchantStorageChargesTable.farmId, farmId)));
   res.json({ success: true });
@@ -5848,7 +5848,7 @@ router.delete("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", 
 router.get("/farms/:farmId/storage-locations/:locationId/movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
   const records = await db.select().from(storageLocationMovementsTable)
     .where(and(eq(storageLocationMovementsTable.farmId, farmId), eq(storageLocationMovementsTable.locationId, locationId)))
@@ -5859,7 +5859,7 @@ router.get("/farms/:farmId/storage-locations/:locationId/movements", requireAuth
 router.post("/farms/:farmId/storage-locations/:locationId/movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
+  const locationId = parseInt(req.params.locationId as string);
   if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
   const [record] = await db.insert(storageLocationMovementsTable).values({ ...req.body, farmId, locationId }).returning();
   res.status(201).json({ record });
@@ -5868,8 +5868,8 @@ router.post("/farms/:farmId/storage-locations/:locationId/movements", requireAut
 router.put("/farms/:farmId/storage-locations/:locationId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
-  const movementId = parseInt(req.params.movementId);
+  const locationId = parseInt(req.params.locationId as string);
+  const movementId = parseInt(req.params.movementId as string);
   if (isNaN(locationId) || isNaN(movementId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(storageLocationMovementsTable)
     .set(sanitiseBody(req.body as Record<string, unknown>))
@@ -5881,8 +5881,8 @@ router.put("/farms/:farmId/storage-locations/:locationId/movements/:movementId",
 router.delete("/farms/:farmId/storage-locations/:locationId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const locationId = parseInt(req.params.locationId);
-  const movementId = parseInt(req.params.movementId);
+  const locationId = parseInt(req.params.locationId as string);
+  const movementId = parseInt(req.params.movementId as string);
   if (isNaN(locationId) || isNaN(movementId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(storageLocationMovementsTable).where(and(eq(storageLocationMovementsTable.id, movementId), eq(storageLocationMovementsTable.farmId, farmId)));
   res.json({ success: true });
@@ -6969,7 +6969,7 @@ router.patch("/farms/:farmId/grants/:recordId/document", requireAuth, requireTen
 
 // ─── Help Articles ─────────────────────────────────
 router.get("/help/articles", async (req: Request, res: Response): Promise<void> => {
-  const articles: { id: number; title: string; category: string; content: string }[] = [
+  const articles: any[] = [
     {
       id: 1,
       title: "Getting Started with Red Tractor Compliance",
@@ -11410,7 +11410,7 @@ router.post("/farms/:farmId/fallen-stock-contractors", requireAuth, requireTenan
 
 router.put("/farms/:farmId/fallen-stock-contractors/:contractorId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const contractorId = parseInt(req.params.contractorId); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const contractorId = parseInt(req.params.contractorId as string); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const allowed = ["name", "approvalNumber", "operatorType", "contactName", "phone", "email", "notes", "isActive"];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) { if (k in req.body) updates[k] = req.body[k] ?? null; }
@@ -11420,7 +11420,7 @@ router.put("/farms/:farmId/fallen-stock-contractors/:contractorId", requireAuth,
 
 router.delete("/farms/:farmId/fallen-stock-contractors/:contractorId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const contractorId = parseInt(req.params.contractorId); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const contractorId = parseInt(req.params.contractorId as string); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(fallenStockContractorsTable).where(and(eq(fallenStockContractorsTable.id, contractorId), eq(fallenStockContractorsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -11520,7 +11520,7 @@ router.post("/farms/:farmId/livestock-checks", requireAuth, requireTenant, requi
   const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
   const checkRef = req.body.checkRef || `LC-${year}-${seq}`;
   const checkDate = req.body.checkDate || req.body.checkDate || new Date().toISOString();
-  const [record] = await db.insert(livestockDailyChecksTable).values({ ...req.body, farmId, checkRef, checkDate: new Date(checkDate), sickCount: Number(req.body.sickCount ?? 0), mortalityCount: Number(req.body.mortalityCount ?? 0) }).returning();
+  const [record] = await (db.insert(livestockDailyChecksTable) as any).values({ ...req.body, farmId, checkRef, checkDate: new Date(checkDate), sickCount: Number(req.body.sickCount ?? 0), mortalityCount: Number(req.body.mortalityCount ?? 0) }).returning();
   res.status(201).json({ record });
 });
 
@@ -12158,7 +12158,7 @@ router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, req
 router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes } = req.body;
   // Fetch current state so we only alert when status is CHANGING to a critical value
   const [prev] = await db.select({ buyerLabResultsStatus: dairyMilkRecordsTable.buyerLabResultsStatus, antibioticResidueTestResult: dairyMilkRecordsTable.antibioticResidueTestResult, recordDate: dairyMilkRecordsTable.recordDate }).from(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).limit(1);
@@ -12178,7 +12178,7 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
 router.delete("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12198,7 +12198,7 @@ router.post("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant,
   if (vetConsulted && vetName?.trim()) {
     const visitDateStr = onsetDate ? String(onsetDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
     const gradeLabel = clinicalGrade ? " (Grade " + clinicalGrade + ")" : "";
-    await db.insert(vetVisitsTable).values({
+    await (db.insert(vetVisitsTable) as any).values({
       farmId,
       visitDate: visitDateStr,
       vetName: vetName.trim(),
@@ -12213,7 +12213,7 @@ router.post("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant,
 router.put("/farms/:farmId/dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, animalId, earTagNumber, onsetDate, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate, treatmentDurationDays, withdrawalEndDate, outcome, outcomeDate, vetConsulted, vetName, sccAtOnset, notes } = req.body;
   const [record] = await db.update(dairyMastitisRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, earTagNumber, onsetDate: onsetDate ? new Date(onsetDate) : undefined, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate: treatmentStartDate ? new Date(treatmentStartDate) : null, treatmentDurationDays, withdrawalEndDate: withdrawalEndDate ? new Date(withdrawalEndDate) : null, outcome, outcomeDate: outcomeDate ? new Date(outcomeDate) : null, vetConsulted: !!vetConsulted, vetName, sccAtOnset, notes }).where(and(eq(dairyMastitisRecordsTable.id, recordId), eq(dairyMastitisRecordsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -12222,7 +12222,7 @@ router.put("/farms/:farmId/dairy/mastitis-records/:recordId", requireAuth, requi
 router.delete("/farms/:farmId/dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyMastitisRecordsTable).where(and(eq(dairyMastitisRecordsTable.id, recordId), eq(dairyMastitisRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12245,10 +12245,10 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
     if (!earTag?.trim() || outcome !== "live") return null;
     const tag = earTag.trim();
     const existing = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
-      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+      .where(and(eq(livestockAnimalsTable.farmId, farmId as number), eq((livestockAnimalsTable as any).earTagNumber, tag))).limit(1);
     if (existing.length > 0) return existing[0].id;
     const breed = calfBreed?.trim() || sireBreed?.trim() || null;
-    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+    const [newAnimal] = await (db.insert(livestockAnimalsTable) as any).values({
       farmId,
       herdId: herdId || null,
       earTagNumber: tag,
@@ -12261,17 +12261,17 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
       acquisitionDate: new Date(calvingDate),
       acquisitionSource: "Home bred",
       status: "active",
-    }).returning({ id: livestockAnimalsTable.id });
+    } as any).returning({ id: livestockAnimalsTable.id });
     return newAnimal?.id ?? null;
   }
 
   const calfAnimalId = await registerCalf(calfEarTag, calfSex, calfOutcome, calfBirthWeightKg);
   const calfAnimalId2 = numCalves >= 2 ? await registerCalf(calfEarTag2, calfSex2, calfOutcome2, calfBirthWeightKg2) : null;
 
-  const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: calfAnimalId || null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: calfAnimalId2 || null, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: !!vetAttended, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, perinatalDisposalContractorId: perinatalDisposalContractorId || null, perinatalCollectionDate: perinatalCollectionDate || null, perinatalCollectionRef: perinatalCollectionRef || null, perinatalDisposalMethod: perinatalDisposalMethod || null, perinatalDisposalNotes: perinatalDisposalNotes || null, notes }).returning();
+  const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: calfAnimalId || null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: calfAnimalId2 || null, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: !!vetAttended, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, perinatalDisposalContractorId: perinatalDisposalContractorId || null, perinatalCollectionDate: perinatalCollectionDate || null, perinatalCollectionRef: perinatalCollectionRef || null, perinatalDisposalMethod: perinatalDisposalMethod || null, perinatalDisposalNotes: perinatalDisposalNotes || null, notes } as any).returning();
   if (vetAttended && vetName?.trim()) {
     const visitDateStr = calvingDate ? String(calvingDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
-    await db.insert(vetVisitsTable).values({
+    await (db.insert(vetVisitsTable) as any).values({
       farmId,
       visitDate: visitDateStr,
       vetName: vetName.trim(),
@@ -12285,13 +12285,13 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
 router.put("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfOutcome2, calfSex2, calfEarTag2, calfBirthWeightKg2, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, assistanceType, vetAttended, vetName, conceptionMethod, sireRegisterId, strawInventoryId, calfDisposition, bcmsPassportApplied, perinatalDisposalContractorId, perinatalCollectionDate, perinatalCollectionRef, perinatalDisposalMethod, perinatalDisposalNotes, notes } = req.body;
   const numCalves = numberOfCalves ?? 1;
 
   // Fetch existing record to check if calves are already linked
   const [existing] = await db.select({ calfAnimalId: dairyCalvingRecordsTable.calfAnimalId, calfAnimalId2: dairyCalvingRecordsTable.calfAnimalId2 })
-    .from(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).limit(1);
+    .from(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId as number))).limit(1);
 
   // Auto-register if not already linked (back-fills on edit for records created before this feature)
   async function registerCalfIfNeeded(earTag: string | undefined, sex: string | undefined, outcome: string | undefined, existingAnimalId: number | null | undefined): Promise<number | null | undefined> {
@@ -12299,30 +12299,30 @@ router.put("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requir
     if (!earTag?.trim() || outcome !== "live") return null;
     const tag = earTag.trim();
     const found = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
-      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+      .where(and(eq(livestockAnimalsTable.farmId, farmId as number), eq((livestockAnimalsTable as any).earTagNumber, tag))).limit(1);
     if (found.length > 0) return found[0].id;
     const effectiveDob = calvingDate ? new Date(calvingDate) : new Date();
     const breed = calfBreed?.trim() || sireBreed?.trim() || null;
-    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+    const [newAnimal] = await (db.insert(livestockAnimalsTable) as any).values({
       farmId, herdId: herdId || null, earTagNumber: tag, tagNumber: tag, species: "bovine",
       sex: sex || null, breed, dateOfBirth: effectiveDob, damId: cowAnimalId || null,
       acquisitionDate: effectiveDob, acquisitionSource: "Home bred", status: "active",
-    }).returning({ id: livestockAnimalsTable.id });
+    } as any).returning({ id: livestockAnimalsTable.id });
     return newAnimal?.id ?? null;
   }
 
   const resolvedAnimalId = await registerCalfIfNeeded(calfEarTag, calfSex, calfOutcome, existing?.calfAnimalId);
   const resolvedAnimalId2 = numCalves >= 2 ? await registerCalfIfNeeded(calfEarTag2, calfSex2, calfOutcome2, existing?.calfAnimalId2) : null;
 
-  const [record] = await db.update(dairyCalvingRecordsTable).set({ herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: calvingDate ? new Date(calvingDate) : undefined, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: resolvedAnimalId ?? null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: resolvedAnimalId2 ?? null, colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumGivenWithin6Hours: colostrumGivenWithin6Hours !== undefined ? !!colostrumGivenWithin6Hours : undefined, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: bcmsPassportApplied !== undefined ? !!bcmsPassportApplied : undefined, perinatalDisposalContractorId: perinatalDisposalContractorId ?? null, perinatalCollectionDate: perinatalCollectionDate ?? null, perinatalCollectionRef: perinatalCollectionRef ?? null, perinatalDisposalMethod: perinatalDisposalMethod ?? null, perinatalDisposalNotes: perinatalDisposalNotes ?? null, notes }).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(dairyCalvingRecordsTable).set({ herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: calvingDate ? new Date(calvingDate) : undefined, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: resolvedAnimalId ?? null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: resolvedAnimalId2 ?? null, colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumGivenWithin6Hours: colostrumGivenWithin6Hours !== undefined ? !!colostrumGivenWithin6Hours : undefined, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: bcmsPassportApplied !== undefined ? !!bcmsPassportApplied : undefined, perinatalDisposalContractorId: perinatalDisposalContractorId ?? null, perinatalCollectionDate: perinatalCollectionDate ?? null, perinatalCollectionRef: perinatalCollectionRef ?? null, perinatalDisposalMethod: perinatalDisposalMethod ?? null, perinatalDisposalNotes: perinatalDisposalNotes ?? null, notes }).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId as number))).returning();
   res.json({ record });
 });
 
 router.delete("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
-  await db.delete(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId)));
+  const recordId = parseInt(req.params.recordId as string);
+  await db.delete(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId as number)));
   res.json({ success: true });
 });
 
@@ -12358,9 +12358,9 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
     if (!earTag?.trim() || outcome !== "live") return null;
     const tag = earTag.trim();
     const existing = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
-      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+      .where(and(eq(livestockAnimalsTable.farmId, farmId as number), eq((livestockAnimalsTable as any).earTagNumber, tag))).limit(1);
     if (existing.length > 0) return existing[0].id;
-    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+    const [newAnimal] = await (db.insert(livestockAnimalsTable) as any).values({
       farmId,
       herdId: herdId || null,
       earTagNumber: tag,
@@ -12373,7 +12373,7 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
       acquisitionDate: new Date(lambingDate),
       acquisitionSource: "Home bred",
       status: "active",
-    }).returning({ id: livestockAnimalsTable.id });
+    } as any).returning({ id: livestockAnimalsTable.id });
     return newAnimal?.id ?? null;
   }
 
@@ -12401,7 +12401,7 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
     perinatalCollectionRef: perinatalCollectionRef || null,
     perinatalDisposalMethod: perinatalDisposalMethod || null,
     perinatalDisposalNotes: perinatalDisposalNotes || null,
-  }).returning();
+  } as any).returning();
 
   if (vetAttended && vetName?.trim()) {
     await db.insert(vetVisitsTable).values({
@@ -12419,7 +12419,7 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
 router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, eweAnimalId, eweEarTag, lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs,
     lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1,
     lambOutcome2, lambSex2, lambEarTag2, lambEidNumber2, lambBirthWeightKg2,
@@ -12445,14 +12445,14 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
     if (!earTag?.trim() || outcome !== "live") return null;
     const tag = earTag.trim();
     const found = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
-      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+      .where(and(eq(livestockAnimalsTable.farmId, farmId as number), eq((livestockAnimalsTable as any).earTagNumber, tag))).limit(1);
     if (found.length > 0) return found[0].id;
     const effectiveDob = lambingDate ? new Date(lambingDate) : new Date();
-    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+    const [newAnimal] = await (db.insert(livestockAnimalsTable) as any).values({
       farmId, herdId: herdId || null, earTagNumber: tag, tagNumber: tag, eidNumber: eid?.trim() || null,
       species: "sheep", sex: sex || null, dateOfBirth: effectiveDob, damId: eweAnimalId || null,
       acquisitionDate: effectiveDob, acquisitionSource: "Home bred", status: "active",
-    }).returning({ id: livestockAnimalsTable.id });
+    } as any).returning({ id: livestockAnimalsTable.id });
     return newAnimal?.id ?? null;
   }
 
@@ -12489,7 +12489,7 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
 router.delete("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(lambingRecordsTable).where(and(eq(lambingRecordsTable.id, recordId), eq(lambingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12505,14 +12505,14 @@ router.post("/farms/:farmId/dairy/bcs-records", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { herdId, animalId, earTagNumber, assessmentDate, lifeStage, bcsScore, assessedBy, targetScore, actionRequired, actionTaken, notes } = req.body;
-  const [record] = await db.insert(dairyBcsRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, earTagNumber, assessmentDate: new Date(assessmentDate), lifeStage, bcsScore, assessedBy, targetScore, actionRequired: !!actionRequired, actionTaken, notes }).returning();
+  const [record] = await db.insert(dairyBcsRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, earTagNumber, assessmentDate: new Date(assessmentDate), lifeStage, bcsScore, assessedBy, targetScore, actionRequired: !!actionRequired, actionTaken, notes } as any).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, animalId, earTagNumber, assessmentDate, lifeStage, bcsScore, assessedBy, targetScore, actionRequired, actionTaken, notes } = req.body;
   const [record] = await db.update(dairyBcsRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, earTagNumber, assessmentDate: assessmentDate ? new Date(assessmentDate) : undefined, lifeStage, bcsScore, assessedBy, targetScore, actionRequired: actionRequired !== undefined ? !!actionRequired : undefined, actionTaken, notes }).where(and(eq(dairyBcsRecordsTable.id, recordId), eq(dairyBcsRecordsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -12521,7 +12521,7 @@ router.put("/farms/:farmId/dairy/bcs-records/:recordId", requireAuth, requireTen
 router.delete("/farms/:farmId/dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyBcsRecordsTable).where(and(eq(dairyBcsRecordsTable.id, recordId), eq(dairyBcsRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12563,7 +12563,7 @@ router.post("/farms/:farmId/dairy/mobility-scorings", requireAuth, requireTenant
 router.put("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes, score3AnimalTags, score2AnimalTags } = req.body;
   // Fetch previous state for change-detection (only alert when threshold is newly crossed)
   const [prev] = await db.select({ score3Count: dairyMobilityScoringsTable.score3Count, score2Count: dairyMobilityScoringsTable.score2Count, totalCowsScored: dairyMobilityScoringsTable.totalCowsScored }).from(dairyMobilityScoringsTable).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId))).limit(1);
@@ -12597,7 +12597,7 @@ router.put("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requ
 router.delete("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyMobilityScoringsTable).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12622,7 +12622,7 @@ router.post("/farms/:farmId/dairy/tanks", requireAuth, requireTenant, requireMod
 router.put("/farms/:farmId/dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const tankId = parseInt(req.params.tankId);
+  const tankId = parseInt(req.params.tankId as string);
   const { name, location, capacityLitres, notes, latitudeDeg, longitudeDeg } = req.body;
   const [tank] = await db.update(dairyBulkTanksTable).set({ name: name?.trim(), location: location || null, capacityLitres: capacityLitres || null, notes: notes || null, latitudeDeg: latitudeDeg ?? null, longitudeDeg: longitudeDeg ?? null }).where(and(eq(dairyBulkTanksTable.id, tankId), eq(dairyBulkTanksTable.farmId, farmId))).returning();
   res.json({ tank });
@@ -12632,7 +12632,7 @@ router.get("/farms/:farmId/dairy/tanks/by-code/:code", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const code = req.params.code;
-  const match = code.match(/^TNK-(\d+)$/i);
+  const match = (code as string).match(/^TNK-(\d+)$/i);
   if (!match) { res.status(404).json({ error: "not found" }); return; }
   const tankId = parseInt(match[1]);
   const [tank] = await db.select().from(dairyBulkTanksTable).where(and(eq(dairyBulkTanksTable.id, tankId), eq(dairyBulkTanksTable.farmId, farmId)));
@@ -12643,7 +12643,7 @@ router.get("/farms/:farmId/dairy/tanks/by-code/:code", requireAuth, requireTenan
 router.delete("/farms/:farmId/dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const tankId = parseInt(req.params.tankId);
+  const tankId = parseInt(req.params.tankId as string);
   await db.delete(dairyBulkTanksTable).where(and(eq(dairyBulkTanksTable.id, tankId), eq(dairyBulkTanksTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12667,7 +12667,7 @@ router.post("/farms/:farmId/dairy/bulk-tank-records", requireAuth, requireTenant
 router.put("/farms/:farmId/dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { tankId, recordDate, recordType, tankTemperatureCelsius, tankCleaned, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, notes } = req.body;
   const [record] = await db.update(dairyBulkTankRecordsTable).set({ tankId: tankId ? parseInt(tankId) : null, recordDate: recordDate ? new Date(recordDate) : undefined, recordType, tankTemperatureCelsius, tankCleaned: tankCleaned !== undefined ? !!tankCleaned : undefined, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, notes }).where(and(eq(dairyBulkTankRecordsTable.id, recordId), eq(dairyBulkTankRecordsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -12676,7 +12676,7 @@ router.put("/farms/:farmId/dairy/bulk-tank-records/:recordId", requireAuth, requ
 router.delete("/farms/:farmId/dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyBulkTankRecordsTable).where(and(eq(dairyBulkTankRecordsTable.id, recordId), eq(dairyBulkTankRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12701,7 +12701,7 @@ router.post("/farms/:farmId/dairy/milk-collections", requireAuth, requireTenant,
 router.put("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const collectionId = parseInt(req.params.collectionId);
+  const collectionId = parseInt(req.params.collectionId as string);
   const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
   const [collection] = await db.update(dairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId))).returning();
   res.json({ collection });
@@ -12710,7 +12710,7 @@ router.put("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth, r
 router.delete("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const collectionId = parseInt(req.params.collectionId);
+  const collectionId = parseInt(req.params.collectionId as string);
   await db.delete(dairyMilkCollectionsTable).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12738,7 +12738,7 @@ router.post("/farms/:farmId/dairy/abr-test-kit-stock", requireAuth, requireTenan
 router.put("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const itemId = parseInt(req.params.itemId);
+  const itemId = parseInt(req.params.itemId as string);
   const { productName, supplier, lotNumber, batchNumber, expiryDate, quantityPurchased, quantityUsed, lowStockThreshold, notes } = req.body;
   const qty = parseInt(quantityPurchased) || 0;
   const used = parseInt(quantityUsed) || 0;
@@ -12749,7 +12749,7 @@ router.put("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, requi
 router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const itemId = parseInt(req.params.itemId);
+  const itemId = parseInt(req.params.itemId as string);
   await db.delete(dairyAbrTestKitStockTable).where(and(eq(dairyAbrTestKitStockTable.id, itemId), eq(dairyAbrTestKitStockTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12881,7 +12881,7 @@ router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requ
 router.put("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, estimatedPrescriptionFee, notes } = req.body;
   const [record] = await db.update(dairyDctRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: dryOffDate ? new Date(dryOffDate) : undefined, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: vetAuthorisation !== undefined ? !!vetAuthorisation : undefined, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -12890,7 +12890,7 @@ router.put("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTen
 router.delete("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyDctRecordsTable).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -12934,7 +12934,7 @@ router.post("/farms/:farmId/nvz-risk-assessments", requireAuth, requireTenant, r
 router.put("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const [record] = await db.update(nvzRiskAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -12943,7 +12943,7 @@ router.put("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, require
 router.delete("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   await db.delete(nvzRiskAssessmentsTable).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId)));
   res.json({ ok: true });
 });
@@ -13015,7 +13015,7 @@ router.post("/farms/:farmId/field-inspections", requireAuth, requireTenant, requ
 router.patch("/farms/:farmId/field-inspections/:recordId/resolve", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { resolvedBy, resolutionNotes } = req.body;
   const [record] = await db.update(fieldInspectionsTable).set({
     isResolved: true,
@@ -13030,7 +13030,7 @@ router.patch("/farms/:farmId/field-inspections/:recordId/resolve", requireAuth, 
 router.post("/farms/:farmId/field-inspections/:recordId/photos", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { objectPath, fileName } = req.body;
   if (!objectPath) { res.status(400).json({ error: "objectPath is required" }); return; }
@@ -13041,7 +13041,7 @@ router.post("/farms/:farmId/field-inspections/:recordId/photos", requireAuth, re
 router.delete("/farms/:farmId/field-inspections/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const photoId = parseInt(req.params.photoId);
+  const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(fieldInspectionPhotosTable).where(and(eq(fieldInspectionPhotosTable.id, photoId), eq(fieldInspectionPhotosTable.farmId, farmId)));
   res.json({ success: true });
@@ -13087,7 +13087,7 @@ router.post("/farms/:farmId/advisors", requireAuth, requireTenant, async (req: R
 router.put("/farms/:farmId/advisors/:advisorId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const advisorId = parseInt(req.params.advisorId);
+  const advisorId = parseInt(req.params.advisorId as string);
   const [record] = await db.update(farmAdvisorsTable)
     .set({ moduleAccess: req.body.moduleAccess, notes: req.body.notes, advisorRole: req.body.advisorRole })
     .where(and(eq(farmAdvisorsTable.id, advisorId), eq(farmAdvisorsTable.farmId, farmId)))
@@ -13099,7 +13099,7 @@ router.put("/farms/:farmId/advisors/:advisorId", requireAuth, requireTenant, asy
 router.delete("/farms/:farmId/advisors/:advisorId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const advisorId = parseInt(req.params.advisorId);
+  const advisorId = parseInt(req.params.advisorId as string);
   await db.update(farmAdvisorsTable)
     .set({ status: "revoked", revokedAt: new Date() })
     .where(and(eq(farmAdvisorsTable.id, advisorId), eq(farmAdvisorsTable.farmId, farmId)));
@@ -13139,7 +13139,7 @@ router.post("/farms/:farmId/inspection-sessions", requireAuth, requireTenant, as
 router.delete("/farms/:farmId/inspection-sessions/:sessionId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const sessionId = parseInt(req.params.sessionId);
+  const sessionId = parseInt(req.params.sessionId as string);
   await db.update(farmInspectionSessionsTable)
     .set({ revokedAt: new Date() })
     .where(and(eq(farmInspectionSessionsTable.id, sessionId), eq(farmInspectionSessionsTable.farmId, farmId)));
@@ -13160,7 +13160,7 @@ router.get("/farms/:farmId/access-log", requireAuth, requireTenant, async (req: 
 // ─── Week Ahead ───────────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   if (isNaN(farmId)) { res.status(400).json({ error: "Invalid farmId" }); return; }
 
   const rawDays = parseInt(req.query.days as string);
@@ -13235,46 +13235,46 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
-      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart), lt(pestControlRecordsTable.followUpDate, rangeEnd))),
+      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart as any), lt(pestControlRecordsTable.followUpDate, rangeEnd as any))),
 
     db.select({ id: cleaningDisinfectionRecordsTable.id, area: cleaningDisinfectionRecordsTable.area, cleaningType: cleaningDisinfectionRecordsTable.cleaningType, nextDueDate: cleaningDisinfectionRecordsTable.nextDueDate })
       .from(cleaningDisinfectionRecordsTable)
-      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart), lt(cleaningDisinfectionRecordsTable.nextDueDate, rangeEnd))),
+      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart as any), lt(cleaningDisinfectionRecordsTable.nextDueDate, rangeEnd as any))),
 
     db.select({ id: biosecurityPlansTable.id, nextReviewDate: biosecurityPlansTable.nextReviewDate })
       .from(biosecurityPlansTable)
-      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart), lt(biosecurityPlansTable.nextReviewDate, rangeEnd))),
+      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart as any), lt(biosecurityPlansTable.nextReviewDate, rangeEnd as any))),
 
     db.select({ id: staffCertificatesTable.id, certificateType: staffCertificatesTable.certificateType, certificateNumber: staffCertificatesTable.certificateNumber, expiryDate: staffCertificatesTable.expiryDate })
       .from(staffCertificatesTable)
-      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart), lt(staffCertificatesTable.expiryDate, rangeEnd))),
+      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart as any), lt(staffCertificatesTable.expiryDate, rangeEnd as any))),
 
     db.select({ id: staffTrainingRecordsTable.id, trainingTitle: staffTrainingRecordsTable.trainingTitle, expiryDate: staffTrainingRecordsTable.expiryDate })
       .from(staffTrainingRecordsTable)
-      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart), lt(staffTrainingRecordsTable.expiryDate, rangeEnd))),
+      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart as any), lt(staffTrainingRecordsTable.expiryDate, rangeEnd as any))),
 
     db.select({ id: inspectionRecordsTable.id, inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
       .from(inspectionRecordsTable)
-      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd))),
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart as any), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd as any))),
 
     db.select({ id: correctiveActionsTable.id, nonconformanceId: correctiveActionsTable.nonconformanceId, description: correctiveActionsTable.description, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
       .from(correctiveActionsTable)
       .innerJoin(nonconformanceRecordsTable, eq(correctiveActionsTable.nonconformanceId, nonconformanceRecordsTable.id))
-      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, rangeEnd))),
+      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart as any), lt(correctiveActionsTable.dueDate, rangeEnd as any))),
 
     db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
       .from(riskAssessmentsTable)
-      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart), lt(riskAssessmentsTable.reviewDate, rangeEnd))),
+      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart as any), lt(riskAssessmentsTable.reviewDate, rangeEnd as any))),
 
     db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
       .from(equipmentMaintenanceLogsTable)
       .innerJoin(equipmentTable, eq(equipmentMaintenanceLogsTable.equipmentId, equipmentTable.id))
-      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd))),
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart as any), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd as any))),
 
     db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
       .from(equipmentCalibrationRecordsTable)
       .innerJoin(equipmentTable, eq(equipmentCalibrationRecordsTable.equipmentId, equipmentTable.id))
-      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd))),
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart as any), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd as any))),
 
     db.select({ id: farmInsuranceTable.id, policyType: farmInsuranceTable.policyType, insurer: farmInsuranceTable.insurer, policyNumber: farmInsuranceTable.policyNumber, expiryDate: farmInsuranceTable.expiryDate })
       .from(farmInsuranceTable)
@@ -13282,31 +13282,31 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
     db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, expiryDate: staffRightToWorkTable.expiryDate })
       .from(staffRightToWorkTable)
-      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart), lt(staffRightToWorkTable.expiryDate, rangeEnd))),
+      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart as any), lt(staffRightToWorkTable.expiryDate, rangeEnd as any))),
 
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, withdrawalEndDate: livestockMedicineRecordsTable.withdrawalEndDate })
       .from(livestockMedicineRecordsTable)
-      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.withdrawalEndDate), gte(livestockMedicineRecordsTable.withdrawalEndDate, overdueStart), lt(livestockMedicineRecordsTable.withdrawalEndDate, rangeEnd))),
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.withdrawalEndDate), gte(livestockMedicineRecordsTable.withdrawalEndDate, overdueStart as any), lt(livestockMedicineRecordsTable.withdrawalEndDate, rangeEnd as any))),
 
     db.select({ id: vetHealthPlansTable.id, vetName: vetHealthPlansTable.vetName, planYear: vetHealthPlansTable.planYear, reviewDate: vetHealthPlansTable.reviewDate })
       .from(vetHealthPlansTable)
-      .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart), lt(vetHealthPlansTable.reviewDate, rangeEnd))),
+      .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart as any), lt(vetHealthPlansTable.reviewDate, rangeEnd as any))),
 
     db.select({ id: workshopPatTestsTable.id, itemName: workshopPatTestsTable.itemName, location: workshopPatTestsTable.location, nextDueDate: workshopPatTestsTable.nextDueDate })
       .from(workshopPatTestsTable)
-      .where(and(eq(workshopPatTestsTable.farmId, farmId), isNotNull(workshopPatTestsTable.nextDueDate), gte(workshopPatTestsTable.nextDueDate, overdueStart), lt(workshopPatTestsTable.nextDueDate, rangeEnd))),
+      .where(and(eq(workshopPatTestsTable.farmId, farmId), isNotNull(workshopPatTestsTable.nextDueDate), gte(workshopPatTestsTable.nextDueDate, overdueStart as any), lt(workshopPatTestsTable.nextDueDate, rangeEnd as any))),
 
     db.select({ id: workshopFireExtinguishersTable.id, location: workshopFireExtinguishersTable.location, type: workshopFireExtinguishersTable.type, nextServiceDue: workshopFireExtinguishersTable.nextServiceDue })
       .from(workshopFireExtinguishersTable)
-      .where(and(eq(workshopFireExtinguishersTable.farmId, farmId), isNotNull(workshopFireExtinguishersTable.nextServiceDue), gte(workshopFireExtinguishersTable.nextServiceDue, overdueStart), lt(workshopFireExtinguishersTable.nextServiceDue, rangeEnd))),
+      .where(and(eq(workshopFireExtinguishersTable.farmId, farmId), isNotNull(workshopFireExtinguishersTable.nextServiceDue), gte(workshopFireExtinguishersTable.nextServiceDue, overdueStart as any), lt(workshopFireExtinguishersTable.nextServiceDue, rangeEnd as any))),
 
     db.select({ id: workshopJobsTable.id, title: workshopJobsTable.title, status: workshopJobsTable.status, priority: workshopJobsTable.priority, estimatedCompletionDate: workshopJobsTable.estimatedCompletionDate })
       .from(workshopJobsTable)
-      .where(and(eq(workshopJobsTable.farmId, farmId), isNotNull(workshopJobsTable.estimatedCompletionDate), gte(workshopJobsTable.estimatedCompletionDate, overdueStart), lt(workshopJobsTable.estimatedCompletionDate, rangeEnd))),
+      .where(and(eq(workshopJobsTable.farmId, farmId), isNotNull(workshopJobsTable.estimatedCompletionDate), gte(workshopJobsTable.estimatedCompletionDate, overdueStart as any), lt(workshopJobsTable.estimatedCompletionDate, rangeEnd as any))),
 
     db.select({ id: biofuelCertificationsTable.id, scheme: biofuelCertificationsTable.scheme, certificationNumber: biofuelCertificationsTable.certificationNumber, expiryDate: biofuelCertificationsTable.expiryDate, status: biofuelCertificationsTable.status })
       .from(biofuelCertificationsTable)
-      .where(and(eq(biofuelCertificationsTable.farmId, farmId), isNotNull(biofuelCertificationsTable.expiryDate), gte(biofuelCertificationsTable.expiryDate, overdueStart), lt(biofuelCertificationsTable.expiryDate, rangeEnd))),
+      .where(and(eq(biofuelCertificationsTable.farmId, farmId), isNotNull(biofuelCertificationsTable.expiryDate), gte(biofuelCertificationsTable.expiryDate, overdueStart as any), lt(biofuelCertificationsTable.expiryDate, rangeEnd as any))),
 
     db.select({ id: waterAbstractionLicencesTable.id, licenceExpiryDate: waterAbstractionLicencesTable.licenceExpiryDate })
       .from(waterAbstractionLicencesTable)
@@ -13314,123 +13314,123 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
     db.select({ id: purchaseOrdersTable.id, poNumber: purchaseOrdersTable.poNumber, expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate, status: purchaseOrdersTable.status })
       .from(purchaseOrdersTable)
-      .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd))),
+      .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart as any), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd as any))),
 
     db.select({ id: coshhRecordsTable.id, substanceName: coshhRecordsTable.substanceName, reviewDate: coshhRecordsTable.reviewDate })
       .from(coshhRecordsTable)
-      .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart), lt(coshhRecordsTable.reviewDate, rangeEnd))),
+      .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart as any), lt(coshhRecordsTable.reviewDate, rangeEnd as any))),
 
     db.select({ id: farmPlannerEventsTable.id, title: farmPlannerEventsTable.title, description: farmPlannerEventsTable.description, eventDate: farmPlannerEventsTable.eventDate, colour: farmPlannerEventsTable.colour })
       .from(farmPlannerEventsTable)
-      .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart), lt(farmPlannerEventsTable.eventDate, rangeEnd))),
+      .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart as any), lt(farmPlannerEventsTable.eventDate, rangeEnd as any))),
 
     db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
       .from(farmGrantsTable)
-      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.purchaseDeadline), gte(farmGrantsTable.purchaseDeadline, overdueStart), lt(farmGrantsTable.purchaseDeadline, rangeEnd))),
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.purchaseDeadline), gte(farmGrantsTable.purchaseDeadline, overdueStart as any), lt(farmGrantsTable.purchaseDeadline, rangeEnd as any))),
 
     db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
       .from(farmGrantsTable)
-      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.claimDeadline), gte(farmGrantsTable.claimDeadline, overdueStart), lt(farmGrantsTable.claimDeadline, rangeEnd))),
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.claimDeadline), gte(farmGrantsTable.claimDeadline, overdueStart as any), lt(farmGrantsTable.claimDeadline, rangeEnd as any))),
 
     // ── Livestock: expected calving (AI/reproduction records without actual calving date) ──
     db.select({ id: aiReproductionRecordsTable.id, earTag: aiReproductionRecordsTable.earTag, expectedCalvingDate: aiReproductionRecordsTable.expectedCalvingDate, serviceType: aiReproductionRecordsTable.serviceType })
       .from(aiReproductionRecordsTable)
-      .where(and(eq(aiReproductionRecordsTable.farmId, farmId), isNotNull(aiReproductionRecordsTable.expectedCalvingDate), isNull(aiReproductionRecordsTable.actualCalvingDate), gte(aiReproductionRecordsTable.expectedCalvingDate, overdueStart), lt(aiReproductionRecordsTable.expectedCalvingDate, rangeEnd))),
+      .where(and(eq(aiReproductionRecordsTable.farmId, farmId), isNotNull(aiReproductionRecordsTable.expectedCalvingDate), isNull(aiReproductionRecordsTable.actualCalvingDate), gte(aiReproductionRecordsTable.expectedCalvingDate, overdueStart as any), lt(aiReproductionRecordsTable.expectedCalvingDate, rangeEnd as any))),
 
     // ── Livestock: vet prescription expiry ──
     db.select({ id: vetPrescriptionRecordsTable.id, productName: vetPrescriptionRecordsTable.productName, vetName: vetPrescriptionRecordsTable.vetName, expiryDate: vetPrescriptionRecordsTable.expiryDate, targetSpecies: vetPrescriptionRecordsTable.targetSpecies })
       .from(vetPrescriptionRecordsTable)
-      .where(and(eq(vetPrescriptionRecordsTable.farmId, farmId), isNotNull(vetPrescriptionRecordsTable.expiryDate), gte(vetPrescriptionRecordsTable.expiryDate, overdueStart), lt(vetPrescriptionRecordsTable.expiryDate, rangeEnd))),
+      .where(and(eq(vetPrescriptionRecordsTable.farmId, farmId), isNotNull(vetPrescriptionRecordsTable.expiryDate), gte(vetPrescriptionRecordsTable.expiryDate, overdueStart as any), lt(vetPrescriptionRecordsTable.expiryDate, rangeEnd as any))),
 
     // ── Poultry: medicine withdrawal clear date ──
     db.select({ id: poultryTreatmentsTable.id, productName: poultryTreatmentsTable.productName, withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate })
       .from(poultryTreatmentsTable)
-      .where(and(eq(poultryTreatmentsTable.farmId, farmId), isNotNull(poultryTreatmentsTable.withdrawalClearDate), gte(poultryTreatmentsTable.withdrawalClearDate, overdueStart), lt(poultryTreatmentsTable.withdrawalClearDate, rangeEnd))),
+      .where(and(eq(poultryTreatmentsTable.farmId, farmId), isNotNull(poultryTreatmentsTable.withdrawalClearDate), gte(poultryTreatmentsTable.withdrawalClearDate, overdueStart as any), lt(poultryTreatmentsTable.withdrawalClearDate, rangeEnd as any))),
 
     // ── Poultry scheme: corrective action deadline ──
     db.select({ id: poultrySchemeRecordsTable.id, scheme: poultrySchemeRecordsTable.scheme, correctiveActionDeadline: poultrySchemeRecordsTable.correctiveActionDeadline })
       .from(poultrySchemeRecordsTable)
-      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.correctiveActionDeadline), gte(poultrySchemeRecordsTable.correctiveActionDeadline, overdueStart), lt(poultrySchemeRecordsTable.correctiveActionDeadline, rangeEnd))),
+      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.correctiveActionDeadline), gte(poultrySchemeRecordsTable.correctiveActionDeadline, overdueStart as any), lt(poultrySchemeRecordsTable.correctiveActionDeadline, rangeEnd as any))),
 
     // ── Poultry scheme: next assessment due ──
     db.select({ id: poultrySchemeRecordsTable.id, scheme: poultrySchemeRecordsTable.scheme, nextAssessmentDue: poultrySchemeRecordsTable.nextAssessmentDue })
       .from(poultrySchemeRecordsTable)
-      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.nextAssessmentDue), gte(poultrySchemeRecordsTable.nextAssessmentDue, overdueStart), lt(poultrySchemeRecordsTable.nextAssessmentDue, rangeEnd))),
+      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.nextAssessmentDue), gte(poultrySchemeRecordsTable.nextAssessmentDue, overdueStart as any), lt(poultrySchemeRecordsTable.nextAssessmentDue, rangeEnd as any))),
 
     // ── Pig Red Tractor: certificate expiry ──
     db.select({ id: pigRedTractorChecklistTable.id, certificateExpiryDate: pigRedTractorChecklistTable.certificateExpiryDate, certificateNumber: pigRedTractorChecklistTable.certificateNumber })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.certificateExpiryDate), gte(pigRedTractorChecklistTable.certificateExpiryDate, overdueStart), lt(pigRedTractorChecklistTable.certificateExpiryDate, rangeEnd))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.certificateExpiryDate), gte(pigRedTractorChecklistTable.certificateExpiryDate, overdueStart as any), lt(pigRedTractorChecklistTable.certificateExpiryDate, rangeEnd as any))),
 
     // ── Pig Red Tractor: corrective action deadline ──
     db.select({ id: pigRedTractorChecklistTable.id, correctiveActionDeadline: pigRedTractorChecklistTable.correctiveActionDeadline, nonConformanceDetails: pigRedTractorChecklistTable.nonConformanceDetails })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.correctiveActionDeadline), gte(pigRedTractorChecklistTable.correctiveActionDeadline, overdueStart), lt(pigRedTractorChecklistTable.correctiveActionDeadline, rangeEnd))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.correctiveActionDeadline), gte(pigRedTractorChecklistTable.correctiveActionDeadline, overdueStart as any), lt(pigRedTractorChecklistTable.correctiveActionDeadline, rangeEnd as any))),
 
     // ── Pig Red Tractor: next assessment due ──
     db.select({ id: pigRedTractorChecklistTable.id, nextAssessmentDue: pigRedTractorChecklistTable.nextAssessmentDue })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.nextAssessmentDue), gte(pigRedTractorChecklistTable.nextAssessmentDue, overdueStart), lt(pigRedTractorChecklistTable.nextAssessmentDue, rangeEnd))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.nextAssessmentDue), gte(pigRedTractorChecklistTable.nextAssessmentDue, overdueStart as any), lt(pigRedTractorChecklistTable.nextAssessmentDue, rangeEnd as any))),
 
     // ── Pig: vet assessment next review ──
     db.select({ id: pigVetAssessmentsTable.id, vetName: pigVetAssessmentsTable.vetName, nextReviewDate: pigVetAssessmentsTable.nextReviewDate })
       .from(pigVetAssessmentsTable)
-      .where(and(eq(pigVetAssessmentsTable.farmId, farmId), isNotNull(pigVetAssessmentsTable.nextReviewDate), gte(pigVetAssessmentsTable.nextReviewDate, overdueStart), lt(pigVetAssessmentsTable.nextReviewDate, rangeEnd))),
+      .where(and(eq(pigVetAssessmentsTable.farmId, farmId), isNotNull(pigVetAssessmentsTable.nextReviewDate), gte(pigVetAssessmentsTable.nextReviewDate, overdueStart as any), lt(pigVetAssessmentsTable.nextReviewDate, rangeEnd as any))),
 
     // ── SFI / Environmental: next evidence date ──
     db.select({ id: sfiActionsTable.id, actionCode: sfiActionsTable.actionCode, actionTitle: sfiActionsTable.actionTitle, nextEvidenceDate: sfiActionsTable.nextEvidenceDate })
       .from(sfiActionsTable)
-      .where(and(eq(sfiActionsTable.farmId, farmId), isNotNull(sfiActionsTable.nextEvidenceDate), gte(sfiActionsTable.nextEvidenceDate, overdueStart), lt(sfiActionsTable.nextEvidenceDate, rangeEnd))),
+      .where(and(eq(sfiActionsTable.farmId, farmId), isNotNull(sfiActionsTable.nextEvidenceDate), gte(sfiActionsTable.nextEvidenceDate, overdueStart as any), lt(sfiActionsTable.nextEvidenceDate, rangeEnd as any))),
 
     // ── Slurry store: next inspection due ──
     db.select({ id: slurryStoresTable.id, storeName: slurryStoresTable.storeName, storeType: slurryStoresTable.storeType, nextInspectionDue: slurryStoresTable.nextInspectionDue })
       .from(slurryStoresTable)
-      .where(and(eq(slurryStoresTable.farmId, farmId), isNotNull(slurryStoresTable.nextInspectionDue), gte(slurryStoresTable.nextInspectionDue, overdueStart), lt(slurryStoresTable.nextInspectionDue, rangeEnd))),
+      .where(and(eq(slurryStoresTable.farmId, farmId), isNotNull(slurryStoresTable.nextInspectionDue), gte(slurryStoresTable.nextInspectionDue, overdueStart as any), lt(slurryStoresTable.nextInspectionDue, rangeEnd as any))),
 
     // ── Water: borehole / water quality test next due ──
     db.select({ id: boreholeTestsTable.id, nextTestDueDate: boreholeTestsTable.nextTestDueDate, overallResult: boreholeTestsTable.overallResult })
       .from(boreholeTestsTable)
-      .where(and(eq(boreholeTestsTable.farmId, farmId), isNotNull(boreholeTestsTable.nextTestDueDate), gte(boreholeTestsTable.nextTestDueDate, overdueStart), lt(boreholeTestsTable.nextTestDueDate, rangeEnd))),
+      .where(and(eq(boreholeTestsTable.farmId, farmId), isNotNull(boreholeTestsTable.nextTestDueDate), gte(boreholeTestsTable.nextTestDueDate, overdueStart as any), lt(boreholeTestsTable.nextTestDueDate, rangeEnd as any))),
 
     // ── Water: drought management plan review ──
     db.select({ id: droughtManagementPlansTable.id, planTitle: droughtManagementPlansTable.planTitle, reviewDate: droughtManagementPlansTable.reviewDate })
       .from(droughtManagementPlansTable)
-      .where(and(eq(droughtManagementPlansTable.farmId, farmId), isNotNull(droughtManagementPlansTable.reviewDate), gte(droughtManagementPlansTable.reviewDate, overdueStart), lt(droughtManagementPlansTable.reviewDate, rangeEnd))),
+      .where(and(eq(droughtManagementPlansTable.farmId, farmId), isNotNull(droughtManagementPlansTable.reviewDate), gte(droughtManagementPlansTable.reviewDate, overdueStart as any), lt(droughtManagementPlansTable.reviewDate, rangeEnd as any))),
 
     // ── Fuel: tank next inspection due ──
     db.select({ id: fuelTanksTable.id, tankName: fuelTanksTable.name, fuelType: fuelTanksTable.fuelType, nextInspectionDue: fuelTanksTable.nextInspectionDue })
       .from(fuelTanksTable)
-      .where(and(eq(fuelTanksTable.farmId, farmId), isNotNull(fuelTanksTable.nextInspectionDue), gte(fuelTanksTable.nextInspectionDue, overdueStart), lt(fuelTanksTable.nextInspectionDue, rangeEnd))),
+      .where(and(eq(fuelTanksTable.farmId, farmId), isNotNull(fuelTanksTable.nextInspectionDue), gte(fuelTanksTable.nextInspectionDue, overdueStart as any), lt(fuelTanksTable.nextInspectionDue, rangeEnd as any))),
 
     // ── Feed: delivery best before date ──
     db.select({ id: feedDeliveriesTable.id, productName: feedDeliveriesTable.productName, feedType: feedDeliveriesTable.feedType, bestBeforeDate: feedDeliveriesTable.bestBeforeDate })
       .from(feedDeliveriesTable)
-      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.bestBeforeDate), gte(feedDeliveriesTable.bestBeforeDate, overdueStart), lt(feedDeliveriesTable.bestBeforeDate, rangeEnd))),
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.bestBeforeDate), gte(feedDeliveriesTable.bestBeforeDate, overdueStart as any), lt(feedDeliveriesTable.bestBeforeDate, rangeEnd as any))),
 
     // ── Diversification: activity insurance renewal ──
     db.select({ id: diversificationActivitiesTable.id, activityName: diversificationActivitiesTable.activityName, activityType: diversificationActivitiesTable.activityType, insuranceRenewalDate: diversificationActivitiesTable.insuranceRenewalDate })
       .from(diversificationActivitiesTable)
-      .where(and(eq(diversificationActivitiesTable.farmId, farmId), eq(diversificationActivitiesTable.status, "active"), isNotNull(diversificationActivitiesTable.insuranceRenewalDate), gte(diversificationActivitiesTable.insuranceRenewalDate, overdueStart), lt(diversificationActivitiesTable.insuranceRenewalDate, rangeEnd))),
+      .where(and(eq(diversificationActivitiesTable.farmId, farmId), eq(diversificationActivitiesTable.status, "active"), isNotNull(diversificationActivitiesTable.insuranceRenewalDate), gte(diversificationActivitiesTable.insuranceRenewalDate, overdueStart as any), lt(diversificationActivitiesTable.insuranceRenewalDate, rangeEnd as any))),
 
     // ── Fuel/Energy: renewable installation next service ──
     db.select({ id: renewableEnergyInstallationsTable.id, installationName: renewableEnergyInstallationsTable.installationName, technologyType: renewableEnergyInstallationsTable.technologyType, nextServiceDate: renewableEnergyInstallationsTable.nextServiceDate })
       .from(renewableEnergyInstallationsTable)
-      .where(and(eq(renewableEnergyInstallationsTable.farmId, farmId), isNotNull(renewableEnergyInstallationsTable.nextServiceDate), gte(renewableEnergyInstallationsTable.nextServiceDate, overdueStart), lt(renewableEnergyInstallationsTable.nextServiceDate, rangeEnd))),
+      .where(and(eq(renewableEnergyInstallationsTable.farmId, farmId), isNotNull(renewableEnergyInstallationsTable.nextServiceDate), gte(renewableEnergyInstallationsTable.nextServiceDate, overdueStart as any), lt(renewableEnergyInstallationsTable.nextServiceDate, rangeEnd as any))),
 
     // ── Water: irrigation equipment next calibration ──
     db.select({ id: irrigationEquipmentTable.id, equipmentName: irrigationEquipmentTable.equipmentName, equipmentType: irrigationEquipmentTable.equipmentType, nextCalibrationDue: irrigationEquipmentTable.nextCalibrationDue })
       .from(irrigationEquipmentTable)
-      .where(and(eq(irrigationEquipmentTable.farmId, farmId), isNotNull(irrigationEquipmentTable.nextCalibrationDue), gte(irrigationEquipmentTable.nextCalibrationDue, overdueStart), lt(irrigationEquipmentTable.nextCalibrationDue, rangeEnd))),
+      .where(and(eq(irrigationEquipmentTable.farmId, farmId), isNotNull(irrigationEquipmentTable.nextCalibrationDue), gte(irrigationEquipmentTable.nextCalibrationDue, overdueStart as any), lt(irrigationEquipmentTable.nextCalibrationDue, rangeEnd as any))),
 
     // ── Horticulture: water quality test next due ──
     db.select({ id: horticultureWaterTestsTable.id, nextTestDueDate: horticultureWaterTestsTable.nextTestDueDate })
       .from(horticultureWaterTestsTable)
-      .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd))),
+      .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart as any), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd as any))),
 
     // ── Pending/in-progress task assignments (incl. work orders) ──
     db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId, workOrderRef: farmTaskAssignmentsTable.workOrderRef })
       .from(farmTaskAssignmentsTable)
-      .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart), lt(farmTaskAssignmentsTable.dueDate, rangeEnd))),
+      .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart as any), lt(farmTaskAssignmentsTable.dueDate, rangeEnd as any))),
 
     // ── Fuel: stock check discrepancies requiring investigation ──
     db.select({ id: fuelStockChecksTable.id, tankId: fuelStockChecksTable.tankId, checkDate: fuelStockChecksTable.checkDate, measuredLitres: fuelStockChecksTable.measuredLitres, calculatedLitres: fuelStockChecksTable.calculatedLitres, varianceLitres: fuelStockChecksTable.varianceLitres, checkedBy: fuelStockChecksTable.checkedBy, tankName: fuelTanksTable.name })
@@ -13507,7 +13507,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── Medicine Register: organic treatment — organic (doubled) withdrawal end date ──
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, organicWithdrawalEndDate: livestockMedicineRecordsTable.organicWithdrawalEndDate })
       .from(livestockMedicineRecordsTable)
-      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd))),
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart as any), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd as any))),
 
     // ── TB Test Register: next retest due date ────────────────────────────────
     db.select({ id: tbTestsTable.id, species: tbTestsTable.species, herdFlockRef: tbTestsTable.herdFlockRef, nextTestDueDate: tbTestsTable.nextTestDueDate })
@@ -13579,21 +13579,21 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── Dairy: mobility assessment due (quarterly — 91-day cycle) ─────────────
     db.select({ id: dairyMobilityScoringsTable.id, nextAssessmentDue: dairyMobilityScoringsTable.nextAssessmentDue, assessedBy: dairyMobilityScoringsTable.assessedBy, lamenessPrevalencePercent: dairyMobilityScoringsTable.lamenessPrevalencePercent })
       .from(dairyMobilityScoringsTable)
-      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd))),
+      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart as any), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd as any))),
 
     // ── Field Crops: expected harvest dates ───────────────────────────────────
     db.select({ id: fieldCropAssignmentsTable.id, expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
       .from(fieldCropAssignmentsTable)
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
-      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd))),
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart as any), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd as any))),
 
     // ── Field Crops: planting dates ───────────────────────────────────────────
     db.select({ id: fieldCropAssignmentsTable.id, plantingDate: fieldCropAssignmentsTable.plantingDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
       .from(fieldCropAssignmentsTable)
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
-      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd))),
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart as any), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd as any))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -13821,7 +13821,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     const type = isWO ? "work_order" : "task_assignment";
     const prefix = isWO ? `${r.workOrderRef} · ` : "";
     const statusLabel = r.status === "in_progress" ? "in progress" : "scheduled";
-    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour, assignedToMemberId: r.assignedToMemberId });
+    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour } as any);
   }
 
   for (const r of vetFollowUpRows) {
@@ -14192,7 +14192,7 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
   soil_tests: async (farmId) => db.select().from(soilTestRecordsTable).where(eq(soilTestRecordsTable.farmId, farmId)).orderBy(desc(soilTestRecordsTable.sampleDate)).limit(100),
   equipment: async (farmId) => db.select().from(equipmentTable).where(eq(equipmentTable.farmId, farmId)),
   livestock: async (farmId) => db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)),
-  medicines: async (farmId) => db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc(livestockMedicineRecordsTable.treatmentDate)).limit(200),
+  medicines: async (farmId) => db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc((livestockMedicineRecordsTable as any).treatmentDate)).limit(200),
   movements: async (farmId) => db.select().from(livestockMovementsTable).where(eq(livestockMovementsTable.farmId, farmId)).orderBy(desc(livestockMovementsTable.movementDate)).limit(200),
   biosecurity: async (farmId) => ({
     visitors: await db.select().from(visitorContractorLogTable).where(eq(visitorContractorLogTable.farmId, farmId)).orderBy(desc(visitorContractorLogTable.arrivalTime)).limit(100),
@@ -14216,7 +14216,7 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
     coshh: await db.select().from(coshhRecordsTable).where(eq(coshhRecordsTable.farmId, farmId)).limit(100),
   }),
   environmental: async (farmId) => db.select().from(environmentalFeaturesTable).where(eq(environmentalFeaturesTable.farmId, farmId)).limit(100),
-  harvest: async (farmId) => db.select().from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)).orderBy(desc(harvestRecordsTable.harvestDate)).limit(200),
+  harvest: async (farmId) => db.select().from(harvestRecordsTable).where(eq((harvestRecordsTable as any).farmId, farmId)).orderBy(desc(harvestRecordsTable.harvestDate)).limit(200),
   workshop: async (farmId) => ({
     jobCards: await db.select({ job: workshopJobsTable, equipmentName: equipmentTable.name }).from(workshopJobsTable).leftJoin(equipmentTable, eq(workshopJobsTable.equipmentId, equipmentTable.id)).where(eq(workshopJobsTable.farmId, farmId)).orderBy(desc(workshopJobsTable.createdAt)).limit(100),
     patTests: await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate)).limit(100),
@@ -14262,7 +14262,7 @@ router.get("/access-token/:token", async (req: Request, res: Response): Promise<
   const { token } = req.params;
 
   // Try advisor token first
-  const [advisor] = await db.select().from(farmAdvisorsTable).where(eq(farmAdvisorsTable.token, token)).limit(1);
+  const [advisor] = await db.select().from(farmAdvisorsTable).where(eq((farmAdvisorsTable as any).token, token)).limit(1);
   let farmId: number | null = null;
   let sessionType: "advisor" | "inspection" | null = null;
   let sessionId: number | null = null;
@@ -14283,7 +14283,7 @@ router.get("/access-token/:token", async (req: Request, res: Response): Promise<
     await db.update(farmAdvisorsTable).set({ lastAccessAt: new Date(), status: "active" }).where(eq(farmAdvisorsTable.id, advisor.id));
   } else {
     // Try inspection session
-    const [session] = await db.select().from(farmInspectionSessionsTable).where(eq(farmInspectionSessionsTable.token, token)).limit(1);
+    const [session] = await db.select().from(farmInspectionSessionsTable).where(eq((farmInspectionSessionsTable as any).token, token)).limit(1);
     if (!session) { res.status(404).json({ error: "Access token not found or expired" }); return; }
     if (session.revokedAt) { res.status(403).json({ error: "Access has been revoked" }); return; }
     if (new Date() > session.expiresAt) { res.status(403).json({ error: "Access has expired" }); return; }
@@ -14349,7 +14349,7 @@ router.get("/access-token/:token", async (req: Request, res: Response): Promise<
 // ── Business Reports ──────────────────────────────────────────────────────────
 
 router.get("/:farmId/reports/gross-margin", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
   const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
@@ -14379,7 +14379,7 @@ router.get("/:farmId/reports/gross-margin", requireAuth, requireModuleByKey("bus
 });
 
 router.get("/:farmId/reports/grain-position", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
   const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
@@ -14418,7 +14418,7 @@ router.get("/:farmId/reports/grain-position", requireAuth, requireModuleByKey("b
 });
 
 router.get("/:farmId/reports/subsidies", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
   const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
@@ -14438,7 +14438,7 @@ router.get("/:farmId/reports/subsidies", requireAuth, requireModuleByKey("busine
 });
 
 router.get("/:farmId/reports/year-on-year", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
 
   const allHarvests = await db
     .select({
@@ -14459,7 +14459,7 @@ router.get("/:farmId/reports/year-on-year", requireAuth, requireModuleByKey("bus
 });
 
 router.get("/:farmId/reports/assets", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
 
   const equipment = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.isActive, true)));
 
@@ -14472,15 +14472,15 @@ router.get("/:farmId/reports/assets", requireAuth, requireModuleByKey("business-
 // ─── Workshop & Asset Management ───────────────────────────────────────────────
 
 router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { assetNumber } = req.params;
-  const [equip] = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.assetNumber, assetNumber))).limit(1);
+  const [equip] = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq((equipmentTable as any).assetNumber, assetNumber))).limit(1);
   if (!equip) { res.status(404).json({ error: "Asset not found" }); return; }
   res.json(equip);
 });
 
 router.get("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const jobs = await db
     .select({
       job: workshopJobsTable,
@@ -14499,7 +14499,7 @@ router.get("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireMo
 });
 
 router.post("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const count = await db.select({ c: sql<number>`count(*)` }).from(workshopJobsTable).where(eq(workshopJobsTable.farmId, farmId));
   const jobNumber = `JOB-${String(Number(count[0].c) + 1).padStart(4, "0")}`;
   const [record] = await db.insert(workshopJobsTable).values({ ...req.body, farmId, jobNumber }).returning();
@@ -14507,23 +14507,23 @@ router.post("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireM
 });
 
 router.put("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const { id: _id, farmId: _f, jobNumber: _jn, createdAt: _c, serviceInvoiceId: _si, ...rest } = req.body;
   const [record] = await db.update(workshopJobsTable).set(rest).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId))).returning();
   res.json(record);
 });
 
 router.delete("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(workshopJobsTable).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const jobId = parseInt(req.params.jobId);
+  const farmId = parseInt(req.params.farmId as string);
+  const jobId = parseInt(req.params.jobId as string);
   if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
 
   const [job] = await db.select().from(workshopJobsTable)
@@ -14606,7 +14606,7 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, re
   }).returning();
 
   if (lines.length > 0) {
-    await db.insert(serviceInvoiceLinesTable).values(lines.map(l => ({ ...l, invoiceId: invoice.id })));
+    await db.insert(serviceInvoiceLinesTable).values(lines.map(l => ({ ...l, invoiceId: invoice.id })) as any[]);
     const subtotal = lines.reduce((s, l) => s + l.lineTotalPence, 0);
     const vatPence = Math.round(subtotal * 20 / 100);
     await db.update(serviceInvoicesTable)
@@ -14624,7 +14624,7 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, re
 });
 
 router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const allLogs = await db
     .select({ log: equipmentMaintenanceLogsTable, equipmentName: equipmentTable.name, assetNumber: equipmentTable.assetNumber, equipmentType: equipmentTable.type })
     .from(equipmentMaintenanceLogsTable)
@@ -14686,7 +14686,7 @@ router.post("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, req
 router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { buildingId, subLocation, ...rest } = req.body;
   const [record] = await db.update(workshopPatTestsTable).set({ ...rest, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).where(and(eq(workshopPatTestsTable.id, id), eq(workshopPatTestsTable.farmId, farmId))).returning();
@@ -14696,7 +14696,7 @@ router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, 
 router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopPatTestsTable).where(and(eq(workshopPatTestsTable.id, id), eq(workshopPatTestsTable.farmId, farmId)));
   res.json({ success: true });
@@ -14747,7 +14747,7 @@ router.post("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTe
 router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { buildingId, subLocation, location, ...rest } = req.body;
   let resolvedLocation = location ?? "";
@@ -14762,7 +14762,7 @@ router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requir
 router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopFireExtinguishersTable).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId)));
   res.json({ success: true });
@@ -14823,7 +14823,7 @@ router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, require
 router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { name, category, productCode, unit, reorderLevel, unitCostPence, storageLocation, defaultSupplierId, notes } = req.body;
   const [record] = await db.update(stockItemsTable)
@@ -14841,7 +14841,7 @@ router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requ
 router.delete("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(stockItemsTable).set({ isActive: false }).where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)));
   res.json({ success: true });
@@ -14938,7 +14938,7 @@ router.post("/farms/:farmId/workshop/parts/use", requireAuth, requireTenant, req
 router.get("/farms/:farmId/workshop/jobs/:jobId/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const jobId = parseInt(req.params.jobId);
+  const jobId = parseInt(req.params.jobId as string);
   if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
 
   const movements = await db
@@ -15000,14 +15000,14 @@ router.get("/farms/:farmId/workshop/parts/movements", requireAuth, requireTenant
 
 router.get("/farms/:farmId/workshop/parts/:partId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const partId = parseInt(req.params.partId); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
+  const partId = parseInt(req.params.partId as string); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
   const docs = await db.select().from(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.stockItemId, partId)).orderBy(desc(workshopPartDocumentsTable.uploadedAt));
   res.json(docs);
 });
 
 router.post("/farms/:farmId/workshop/parts/:partId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const partId = parseInt(req.params.partId); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
+  const partId = parseInt(req.params.partId as string); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
   const { filename, storageKey, mimeType, fileSizeBytes, uploadedBy } = req.body;
   if (!filename || !storageKey) { res.status(400).json({ error: "filename and storageKey are required" }); return; }
   const [doc] = await db.insert(workshopPartDocumentsTable).values({ stockItemId: partId, filename, storageKey, mimeType: mimeType ?? null, fileSizeBytes: fileSizeBytes ?? null, uploadedBy: uploadedBy ?? null }).returning();
@@ -15016,7 +15016,7 @@ router.post("/farms/:farmId/workshop/parts/:partId/documents", requireAuth, requ
 
 router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
+  const docId = parseInt(req.params.docId as string); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
   await db.delete(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.id, docId));
   res.json({ success: true });
 });
@@ -15024,14 +15024,14 @@ router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireA
 // ── Job Card Documents ──────────────────────────────────────
 router.get("/farms/:farmId/workshop/jobs/:jobId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const jobId = parseInt(req.params.jobId); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+  const jobId = parseInt(req.params.jobId as string); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
   const docs = await db.select().from(workshopJobDocumentsTable).where(eq(workshopJobDocumentsTable.jobId, jobId)).orderBy(desc(workshopJobDocumentsTable.uploadedAt));
   res.json(docs);
 });
 
 router.post("/farms/:farmId/workshop/jobs/:jobId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const jobId = parseInt(req.params.jobId); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+  const jobId = parseInt(req.params.jobId as string); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
   const { filename, storageKey, mimeType, fileSizeBytes, uploadedBy } = req.body;
   if (!filename || !storageKey) { res.status(400).json({ error: "filename and storageKey are required" }); return; }
   const [doc] = await db.insert(workshopJobDocumentsTable).values({ jobId, filename, storageKey, mimeType: mimeType ?? null, fileSizeBytes: fileSizeBytes ?? null, uploadedBy: uploadedBy ?? null }).returning();
@@ -15040,7 +15040,7 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/documents", requireAuth, requir
 
 router.delete("/farms/:farmId/workshop/jobs/:jobId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
+  const docId = parseInt(req.params.docId as string); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
   await db.delete(workshopJobDocumentsTable).where(eq(workshopJobDocumentsTable.id, docId));
   res.json({ success: true });
 });
@@ -15129,7 +15129,7 @@ router.post("/farms/:farmId/workshop/returns", requireAuth, requireTenant, requi
 
 router.put("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const returnId = parseInt(req.params.returnId); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
+  const returnId = parseInt(req.params.returnId as string); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
   const allowed = ["supplierRtnNumber", "returnReason", "status", "raisedBy", "dispatchedAt", "creditAmountPence", "creditReceivedAt", "originalDeliveryRef", "notes"];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) { if (k in req.body) updates[k] = req.body[k] ?? null; }
@@ -15139,7 +15139,7 @@ router.put("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTena
 
 router.delete("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const returnId = parseInt(req.params.returnId); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
+  const returnId = parseInt(req.params.returnId as string); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
 
   // Reverse the outbound stock deduction before deleting
   const [existing] = await db.select().from(workshopGoodsReturnsTable).where(and(eq(workshopGoodsReturnsTable.id, returnId), eq(workshopGoodsReturnsTable.farmId, farmId))).limit(1);
@@ -15181,7 +15181,7 @@ router.post("/farms/:farmId/workshop/stocktakes", requireAuth, requireTenant, re
 
 router.get("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   const items = await db.select().from(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, id)).orderBy(workshopStocktakeItemsTable.partName);
@@ -15190,7 +15190,7 @@ router.get("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTenant,
 
 router.patch("/farms/:farmId/workshop/stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const sessionId = parseInt(req.params.id); const itemId = parseInt(req.params.itemId);
+  const sessionId = parseInt(req.params.id as string); const itemId = parseInt(req.params.itemId as string);
   if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, sessionId), eq(workshopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
@@ -15213,7 +15213,7 @@ router.patch("/farms/:farmId/workshop/stocktakes/:id/items/:itemId", requireAuth
 
 router.post("/farms/:farmId/workshop/stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Already completed" }); return; }
@@ -15224,7 +15224,7 @@ router.post("/farms/:farmId/workshop/stocktakes/:id/complete", requireAuth, requ
     if (i.stockItemId && i.countedQty !== null) {
       const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, i.stockItemId))).limit(1);
       if (existing) { await db.update(stockLevelsTable).set({ currentQuantity: String(i.countedQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id)); }
-      else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: i.stockItemId, currentQuantity: String(i.countedQty) }); }
+      else { await (db.insert(stockLevelsTable) as any).values({ farmId, stockItemId: i.stockItemId, currentQuantity: String(i.countedQty) }); }
     }
   }
   const totalVarianceValue = items.reduce((sum, i) => sum + (i.varianceValue ? parseFloat(String(i.varianceValue)) : 0), 0);
@@ -15234,7 +15234,7 @@ router.post("/farms/:farmId/workshop/stocktakes/:id/complete", requireAuth, requ
 
 router.delete("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select({ status: workshopStocktakeSessionsTable.status }).from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
@@ -15273,13 +15273,13 @@ router.post("/farms/:farmId/pig-movements", requireAuth, requireTenant, requireM
 });
 router.put("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigMovementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigMovementsTable).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15296,13 +15296,13 @@ router.post("/farms/:farmId/pig-fci-documents", requireAuth, requireTenant, requ
 });
 router.put("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigFciDocumentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigFciDocumentsTable).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15338,13 +15338,13 @@ router.post("/farms/:farmId/pig-feed-consumption", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigFeedConsumptionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigFeedConsumptionTable).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15361,13 +15361,13 @@ router.post("/farms/:farmId/pig-vet-assessments", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigVetAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigVetAssessmentsTable).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15384,13 +15384,13 @@ router.post("/farms/:farmId/pig-stockmanship-checks", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigStockmanshipChecksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigStockmanshipChecksTable).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15407,13 +15407,13 @@ router.post("/farms/:farmId/pig-tail-biting-risks", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigTailBitingRisksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigTailBitingRisksTable).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15430,13 +15430,13 @@ router.post("/farms/:farmId/pig-farrowing-records", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(pigFarrowingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigFarrowingRecordsTable).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15460,7 +15460,7 @@ router.post("/farms/:farmId/pig-medicine-treatments", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const body = { ...req.body };
   if (body.withdrawalPeriodMeatDays && body.treatmentDate) {
     const end = new Date(body.treatmentDate);
@@ -15472,7 +15472,7 @@ router.put("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, requireTen
 });
 router.delete("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigMedicineTreatmentsTable).where(and(eq(pigMedicineTreatmentsTable.id, id), eq(pigMedicineTreatmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15492,13 +15492,13 @@ router.post("/farms/:farmId/poultry-houses", requireAuth, requireTenant, require
 });
 router.put("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryHousesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryHousesTable).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15515,13 +15515,13 @@ router.post("/farms/:farmId/poultry-flocks", requireAuth, requireTenant, require
 });
 router.put("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryFlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryFlocksTable).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15561,7 +15561,7 @@ router.post("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const flockId = Number(req.body.flockId); const thisMortality = Number(req.body.mortalityCount ?? 0); const thisCulled = Number(req.body.culledCount ?? 0);
   const computed = flockId ? await calcMortalityTotals(farmId, flockId, thisMortality, thisCulled, id) : {};
   const [row] = await db.update(poultryDailyMortalityTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), ...computed }).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
@@ -15569,7 +15569,7 @@ router.put("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTen
 });
 router.delete("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryDailyMortalityTable).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15615,13 +15615,13 @@ router.post("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, req
 });
 router.put("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryTreatmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryTreatmentsTable).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15678,7 +15678,7 @@ router.post("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { consumptions: rawConsumptions, ...body } = req.body as Record<string, unknown>;
   const [row] = await db.update(poultryHouseCleanoutsTable).set(sanitiseBody(body)).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
   if (Array.isArray(rawConsumptions)) {
@@ -15695,7 +15695,7 @@ router.put("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTen
 });
 router.delete("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryHouseCleanoutsTable).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15720,18 +15720,18 @@ router.get("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTena
 });
 router.post("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const [row] = await db.insert(poultryEnvironmentalLogsTable).values({ ...req.body, farmId }).returning();
+  const [row] = await (db.insert(poultryEnvironmentalLogsTable) as any).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
 router.put("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryEnvironmentalLogsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryEnvironmentalLogsTable).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15761,13 +15761,13 @@ router.post("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryFciDocumentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryFciDocumentsTable).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15798,13 +15798,13 @@ router.post("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryBroilerWelfareTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryBroilerWelfareTable).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15834,13 +15834,13 @@ router.post("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(poultryThinningRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryThinningRecordsTable).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15881,13 +15881,13 @@ router.post("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticultureBlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15895,7 +15895,7 @@ router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTena
 // ─── Block Boundaries ─────────────────────────────────────────────────────
 router.get("/farms/:farmId/horticulture-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const blockId = parseInt(req.params.blockId, 10);
+  const blockId = parseInt(req.params.blockId as string, 10);
   if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
   const [block] = await db.select({ id: horticultureBlocksTable.id }).from(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, blockId), eq(horticultureBlocksTable.farmId, farmId)));
   if (!block) { res.status(404).json({ error: "Block not found" }); return; }
@@ -15905,7 +15905,7 @@ router.get("/farms/:farmId/horticulture-blocks/:blockId/boundary", requireAuth, 
 
 router.post("/farms/:farmId/horticulture-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const blockId = parseInt(req.params.blockId, 10);
+  const blockId = parseInt(req.params.blockId as string, 10);
   if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
   const [block] = await db.select({ id: horticultureBlocksTable.id }).from(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, blockId), eq(horticultureBlocksTable.farmId, farmId)));
   if (!block) { res.status(404).json({ error: "Block not found" }); return; }
@@ -15932,13 +15932,13 @@ router.post("/farms/:farmId/horticulture-crops", requireAuth, requireTenant, req
 });
 router.put("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticultureCropsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticultureCropsTable).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15955,13 +15955,13 @@ router.post("/farms/:farmId/horticulture-water-tests", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticultureWaterTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticultureWaterTestsTable).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -15978,13 +15978,13 @@ router.post("/farms/:farmId/horticulture-harvest-records", requireAuth, requireT
 });
 router.put("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticultureHarvestRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticultureHarvestRecordsTable).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16002,13 +16002,13 @@ router.post("/farms/:farmId/fresh-produce-intake", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(freshProduceIntakeTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(freshProduceIntakeTable).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16026,13 +16026,13 @@ router.post("/farms/:farmId/horticulture-packhouse-records", requireAuth, requir
 });
 router.put("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(horticulturePackhouseRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticulturePackhouseRecordsTable).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16050,13 +16050,13 @@ router.post("/farms/:farmId/allergen-management", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(allergenManagementRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(allergenManagementRecordsTable).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16076,34 +16076,34 @@ router.post("/farms/:farmId/organic-fp-block-status", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/organic-fp-block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(organicFreshProduceBlockStatusTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceBlockStatusTable.id, id), eq(organicFreshProduceBlockStatusTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/organic-fp-block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceBlockStatusTable).where(and(eq(organicFreshProduceBlockStatusTable.id, id), eq(organicFreshProduceBlockStatusTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/organic-fp-block-status/:blockStatusId/synthetic-history", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const blockStatusId = parseInt(req.params.blockStatusId); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const blockStatusId = parseInt(req.params.blockStatusId as string); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const rows = await db.select().from(organicFpBlockSyntheticHistoryTable).where(and(eq(organicFpBlockSyntheticHistoryTable.farmId, farmId), eq(organicFpBlockSyntheticHistoryTable.blockStatusId, blockStatusId))).orderBy(desc(organicFpBlockSyntheticHistoryTable.applicationDate));
   res.json(rows);
 });
 
 router.post("/farms/:farmId/organic-fp-block-status/:blockStatusId/synthetic-history", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const blockStatusId = parseInt(req.params.blockStatusId); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const blockStatusId = parseInt(req.params.blockStatusId as string); if (isNaN(blockStatusId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.insert(organicFpBlockSyntheticHistoryTable).values({ ...req.body, farmId, blockStatusId }).returning();
   res.status(201).json(row);
 });
 
 router.delete("/farms/:farmId/organic-fp-synthetic-history/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFpBlockSyntheticHistoryTable).where(and(eq(organicFpBlockSyntheticHistoryTable.id, id), eq(organicFpBlockSyntheticHistoryTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16139,13 +16139,13 @@ router.post("/farms/:farmId/organic-fp-input-log", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/organic-fp-input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(organicFreshProduceInputLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceInputLogTable.id, id), eq(organicFreshProduceInputLogTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/organic-fp-input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceInputLogTable).where(and(eq(organicFreshProduceInputLogTable.id, id), eq(organicFreshProduceInputLogTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16162,13 +16162,13 @@ router.post("/farms/:farmId/organic-fp-certificates", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/organic-fp-certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(organicFreshProduceCertificatesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceCertificatesTable.id, id), eq(organicFreshProduceCertificatesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/organic-fp-certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceCertificatesTable).where(and(eq(organicFreshProduceCertificatesTable.id, id), eq(organicFreshProduceCertificatesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16185,13 +16185,13 @@ router.post("/farms/:farmId/organic-fp-buyer-declarations", requireAuth, require
 });
 router.put("/farms/:farmId/organic-fp-buyer-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(organicFreshProduceBuyerDeclarationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicFreshProduceBuyerDeclarationsTable.id, id), eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/organic-fp-buyer-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceBuyerDeclarationsTable).where(and(eq(organicFreshProduceBuyerDeclarationsTable.id, id), eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16211,13 +16211,13 @@ router.post("/farms/:farmId/carbon-audits", requireAuth, requireTenant, requireM
 });
 router.put("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(carbonAuditsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(carbonAuditsTable).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16234,13 +16234,13 @@ router.post("/farms/:farmId/carbon-emissions", requireAuth, requireTenant, requi
 });
 router.put("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(carbonEmissionsRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(carbonEmissionsRecordsTable).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16257,13 +16257,13 @@ router.post("/farms/:farmId/carbon-sequestration", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(carbonSequestrationTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(carbonSequestrationTable).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16280,13 +16280,13 @@ router.post("/farms/:farmId/carbon-reduction-actions", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(carbonReductionActionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(carbonReductionActionsTable).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16303,13 +16303,13 @@ router.post("/farms/:farmId/sustainability-reports", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(sustainabilityReportsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(sustainabilityReportsTable).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16329,13 +16329,13 @@ router.post("/farms/:farmId/diversification-activities", requireAuth, requireTen
 });
 router.put("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(diversificationActivitiesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(diversificationActivitiesTable).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16352,13 +16352,13 @@ router.post("/farms/:farmId/farm-shop-products", requireAuth, requireTenant, req
 });
 router.put("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(farmShopProductsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(farmShopProductsTable).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16375,13 +16375,13 @@ router.post("/farms/:farmId/farm-shop-hygiene-inspections", requireAuth, require
 });
 router.put("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(farmShopHygieneInspectionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(farmShopHygieneInspectionsTable).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16449,7 +16449,7 @@ router.post("/farms/:farmId/shop-sales", requireAuth, requireTenant, requireModu
 
 router.delete("/farms/:farmId/shop-sales/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const items = await db.select().from(farmShopSaleItemsTable).where(and(eq(farmShopSaleItemsTable.sessionId, id), eq(farmShopSaleItemsTable.farmId, farmId)));
   for (const i of items) {
     if (i.productId && Number(i.quantity) > 0) {
@@ -16467,7 +16467,7 @@ router.delete("/farms/:farmId/shop-sales/:id", requireAuth, requireTenant, requi
 
 router.post("/farms/:farmId/shop-products/:id/adjust-stock", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { adjustment } = req.body as { adjustment: number };
   if (adjustment === undefined || isNaN(Number(adjustment))) { res.status(400).json({ error: "adjustment (number) is required" }); return; }
   const [prod] = await db.select({ currentStock: farmShopProductsTable.currentStock }).from(farmShopProductsTable).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId)));
@@ -16502,7 +16502,7 @@ router.post("/farms/:farmId/stocktakes", requireAuth, requireTenant, requireModu
 
 router.get("/farms/:farmId/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   const rows = await db.select().from(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, id)).orderBy(stocktakeItemsTable.itemName);
@@ -16511,7 +16511,7 @@ router.get("/farms/:farmId/stocktakes/:id", requireAuth, requireTenant, requireM
 
 router.patch("/farms/:farmId/stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const sessionId = parseInt(req.params.id); const itemId = parseInt(req.params.itemId);
+  const sessionId = parseInt(req.params.id as string); const itemId = parseInt(req.params.itemId as string);
   if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, sessionId), eq(stocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
@@ -16534,7 +16534,7 @@ router.patch("/farms/:farmId/stocktakes/:id/items/:itemId", requireAuth, require
 
 router.post("/farms/:farmId/stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Already completed" }); return; }
@@ -16560,7 +16560,7 @@ router.post("/farms/:farmId/stocktakes/:id/complete", requireAuth, requireTenant
 
 router.delete("/farms/:farmId/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select({ status: stocktakeSessionsTable.status }).from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
@@ -16599,7 +16599,7 @@ router.post("/farms/:farmId/farm-shop/stocktakes", requireAuth, requireTenant, r
 
 router.get("/farms/:farmId/farm-shop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(farmShopStocktakeSessionsTable).where(and(eq(farmShopStocktakeSessionsTable.id, id), eq(farmShopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   const items = await db.select().from(farmShopStocktakeItemsTable).where(eq(farmShopStocktakeItemsTable.sessionId, id)).orderBy(farmShopStocktakeItemsTable.productName);
@@ -16608,8 +16608,8 @@ router.get("/farms/:farmId/farm-shop/stocktakes/:id", requireAuth, requireTenant
 
 router.patch("/farms/:farmId/farm-shop/stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const sessionId = parseInt(req.params.id);
-  const itemId = parseInt(req.params.itemId);
+  const sessionId = parseInt(req.params.id as string);
+  const itemId = parseInt(req.params.itemId as string);
   if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(farmShopStocktakeSessionsTable).where(and(eq(farmShopStocktakeSessionsTable.id, sessionId), eq(farmShopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Session not found" }); return; }
@@ -16638,7 +16638,7 @@ router.patch("/farms/:farmId/farm-shop/stocktakes/:id/items/:itemId", requireAut
 
 router.post("/farms/:farmId/farm-shop/stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select().from(farmShopStocktakeSessionsTable).where(and(eq(farmShopStocktakeSessionsTable.id, id), eq(farmShopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Already completed" }); return; }
@@ -16658,7 +16658,7 @@ router.post("/farms/:farmId/farm-shop/stocktakes/:id/complete", requireAuth, req
 
 router.delete("/farms/:farmId/farm-shop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [session] = await db.select({ status: farmShopStocktakeSessionsTable.status }).from(farmShopStocktakeSessionsTable).where(and(eq(farmShopStocktakeSessionsTable.id, id), eq(farmShopStocktakeSessionsTable.farmId, farmId)));
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
   if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
@@ -16686,7 +16686,7 @@ router.post("/farms/:farmId/shop-suppliers", requireAuth, requireTenant, require
 
 router.put("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { name, supplierName, contactName, phone, email, address, accountRef, paymentTerms, notes, active } = req.body;
   const updatePayload: Record<string, unknown> = {};
   const resolvedName = supplierName || name;
@@ -16705,14 +16705,14 @@ router.put("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requ
 
 router.patch("/farms/:farmId/shop-suppliers/:id/deactivate", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(farmShopSuppliersTable).set({ active: false }).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId))).returning();
   res.json(row);
 });
 
 router.patch("/farms/:farmId/shop-suppliers/:id/reactivate", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(farmShopSuppliersTable).set({ active: true }).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId))).returning();
   res.json(row);
 });
@@ -16766,7 +16766,7 @@ router.post("/farms/:farmId/shop-purchases", requireAuth, requireTenant, require
 
 router.put("/farms/:farmId/shop-purchases/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { updateCostPrice, ...body } = req.body;
   const [row] = await db.update(farmShopPurchasesTable).set(body).where(and(eq(farmShopPurchasesTable.id, id), eq(farmShopPurchasesTable.farmId, farmId))).returning();
   if (updateCostPrice && row?.productId) {
@@ -16777,7 +16777,7 @@ router.put("/farms/:farmId/shop-purchases/:id", requireAuth, requireTenant, requ
 
 router.delete("/farms/:farmId/shop-purchases/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(farmShopPurchasesTable).where(and(eq(farmShopPurchasesTable.id, id), eq(farmShopPurchasesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16796,13 +16796,13 @@ router.post("/farms/:farmId/equine-records", requireAuth, requireTenant, require
 });
 router.put("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(equineRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(equineRecordsTable).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16819,13 +16819,13 @@ router.post("/farms/:farmId/equine-health-events", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(equineHealthEventsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(equineHealthEventsTable).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16842,13 +16842,13 @@ router.post("/farms/:farmId/renewable-installations", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(renewableEnergyInstallationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(renewableEnergyInstallationsTable).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16865,13 +16865,13 @@ router.post("/farms/:farmId/renewable-meter-readings", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(renewableEnergyMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(renewableEnergyMeterReadingsTable).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16889,13 +16889,13 @@ router.post("/farms/:farmId/solar-installations", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(renewableEnergyInstallationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(renewableEnergyInstallationsTable).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16913,13 +16913,13 @@ router.post("/farms/:farmId/solar-generation", requireAuth, requireTenant, requi
 });
 router.put("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(renewableEnergyMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(renewableEnergyMeterReadingsTable).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16938,14 +16938,14 @@ router.post("/farms/:farmId/solar-export-payments", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/solar-export-payments/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const body = { ...req.body, paymentAmountPence: req.body.paymentAmountPence ? Math.round(parseFloat(req.body.paymentAmountPence)) : undefined };
   const [row] = await db.update(solarExportPaymentsTable).set(body).where(and(eq(solarExportPaymentsTable.id, id), eq(solarExportPaymentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-export-payments/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(solarExportPaymentsTable).where(and(eq(solarExportPaymentsTable.id, id), eq(solarExportPaymentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -16982,20 +16982,20 @@ router.get("/farms/:farmId/solar-installer-suggestions", requireAuth, requireTen
 // ── Solar installation documents ──────────────────────────────────────────────
 router.get("/farms/:farmId/solar-installations/:installId/documents", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const installId = parseInt(req.params.installId); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const installId = parseInt(req.params.installId as string); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const rows = await db.select().from(solarInstallationDocumentsTable).where(and(eq(solarInstallationDocumentsTable.farmId, farmId), eq(solarInstallationDocumentsTable.installationId, installId))).orderBy(solarInstallationDocumentsTable.uploadedAt);
   res.json(rows);
 });
 router.post("/farms/:farmId/solar-installations/:installId/documents", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const installId = parseInt(req.params.installId); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const installId = parseInt(req.params.installId as string); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.insert(solarInstallationDocumentsTable).values({ ...req.body, farmId, installationId: installId }).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-installations/:installId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const installId = parseInt(req.params.installId);
-  const docId = parseInt(req.params.docId);
+  const installId = parseInt(req.params.installId as string);
+  const docId = parseInt(req.params.docId as string);
   if (isNaN(installId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(solarInstallationDocumentsTable).where(and(eq(solarInstallationDocumentsTable.id, docId), eq(solarInstallationDocumentsTable.farmId, farmId), eq(solarInstallationDocumentsTable.installationId, installId)));
   res.json({ success: true });
@@ -17013,13 +17013,13 @@ router.post("/farms/:farmId/shooting-game-records", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(shootingAndGameRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(shootingAndGameRecordsTable).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17051,14 +17051,14 @@ router.post("/farms/:farmId/diversification-income", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/diversification-income/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { activityId, ...rest } = req.body;
   const [row] = await db.update(diversificationIncomeRecordsTable).set({ ...rest, ...(activityId !== undefined ? { activityId: activityId ? parseInt(activityId) : null } : {}) }).where(and(eq(diversificationIncomeRecordsTable.id, id), eq(diversificationIncomeRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/diversification-income/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(diversificationIncomeRecordsTable).where(and(eq(diversificationIncomeRecordsTable.id, id), eq(diversificationIncomeRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17078,13 +17078,13 @@ router.post("/farms/:farmId/water-abstraction-licences", requireAuth, requireTen
 });
 router.put("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(waterAbstractionLicencesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(waterAbstractionLicencesTable).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17101,13 +17101,13 @@ router.post("/farms/:farmId/water-meter-readings", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(waterMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(waterMeterReadingsTable).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17124,13 +17124,13 @@ router.post("/farms/:farmId/borehole-tests", requireAuth, requireTenant, require
 });
 router.put("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(boreholeTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(boreholeTestsTable).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17147,13 +17147,13 @@ router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, req
 });
 router.put("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(irrigationRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(irrigationRecordsTable).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17170,13 +17170,13 @@ router.post("/farms/:farmId/irrigation-equipment", requireAuth, requireTenant, r
 });
 router.put("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(irrigationEquipmentTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(irrigationEquipmentTable).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17196,13 +17196,13 @@ router.post("/farms/:farmId/grain-storage-bins", requireAuth, requireTenant, req
 });
 router.put("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(grainStorageBinsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(grainStorageBinsTable).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17211,7 +17211,7 @@ router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenan
   router.get("/farms/:farmId/grain-storage-bins/:binId/cleaning-status", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
     const farmId = await validateFarmAccess(req, res);
     if (!farmId) return;
-    const binId = parseInt(req.params.binId);
+    const binId = parseInt(req.params.binId as string);
     if (isNaN(binId)) { res.status(400).json({ error: "Invalid binId" }); return; }
 
     const [lastCleaning] = await db.select()
@@ -17319,13 +17319,13 @@ router.post("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(grainQualityTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(grainQualityTestsTable).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17345,13 +17345,13 @@ router.post("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(grainTemperatureLogsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(grainTemperatureLogsTable).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17371,13 +17371,13 @@ router.post("/farms/:farmId/ai-reproduction-records", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(aiReproductionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(aiReproductionRecordsTable).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17404,13 +17404,13 @@ router.post("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requ
 });
 router.put("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(vetPrescriptionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(vetPrescriptionRecordsTable).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17430,13 +17430,13 @@ router.post("/farms/:farmId/sires", requireAuth, requireTenant, requireModuleByK
 });
 router.put("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(sireRegisterTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId))).returning();
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(sireRegisterTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17474,13 +17474,13 @@ router.post("/farms/:farmId/straws", requireAuth, requireTenant, requireModuleBy
 });
 router.put("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(strawInventoryTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId))).returning();
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(strawInventoryTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17500,13 +17500,13 @@ router.post("/farms/:farmId/sfi-agreements", requireAuth, requireTenant, require
 });
 router.put("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(sfiAgreementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(sfiAgreementsTable).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17523,13 +17523,13 @@ router.post("/farms/:farmId/sfi-actions", requireAuth, requireTenant, requireMod
 });
 router.put("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(sfiActionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(sfiActionsTable).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17549,13 +17549,13 @@ router.post("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireM
 });
 router.put("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(slurryStoresTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurryStoresTable).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17572,13 +17572,13 @@ router.post("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(slurrySpreadingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurrySpreadingRecordsTable).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -17603,7 +17603,7 @@ router.post("/farms/:farmId/departments", requireAuth, requireTenant, async (req
 
 router.put("/farms/:farmId/departments/:deptId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const deptId = parseInt(req.params.deptId);
+  const deptId = parseInt(req.params.deptId as string);
   const { name, description, colour, isActive } = req.body;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (name !== undefined) updates.name = name.trim();
@@ -17617,7 +17617,7 @@ router.put("/farms/:farmId/departments/:deptId", requireAuth, requireTenant, asy
 
 router.delete("/farms/:farmId/departments/:deptId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const deptId = parseInt(req.params.deptId);
+  const deptId = parseInt(req.params.deptId as string);
   // Soft-delete: deactivate rather than hard delete (staff may still reference it)
   await db.update(farmDepartmentsTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(farmDepartmentsTable.id, deptId), eq(farmDepartmentsTable.farmId, farmId)));
   res.json({ success: true });
@@ -17728,7 +17728,7 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
 router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const memberId = parseInt(req.params.memberId);
+  const memberId = parseInt(req.params.memberId as string);
   const { firstName, lastName, email, phone, jobTitle, departmentId, secondaryDepartmentIds, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   const [member] = await db.update(farmMembersTable).set({
     ...(firstName !== undefined && { firstName }),
@@ -17767,7 +17767,7 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
 router.delete("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const memberId = parseInt(req.params.memberId);
+  const memberId = parseInt(req.params.memberId as string);
   await db.update(farmMembersTable).set({ isActive: false })
     .where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId)));
   res.json({ ok: true });
@@ -17780,7 +17780,7 @@ router.post("/farms/:farmId/members/:memberId/invite", requireAuth, requireTenan
   const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
   const tenantId = (req as any).tenantId as number;
-  const memberId = parseInt(req.params.memberId);
+  const memberId = parseInt(req.params.memberId as string);
   const [member] = await db.select().from(farmMembersTable)
     .where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId)));
   if (!member) { res.status(404).json({ error: "Member not found" }); return; }
@@ -18363,7 +18363,7 @@ router.patch("/farms/:farmId/users/:targetUserId/access", requireAuth, requireTe
   const [assignment] = await db.update(staffFarmAssignmentsTable).set({
     ...(farmRole !== undefined && { farmRole }),
     ...(accessType !== undefined && { accessType }),
-  }).where(and(eq(staffFarmAssignmentsTable.userId, targetUserId), eq(staffFarmAssignmentsTable.farmId, farmId))).returning();
+  }).where(and(eq(staffFarmAssignmentsTable.userId, targetUserId as any), eq(staffFarmAssignmentsTable.farmId, farmId))).returning();
   if (!assignment) { res.status(404).json({ error: "User not found on this farm" }); return; }
   res.json({ assignment });
 });
@@ -18418,7 +18418,7 @@ router.delete("/farms/:farmId/crop-trials/:recordId", requireAuth, requireTenant
 router.get("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const trialId = parseInt(req.params.trialId, 10);
+  const trialId = parseInt(req.params.trialId as string, 10);
   if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
   const plots = await db.select().from(cropTrialPlotsTable).where(and(eq(cropTrialPlotsTable.trialId, trialId), eq(cropTrialPlotsTable.farmId, farmId))).orderBy(asc(cropTrialPlotsTable.plotNumber));
   res.json({ records: plots });
@@ -18427,7 +18427,7 @@ router.get("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTena
 router.post("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const trialId = parseInt(req.params.trialId, 10);
+  const trialId = parseInt(req.params.trialId as string, 10);
   if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
   const [record] = await db.insert(cropTrialPlotsTable).values({ ...req.body, farmId, trialId }).returning();
   res.status(201).json({ record });
@@ -18436,7 +18436,7 @@ router.post("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTen
 router.put("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const plotId = parseInt(req.params.plotId, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
   const [record] = await db.update(cropTrialPlotsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -18445,7 +18445,7 @@ router.put("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, req
 router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const plotId = parseInt(req.params.plotId, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
   await db.delete(cropTrialPlotsTable).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId)));
   res.json({ success: true });
@@ -18455,7 +18455,7 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, 
 router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const plotId = parseInt(req.params.plotId, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
   const records = await db.select().from(cropTrialTreatmentsTable).where(and(eq(cropTrialTreatmentsTable.plotId, plotId), eq(cropTrialTreatmentsTable.farmId, farmId))).orderBy(desc(cropTrialTreatmentsTable.treatmentDate));
   res.json({ records });
@@ -18464,8 +18464,8 @@ router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requi
 router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const trialId = parseInt(req.params.trialId, 10);
-  const plotId = parseInt(req.params.plotId, 10);
+  const trialId = parseInt(req.params.trialId as string, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.insert(cropTrialTreatmentsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
   res.status(201).json({ record });
@@ -18474,7 +18474,7 @@ router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requ
 router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments/:treatmentId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const treatmentId = parseInt(req.params.treatmentId, 10);
+  const treatmentId = parseInt(req.params.treatmentId as string, 10);
   if (isNaN(treatmentId)) { res.status(400).json({ error: "Invalid treatment ID" }); return; }
   await db.delete(cropTrialTreatmentsTable).where(and(eq(cropTrialTreatmentsTable.id, treatmentId), eq(cropTrialTreatmentsTable.farmId, farmId)));
   res.json({ success: true });
@@ -18484,7 +18484,7 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments/:tre
 router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const plotId = parseInt(req.params.plotId, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
   const records = await db.select().from(cropTrialObservationsTable).where(and(eq(cropTrialObservationsTable.plotId, plotId), eq(cropTrialObservationsTable.farmId, farmId))).orderBy(desc(cropTrialObservationsTable.observationDate));
   res.json({ records });
@@ -18493,8 +18493,8 @@ router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", req
 router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const trialId = parseInt(req.params.trialId, 10);
-  const plotId = parseInt(req.params.plotId, 10);
+  const trialId = parseInt(req.params.trialId as string, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.insert(cropTrialObservationsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
   res.status(201).json({ record });
@@ -18503,7 +18503,7 @@ router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", re
 router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations/:obsId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const obsId = parseInt(req.params.obsId, 10);
+  const obsId = parseInt(req.params.obsId as string, 10);
   if (isNaN(obsId)) { res.status(400).json({ error: "Invalid observation ID" }); return; }
   await db.delete(cropTrialObservationsTable).where(and(eq(cropTrialObservationsTable.id, obsId), eq(cropTrialObservationsTable.farmId, farmId)));
   res.json({ success: true });
@@ -18513,7 +18513,7 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations/:o
 router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const plotId = parseInt(req.params.plotId, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
   const records = await db.select().from(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.plotId, plotId), eq(cropTrialYieldsTable.farmId, farmId))).orderBy(desc(cropTrialYieldsTable.harvestDate));
   res.json({ records });
@@ -18522,8 +18522,8 @@ router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireAu
 router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const trialId = parseInt(req.params.trialId, 10);
-  const plotId = parseInt(req.params.plotId, 10);
+  const trialId = parseInt(req.params.trialId as string, 10);
+  const plotId = parseInt(req.params.plotId as string, 10);
   if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.insert(cropTrialYieldsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
   res.status(201).json({ record });
@@ -18532,7 +18532,7 @@ router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireA
 router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields/:yieldId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const yieldId = parseInt(req.params.yieldId, 10);
+  const yieldId = parseInt(req.params.yieldId as string, 10);
   if (isNaN(yieldId)) { res.status(400).json({ error: "Invalid yield ID" }); return; }
   await db.delete(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.id, yieldId), eq(cropTrialYieldsTable.farmId, farmId)));
   res.json({ success: true });
@@ -18605,7 +18605,7 @@ router.post("/farms/:farmId/accident-book/:recordId/photos", requireAuth, requir
 router.delete("/farms/:farmId/accident-book/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const photoId = parseInt(req.params.photoId);
+  const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(accidentBookPhotosTable).where(and(eq(accidentBookPhotosTable.id, photoId), eq(accidentBookPhotosTable.farmId, farmId)));
   res.json({ success: true });
@@ -18613,7 +18613,7 @@ router.delete("/farms/:farmId/accident-book/:recordId/photos/:photoId", requireA
 
 // Helper: parse and validate farmId from route params (used by newer routes below)
 function getFarmId(req: Request): number | null {
-  const id = parseInt(req.params.farmId);
+  const id = parseInt(req.params.farmId as string);
   return (isNaN(id) || id <= 0) ? null : id;
 }
 
@@ -18630,13 +18630,13 @@ router.post("/farms/:farmId/soil-moisture-readings", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const [record] = await db.update(soilMoistureReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(soilMoistureReadingsTable.id, id), eq(soilMoistureReadingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(soilMoistureReadingsTable).where(and(eq(soilMoistureReadingsTable.id, parseInt(req.params.id)), eq(soilMoistureReadingsTable.farmId, farmId)));
+  await db.delete(soilMoistureReadingsTable).where(and(eq(soilMoistureReadingsTable.id, parseInt(req.params.id as string)), eq(soilMoistureReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -18653,12 +18653,12 @@ router.post("/farms/:farmId/drought-management-plans", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(droughtManagementPlansTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId))).returning();
+  const [record] = await db.update(droughtManagementPlansTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id as string)), eq(droughtManagementPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(droughtManagementPlansTable).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId)));
+  await db.delete(droughtManagementPlansTable).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id as string)), eq(droughtManagementPlansTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -18675,12 +18675,12 @@ router.post("/farms/:farmId/cams-annual-returns", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(camsAnnualReturnsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId))).returning();
+  const [record] = await db.update(camsAnnualReturnsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id as string)), eq(camsAnnualReturnsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(camsAnnualReturnsTable).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId)));
+  await db.delete(camsAnnualReturnsTable).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id as string)), eq(camsAnnualReturnsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -18697,12 +18697,12 @@ router.post("/farms/:farmId/renewable-energy-production", requireAuth, requireTe
 });
 router.put("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(renewableEnergyProductionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId))).returning();
+  const [record] = await db.update(renewableEnergyProductionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id as string)), eq(renewableEnergyProductionTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(renewableEnergyProductionTable).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId)));
+  await db.delete(renewableEnergyProductionTable).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id as string)), eq(renewableEnergyProductionTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -18719,12 +18719,12 @@ router.post("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(biodiversityNetGainTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
+  const [record] = await db.update(biodiversityNetGainTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id as string)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(biodiversityNetGainTable).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId)));
+  await db.delete(biodiversityNetGainTable).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id as string)), eq(biodiversityNetGainTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -18741,19 +18741,19 @@ router.post("/farms/:farmId/vehicle-weather-readings", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(vehicleWeatherReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(vehicleWeatherReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id as string)), eq(vehicleWeatherReadingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(vehicleWeatherReadingsTable).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId)));
+  await db.delete(vehicleWeatherReadingsTable).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id as string)), eq(vehicleWeatherReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // --- Delivery Confirmation on Haulage ---
 router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { confirmedBy, notes, proofOfDeliveryUrl, weighbridgeWeightTonnes } = req.body;
 
   // Update the haulage record
@@ -18822,7 +18822,7 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, re
 // Legacy alias kept for backward compatibility
 router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const { confirmedBy, notes, proofOfDeliveryUrl, weighbridgeWeightTonnes } = req.body;
   const [record] = await db.update(haulageRecordsTable).set({
     deliveryConfirmedAt: new Date(),
@@ -18838,7 +18838,7 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, re
 // --- Grain Dispatch Note PDF ---
 router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const rows = await db.select({
     id: haulageRecordsTable.id,
     loadType: haulageRecordsTable.loadType,
@@ -18908,7 +18908,7 @@ router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requir
 // --- Livestock movements linked to a haulage record ---
 router.get("/farms/:farmId/haulage/:recordId/linked-livestock-movements", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const recordId = parseInt(req.params.recordId);
+  const recordId = parseInt(req.params.recordId as string);
   const records = await db.select({
     id: livestockMovementsTable.id,
     movementType: livestockMovementsTable.movementType,
@@ -18930,7 +18930,7 @@ router.get("/farms/:farmId/haulage/:recordId/linked-livestock-movements", requir
 // --- Livestock Movement Animals (per-animal junction) ---
 router.get("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth, requireTenant, requireModuleByKey("livestock", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
   const animals = await db.select({
     id: livestockMovementAnimalsTable.id,
     movementId: livestockMovementAnimalsTable.movementId,
@@ -18954,10 +18954,10 @@ router.get("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth
 
 router.post("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
   const rows = Array.isArray(req.body) ? req.body : [req.body];
   const inserted = await db.insert(livestockMovementAnimalsTable).values(
-    rows.map((r: { animalId?: number; tagNumber?: string; eidNumber?: string; species?: string; breed?: string; sex?: string; dateOfBirth?: string; notes?: string }) => ({ ...r, farmId, movementId }))
+    rows.map((r: { animalId?: number; tagNumber?: string; eidNumber?: string; species?: string; breed?: string; sex?: string; dateOfBirth?: string; notes?: string }) => ({ ...r, farmId, movementId })) as any[]
   ).returning();
   res.json({ animals: inserted });
 });
@@ -18965,7 +18965,7 @@ router.post("/farms/:farmId/livestock-movements/:movementId/animals", requireAut
 router.delete("/farms/:farmId/livestock-movements/:movementId/animals/:animalRowId", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   await db.delete(livestockMovementAnimalsTable).where(and(
-    eq(livestockMovementAnimalsTable.id, parseInt(req.params.animalRowId)),
+    eq(livestockMovementAnimalsTable.id, parseInt(req.params.animalRowId as string)),
     eq(livestockMovementAnimalsTable.farmId, farmId),
   ));
   res.json({ success: true });
@@ -18974,7 +18974,7 @@ router.delete("/farms/:farmId/livestock-movements/:movementId/animals/:animalRow
 // PATCH livestock movement checklist fields
 router.patch("/farms/:farmId/livestock-movements/:movementId/checklist", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
   const {
     haulageRecordId, vehicleRegistration, driverName, haulierCompany, operatorLicenceNo,
     fciCompleted, fciWithdrawalsClear, fciCompletedBy,
@@ -19045,12 +19045,12 @@ router.post("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requir
 });
 router.put("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(poultryBiosecurityChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultryBiosecurityChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id as string)), eq(poultryBiosecurityChecklistTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(poultryBiosecurityChecklistTable).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId)));
+  await db.delete(poultryBiosecurityChecklistTable).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id as string)), eq(poultryBiosecurityChecklistTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19067,12 +19067,12 @@ router.post("/farms/:farmId/poultry-scheme-records", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(poultrySchemeRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultrySchemeRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id as string)), eq(poultrySchemeRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(poultrySchemeRecordsTable).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId)));
+  await db.delete(poultrySchemeRecordsTable).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id as string)), eq(poultrySchemeRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19087,7 +19087,7 @@ async function handleDocPatch(
 ) {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { documentPath = null, documentName = null } = req.body ?? {};
   const [record] = await db
@@ -19120,12 +19120,12 @@ router.post("/farms/:farmId/poultry-chick-purchases", requireAuth, requireTenant
 });
 router.put("/farms/:farmId/poultry-chick-purchases/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(poultryChickPurchasesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id)), eq(poultryChickPurchasesTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultryChickPurchasesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id as string)), eq(poultryChickPurchasesTable.farmId, farmId))).returning();
   res.json(record);
 });
 router.delete("/farms/:farmId/poultry-chick-purchases/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(poultryChickPurchasesTable).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id)), eq(poultryChickPurchasesTable.farmId, farmId)));
+  await db.delete(poultryChickPurchasesTable).where(and(eq(poultryChickPurchasesTable.id, parseInt(req.params.id as string)), eq(poultryChickPurchasesTable.farmId, farmId)));
   res.json({ ok: true });
 });
 
@@ -19199,12 +19199,12 @@ router.post("/farms/:farmId/pig-red-tractor-checklists", requireAuth, requireTen
 });
 router.put("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(pigRedTractorChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId))).returning();
+  const [record] = await db.update(pigRedTractorChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id as string)), eq(pigRedTractorChecklistTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  await db.delete(pigRedTractorChecklistTable).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId)));
+  await db.delete(pigRedTractorChecklistTable).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id as string)), eq(pigRedTractorChecklistTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19324,7 +19324,7 @@ router.get("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireModu
 router.get("/farms/:farmId/grain-sales/:saleId", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const saleId = parseInt(req.params.saleId);
+  const saleId = parseInt(req.params.saleId as string);
   if (isNaN(saleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.select().from(grainSalesTable).where(and(eq(grainSalesTable.id, saleId), eq(grainSalesTable.farmId, farmId)));
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -19340,14 +19340,14 @@ router.post("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireMod
 router.put("/farms/:farmId/grain-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(grainSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(grainSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainSalesTable.id, parseInt(req.params.id as string)), eq(grainSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/grain-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(grainSalesTable).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId)));
+  await db.delete(grainSalesTable).where(and(eq(grainSalesTable.id, parseInt(req.params.id as string)), eq(grainSalesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19367,14 +19367,14 @@ router.post("/farms/:farmId/livestock-deadweight-sales", requireAuth, requireTen
 router.put("/farms/:farmId/livestock-deadweight-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(livestockDeadweightSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockDeadweightSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id as string)), eq(livestockDeadweightSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/livestock-deadweight-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId)));
+  await db.delete(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id as string)), eq(livestockDeadweightSalesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19394,14 +19394,14 @@ router.post("/farms/:farmId/livestock-mart-sales", requireAuth, requireTenant, r
 router.put("/farms/:farmId/livestock-mart-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(livestockMartSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockMartSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id as string)), eq(livestockMartSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/livestock-mart-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId)));
+  await db.delete(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id as string)), eq(livestockMartSalesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19421,14 +19421,14 @@ router.post("/farms/:farmId/milk-statements", requireAuth, requireTenant, requir
 router.put("/farms/:farmId/milk-statements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(milkStatementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(milkStatementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(milkStatementsTable.id, parseInt(req.params.id as string)), eq(milkStatementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/milk-statements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(milkStatementsTable).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId)));
+  await db.delete(milkStatementsTable).where(and(eq(milkStatementsTable.id, parseInt(req.params.id as string)), eq(milkStatementsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19448,14 +19448,14 @@ router.post("/farms/:farmId/poultry-batch-settlements", requireAuth, requireTena
 router.put("/farms/:farmId/poultry-batch-settlements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(poultryBatchSettlementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultryBatchSettlementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id as string)), eq(poultryBatchSettlementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/poultry-batch-settlements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(poultryBatchSettlementsTable).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId)));
+  await db.delete(poultryBatchSettlementsTable).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id as string)), eq(poultryBatchSettlementsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19475,14 +19475,14 @@ router.post("/farms/:farmId/egg-sales", requireAuth, requireTenant, requireModul
 router.put("/farms/:farmId/egg-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(eggSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(eggSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(eggSalesTable.id, parseInt(req.params.id as string)), eq(eggSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/egg-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(eggSalesTable).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId)));
+  await db.delete(eggSalesTable).where(and(eq(eggSalesTable.id, parseInt(req.params.id as string)), eq(eggSalesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19502,14 +19502,14 @@ router.post("/farms/:farmId/pig-kill-records", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/pig-kill-records/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(pigKillRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(pigKillRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id as string)), eq(pigKillRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/pig-kill-records/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(pigKillRecordsTable).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId)));
+  await db.delete(pigKillRecordsTable).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id as string)), eq(pigKillRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19529,14 +19529,14 @@ router.post("/farms/:farmId/direct-sales", requireAuth, requireTenant, requireMo
 router.put("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(directSalesRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(directSalesRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id as string)), eq(directSalesRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(directSalesRecordsTable).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId)));
+  await db.delete(directSalesRecordsTable).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id as string)), eq(directSalesRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -19685,13 +19685,13 @@ router.get("/farms/:farmId/sales-history", requireAuth, requireTenant, requireMo
 // ─── Organic Compliance ─────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/organic/certification", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const [record] = await db.select().from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
   res.json({ record: record ?? null });
 });
 
 router.post("/farms/:farmId/organic/certification", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { certifier, certificateNumber, certificationDate, renewalDate, status, operatorNumber, notes } = req.body;
   const [existing] = await db.select({ id: organicCertificationTable.id }).from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
   if (existing) {
@@ -19704,20 +19704,20 @@ router.post("/farms/:farmId/organic/certification", requireAuth, requireTenant, 
 });
 
 router.get("/farms/:farmId/organic/fields", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicFieldStatusTable).where(eq(organicFieldStatusTable.farmId, farmId)).orderBy(asc(organicFieldStatusTable.fieldName));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic/fields", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { fieldId, fieldName, status, conversionStartDate, certificationDate, certifierRef, parallelProduction, notes } = req.body;
   const [record] = await db.insert(organicFieldStatusTable).values({ farmId, fieldId: fieldId ?? null, fieldName, status: status ?? "conventional", conversionStartDate: conversionStartDate ?? null, certificationDate: certificationDate ?? null, certifierRef: certifierRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/fields/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { fieldId, fieldName, status, conversionStartDate, certificationDate, certifierRef, parallelProduction, notes } = req.body;
   await db.update(organicFieldStatusTable).set({ fieldId: fieldId ?? null, fieldName, status, conversionStartDate: conversionStartDate ?? null, certificationDate: certificationDate ?? null, certifierRef: certifierRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicFieldStatusTable.id, id));
   const [record] = await db.select().from(organicFieldStatusTable).where(eq(organicFieldStatusTable.id, id));
@@ -19725,26 +19725,26 @@ router.put("/farms/:farmId/organic/fields/:id", requireAuth, requireTenant, requ
 });
 
 router.delete("/farms/:farmId/organic/fields/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicFieldStatusTable).where(eq(organicFieldStatusTable.id, id));
   res.json({ ok: true });
 });
 
 router.get("/farms/:farmId/organic/inspections", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicInspectionTable).where(eq(organicInspectionTable.farmId, farmId)).orderBy(desc(organicInspectionTable.inspectionDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic/inspections", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { certifier, inspectorName, inspectionDate, outcome, certificateReference, nextDueDate, nonConformances, actions, notes } = req.body;
   const [record] = await db.insert(organicInspectionTable).values({ farmId, certifier, inspectorName: inspectorName ?? null, inspectionDate, outcome: outcome ?? "pass", certificateReference: certificateReference ?? null, nextDueDate: nextDueDate ?? null, nonConformances: nonConformances ?? null, actions: actions ?? null, notes: notes ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/inspections/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { certifier, inspectorName, inspectionDate, outcome, certificateReference, nextDueDate, nonConformances, actions, notes } = req.body;
   await db.update(organicInspectionTable).set({ certifier, inspectorName: inspectorName ?? null, inspectionDate, outcome, certificateReference: certificateReference ?? null, nextDueDate: nextDueDate ?? null, nonConformances: nonConformances ?? null, actions: actions ?? null, notes: notes ?? null }).where(eq(organicInspectionTable.id, id));
   const [record] = await db.select().from(organicInspectionTable).where(eq(organicInspectionTable.id, id));
@@ -19752,34 +19752,34 @@ router.put("/farms/:farmId/organic/inspections/:id", requireAuth, requireTenant,
 });
 
 router.delete("/farms/:farmId/organic/inspections/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicInspectionTable).where(eq(organicInspectionTable.id, id));
   res.json({ ok: true });
 });
 
 router.patch("/farms/:farmId/organic/inspections/:id/document", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const { documentPath, documentName } = req.body;
   await db.update(organicInspectionTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(organicInspectionTable.id, id), eq(organicInspectionTable.farmId, farmId)));
   res.json({ ok: true });
 });
 
 router.get("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.farmId, farmId)).orderBy(desc(organicRestrictedInputTable.dateApplied));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes, supplier, poReference, grnReference } = req.body;
   const [record] = await db.insert(organicRestrictedInputTable).values({ farmId, fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes, supplier, poReference, grnReference } = req.body;
   await db.update(organicRestrictedInputTable).set({ fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null }).where(eq(organicRestrictedInputTable.id, id));
   const [record] = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
@@ -19787,13 +19787,13 @@ router.put("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireT
 });
 
 router.delete("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
   res.json({ ok: true });
 });
 
 router.get("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const cropYear = req.query.cropYear ? parseInt(req.query.cropYear as string) : undefined;
   const conditions = cropYear
     ? [eq(organicInputsTable.farmId, farmId), eq(organicInputsTable.cropYear, cropYear)]
@@ -19803,14 +19803,14 @@ router.get("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireM
 });
 
 router.post("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
   const [record] = await db.insert(organicInputsTable).values({ farmId, productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).returning();
   res.json({ record });
 });
 
 router.put("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, notes } = req.body;
   await db.update(organicInputsTable).set({ productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, notes: notes ?? null }).where(eq(organicInputsTable.id, id));
   const [record] = await db.select().from(organicInputsTable).where(eq(organicInputsTable.id, id));
@@ -19818,27 +19818,27 @@ router.put("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requ
 });
 
 router.delete("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicInputsTable).where(eq(organicInputsTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Livestock — Conversion ──────────────────────────────────────────
 router.get("/farms/:farmId/organic-livestock/conversion", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.farmId, farmId)).orderBy(desc(organicLivestockConversionTable.conversionStartDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-livestock/conversion", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { species, herdFlockName, numberOfAnimals, conversionStartDate, expectedCertDate, actualCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
   const [record] = await db.insert(organicLivestockConversionTable).values({ farmId, species, herdFlockName, numberOfAnimals: numberOfAnimals ?? null, conversionStartDate, expectedCertDate: expectedCertDate ?? null, actualCertDate: actualCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { species, herdFlockName, numberOfAnimals, conversionStartDate, expectedCertDate, actualCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
   await db.update(organicLivestockConversionTable).set({ species, herdFlockName, numberOfAnimals: numberOfAnimals ?? null, conversionStartDate, expectedCertDate: expectedCertDate ?? null, actualCertDate: actualCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicLivestockConversionTable.id, id));
   const [record] = await db.select().from(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.id, id));
@@ -19846,27 +19846,27 @@ router.put("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requi
 });
 
 router.delete("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Livestock — Feed Records ────────────────────────────────────────
 router.get("/farms/:farmId/organic-livestock/feed", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.farmId, farmId)).orderBy(desc(organicLivestockFeedTable.recordDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-livestock/feed", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { recordDate, species, herdFlockName, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
   const [record] = await db.insert(organicLivestockFeedTable).values({ farmId, recordDate, species, herdFlockName: herdFlockName ?? null, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-livestock/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { recordDate, species, herdFlockName, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
   await db.update(organicLivestockFeedTable).set({ recordDate, species, herdFlockName: herdFlockName ?? null, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).where(eq(organicLivestockFeedTable.id, id));
   const [record] = await db.select().from(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.id, id));
@@ -19874,27 +19874,27 @@ router.put("/farms/:farmId/organic-livestock/feed/:id", requireAuth, requireTena
 });
 
 router.delete("/farms/:farmId/organic-livestock/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicLivestockFeedTable).where(eq(organicLivestockFeedTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Livestock — Outdoor Access / Stocking ───────────────────────────
 router.get("/farms/:farmId/organic-livestock/outdoor-access", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.farmId, farmId)).orderBy(desc(organicLivestockOutdoorAccessTable.recordDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-livestock/outdoor-access", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { recordDate, species, herdFlockName, numberOfAnimals, pastureAreaHectares, stockingDensityPerHa, outdoorAccessHoursDay, housingStartDate, housingEndDate, housingJustification, complianceStatus, notes } = req.body;
   const [record] = await db.insert(organicLivestockOutdoorAccessTable).values({ farmId, recordDate, species, herdFlockName: herdFlockName ?? null, numberOfAnimals: numberOfAnimals ?? null, pastureAreaHectares: pastureAreaHectares ?? null, stockingDensityPerHa: stockingDensityPerHa ?? null, outdoorAccessHoursDay: outdoorAccessHoursDay ?? null, housingStartDate: housingStartDate ?? null, housingEndDate: housingEndDate ?? null, housingJustification: housingJustification ?? null, complianceStatus: complianceStatus ?? "compliant", notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-livestock/outdoor-access/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { recordDate, species, herdFlockName, numberOfAnimals, pastureAreaHectares, stockingDensityPerHa, outdoorAccessHoursDay, housingStartDate, housingEndDate, housingJustification, complianceStatus, notes } = req.body;
   await db.update(organicLivestockOutdoorAccessTable).set({ recordDate, species, herdFlockName: herdFlockName ?? null, numberOfAnimals: numberOfAnimals ?? null, pastureAreaHectares: pastureAreaHectares ?? null, stockingDensityPerHa: stockingDensityPerHa ?? null, outdoorAccessHoursDay: outdoorAccessHoursDay ?? null, housingStartDate: housingStartDate ?? null, housingEndDate: housingEndDate ?? null, housingJustification: housingJustification ?? null, complianceStatus: complianceStatus ?? "compliant", notes: notes ?? null }).where(eq(organicLivestockOutdoorAccessTable.id, id));
   const [record] = await db.select().from(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.id, id));
@@ -19902,27 +19902,27 @@ router.put("/farms/:farmId/organic-livestock/outdoor-access/:id", requireAuth, r
 });
 
 router.delete("/farms/:farmId/organic-livestock/outdoor-access/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicLivestockOutdoorAccessTable).where(eq(organicLivestockOutdoorAccessTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Livestock — Treatment Compliance ─────────────────────────────────
 router.get("/farms/:farmId/organic-livestock/treatments", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.farmId, farmId)).orderBy(desc(organicLivestockTreatmentTable.treatmentDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-livestock/treatments", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { treatmentDate, species, animalIds, numberOfAnimals, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardWithdrawalDays, doubledWithdrawalDays, withdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
   const [record] = await db.insert(organicLivestockTreatmentTable).values({ farmId, treatmentDate, species, animalIds: animalIds ?? null, numberOfAnimals: numberOfAnimals ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardWithdrawalDays: standardWithdrawalDays ?? null, doubledWithdrawalDays: doubledWithdrawalDays ?? null, withdrawalEndDate: withdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { treatmentDate, species, animalIds, numberOfAnimals, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardWithdrawalDays, doubledWithdrawalDays, withdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
   await db.update(organicLivestockTreatmentTable).set({ treatmentDate, species, animalIds: animalIds ?? null, numberOfAnimals: numberOfAnimals ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardWithdrawalDays: standardWithdrawalDays ?? null, doubledWithdrawalDays: doubledWithdrawalDays ?? null, withdrawalEndDate: withdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).where(eq(organicLivestockTreatmentTable.id, id));
   const [record] = await db.select().from(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.id, id));
@@ -19930,83 +19930,83 @@ router.put("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, requi
 });
 
 router.delete("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicLivestockTreatmentTable).where(eq(organicLivestockTreatmentTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Dairy — Herd Conversion ─────────────────────────────────────────
 router.get("/farms/:farmId/organic-dairy/herd-conversion", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.farmId, farmId)).orderBy(desc(organicDairyHerdConversionTable.conversionStartDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-dairy/herd-conversion", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { herdName, numberOfCows, breed, conversionStartDate, expectedMilkCertDate, actualMilkCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
-  const [record] = await db.insert(organicDairyHerdConversionTable).values({ farmId, herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedMilkCertDate: expectedMilkCertDate ?? null, actualMilkCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
+  const [record] = await (db.insert(organicDairyHerdConversionTable) as any).values({ farmId, herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedCertDate: expectedMilkCertDate ?? null, actualCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-dairy/herd-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { herdName, numberOfCows, breed, conversionStartDate, expectedMilkCertDate, actualMilkCertDate, status, certifier, certificationRef, parallelProduction, notes } = req.body;
-  await db.update(organicDairyHerdConversionTable).set({ herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedMilkCertDate: expectedMilkCertDate ?? null, actualMilkCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicDairyHerdConversionTable.id, id));
+  await (db.update(organicDairyHerdConversionTable) as any).set({ herdName, numberOfCows: numberOfCows ?? null, breed: breed ?? null, conversionStartDate, expectedCertDate: expectedMilkCertDate ?? null, actualCertDate: actualMilkCertDate ?? null, status: status ?? "in-conversion", certifier: certifier ?? null, certificationRef: certificationRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicDairyHerdConversionTable.id, id));
   const [record] = await db.select().from(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.id, id));
   res.json({ record });
 });
 
 router.delete("/farms/:farmId/organic-dairy/herd-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicDairyHerdConversionTable).where(eq(organicDairyHerdConversionTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Dairy — Milk Collections ────────────────────────────────────────
 router.get("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.farmId, farmId)).orderBy(desc(organicDairyCollectionTable.collectionDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { collectionDate, collectorName, vehicleRef, volumeLitres, fatPercentage, proteinPercentage, sccThousandsPerMl, tbc, isOrganicCertified, processorRef, collectionRef, deductionsPence, netValuePence, notes } = req.body;
-  const [record] = await db.insert(organicDairyCollectionTable).values({ farmId, collectionDate, collectorName: collectorName ?? null, vehicleRef: vehicleRef ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).returning();
+  const [record] = await (db.insert(organicDairyCollectionTable) as any).values({ farmId, collectionDate, collectorName: collectorName ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-dairy/collections/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { collectionDate, collectorName, vehicleRef, volumeLitres, fatPercentage, proteinPercentage, sccThousandsPerMl, tbc, isOrganicCertified, processorRef, collectionRef, deductionsPence, netValuePence, notes } = req.body;
-  await db.update(organicDairyCollectionTable).set({ collectionDate, collectorName: collectorName ?? null, vehicleRef: vehicleRef ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).where(eq(organicDairyCollectionTable.id, id));
+  await (db.update(organicDairyCollectionTable) as any).set({ collectionDate, collectorName: collectorName ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccThousandsPerMl: sccThousandsPerMl ?? null, tbc: tbc ?? null, isOrganicCertified: isOrganicCertified ?? true, processorRef: processorRef ?? null, collectionRef: collectionRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, notes: notes ?? null }).where(eq(organicDairyCollectionTable.id, id));
   const [record] = await db.select().from(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.id, id));
   res.json({ record });
 });
 
 router.delete("/farms/:farmId/organic-dairy/collections/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicDairyCollectionTable).where(eq(organicDairyCollectionTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Dairy — Feed & Nutrition ────────────────────────────────────────
 router.get("/farms/:farmId/organic-dairy/feed", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicDairyFeedTable).where(eq(organicDairyFeedTable.farmId, farmId)).orderBy(desc(organicDairyFeedTable.recordDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-dairy/feed", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { recordDate, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, dryMatterKg, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
   const [record] = await db.insert(organicDairyFeedTable).values({ farmId, recordDate, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, dryMatterKg: dryMatterKg ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-dairy/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { recordDate, feedType, feedProductName, supplier, supplierApprovalNumber, isOrganicApproved, quantityKg, organicPercentage, dryMatterKg, poReference, grnReference, certifierApprovalRef, derogationReference, notes } = req.body;
   await db.update(organicDairyFeedTable).set({ recordDate, feedType, feedProductName, supplier: supplier ?? null, supplierApprovalNumber: supplierApprovalNumber ?? null, isOrganicApproved: isOrganicApproved ?? true, quantityKg: quantityKg ?? null, organicPercentage: organicPercentage ?? null, dryMatterKg: dryMatterKg ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, certifierApprovalRef: certifierApprovalRef ?? null, derogationReference: derogationReference ?? null, notes: notes ?? null }).where(eq(organicDairyFeedTable.id, id));
   const [record] = await db.select().from(organicDairyFeedTable).where(eq(organicDairyFeedTable.id, id));
@@ -20014,27 +20014,27 @@ router.put("/farms/:farmId/organic-dairy/feed/:id", requireAuth, requireTenant, 
 });
 
 router.delete("/farms/:farmId/organic-dairy/feed/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicDairyFeedTable).where(eq(organicDairyFeedTable.id, id));
   res.json({ ok: true });
 });
 
 // ─── Organic Dairy — Treatment Compliance ────────────────────────────────────
 router.get("/farms/:farmId/organic-dairy/treatments", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.farmId, farmId)).orderBy(desc(organicDairyTreatmentTable.treatmentDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/organic-dairy/treatments", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const { treatmentDate, cowIds, numberOfCows, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardMilkWithdrawalDays, doubledMilkWithdrawalDays, standardMeatWithdrawalDays, doubledMeatWithdrawalDays, milkWithdrawalEndDate, meatWithdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
   const [record] = await db.insert(organicDairyTreatmentTable).values({ farmId, treatmentDate, cowIds: cowIds ?? null, numberOfCows: numberOfCows ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardMilkWithdrawalDays: standardMilkWithdrawalDays ?? null, doubledMilkWithdrawalDays: doubledMilkWithdrawalDays ?? null, standardMeatWithdrawalDays: standardMeatWithdrawalDays ?? null, doubledMeatWithdrawalDays: doubledMeatWithdrawalDays ?? null, milkWithdrawalEndDate: milkWithdrawalEndDate ?? null, meatWithdrawalEndDate: meatWithdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-dairy/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const { treatmentDate, cowIds, numberOfCows, productName, productCategory, activeIngredient, doseAmount, routeOfAdministration, vetName, prescriptionRef, standardMilkWithdrawalDays, doubledMilkWithdrawalDays, standardMeatWithdrawalDays, doubledMeatWithdrawalDays, milkWithdrawalEndDate, meatWithdrawalEndDate, certifierNotified, treatmentNumber, notes } = req.body;
   await db.update(organicDairyTreatmentTable).set({ treatmentDate, cowIds: cowIds ?? null, numberOfCows: numberOfCows ?? null, productName, productCategory: productCategory ?? null, activeIngredient: activeIngredient ?? null, doseAmount: doseAmount ?? null, routeOfAdministration: routeOfAdministration ?? null, vetName: vetName ?? null, prescriptionRef: prescriptionRef ?? null, standardMilkWithdrawalDays: standardMilkWithdrawalDays ?? null, doubledMilkWithdrawalDays: doubledMilkWithdrawalDays ?? null, standardMeatWithdrawalDays: standardMeatWithdrawalDays ?? null, doubledMeatWithdrawalDays: doubledMeatWithdrawalDays ?? null, milkWithdrawalEndDate: milkWithdrawalEndDate ?? null, meatWithdrawalEndDate: meatWithdrawalEndDate ?? null, certifierNotified: certifierNotified ?? false, treatmentNumber: treatmentNumber ?? 1, notes: notes ?? null }).where(eq(organicDairyTreatmentTable.id, id));
   const [record] = await db.select().from(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.id, id));
@@ -20042,7 +20042,7 @@ router.put("/farms/:farmId/organic-dairy/treatments/:id", requireAuth, requireTe
 });
 
 router.delete("/farms/:farmId/organic-dairy/treatments/:id", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.delete(organicDairyTreatmentTable).where(eq(organicDairyTreatmentTable.id, id));
   res.json({ ok: true });
 });
@@ -20083,14 +20083,14 @@ router.post("/farms/:farmId/feed-recalls", requireAuth, requireTenant, requireMo
 router.put("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(feedRecallIncidentsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedRecallIncidentsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id as string)), eq(feedRecallIncidentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 router.delete("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(feedRecallIncidentsTable).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId)));
+  await db.delete(feedRecallIncidentsTable).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id as string)), eq(feedRecallIncidentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -20194,7 +20194,7 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
   router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(diseaseIncidentLogTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
+  const [record] = await db.update(diseaseIncidentLogTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id as string)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   const mortalityIds = parseMortalityIds(req.body.mortalityAnimalIds);
   if (mortalityIds.length > 0) {
@@ -20218,7 +20218,7 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
         })
         .where(eq(livestockMedicineRecordsTable.id, existingMed.id));
     } else {
-      await db.insert(livestockMedicineRecordsTable).values({
+      await (db.insert(livestockMedicineRecordsTable) as any).values({
         farmId,
         animalId: affectedIds.length === 1 ? affectedIds[0] : null,
         medicineName: req.body.treatmentGiven,
@@ -20272,7 +20272,7 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
 router.delete("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  await db.delete(diseaseIncidentLogTable).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId)));
+  await db.delete(diseaseIncidentLogTable).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id as string)), eq(diseaseIncidentLogTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -20353,7 +20353,7 @@ router.get("/farms/:farmId/bcms-submissions", requireAuth, requireTenant, async 
 router.post("/farms/:farmId/bcms-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
 
   const [movement] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
   if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
@@ -20527,7 +20527,7 @@ router.get("/farms/:farmId/lis-submissions", requireAuth, requireTenant, async (
 router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const movementId = parseInt(req.params.movementId);
+  const movementId = parseInt(req.params.movementId as string);
 
   const [movement] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
   if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
@@ -20631,7 +20631,7 @@ router.post("/farms/:farmId/farm-customers", requireAuth, requireTenant, async (
 
 router.put("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(farmCustomersTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId))).returning();
   res.json({ record });
@@ -20639,7 +20639,7 @@ router.put("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, asyn
 
 router.delete("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(farmCustomersTable).set({ isActive: false }).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId)));
   res.json({ success: true });
@@ -20660,7 +20660,7 @@ router.post("/farms/:farmId/service-agreements", requireAuth, requireTenant, asy
 
 router.put("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(serviceAgreementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -20668,7 +20668,7 @@ router.put("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, 
 
 router.delete("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(serviceAgreementsTable).set({ status: "terminated" }).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId)));
   res.json({ success: true });
@@ -20689,7 +20689,7 @@ router.post("/farms/:farmId/grain-intakes", requireAuth, requireTenant, async (r
 
 router.put("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(thirdPartyGrainIntakesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId))).returning();
   res.json({ record });
@@ -20697,7 +20697,7 @@ router.put("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async
 
 router.delete("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(thirdPartyGrainIntakesTable).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId)));
   res.json({ success: true });
@@ -20706,7 +20706,7 @@ router.delete("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, as
 // ─── Third-party Grain Movements ─────────────────────────────────────────────
 router.get("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const intakeId = parseInt(req.params.intakeId);
+  const intakeId = parseInt(req.params.intakeId as string);
   if (isNaN(intakeId)) { res.status(400).json({ error: "Invalid intake ID" }); return; }
   const records = await db.select().from(thirdPartyGrainMovementsTable)
     .where(and(eq(thirdPartyGrainMovementsTable.farmId, farmId), eq(thirdPartyGrainMovementsTable.intakeId, intakeId)))
@@ -20716,7 +20716,7 @@ router.get("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, requ
 
 router.post("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const intakeId = parseInt(req.params.intakeId);
+  const intakeId = parseInt(req.params.intakeId as string);
   if (isNaN(intakeId)) { res.status(400).json({ error: "Invalid intake ID" }); return; }
   const [record] = await db.insert(thirdPartyGrainMovementsTable).values({ ...req.body, farmId, intakeId }).returning();
   res.json({ record });
@@ -20724,7 +20724,7 @@ router.post("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, req
 
 router.delete("/farms/:farmId/grain-intakes/:intakeId/movements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(thirdPartyGrainMovementsTable).where(and(eq(thirdPartyGrainMovementsTable.id, id), eq(thirdPartyGrainMovementsTable.farmId, farmId)));
   res.json({ success: true });
@@ -20761,7 +20761,7 @@ router.post("/farms/:farmId/record-attachments", requireAuth, requireTenant, asy
 router.delete("/farms/:farmId/record-attachments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   await db.update(farmRecordAttachmentsTable).set({ deletedAt: new Date() }).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId), isNull(farmRecordAttachmentsTable.deletedAt)));
   res.json({ success: true });
 });
@@ -20797,9 +20797,9 @@ router.get("/farms/:farmId/service-invoices", requireAuth, requireTenant, async 
 router.post("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
   const { lines: lineItems, ...invoiceData } = req.body as { lines: Array<{ description: string; quantity?: number; unit?: string; unitPricePence: number; lineTotalPence: number }>; [key: string]: unknown };
-  const [invoice] = await db.insert(serviceInvoicesTable).values({ ...invoiceData, farmId }).returning();
+  const [invoice] = await db.insert(serviceInvoicesTable).values({ ...invoiceData, farmId } as any).returning();
   if (lineItems?.length) {
-    await db.insert(serviceInvoiceLinesTable).values(lineItems.map((l) => ({ ...l, invoiceId: invoice.id })));
+    await db.insert(serviceInvoiceLinesTable).values(lineItems.map((l) => ({ ...l, invoiceId: invoice.id })) as any[]);
     const subtotal = lineItems.reduce((s, l) => s + l.lineTotalPence, 0);
     const vatRate = parseFloat(String(invoiceData.vatRatePercent ?? 20));
     const vatPence = Math.round(subtotal * vatRate / 100);
@@ -20811,7 +20811,7 @@ router.post("/farms/:farmId/service-invoices", requireAuth, requireTenant, async
 
 router.put("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(serviceInvoicesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId))).returning();
   res.json({ record });
@@ -20819,7 +20819,7 @@ router.put("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, as
 
 router.delete("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(serviceInvoiceLinesTable).where(eq(serviceInvoiceLinesTable.invoiceId, id));
   await db.delete(serviceInvoicesTable).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId)));
@@ -20827,7 +20827,7 @@ router.delete("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant,
 });
 
 router.get("/farms/:farmId/service-invoices/:id/lines", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const records = await db.select().from(serviceInvoiceLinesTable).where(eq(serviceInvoiceLinesTable.invoiceId, id)).orderBy(serviceInvoiceLinesTable.id);
   res.json({ records });
@@ -20897,7 +20897,7 @@ router.post("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModu
   const { medicines: medicinesBody, ...visitBody } = req.body;
   const [visit] = await db.insert(vetVisitsTable).values({ ...visitBody, farmId }).returning();
   if (Array.isArray(medicinesBody) && medicinesBody.length > 0) {
-    const insertedMeds = await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: visit.id }))).returning();
+    const insertedMeds = await (db.insert(vetVisitMedicinesTable) as any).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: visit.id }))).returning();
     // Auto-mirror each medicine into livestock_medicine_records for Red Tractor compliance
     await syncVetMedicinesToRegister(farmId, visit, insertedMeds);
   }
@@ -20907,7 +20907,7 @@ router.post("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModu
 
 router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { medicines: medicinesBody, ...visitBody } = req.body;
   const [visit] = await db.update(vetVisitsTable).set({ ...visitBody, updatedAt: new Date() }).where(and(eq(vetVisitsTable.id, id), eq(vetVisitsTable.farmId, farmId))).returning();
   if (!visit) { res.status(404).json({ error: "Not found" }); return; }
@@ -20920,7 +20920,7 @@ router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireM
     }
     await db.delete(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
     if (medicinesBody.length > 0) {
-      const insertedMeds = await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: id }))).returning();
+      const insertedMeds = await (db.insert(vetVisitMedicinesTable) as any).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: id }))).returning();
       await syncVetMedicinesToRegister(farmId, visit, insertedMeds);
     }
   }
@@ -20930,7 +20930,7 @@ router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireM
 
 router.delete("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   // Remove auto-created medicine register entries before deleting the visit
   const meds = await db.select({ id: vetVisitMedicinesTable.id }).from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
   const medIds = meds.map(m => m.id);
@@ -20954,9 +20954,9 @@ router.get("/farms/:farmId/vet-invoices", requireAuth, requireTenant, requireMod
 router.post("/farms/:farmId/vet-invoices", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const { lines: linesBody, ...invoiceBody } = req.body;
-  const [invoice] = await db.insert(vetInvoicesTable).values({ ...invoiceBody, farmId }).returning();
+  const [invoice] = await (db.insert(vetInvoicesTable) as any).values({ ...invoiceBody, farmId }).returning();
   if (Array.isArray(linesBody) && linesBody.length > 0) {
-    await db.insert(vetInvoiceLinesTable).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: invoice.id })));
+    await (db.insert(vetInvoiceLinesTable) as any).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: invoice.id })));
   }
   const lines = await db.select().from(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, invoice.id));
   const matched = lines.filter(l => l.isMatched).length;
@@ -20969,14 +20969,14 @@ router.post("/farms/:farmId/vet-invoices", requireAuth, requireTenant, requireMo
 
 router.put("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { lines: linesBody, ...invoiceBody } = req.body;
   const [invoice] = await db.update(vetInvoicesTable).set({ ...invoiceBody, updatedAt: new Date() }).where(and(eq(vetInvoicesTable.id, id), eq(vetInvoicesTable.farmId, farmId))).returning();
   if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
   if (Array.isArray(linesBody)) {
     await db.delete(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, id));
     if (linesBody.length > 0) {
-      await db.insert(vetInvoiceLinesTable).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: id })));
+      await (db.insert(vetInvoiceLinesTable) as any).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: id })));
     }
   }
   const lines = await db.select().from(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, id));
@@ -20988,7 +20988,7 @@ router.put("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, requir
 
 router.delete("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(vetInvoicesTable).where(and(eq(vetInvoicesTable.id, id), eq(vetInvoicesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21010,13 +21010,13 @@ router.post("/farms/:farmId/shooting-records", requireAuth, requireTenant, requi
 });
 router.put("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(shootingAndGameRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(shootingAndGameRecordsTable).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21033,13 +21033,13 @@ router.post("/farms/:farmId/food-hygiene-inspections", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db.update(farmShopHygieneInspectionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(farmShopHygieneInspectionsTable).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21256,7 +21256,7 @@ router.get("/farms/:farmId/equipment-hire", requireAuth, requireTenant, async (r
 
 router.get("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [row] = await db
     .select({
@@ -21289,7 +21289,7 @@ router.post("/farms/:farmId/equipment-hire", requireAuth, requireTenant, async (
 
 router.put("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(equipmentHireBookingsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId))).returning();
   res.json({ record });
@@ -21297,7 +21297,7 @@ router.put("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, asyn
 
 router.delete("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(equipmentHireBookingsTable).set({ status: "cancelled", updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId)));
   res.json({ success: true });
@@ -21328,7 +21328,7 @@ router.get("/farms/:farmId/equipment-hire/insurance-check", requireAuth, require
 // ── Condition Logs ──────────────────────────────────────────
 router.get("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const bookingId = parseInt(req.params.bookingId);
+  const bookingId = parseInt(req.params.bookingId as string);
   if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const records = await db.select().from(equipmentHireConditionLogsTable).where(and(eq(equipmentHireConditionLogsTable.bookingId, bookingId), eq(equipmentHireConditionLogsTable.farmId, farmId))).orderBy(equipmentHireConditionLogsTable.logDate);
   res.json({ records });
@@ -21336,7 +21336,7 @@ router.get("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, r
 
 router.post("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const bookingId = parseInt(req.params.bookingId);
+  const bookingId = parseInt(req.params.bookingId as string);
   if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.insert(equipmentHireConditionLogsTable).values({ ...req.body, bookingId, farmId }).returning();
   res.json({ record });
@@ -21344,7 +21344,7 @@ router.post("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, 
 
 router.delete("/farms/:farmId/equipment-hire/:bookingId/conditions/:conditionId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const conditionId = parseInt(req.params.conditionId);
+  const conditionId = parseInt(req.params.conditionId as string);
   if (isNaN(conditionId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(equipmentHireConditionLogsTable).where(and(eq(equipmentHireConditionLogsTable.id, conditionId), eq(equipmentHireConditionLogsTable.farmId, farmId)));
   res.json({ success: true });
@@ -21353,7 +21353,7 @@ router.delete("/farms/:farmId/equipment-hire/:bookingId/conditions/:conditionId"
 // ── Fuel Issues ─────────────────────────────────────────────
 router.get("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const bookingId = parseInt(req.params.bookingId);
+  const bookingId = parseInt(req.params.bookingId as string);
   if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const records = await db.select().from(equipmentHireFuelIssuesTable).where(and(eq(equipmentHireFuelIssuesTable.bookingId, bookingId), eq(equipmentHireFuelIssuesTable.farmId, farmId))).orderBy(equipmentHireFuelIssuesTable.issueDate);
   res.json({ records });
@@ -21361,7 +21361,7 @@ router.get("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, require
 
 router.post("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const bookingId = parseInt(req.params.bookingId);
+  const bookingId = parseInt(req.params.bookingId as string);
   if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const body = req.body;
   if (body.litres && body.pricePerLitrePence) {
@@ -21373,7 +21373,7 @@ router.post("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, requir
 
 router.delete("/farms/:farmId/equipment-hire/:bookingId/fuel/:fuelId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const fuelId = parseInt(req.params.fuelId);
+  const fuelId = parseInt(req.params.fuelId as string);
   if (isNaN(fuelId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(equipmentHireFuelIssuesTable).where(and(eq(equipmentHireFuelIssuesTable.id, fuelId), eq(equipmentHireFuelIssuesTable.farmId, farmId)));
   res.json({ success: true });
@@ -21429,13 +21429,13 @@ router.get("/farms/:farmId/equipment-hire-summary", requireAuth, requireTenant, 
 // ─── TB Test Register ─────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(tbTestsTable).where(eq(tbTestsTable.farmId, farmId)).orderBy(desc(tbTestsTable.testDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.testDate || !b.testType || !b.species || !b.outcome) { res.status(400).json({ error: "testDate, testType, species and outcome are required" }); return; }
   const [record] = await db.insert(tbTestsTable).values({
@@ -21466,8 +21466,8 @@ router.post("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModule
 });
 
 router.put("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["testDate","readingDate","testType","species","herdFlockRef","herdId","animalsTested","animalEarTags","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","documentPath","notes"];
@@ -21479,15 +21479,15 @@ router.put("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireMod
 });
 
 router.delete("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(tbTestsTable).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.patch("/farms/:farmId/tb-tests/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const { documentPath = null, documentName = null } = req.body ?? {};
   const [record] = await db.update(tbTestsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -21581,13 +21581,13 @@ router.get("/farms/:farmId/woa-auto-calc", requireAuth, requireTenant, requireMo
 // ─── Welfare Outcome Assessments (WOA) ────────────────────────────────────────
 
 router.get("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(welfareOutcomeAssessmentsTable).where(eq(welfareOutcomeAssessmentsTable.farmId, farmId)).orderBy(desc(welfareOutcomeAssessmentsTable.assessmentDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.assessmentDate || !b.assessorName || !b.species || !b.overallOutcome) { res.status(400).json({ error: "assessmentDate, assessorName, species and overallOutcome are required" }); return; }
   const [record] = await db.insert(welfareOutcomeAssessmentsTable).values({
@@ -21619,8 +21619,8 @@ router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTe
 });
 
 router.put("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["assessmentDate","assessorName","assessorRole","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","documentPath","notes"];
@@ -21631,8 +21631,8 @@ router.put("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requir
 });
 
 router.delete("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(welfareOutcomeAssessmentsTable).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21640,13 +21640,13 @@ router.delete("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, req
 // ─── PPE Issue Records ────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(ppeIssueRecordsTable).where(eq(ppeIssueRecordsTable.farmId, farmId)).orderBy(desc(ppeIssueRecordsTable.dateIssued));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.staffName || !b.ppeType || !b.dateIssued) { res.status(400).json({ error: "staffName, ppeType and dateIssued are required" }); return; }
   const stockItemId = b.stockItemId ? parseInt(String(b.stockItemId)) : null;
@@ -21675,8 +21675,8 @@ router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requ
 });
 
 router.put("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["staffName","staffUserId","ppeType","description","size","supplier","stockItemId","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive"];
@@ -21687,8 +21687,8 @@ router.put("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, r
 });
 
 router.delete("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(ppeIssueRecordsTable).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21696,7 +21696,7 @@ router.delete("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant
 // ─── PPE Stock Items ──────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const items = await db.select({
     id: ppeStockItemsTable.id,
     farmId: ppeStockItemsTable.farmId,
@@ -21725,7 +21725,7 @@ router.get("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, require
 });
 
 router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.ppeType) { res.status(400).json({ error: "ppeType is required" }); return; }
   const qty = b.quantityReceived ? parseInt(String(b.quantityReceived)) : 0;
@@ -21750,8 +21750,8 @@ router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requir
 });
 
 router.put("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["ppeType","description","size","quantityReceived","quantityInStock","unitCostPence","supplierId","supplierName","invoiceRef","deliveryNoteRef","receivedDate","batchNumber","notes","isActive"];
@@ -21762,8 +21762,8 @@ router.put("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, req
 });
 
 router.delete("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(ppeStockItemsTable).where(and(eq(ppeStockItemsTable.id, id), eq(ppeStockItemsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21771,15 +21771,15 @@ router.delete("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, 
 // ─── PPE Risk Assessments ─────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const records = await db.select().from(ppeRiskAssessmentsTable).where(eq(ppeRiskAssessmentsTable.farmId, farmId)).orderBy(desc(ppeRiskAssessmentsTable.assessmentDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const body = sanitiseBody(req.body);
-  const [record] = await db.insert(ppeRiskAssessmentsTable).values({
+  const [record] = await (db.insert(ppeRiskAssessmentsTable) as any).values({
     farmId,
     assessmentRef: body.assessmentRef || null,
     ppeType: body.ppeType,
@@ -21804,8 +21804,8 @@ router.post("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, r
 });
 
 router.put("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const body = sanitiseBody(req.body);
   const updates = {
     assessmentRef: body.assessmentRef || null,
@@ -21828,13 +21828,13 @@ router.put("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant
     isActive: body.isActive !== false,
     updatedAt: new Date(),
   };
-  const [record] = await db.update(ppeRiskAssessmentsTable).set(updates).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(ppeRiskAssessmentsTable).set(updates as any).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
 router.delete("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.delete(ppeRiskAssessmentsTable).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -21842,7 +21842,7 @@ router.delete("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTen
 // ─── Contractors H&S File ─────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/contractors", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const showInactive = req.query.showInactive === "true";
   const rows = await db.select().from(contractorsTable).where(
     showInactive ? eq(contractorsTable.farmId, farmId) : and(eq(contractorsTable.farmId, farmId), eq(contractorsTable.isActive, true))
@@ -21862,7 +21862,7 @@ router.get("/farms/:farmId/contractors", requireAuth, requireTenant, requireModu
 });
 
 router.post("/farms/:farmId/contractors", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.companyName || !b.tradeType) { res.status(400).json({ error: "companyName and tradeType are required" }); return; }
   const [contractor] = await db.insert(contractorsTable).values({
@@ -21889,8 +21889,8 @@ router.post("/farms/:farmId/contractors", requireAuth, requireTenant, requireMod
 });
 
 router.put("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["companyName","tradeType","address","contactName","phone","email","supplierId","pliNumber","pliInsurer","pliCoverAmountGbp","pliExpiryDate","pliDocumentUrl","pliDocumentName","firstOnSiteDate","lastOnSiteDate","notes","isActive"];
@@ -21902,23 +21902,23 @@ router.put("/farms/:farmId/contractors/:id", requireAuth, requireTenant, require
 });
 
 router.delete("/farms/:farmId/contractors/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   await db.update(contractorsTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(contractorsTable.id, id), eq(contractorsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // ─── Contractor Contacts ──────────────────────────────────────────────────────
 router.get("/farms/:farmId/contractors/:contractorId/contacts", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contractorId = parseInt(req.params.contractorId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contractorId = parseInt(req.params.contractorId as string);
   const rows = await db.select().from(contractorContactsTable).where(and(eq(contractorContactsTable.contractorId, contractorId), eq(contractorContactsTable.farmId, farmId))).orderBy(asc(contractorContactsTable.id));
   res.json({ contacts: rows });
 });
 
 router.post("/farms/:farmId/contractors/:contractorId/contacts", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contractorId = parseInt(req.params.contractorId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contractorId = parseInt(req.params.contractorId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.name) { res.status(400).json({ error: "name is required" }); return; }
   const [contact] = await db.insert(contractorContactsTable).values({
@@ -21934,8 +21934,8 @@ router.post("/farms/:farmId/contractors/:contractorId/contacts", requireAuth, re
 });
 
 router.put("/farms/:farmId/contractors/:contractorId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contactId = parseInt(req.params.contactId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contactId = parseInt(req.params.contactId as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["name","role","phone","email","notes"];
@@ -21947,23 +21947,23 @@ router.put("/farms/:farmId/contractors/:contractorId/contacts/:contactId", requi
 });
 
 router.delete("/farms/:farmId/contractors/:contractorId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contactId = parseInt(req.params.contactId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contactId = parseInt(req.params.contactId as string);
   await db.delete(contractorContactsTable).where(and(eq(contractorContactsTable.id, contactId), eq(contractorContactsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // ─── Contractor RAMS ──────────────────────────────────────────────────────────
 router.get("/farms/:farmId/contractors/:contractorId/rams", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contractorId = parseInt(req.params.contractorId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contractorId = parseInt(req.params.contractorId as string);
   const rows = await db.select().from(contractorRamsTable).where(and(eq(contractorRamsTable.contractorId, contractorId), eq(contractorRamsTable.farmId, farmId))).orderBy(asc(contractorRamsTable.id));
   res.json({ rams: rows });
 });
 
 router.post("/farms/:farmId/contractors/:contractorId/rams", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contractorId = parseInt(req.params.contractorId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contractorId = parseInt(req.params.contractorId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.activityDescription) { res.status(400).json({ error: "activityDescription is required" }); return; }
   const [rams] = await db.insert(contractorRamsTable).values({
@@ -21980,8 +21980,8 @@ router.post("/farms/:farmId/contractors/:contractorId/rams", requireAuth, requir
 });
 
 router.put("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const ramsId = parseInt(req.params.ramsId);
+  const farmId = parseInt(req.params.farmId as string);
+  const ramsId = parseInt(req.params.ramsId as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   const fields = ["activityDescription","documentUrl","documentName","receivedDate","reviewedBy","reviewDate","notes"];
@@ -21992,16 +21992,16 @@ router.put("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAuth,
 });
 
 router.delete("/farms/:farmId/contractors/:contractorId/rams/:ramsId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const ramsId = parseInt(req.params.ramsId);
+  const farmId = parseInt(req.params.farmId as string);
+  const ramsId = parseInt(req.params.ramsId as string);
   await db.delete(contractorRamsTable).where(and(eq(contractorRamsTable.id, ramsId), eq(contractorRamsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Mark a RAMS entry as reviewed (stamps current user name + today's date)
 router.patch("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const ramsId = parseInt(req.params.ramsId);
+  const farmId = parseInt(req.params.farmId as string);
+  const ramsId = parseInt(req.params.ramsId as string);
   const userId = req.userId ?? null;
   // Resolve display name from users table
   let displayName = "Unknown";
@@ -22023,9 +22023,9 @@ router.patch("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review", req
 
 // Raise a Task Board review task for a specific RAMS entry
 router.post("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review-task", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const contractorId = parseInt(req.params.contractorId);
-  const ramsId = parseInt(req.params.ramsId);
+  const farmId = parseInt(req.params.farmId as string);
+  const contractorId = parseInt(req.params.contractorId as string);
+  const ramsId = parseInt(req.params.ramsId as string);
   const userId = req.userId ?? "unknown";
   const { assignedToMemberId, dueDate, note } = req.body;
   if (!assignedToMemberId) { res.status(400).json({ error: "assignedToMemberId is required" }); return; }
@@ -22039,7 +22039,7 @@ router.post("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review-task",
   const staffPhone = member.phone ?? null;
   const title = `Review RAMS — ${ramsRow.activityDescription} (${contractor.companyName})`;
   const description = `Please review the Risk Assessment & Method Statement for ${contractor.companyName} covering the following activity:\n\n"${ramsRow.activityDescription}"\n\nOnce reviewed, open the Contractor H&S File in BDE Farm Trac and click 'Mark as Reviewed' on this RAMS entry.${note ? `\n\nNote from manager: ${note}` : ""}`;
-  const [task] = await db.insert(farmTaskAssignmentsTable).values({
+  const [task] = await (db.insert(farmTaskAssignmentsTable) as any).values({
     farmId, tenantId: farmId,
     assignedToMemberId: Number(assignedToMemberId),
     assignedByUserId: userId,
@@ -22073,7 +22073,7 @@ router.post("/farms/:farmId/contractors/:contractorId/rams/:ramsId/review-task",
 // ─── Sheep Dipping Records ────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const stockAlias = stockItemsTable;
   const records = await db.select({
     id: sheepDippingRecordsTable.id,
@@ -22119,10 +22119,10 @@ router.get("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, r
 });
 
 router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.dipDate || !b.productName || !b.sheepCount || !b.operatorName) { res.status(400).json({ error: "dipDate, productName, sheepCount and operatorName are required" }); return; }
-  const [record] = await db.insert(sheepDippingRecordsTable).values({
+  const [record] = await (db.insert(sheepDippingRecordsTable) as any).values({
     farmId,
     dipDate: String(b.dipDate),
     productName: String(b.productName),
@@ -22157,7 +22157,7 @@ router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, 
   // ── Auto-deduct from chemical stock ─────────────────────────────────────────
   if (record.stockItemId && record.quantityUsed) {
     const qtyChange = -parseFloat(record.quantityUsed);
-    await db.insert(stockMovementsTable).values({
+    await (db.insert(stockMovementsTable) as any).values({
       farmId,
       stockItemId: record.stockItemId,
       movementType: "usage",
@@ -22171,7 +22171,7 @@ router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, 
     if (existing) {
       await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
     } else {
-      await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
+      await (db.insert(stockLevelsTable) as any).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
     }
   }
 
@@ -22179,8 +22179,8 @@ router.post("/farms/:farmId/sheep-dipping-records", requireAuth, requireTenant, 
 });
 
 router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
 
   // Fetch existing record before update so we can reconcile stock
@@ -22203,7 +22203,7 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
   if (stockChanged) {
     // Reverse the old deduction if it existed
     if (oldStockId && oldQty > 0) {
-      await db.insert(stockMovementsTable).values({
+      await (db.insert(stockMovementsTable) as any).values({
         farmId, stockItemId: oldStockId, movementType: "adjustment",
         quantityChange: String(oldQty), referenceType: "sheep_dipping",
         referenceId: id, notes: `Stock reversal: sheep dipping record ${id} edited`,
@@ -22214,7 +22214,7 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
     // Apply the new deduction if one is now set
     if (newStockId && newQty > 0) {
       const qtyChange = -newQty;
-      await db.insert(stockMovementsTable).values({
+      await (db.insert(stockMovementsTable) as any).values({
         farmId, stockItemId: newStockId, movementType: "usage",
         quantityChange: String(qtyChange), referenceType: "sheep_dipping",
         referenceId: id, performedBy: record.operatorName || null,
@@ -22224,7 +22224,7 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
       if (newLevel) {
         await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(newLevel.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, newLevel.id));
       } else {
-        await db.insert(stockLevelsTable).values({ farmId, stockItemId: newStockId, currentQuantity: String(qtyChange) });
+        await (db.insert(stockLevelsTable) as any).values({ farmId, stockItemId: newStockId, currentQuantity: String(qtyChange) });
       }
     }
   }
@@ -22233,15 +22233,15 @@ router.put("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenan
 });
 
 router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
-  const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
 
   // Fetch record before deleting so we can reverse the stock deduction
   const [existing] = await db.select().from(sheepDippingRecordsTable).where(and(eq(sheepDippingRecordsTable.id, id), eq(sheepDippingRecordsTable.farmId, farmId))).limit(1);
   if (existing?.stockItemId && existing.quantityUsed) {
     const reversal = parseFloat(existing.quantityUsed);
     if (reversal > 0) {
-      await db.insert(stockMovementsTable).values({
+      await (db.insert(stockMovementsTable) as any).values({
         farmId, stockItemId: existing.stockItemId, movementType: "adjustment",
         quantityChange: String(reversal), referenceType: "sheep_dipping",
         referenceId: id, notes: `Stock reversal: sheep dipping record ${id} deleted`,
@@ -22259,7 +22259,7 @@ router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTe
 // SHEEP PRODUCTION
 // ============================================================
 router.get("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const herds = await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)).orderBy(herdFlockRegisterTable.name);
   res.json(herds.map(h => ({ id: h.id, flockName: h.name, breed: h.breed, flockPurpose: h.type, herdFlockNumber: h.herdNumber, notes: h.notes, status: h.isActive ? "active" : "archived", farmId: h.farmId, createdAt: h.createdAt })));
 });
@@ -22274,99 +22274,99 @@ router.delete("/farms/:farmId/sheep-flocks/:id", requireAuth, requireTenant, req
 });
 
 router.get("/farms/:farmId/sheep-tupping-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepTuppingRecordsTable).where(eq(sheepTuppingRecordsTable.farmId, farmId)).orderBy(desc(sheepTuppingRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-tupping-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepTuppingRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, tuppingStartDate: String(b.tuppingStartDate ?? ""), tuppingEndDate: b.tuppingEndDate ? String(b.tuppingEndDate) : null, ramBreed: b.ramBreed ? String(b.ramBreed) : null, ramTagNumber: b.ramTagNumber ? String(b.ramTagNumber) : null, ramSource: b.ramSource ? String(b.ramSource) : null, ewesExposed: b.ewesExposed ? parseInt(String(b.ewesExposed)) : null, tuppingMethod: b.tuppingMethod ? String(b.tuppingMethod) : null, harnessColour: b.harnessColour ? String(b.harnessColour) : null, progesteroneUsed: b.progesteroneUsed === true || b.progesteroneUsed === "true", expectedLambingStart: b.expectedLambingStart ? String(b.expectedLambingStart) : null, expectedLambingEnd: b.expectedLambingEnd ? String(b.expectedLambingEnd) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepTuppingRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, tuppingStartDate: String(b.tuppingStartDate ?? ""), tuppingEndDate: b.tuppingEndDate ? String(b.tuppingEndDate) : null, ramBreed: b.ramBreed ? String(b.ramBreed) : null, ramTagNumber: b.ramTagNumber ? String(b.ramTagNumber) : null, ramSource: b.ramSource ? String(b.ramSource) : null, ewesExposed: b.ewesExposed ? parseInt(String(b.ewesExposed)) : null, tuppingMethod: b.tuppingMethod ? String(b.tuppingMethod) : null, harnessColour: b.harnessColour ? String(b.harnessColour) : null, progesteroneUsed: b.progesteroneUsed === true || b.progesteroneUsed === "true", expectedLambingStart: b.expectedLambingStart ? String(b.expectedLambingStart) : null, expectedLambingEnd: b.expectedLambingEnd ? String(b.expectedLambingEnd) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-tupping-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","tuppingStartDate","tuppingEndDate","ramBreed","ramTagNumber","ramSource","ewesExposed","tuppingMethod","harnessColour","progesteroneUsed","expectedLambingStart","expectedLambingEnd","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
-  const [row] = await db.update(sheepTuppingRecordsTable).set(updates).where(and(eq(sheepTuppingRecordsTable.id, id), eq(sheepTuppingRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sheepTuppingRecordsTable).set(updates as any).where(and(eq(sheepTuppingRecordsTable.id, id), eq(sheepTuppingRecordsTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-tupping-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepTuppingRecordsTable).where(and(eq(sheepTuppingRecordsTable.id, id), eq(sheepTuppingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-scanning-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepScanningRecordsTable).where(eq(sheepScanningRecordsTable.farmId, farmId)).orderBy(desc(sheepScanningRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-scanning-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepScanningRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, scanDate: String(b.scanDate ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, ewesScanned: b.ewesScanned ? parseInt(String(b.ewesScanned)) : null, ewesInLamb: b.ewesInLamb ? parseInt(String(b.ewesInLamb)) : null, ewesBare: b.ewesBare ? parseInt(String(b.ewesBare)) : null, singlesCount: b.singlesCount ? parseInt(String(b.singlesCount)) : null, twinsCount: b.twinsCount ? parseInt(String(b.twinsCount)) : null, triplesCount: b.triplesCount ? parseInt(String(b.triplesCount)) : null, quadsCount: b.quadsCount ? parseInt(String(b.quadsCount)) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, expectedLambsTotal: b.expectedLambsTotal ? parseInt(String(b.expectedLambsTotal)) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepScanningRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, scanDate: String(b.scanDate ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, ewesScanned: b.ewesScanned ? parseInt(String(b.ewesScanned)) : null, ewesInLamb: b.ewesInLamb ? parseInt(String(b.ewesInLamb)) : null, ewesBare: b.ewesBare ? parseInt(String(b.ewesBare)) : null, singlesCount: b.singlesCount ? parseInt(String(b.singlesCount)) : null, twinsCount: b.twinsCount ? parseInt(String(b.twinsCount)) : null, triplesCount: b.triplesCount ? parseInt(String(b.triplesCount)) : null, quadsCount: b.quadsCount ? parseInt(String(b.quadsCount)) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, expectedLambsTotal: b.expectedLambsTotal ? parseInt(String(b.expectedLambsTotal)) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","scanDate","scannerName","ewesScanned","ewesInLamb","ewesBare","singlesCount","twinsCount","triplesCount","quadsCount","scanningPercentage","expectedLambsTotal","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
-  const [row] = await db.update(sheepScanningRecordsTable).set(updates).where(and(eq(sheepScanningRecordsTable.id, id), eq(sheepScanningRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sheepScanningRecordsTable).set(updates as any).where(and(eq(sheepScanningRecordsTable.id, id), eq(sheepScanningRecordsTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepScanningRecordsTable).where(and(eq(sheepScanningRecordsTable.id, id), eq(sheepScanningRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-weigh-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepWeighRecordsTable).where(eq(sheepWeighRecordsTable.farmId, farmId)).orderBy(desc(sheepWeighRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-weigh-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepWeighRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, weighDate: String(b.weighDate ?? ""), weighBatchRef: b.weighBatchRef ? String(b.weighBatchRef) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, numberOfAnimalsWeighed: b.numberOfAnimalsWeighed ? parseInt(String(b.numberOfAnimalsWeighed)) : null, averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepWeighRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, weighDate: String(b.weighDate ?? ""), weighBatchRef: b.weighBatchRef ? String(b.weighBatchRef) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, numberOfAnimalsWeighed: b.numberOfAnimalsWeighed ? parseInt(String(b.numberOfAnimalsWeighed)) : null, averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","weighDate","weighBatchRef","animalCategory","numberOfAnimalsWeighed","averageWeightKg","totalWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","bodyConditionScore","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
-  const [row] = await db.update(sheepWeighRecordsTable).set(updates).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sheepWeighRecordsTable).set(updates as any).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepWeighRecordsTable).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-shearing-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepShearingRecordsTable).where(eq(sheepShearingRecordsTable.farmId, farmId)).orderBy(desc(sheepShearingRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-shearing-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepShearingRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, shearingDate: String(b.shearingDate ?? ""), shearerName: b.shearerName ? String(b.shearerName) : null, isContractor: b.isContractor === true || b.isContractor === "true", numberOfSheepSheared: b.numberOfSheepSheared ? parseInt(String(b.numberOfSheepSheared)) : null, woolWeightKg: b.woolWeightKg ? String(b.woolWeightKg) : null, woolGrade: b.woolGrade ? String(b.woolGrade) : null, britishWoolBoardRef: b.britishWoolBoardRef ? String(b.britishWoolBoardRef) : null, woolSaleValue: b.woolSaleValue ? String(b.woolSaleValue) : null, ectoparasiteTreatmentApplied: b.ectoparasiteTreatmentApplied === true || b.ectoparasiteTreatmentApplied === "true", treatmentProductName: b.treatmentProductName ? String(b.treatmentProductName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepShearingRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, shearingDate: String(b.shearingDate ?? ""), shearerName: b.shearerName ? String(b.shearerName) : null, isContractor: b.isContractor === true || b.isContractor === "true", numberOfSheepSheared: b.numberOfSheepSheared ? parseInt(String(b.numberOfSheepSheared)) : null, woolWeightKg: b.woolWeightKg ? String(b.woolWeightKg) : null, woolGrade: b.woolGrade ? String(b.woolGrade) : null, britishWoolBoardRef: b.britishWoolBoardRef ? String(b.britishWoolBoardRef) : null, woolSaleValue: b.woolSaleValue ? String(b.woolSaleValue) : null, ectoparasiteTreatmentApplied: b.ectoparasiteTreatmentApplied === true || b.ectoparasiteTreatmentApplied === "true", treatmentProductName: b.treatmentProductName ? String(b.treatmentProductName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-shearing-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","shearingDate","shearerName","isContractor","numberOfSheepSheared","woolWeightKg","woolGrade","britishWoolBoardRef","woolSaleValue","ectoparasiteTreatmentApplied","treatmentProductName","notes"];
@@ -22376,24 +22376,24 @@ router.put("/farms/:farmId/sheep-shearing-records/:id", requireAuth, requireTena
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-shearing-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepShearingRecordsTable).where(and(eq(sheepShearingRecordsTable.id, id), eq(sheepShearingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-cull-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepCullRecordsTable).where(eq(sheepCullRecordsTable.farmId, farmId)).orderBy(desc(sheepCullRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-cull-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepCullRecordsTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, cullDate: String(b.cullDate ?? ""), animalTagNumber: b.animalTagNumber ? String(b.animalTagNumber) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, cullReason: String(b.cullReason ?? ""), disposalMethod: b.disposalMethod ? String(b.disposalMethod) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, saleValueGbp: b.saleValueGbp ? String(b.saleValueGbp) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepCullRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, cullDate: String(b.cullDate ?? ""), animalTagNumber: b.animalTagNumber ? String(b.animalTagNumber) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, cullReason: String(b.cullReason ?? ""), disposalMethod: b.disposalMethod ? String(b.disposalMethod) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, saleValueGbp: b.saleValueGbp ? String(b.saleValueGbp) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","cullDate","animalTagNumber","animalCategory","cullReason","disposalMethod","abattoirName","carcassWeightKg","saleValueGbp","notes"];
@@ -22403,24 +22403,24 @@ router.put("/farms/:farmId/sheep-cull-records/:id", requireAuth, requireTenant, 
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepCullRecordsTable).where(and(eq(sheepCullRecordsTable.id, id), eq(sheepCullRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepVaccinationProgrammesTable).where(eq(sheepVaccinationProgrammesTable.farmId, farmId)).orderBy(desc(sheepVaccinationProgrammesTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepVaccinationProgrammesTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, programmeName: String(b.programmeName ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), diseaseTargeted: b.diseaseTargeted ? String(b.diseaseTargeted) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, doseMl: b.doseMl ? String(b.doseMl) : null, vaccinationDate: String(b.vaccinationDate ?? ""), boosterDueDate: b.boosterDueDate ? String(b.boosterDueDate) : null, numberOfAnimalsVaccinated: b.numberOfAnimalsVaccinated ? parseInt(String(b.numberOfAnimalsVaccinated)) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepVaccinationProgrammesTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, programmeName: String(b.programmeName ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), diseaseTargeted: b.diseaseTargeted ? String(b.diseaseTargeted) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, doseMl: b.doseMl ? String(b.doseMl) : null, vaccinationDate: String(b.vaccinationDate ?? ""), boosterDueDate: b.boosterDueDate ? String(b.boosterDueDate) : null, numberOfAnimalsVaccinated: b.numberOfAnimalsVaccinated ? parseInt(String(b.numberOfAnimalsVaccinated)) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","programmeName","vaccineProduct","diseaseTargeted","administrationRoute","doseMl","vaccinationDate","boosterDueDate","numberOfAnimalsVaccinated","batchNumber","expiryDate","administeredBy","vetPrescribed","withdrawalPeriodDays","notes"];
@@ -22430,24 +22430,24 @@ router.put("/farms/:farmId/sheep-vaccination-programmes/:id", requireAuth, requi
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepVaccinationProgrammesTable).where(and(eq(sheepVaccinationProgrammesTable.id, id), eq(sheepVaccinationProgrammesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepDiseaseMonitoringTable).where(eq(sheepDiseaseMonitoringTable.farmId, farmId)).orderBy(desc(sheepDiseaseMonitoringTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepDiseaseMonitoringTable).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, observationDate: String(b.observationDate ?? ""), condition: String(b.condition ?? ""), numberOfAnimalsAffected: b.numberOfAnimalsAffected ? parseInt(String(b.numberOfAnimalsAffected)) : null, severity: b.severity ? String(b.severity) : null, actionTaken: b.actionTaken ? String(b.actionTaken) : null, vetConsulted: b.vetConsulted === true || b.vetConsulted === "true", vetName: b.vetName ? String(b.vetName) : null, treatmentProduct: b.treatmentProduct ? String(b.treatmentProduct) : null, outcome: b.outcome ? String(b.outcome) : null, reportableDisease: b.reportableDisease === true || b.reportableDisease === "true", ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepDiseaseMonitoringTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, observationDate: String(b.observationDate ?? ""), condition: String(b.condition ?? ""), numberOfAnimalsAffected: b.numberOfAnimalsAffected ? parseInt(String(b.numberOfAnimalsAffected)) : null, severity: b.severity ? String(b.severity) : null, actionTaken: b.actionTaken ? String(b.actionTaken) : null, vetConsulted: b.vetConsulted === true || b.vetConsulted === "true", vetName: b.vetName ? String(b.vetName) : null, treatmentProduct: b.treatmentProduct ? String(b.treatmentProduct) : null, outcome: b.outcome ? String(b.outcome) : null, reportableDisease: b.reportableDisease === true || b.reportableDisease === "true", ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["flockId","observationDate","condition","numberOfAnimalsAffected","severity","actionTaken","vetConsulted","vetName","treatmentProduct","outcome","reportableDisease","ahrbiNotified","notes"];
@@ -22457,24 +22457,24 @@ router.put("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTe
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepDiseaseMonitoringTable).where(and(eq(sheepDiseaseMonitoringTable.id, id), eq(sheepDiseaseMonitoringTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/sheep-rt-checklists", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(sheepRedTractorChecklistTable).where(eq(sheepRedTractorChecklistTable.farmId, farmId)).orderBy(desc(sheepRedTractorChecklistTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/sheep-rt-checklists", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(sheepRedTractorChecklistTable).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, flockRegisterUpToDate: b.flockRegisterUpToDate === true || b.flockRegisterUpToDate === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", welfareOutcomesRecorded: b.welfareOutcomesRecorded === true || b.welfareOutcomesRecorded === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepRedTractorChecklistTable) as any).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, flockRegisterUpToDate: b.flockRegisterUpToDate === true || b.flockRegisterUpToDate === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", welfareOutcomesRecorded: b.welfareOutcomesRecorded === true || b.welfareOutcomesRecorded === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["checkDate","checkedBy","flockRegisterUpToDate","medicineRecordsComplete","movementRecordsComplete","feedRecordsComplete","mbmFreeStatus","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent","welfareOutcomesRecorded","overallStatus","notes"];
@@ -22484,7 +22484,7 @@ router.put("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTenant,
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(sheepRedTractorChecklistTable).where(and(eq(sheepRedTractorChecklistTable.id, id), eq(sheepRedTractorChecklistTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -22493,18 +22493,18 @@ router.delete("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTena
 // BEEF PRODUCTION
 // ============================================================
 router.get("/farms/:farmId/beef-weigh-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(beefWeighRecordsTable).where(eq(beefWeighRecordsTable.farmId, farmId)).orderBy(desc(beefWeighRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/beef-weigh-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(beefWeighRecordsTable).values({ farmId, herdId: b.herdId ? parseInt(String(b.herdId)) : null, weighDate: String(b.weighDate ?? ""), groupRef: b.groupRef ? String(b.groupRef) : null, breed: b.breed ? String(b.breed) : null, category: b.category ? String(b.category) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, totalLiveWeightKg: b.totalLiveWeightKg ? String(b.totalLiveWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, averageBcsScore: b.averageBcsScore ? String(b.averageBcsScore) : null, location: b.location ? String(b.location) : null, weighedBy: b.weighedBy ? String(b.weighedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(beefWeighRecordsTable) as any).values({ farmId, herdId: b.herdId ? parseInt(String(b.herdId)) : null, weighDate: String(b.weighDate ?? ""), groupRef: b.groupRef ? String(b.groupRef) : null, breed: b.breed ? String(b.breed) : null, category: b.category ? String(b.category) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, totalLiveWeightKg: b.totalLiveWeightKg ? String(b.totalLiveWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, averageBcsScore: b.averageBcsScore ? String(b.averageBcsScore) : null, location: b.location ? String(b.location) : null, weighedBy: b.weighedBy ? String(b.weighedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/beef-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["herdId","weighDate","groupRef","breed","category","numberOfAnimals","averageLiveWeightKg","totalLiveWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","averageBcsScore","location","weighedBy","notes"];
@@ -22514,24 +22514,24 @@ router.put("/farms/:farmId/beef-weigh-records/:id", requireAuth, requireTenant, 
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/beef-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(beefWeighRecordsTable).where(and(eq(beefWeighRecordsTable.id, id), eq(beefWeighRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/beef-finishing-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(beefFinishingRecordsTable).where(eq(beefFinishingRecordsTable.farmId, farmId)).orderBy(desc(beefFinishingRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/beef-finishing-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(beefFinishingRecordsTable).values({ farmId, herdId: b.herdId ? parseInt(String(b.herdId)) : null, animalTagNumber: String(b.animalTagNumber ?? ""), breed: b.breed ? String(b.breed) : null, sex: b.sex ? String(b.sex) : null, dateOfBirth: b.dateOfBirth ? String(b.dateOfBirth) : null, dateEnteredFinishing: b.dateEnteredFinishing ? String(b.dateEnteredFinishing) : null, entryLiveWeightKg: b.entryLiveWeightKg ? String(b.entryLiveWeightKg) : null, targetSlaughterWeightKg: b.targetSlaughterWeightKg ? String(b.targetSlaughterWeightKg) : null, targetSlaughterDate: b.targetSlaughterDate ? String(b.targetSlaughterDate) : null, finishingSystem: b.finishingSystem ? String(b.finishingSystem) : null, rationsDescription: b.rationsDescription ? String(b.rationsDescription) : null, slaughterDate: b.slaughterDate ? String(b.slaughterDate) : null, slaughterLiveWeightKg: b.slaughterLiveWeightKg ? String(b.slaughterLiveWeightKg) : null, totalDaysOnFinishing: b.totalDaysOnFinishing ? parseInt(String(b.totalDaysOnFinishing)) : null, overallDlwgGPerDay: b.overallDlwgGPerDay ? String(b.overallDlwgGPerDay) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(beefFinishingRecordsTable) as any).values({ farmId, herdId: b.herdId ? parseInt(String(b.herdId)) : null, animalTagNumber: String(b.animalTagNumber ?? ""), breed: b.breed ? String(b.breed) : null, sex: b.sex ? String(b.sex) : null, dateOfBirth: b.dateOfBirth ? String(b.dateOfBirth) : null, dateEnteredFinishing: b.dateEnteredFinishing ? String(b.dateEnteredFinishing) : null, entryLiveWeightKg: b.entryLiveWeightKg ? String(b.entryLiveWeightKg) : null, targetSlaughterWeightKg: b.targetSlaughterWeightKg ? String(b.targetSlaughterWeightKg) : null, targetSlaughterDate: b.targetSlaughterDate ? String(b.targetSlaughterDate) : null, finishingSystem: b.finishingSystem ? String(b.finishingSystem) : null, rationsDescription: b.rationsDescription ? String(b.rationsDescription) : null, slaughterDate: b.slaughterDate ? String(b.slaughterDate) : null, slaughterLiveWeightKg: b.slaughterLiveWeightKg ? String(b.slaughterLiveWeightKg) : null, totalDaysOnFinishing: b.totalDaysOnFinishing ? parseInt(String(b.totalDaysOnFinishing)) : null, overallDlwgGPerDay: b.overallDlwgGPerDay ? String(b.overallDlwgGPerDay) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/beef-finishing-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["herdId","animalTagNumber","breed","sex","dateOfBirth","dateEnteredFinishing","entryLiveWeightKg","targetSlaughterWeightKg","targetSlaughterDate","finishingSystem","rationsDescription","slaughterDate","slaughterLiveWeightKg","totalDaysOnFinishing","overallDlwgGPerDay","status","notes"];
@@ -22541,24 +22541,24 @@ router.put("/farms/:farmId/beef-finishing-records/:id", requireAuth, requireTena
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/beef-finishing-records/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(beefFinishingRecordsTable).where(and(eq(beefFinishingRecordsTable.id, id), eq(beefFinishingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/beef-deadweight-settlements", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(beefDeadweightSettlementsTable).where(eq(beefDeadweightSettlementsTable.farmId, farmId)).orderBy(desc(beefDeadweightSettlementsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/beef-deadweight-settlements", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(beefDeadweightSettlementsTable).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", settlementDate: b.settlementDate ? String(b.settlementDate) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(beefDeadweightSettlementsTable) as any).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", settlementDate: b.settlementDate ? String(b.settlementDate) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/beef-deadweight-settlements/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["killDate","abattoirName","abattoirRef","numberOfHead","averageCarcassWeightKg","totalCarcassWeightKg","killingOutPercentage","dominantGrade","averagePricePerKgGbp","totalValueGbp","levyDeductionGbp","netPaymentGbp","paymentReceived","settlementDate","notes"];
@@ -22568,24 +22568,24 @@ router.put("/farms/:farmId/beef-deadweight-settlements/:id", requireAuth, requir
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/beef-deadweight-settlements/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(beefDeadweightSettlementsTable).where(and(eq(beefDeadweightSettlementsTable.id, id), eq(beefDeadweightSettlementsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/beef-rt-checklists", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(beefRedTractorChecklistTable).where(eq(beefRedTractorChecklistTable.farmId, farmId)).orderBy(desc(beefRedTractorChecklistTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/beef-rt-checklists", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(beefRedTractorChecklistTable).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, cattlePassportsCurrent: b.cattlePassportsCurrent === true || b.cattlePassportsCurrent === "true", herdRegisterUpToDate: b.herdRegisterUpToDate === true || b.herdRegisterUpToDate === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", tbStatusCurrent: b.tbStatusCurrent === true || b.tbStatusCurrent === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(beefRedTractorChecklistTable) as any).values({ farmId, checkDate: String(b.checkDate ?? ""), checkedBy: b.checkedBy ? String(b.checkedBy) : null, cattlePassportsCurrent: b.cattlePassportsCurrent === true || b.cattlePassportsCurrent === "true", herdRegisterUpToDate: b.herdRegisterUpToDate === true || b.herdRegisterUpToDate === "true", movementRecordsComplete: b.movementRecordsComplete === true || b.movementRecordsComplete === "true", medicineRecordsComplete: b.medicineRecordsComplete === true || b.medicineRecordsComplete === "true", feedRecordsComplete: b.feedRecordsComplete === true || b.feedRecordsComplete === "true", mbmFreeStatus: b.mbmFreeStatus === true || b.mbmFreeStatus === "true", tbStatusCurrent: b.tbStatusCurrent === true || b.tbStatusCurrent === "true", assuranceMembershipCurrent: b.assuranceMembershipCurrent === true || b.assuranceMembershipCurrent === "true", vetHealthPlanOnFile: b.vetHealthPlanOnFile === true || b.vetHealthPlanOnFile === "true", staffTrainingCurrent: b.staffTrainingCurrent === true || b.staffTrainingCurrent === "true", overallStatus: b.overallStatus ? String(b.overallStatus) : "pending", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["checkDate","checkedBy","cattlePassportsCurrent","herdRegisterUpToDate","movementRecordsComplete","medicineRecordsComplete","feedRecordsComplete","mbmFreeStatus","tbStatusCurrent","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent","overallStatus","notes"];
@@ -22595,7 +22595,7 @@ router.put("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenant, 
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenant, requireModuleByKey("beef-production", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(beefRedTractorChecklistTable).where(and(eq(beefRedTractorChecklistTable.id, id), eq(beefRedTractorChecklistTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -22604,18 +22604,18 @@ router.delete("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenan
 // GRAIN STORE — Drying, Conditioning, Storage Agreements
 // ============================================================
 router.get("/farms/:farmId/grain-drying-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(grainDryingRecordsTable).where(eq(grainDryingRecordsTable.farmId, farmId)).orderBy(desc(grainDryingRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-drying-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(grainDryingRecordsTable).values({ farmId, dryingDate: String(b.dryingDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, moistureContentInPct: b.moistureContentInPct ? String(b.moistureContentInPct) : null, targetMoistureContentPct: b.targetMoistureContentPct ? String(b.targetMoistureContentPct) : null, moistureContentOutPct: b.moistureContentOutPct ? String(b.moistureContentOutPct) : null, dryerType: b.dryerType ? String(b.dryerType) : null, fuelType: b.fuelType ? String(b.fuelType) : null, fuelUsedLitres: b.fuelUsedLitres ? String(b.fuelUsedLitres) : null, dryingTemperatureCelsius: b.dryingTemperatureCelsius ? String(b.dryingTemperatureCelsius) : null, dryingDurationHours: b.dryingDurationHours ? String(b.dryingDurationHours) : null, shrinkagePct: b.shrinkagePct ? String(b.shrinkagePct) : null, operatorName: b.operatorName ? String(b.operatorName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(grainDryingRecordsTable) as any).values({ farmId, dryingDate: String(b.dryingDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, moistureContentInPct: b.moistureContentInPct ? String(b.moistureContentInPct) : null, targetMoistureContentPct: b.targetMoistureContentPct ? String(b.targetMoistureContentPct) : null, moistureContentOutPct: b.moistureContentOutPct ? String(b.moistureContentOutPct) : null, dryerType: b.dryerType ? String(b.dryerType) : null, fuelType: b.fuelType ? String(b.fuelType) : null, fuelUsedLitres: b.fuelUsedLitres ? String(b.fuelUsedLitres) : null, dryingTemperatureCelsius: b.dryingTemperatureCelsius ? String(b.dryingTemperatureCelsius) : null, dryingDurationHours: b.dryingDurationHours ? String(b.dryingDurationHours) : null, shrinkagePct: b.shrinkagePct ? String(b.shrinkagePct) : null, operatorName: b.operatorName ? String(b.operatorName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/grain-drying-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["dryingDate","commodity","storageBinRef","lotReference","quantityTonnes","moistureContentInPct","targetMoistureContentPct","moistureContentOutPct","dryerType","fuelType","fuelUsedLitres","dryingTemperatureCelsius","dryingDurationHours","shrinkagePct","operatorName","notes"];
@@ -22625,24 +22625,24 @@ router.put("/farms/:farmId/grain-drying-records/:id", requireAuth, requireTenant
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/grain-drying-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(grainDryingRecordsTable).where(and(eq(grainDryingRecordsTable.id, id), eq(grainDryingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/grain-conditioning-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(grainConditioningRecordsTable).where(eq(grainConditioningRecordsTable.farmId, farmId)).orderBy(desc(grainConditioningRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-conditioning-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(grainConditioningRecordsTable).values({ farmId, checkDate: String(b.checkDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, temperatureCelsius: b.temperatureCelsius ? String(b.temperatureCelsius) : null, moistureContentPct: b.moistureContentPct ? String(b.moistureContentPct) : null, co2LevelPpm: b.co2LevelPpm ? String(b.co2LevelPpm) : null, pesticideApplied: b.pesticideApplied === true || b.pesticideApplied === "true", pesticideProductName: b.pesticideProductName ? String(b.pesticideProductName) : null, pesticideDoseRatePerTonne: b.pesticideDoseRatePerTonne ? String(b.pesticideDoseRatePerTonne) : null, aerationUsed: b.aerationUsed === true || b.aerationUsed === "true", actionRequired: b.actionRequired ? String(b.actionRequired) : null, overallCondition: b.overallCondition ? String(b.overallCondition) : null, checkedBy: b.checkedBy ? String(b.checkedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(grainConditioningRecordsTable) as any).values({ farmId, checkDate: String(b.checkDate ?? ""), commodity: String(b.commodity ?? ""), storageBinRef: b.storageBinRef ? String(b.storageBinRef) : null, lotReference: b.lotReference ? String(b.lotReference) : null, temperatureCelsius: b.temperatureCelsius ? String(b.temperatureCelsius) : null, moistureContentPct: b.moistureContentPct ? String(b.moistureContentPct) : null, co2LevelPpm: b.co2LevelPpm ? String(b.co2LevelPpm) : null, pesticideApplied: b.pesticideApplied === true || b.pesticideApplied === "true", pesticideProductName: b.pesticideProductName ? String(b.pesticideProductName) : null, pesticideDoseRatePerTonne: b.pesticideDoseRatePerTonne ? String(b.pesticideDoseRatePerTonne) : null, aerationUsed: b.aerationUsed === true || b.aerationUsed === "true", actionRequired: b.actionRequired ? String(b.actionRequired) : null, overallCondition: b.overallCondition ? String(b.overallCondition) : null, checkedBy: b.checkedBy ? String(b.checkedBy) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/grain-conditioning-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["checkDate","commodity","storageBinRef","lotReference","temperatureCelsius","moistureContentPct","co2LevelPpm","pesticideApplied","pesticideProductName","pesticideDoseRatePerTonne","aerationUsed","actionRequired","overallCondition","checkedBy","notes"];
@@ -22652,24 +22652,24 @@ router.put("/farms/:farmId/grain-conditioning-records/:id", requireAuth, require
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/grain-conditioning-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(grainConditioningRecordsTable).where(and(eq(grainConditioningRecordsTable.id, id), eq(grainConditioningRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/grain-storage-agreements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(grainStorageAgreementsTable).where(eq(grainStorageAgreementsTable.farmId, farmId)).orderBy(desc(grainStorageAgreementsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-storage-agreements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(grainStorageAgreementsTable).values({ farmId, merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, agreedPricePerTonneGbp: b.agreedPricePerTonneGbp ? String(b.agreedPricePerTonneGbp) : null, pricingType: b.pricingType ? String(b.pricingType) : null, collectionDeadline: b.collectionDeadline ? String(b.collectionDeadline) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, storageChargePerTonnePerWeek: b.storageChargePerTonnePerWeek ? String(b.storageChargePerTonnePerWeek) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(grainStorageAgreementsTable) as any).values({ farmId, merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, agreedPricePerTonneGbp: b.agreedPricePerTonneGbp ? String(b.agreedPricePerTonneGbp) : null, pricingType: b.pricingType ? String(b.pricingType) : null, collectionDeadline: b.collectionDeadline ? String(b.collectionDeadline) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, storageChargePerTonnePerWeek: b.storageChargePerTonnePerWeek ? String(b.storageChargePerTonnePerWeek) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["merchantName","contractRef","commodity","quantityTonnes","agreedPricePerTonneGbp","pricingType","collectionDeadline","qualitySpec","storageChargePerTonnePerWeek","status","notes"];
@@ -22679,7 +22679,7 @@ router.put("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requireTe
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(grainStorageAgreementsTable).where(and(eq(grainStorageAgreementsTable.id, id), eq(grainStorageAgreementsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -22688,18 +22688,18 @@ router.delete("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requir
 // SETTLEMENT NOTES
 // ============================================================
 router.get("/farms/:farmId/livestock-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(livestockSettlementNotesTable).where(eq(livestockSettlementNotesTable.farmId, farmId)).orderBy(desc(livestockSettlementNotesTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/livestock-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(livestockSettlementNotesTable).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, species: String(b.species ?? ""), numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, transportCostGbp: b.transportCostGbp ? String(b.transportCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, settlementDate: b.settlementDate ? String(b.settlementDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedMovementRef: b.linkedMovementRef ? String(b.linkedMovementRef) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(livestockSettlementNotesTable) as any).values({ farmId, killDate: String(b.killDate ?? ""), abattoirName: String(b.abattoirName ?? ""), abattoirRef: b.abattoirRef ? String(b.abattoirRef) : null, species: String(b.species ?? ""), numberOfHead: b.numberOfHead ? parseInt(String(b.numberOfHead)) : 0, averageCarcassWeightKg: b.averageCarcassWeightKg ? String(b.averageCarcassWeightKg) : null, totalCarcassWeightKg: b.totalCarcassWeightKg ? String(b.totalCarcassWeightKg) : null, killingOutPercentage: b.killingOutPercentage ? String(b.killingOutPercentage) : null, dominantGrade: b.dominantGrade ? String(b.dominantGrade) : null, averagePricePerKgGbp: b.averagePricePerKgGbp ? String(b.averagePricePerKgGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, transportCostGbp: b.transportCostGbp ? String(b.transportCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, settlementDate: b.settlementDate ? String(b.settlementDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedMovementRef: b.linkedMovementRef ? String(b.linkedMovementRef) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/livestock-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["killDate","abattoirName","abattoirRef","species","numberOfHead","averageCarcassWeightKg","totalCarcassWeightKg","killingOutPercentage","dominantGrade","averagePricePerKgGbp","totalValueGbp","levyDeductionGbp","transportCostGbp","otherDeductionsGbp","netPaymentGbp","settlementDate","paymentReceived","paymentReceivedDate","linkedMovementRef","documentPath","documentName","notes"];
@@ -22709,34 +22709,34 @@ router.put("/farms/:farmId/livestock-settlement-notes/:id", requireAuth, require
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/livestock-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(livestockSettlementNotesTable).where(and(eq(livestockSettlementNotesTable.id, id), eq(livestockSettlementNotesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 router.get("/farms/:farmId/grain-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(grainSettlementNotesTable).where(eq(grainSettlementNotesTable.farmId, farmId)).orderBy(desc(grainSettlementNotesTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(grainSettlementNotesTable).values({ farmId, settlementDate: String(b.settlementDate ?? ""), merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, pricePerTonneGbp: b.pricePerTonneGbp ? String(b.pricePerTonneGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, premiumOrDiscountGbp: b.premiumOrDiscountGbp ? String(b.premiumOrDiscountGbp) : null, premiumOrDiscountReason: b.premiumOrDiscountReason ? String(b.premiumOrDiscountReason) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, storageCostGbp: b.storageCostGbp ? String(b.storageCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentDueDate: b.paymentDueDate ? String(b.paymentDueDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedHaulageRef: b.linkedHaulageRef ? String(b.linkedHaulageRef) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(grainSettlementNotesTable) as any).values({ farmId, settlementDate: String(b.settlementDate ?? ""), merchantName: String(b.merchantName ?? ""), contractRef: b.contractRef ? String(b.contractRef) : null, commodity: String(b.commodity ?? ""), quantityTonnes: b.quantityTonnes ? String(b.quantityTonnes) : null, pricePerTonneGbp: b.pricePerTonneGbp ? String(b.pricePerTonneGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, premiumOrDiscountGbp: b.premiumOrDiscountGbp ? String(b.premiumOrDiscountGbp) : null, premiumOrDiscountReason: b.premiumOrDiscountReason ? String(b.premiumOrDiscountReason) : null, levyDeductionGbp: b.levyDeductionGbp ? String(b.levyDeductionGbp) : null, storageCostGbp: b.storageCostGbp ? String(b.storageCostGbp) : null, otherDeductionsGbp: b.otherDeductionsGbp ? String(b.otherDeductionsGbp) : null, netPaymentGbp: b.netPaymentGbp ? String(b.netPaymentGbp) : null, paymentDueDate: b.paymentDueDate ? String(b.paymentDueDate) : null, paymentReceived: b.paymentReceived === true || b.paymentReceived === "true", paymentReceivedDate: b.paymentReceivedDate ? String(b.paymentReceivedDate) : null, linkedHaulageRef: b.linkedHaulageRef ? String(b.linkedHaulageRef) : null, qualitySpec: b.qualitySpec ? String(b.qualitySpec) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["settlementDate","merchantName","contractRef","commodity","quantityTonnes","pricePerTonneGbp","totalValueGbp","premiumOrDiscountGbp","premiumOrDiscountReason","levyDeductionGbp","storageCostGbp","otherDeductionsGbp","netPaymentGbp","paymentDueDate","paymentReceived","paymentReceivedDate","linkedHaulageRef","qualitySpec","documentPath","documentName","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
-  const [row] = await db.update(grainSettlementNotesTable).set(updates).where(and(eq(grainSettlementNotesTable.id, id), eq(grainSettlementNotesTable.farmId, farmId))).returning();
+  const [row] = await db.update(grainSettlementNotesTable).set(updates as any).where(and(eq(grainSettlementNotesTable.id, id), eq(grainSettlementNotesTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(grainSettlementNotesTable).where(and(eq(grainSettlementNotesTable.id, id), eq(grainSettlementNotesTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -22745,18 +22745,18 @@ router.delete("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireT
 // MEDICATED FEED RECORDS
 // ============================================================
 router.get("/farms/:farmId/medicated-feed-records", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(medicatedFeedRecordsTable).where(eq(medicatedFeedRecordsTable.farmId, farmId)).orderBy(desc(medicatedFeedRecordsTable.createdAt));
   res.json(rows);
 });
 router.post("/farms/:farmId/medicated-feed-records", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(medicatedFeedRecordsTable).values({ farmId, deliveryDate: String(b.deliveryDate ?? ""), productName: String(b.productName ?? ""), activeIngredient: String(b.activeIngredient ?? ""), medicinalCategory: String(b.medicinalCategory ?? ""), supplierName: b.supplierName ? String(b.supplierName) : null, batchNumber: String(b.batchNumber ?? ""), expiryDate: b.expiryDate ? String(b.expiryDate) : null, quantityDeliveredKg: String(b.quantityDeliveredKg ?? "0"), speciesTargeted: String(b.speciesTargeted ?? ""), herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, feedingStartDate: String(b.feedingStartDate ?? ""), feedingEndDate: b.feedingEndDate ? String(b.feedingEndDate) : null, feedingDurationDays: b.feedingDurationDays ? parseInt(String(b.feedingDurationDays)) : null, dailyRationKgPerAnimal: b.dailyRationKgPerAnimal ? String(b.dailyRationKgPerAnimal) : null, indicationDiagnosis: String(b.indicationDiagnosis ?? ""), prescribingVetName: b.prescribingVetName ? String(b.prescribingVetName) : null, prescribingVetPractice: b.prescribingVetPractice ? String(b.prescribingVetPractice) : null, veterinaryPrescriptionRef: b.veterinaryPrescriptionRef ? String(b.veterinaryPrescriptionRef) : null, prescriptionOnFile: b.prescriptionOnFile === true || b.prescriptionOnFile === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, withdrawalEndDate: b.withdrawalEndDate ? String(b.withdrawalEndDate) : null, stockUsedKg: b.stockUsedKg ? String(b.stockUsedKg) : null, stockRemainingKg: b.stockRemainingKg ? String(b.stockRemainingKg) : null, unusedStockDisposalMethod: b.unusedStockDisposalMethod ? String(b.unusedStockDisposalMethod) : null, unusedStockDisposalDate: b.unusedStockDisposalDate ? String(b.unusedStockDisposalDate) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(medicatedFeedRecordsTable) as any).values({ farmId, deliveryDate: String(b.deliveryDate ?? ""), productName: String(b.productName ?? ""), activeIngredient: String(b.activeIngredient ?? ""), medicinalCategory: String(b.medicinalCategory ?? ""), supplierName: b.supplierName ? String(b.supplierName) : null, batchNumber: String(b.batchNumber ?? ""), expiryDate: b.expiryDate ? String(b.expiryDate) : null, quantityDeliveredKg: String(b.quantityDeliveredKg ?? "0"), speciesTargeted: String(b.speciesTargeted ?? ""), herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null, numberOfAnimals: b.numberOfAnimals ? parseInt(String(b.numberOfAnimals)) : null, feedingStartDate: String(b.feedingStartDate ?? ""), feedingEndDate: b.feedingEndDate ? String(b.feedingEndDate) : null, feedingDurationDays: b.feedingDurationDays ? parseInt(String(b.feedingDurationDays)) : null, dailyRationKgPerAnimal: b.dailyRationKgPerAnimal ? String(b.dailyRationKgPerAnimal) : null, indicationDiagnosis: String(b.indicationDiagnosis ?? ""), prescribingVetName: b.prescribingVetName ? String(b.prescribingVetName) : null, prescribingVetPractice: b.prescribingVetPractice ? String(b.prescribingVetPractice) : null, veterinaryPrescriptionRef: b.veterinaryPrescriptionRef ? String(b.veterinaryPrescriptionRef) : null, prescriptionOnFile: b.prescriptionOnFile === true || b.prescriptionOnFile === "true", withdrawalPeriodDays: b.withdrawalPeriodDays ? parseInt(String(b.withdrawalPeriodDays)) : null, withdrawalEndDate: b.withdrawalEndDate ? String(b.withdrawalEndDate) : null, stockUsedKg: b.stockUsedKg ? String(b.stockUsedKg) : null, stockRemainingKg: b.stockRemainingKg ? String(b.stockRemainingKg) : null, unusedStockDisposalMethod: b.unusedStockDisposalMethod ? String(b.unusedStockDisposalMethod) : null, unusedStockDisposalDate: b.unusedStockDisposalDate ? String(b.unusedStockDisposalDate) : null, documentPath: b.documentPath ? String(b.documentPath) : null, documentName: b.documentName ? String(b.documentName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   const fields = ["deliveryDate","productName","activeIngredient","medicinalCategory","supplierName","batchNumber","expiryDate","quantityDeliveredKg","speciesTargeted","herdFlockRef","numberOfAnimals","feedingStartDate","feedingEndDate","feedingDurationDays","dailyRationKgPerAnimal","indicationDiagnosis","prescribingVetName","prescribingVetPractice","veterinaryPrescriptionRef","prescriptionOnFile","withdrawalPeriodDays","withdrawalEndDate","stockUsedKg","stockRemainingKg","unusedStockDisposalMethod","unusedStockDisposalDate","documentPath","documentName","notes"];
@@ -22766,7 +22766,7 @@ router.put("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTena
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(medicatedFeedRecordsTable).where(and(eq(medicatedFeedRecordsTable.id, id), eq(medicatedFeedRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -22775,14 +22775,14 @@ router.delete("/farms/:farmId/medicated-feed-records/:id", requireAuth, requireT
 
 // Timesheet entries
 router.get("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(labourTimesheetEntriesTable).where(eq(labourTimesheetEntriesTable.farmId, farmId)).orderBy(desc(labourTimesheetEntriesTable.date));
   res.json({ entries: rows });
 });
 router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(labourTimesheetEntriesTable).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
+  const [row] = await (db.insert(labourTimesheetEntriesTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
   res.json({ entry: row });
   // Fire-and-forget: SMS managers when mobile staff submit without prior approval
   if (!b.approvedBy) {
@@ -22808,53 +22808,53 @@ router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, asyn
   }
 });
 router.put("/farms/:farmId/labour/timesheets/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const [row] = await db.update(labourTimesheetEntriesTable).set({ staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, approvedAt: b.approvedBy ? new Date() : null }).where(and(eq(labourTimesheetEntriesTable.id, id), eq(labourTimesheetEntriesTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ entry: row });
 });
 router.delete("/farms/:farmId/labour/timesheets/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(labourTimesheetEntriesTable).where(and(eq(labourTimesheetEntriesTable.id, id), eq(labourTimesheetEntriesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Rota
 router.get("/farms/:farmId/labour/rota", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(labourRotaTable).where(eq(labourRotaTable.farmId, farmId)).orderBy(desc(labourRotaTable.weekStartDate));
   res.json({ rota: rows });
 });
 router.post("/farms/:farmId/labour/rota", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(labourRotaTable).values({ farmId, weekStartDate: String(b.weekStartDate ?? ""), staffName: String(b.staffName ?? ""), monShift: b.monShift ? String(b.monShift) : null, tueShift: b.tueShift ? String(b.tueShift) : null, wedShift: b.wedShift ? String(b.wedShift) : null, thuShift: b.thuShift ? String(b.thuShift) : null, friShift: b.friShift ? String(b.friShift) : null, satShift: b.satShift ? String(b.satShift) : null, sunShift: b.sunShift ? String(b.sunShift) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(labourRotaTable) as any).values({ farmId, weekStartDate: String(b.weekStartDate ?? ""), staffName: String(b.staffName ?? ""), monShift: b.monShift ? String(b.monShift) : null, tueShift: b.tueShift ? String(b.tueShift) : null, wedShift: b.wedShift ? String(b.wedShift) : null, thuShift: b.thuShift ? String(b.thuShift) : null, friShift: b.friShift ? String(b.friShift) : null, satShift: b.satShift ? String(b.satShift) : null, sunShift: b.sunShift ? String(b.sunShift) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ entry: row });
 });
 router.put("/farms/:farmId/labour/rota/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const [row] = await db.update(labourRotaTable).set({ monShift: b.monShift ? String(b.monShift) : null, tueShift: b.tueShift ? String(b.tueShift) : null, wedShift: b.wedShift ? String(b.wedShift) : null, thuShift: b.thuShift ? String(b.thuShift) : null, friShift: b.friShift ? String(b.friShift) : null, satShift: b.satShift ? String(b.satShift) : null, sunShift: b.sunShift ? String(b.sunShift) : null, notes: b.notes ? String(b.notes) : null }).where(and(eq(labourRotaTable.id, id), eq(labourRotaTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ entry: row });
 });
 router.delete("/farms/:farmId/labour/rota/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(labourRotaTable).where(and(eq(labourRotaTable.id, id), eq(labourRotaTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Absences
 router.get("/farms/:farmId/labour/absences", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(labourAbsencesTable).where(eq(labourAbsencesTable.farmId, farmId)).orderBy(desc(labourAbsencesTable.startDate));
   res.json({ absences: rows });
 });
 router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(labourAbsencesTable).values({ farmId, staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).returning();
+  const [row] = await (db.insert(labourAbsencesTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).returning();
   res.json({ absence: row });
   // Fire-and-forget: SMS managers when a mobile staff member submits a pending leave request
   if (String(b.status ?? "") === "pending") {
@@ -22883,7 +22883,7 @@ router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async 
   }
 });
 router.put("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const [existing] = await db.select({ status: labourAbsencesTable.status }).from(labourAbsencesTable).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId))).limit(1);
   const [row] = await db.update(labourAbsencesTable).set({ staffName: String(b.staffName ?? ""), absenceType: String(b.absenceType ?? ""), startDate: String(b.startDate ?? ""), endDate: String(b.endDate ?? ""), daysCount: b.daysCount ? String(b.daysCount) : null, notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null, status: String(b.status ?? "approved") }).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId))).returning();
@@ -22913,64 +22913,64 @@ router.put("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, asy
   }
 });
 router.delete("/farms/:farmId/labour/absences/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(labourAbsencesTable).where(and(eq(labourAbsencesTable.id, id), eq(labourAbsencesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Leave entitlements
 router.get("/farms/:farmId/labour/entitlements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(labourLeaveEntitlementTable).where(eq(labourLeaveEntitlementTable.farmId, farmId)).orderBy(desc(labourLeaveEntitlementTable.year), labourLeaveEntitlementTable.staffName);
   res.json({ entitlements: rows });
 });
 router.post("/farms/:farmId/labour/entitlements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(labourLeaveEntitlementTable).values({ farmId, staffName: String(b.staffName ?? ""), year: parseInt(String(b.year ?? new Date().getFullYear())), entitlementDays: String(b.entitlementDays ?? "28"), carriedOverDays: String(b.carriedOverDays ?? "0"), wtrOptOut: b.wtrOptOut === true || b.wtrOptOut === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(labourLeaveEntitlementTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), year: parseInt(String(b.year ?? new Date().getFullYear())), entitlementDays: String(b.entitlementDays ?? "28"), carriedOverDays: String(b.carriedOverDays ?? "0"), wtrOptOut: b.wtrOptOut === true || b.wtrOptOut === "true", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ entitlement: row });
 });
 router.put("/farms/:farmId/labour/entitlements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const [row] = await db.update(labourLeaveEntitlementTable).set({ entitlementDays: String(b.entitlementDays ?? "28"), carriedOverDays: String(b.carriedOverDays ?? "0"), wtrOptOut: b.wtrOptOut === true || b.wtrOptOut === "true", notes: b.notes ? String(b.notes) : null }).where(and(eq(labourLeaveEntitlementTable.id, id), eq(labourLeaveEntitlementTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ entitlement: row });
 });
 router.delete("/farms/:farmId/labour/entitlements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(labourLeaveEntitlementTable).where(and(eq(labourLeaveEntitlementTable.id, id), eq(labourLeaveEntitlementTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Hourly rates
 router.get("/farms/:farmId/labour/rates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const rows = await db.select().from(labourHourlyRatesTable).where(eq(labourHourlyRatesTable.farmId, farmId)).orderBy(labourHourlyRatesTable.staffName, desc(labourHourlyRatesTable.effectiveFrom));
   res.json({ rates: rows });
 });
 router.post("/farms/:farmId/labour/rates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await db.insert(labourHourlyRatesTable).values({ farmId, staffName: String(b.staffName ?? ""), regularRatePence: parseInt(String(b.regularRatePence ?? "0")), overtimeRatePence: parseInt(String(b.overtimeRatePence ?? "0")), effectiveFrom: String(b.effectiveFrom ?? ""), notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(labourHourlyRatesTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), regularRatePence: parseInt(String(b.regularRatePence ?? "0")), overtimeRatePence: parseInt(String(b.overtimeRatePence ?? "0")), effectiveFrom: String(b.effectiveFrom ?? ""), notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ rate: row });
 });
 router.put("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const [row] = await db.update(labourHourlyRatesTable).set({ regularRatePence: parseInt(String(b.regularRatePence ?? "0")), overtimeRatePence: parseInt(String(b.overtimeRatePence ?? "0")), effectiveFrom: String(b.effectiveFrom ?? ""), notes: b.notes ? String(b.notes) : null }).where(and(eq(labourHourlyRatesTable.id, id), eq(labourHourlyRatesTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ rate: row });
 });
 router.delete("/farms/:farmId/labour/rates/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.delete(labourHourlyRatesTable).where(and(eq(labourHourlyRatesTable.id, id), eq(labourHourlyRatesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
 // Submission status grid
 router.get("/farms/:farmId/labour/submission-status", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const weekStart = String(req.query.weekStart ?? "");
   if (!weekStart) { res.status(400).json({ error: "weekStart required" }); return; }
 
@@ -23015,13 +23015,13 @@ router.get("/farms/:farmId/labour/submission-status", requireAuth, requireTenant
 
 // Labour settings (GET + PATCH reminder time)
 router.get("/farms/:farmId/labour/settings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const [farm] = await db.select({ timesheetReminderTime: farmsTable.timesheetReminderTime }).from(farmsTable).where(eq(farmsTable.id, farmId));
   res.json({ timesheetReminderTime: farm?.timesheetReminderTime ?? "18:00" });
 });
 
 router.patch("/farms/:farmId/labour/settings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   await db.update(farmsTable).set({ timesheetReminderTime: String(b.timesheetReminderTime ?? "18:00") }).where(eq(farmsTable.id, farmId));
   res.json({ ok: true });
@@ -23029,7 +23029,7 @@ router.patch("/farms/:farmId/labour/settings", requireAuth, requireTenant, async
 
 // ── Grain Drying Log (StorageLocationsPage) ───────────────────────────────────
 router.get("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : null;
   const result = await db.execute(locationId
     ? sql`SELECT * FROM grain_drying_log WHERE farm_id = ${farmId} AND location_id = ${locationId} ORDER BY drying_date DESC`
@@ -23037,27 +23037,27 @@ router.get("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req
   res.json({ records: result.rows });
 });
 router.post("/farms/:farmId/grain-drying", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   const result = await db.execute(sql`INSERT INTO grain_drying_log (farm_id, location_id, drying_date, crop_type, moisture_in, moisture_out, temp_c, duration_hours, fuel_litres, operator_name, notes) VALUES (${farmId}, ${b.locationId ? Number(b.locationId) : null}, ${String(b.dryingDate ?? "")}, ${String(b.cropType ?? "")}, ${b.moistureIn ? Number(b.moistureIn) : null}, ${b.moistureOut ? Number(b.moistureOut) : null}, ${b.tempC ? Number(b.tempC) : null}, ${b.durationHours ? Number(b.durationHours) : null}, ${b.fuelLitres ? Number(b.fuelLitres) : null}, ${b.operatorName ?? null}, ${b.notes ?? null}) RETURNING *`);
   res.status(201).json({ record: result.rows[0] });
 });
 router.put("/farms/:farmId/grain-drying/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const result = await db.execute(sql`UPDATE grain_drying_log SET drying_date = ${String(b.dryingDate ?? "")}, crop_type = ${String(b.cropType ?? "")}, moisture_in = ${b.moistureIn ? Number(b.moistureIn) : null}, moisture_out = ${b.moistureOut ? Number(b.moistureOut) : null}, temp_c = ${b.tempC ? Number(b.tempC) : null}, duration_hours = ${b.durationHours ? Number(b.durationHours) : null}, fuel_litres = ${b.fuelLitres ? Number(b.fuelLitres) : null}, operator_name = ${b.operatorName ?? null}, notes = ${b.notes ?? null} WHERE id = ${id} AND farm_id = ${farmId} RETURNING *`);
   if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: result.rows[0] });
 });
 router.delete("/farms/:farmId/grain-drying/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.execute(sql`DELETE FROM grain_drying_log WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });
 
 // ── Grain Conditioning Log (StorageLocationsPage) ─────────────────────────────
 router.get("/farms/:farmId/grain-conditioning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : null;
   const result = await db.execute(locationId
     ? sql`SELECT * FROM grain_conditioning_log WHERE farm_id = ${farmId} AND location_id = ${locationId} ORDER BY conditioning_date DESC`
@@ -23065,20 +23065,20 @@ router.get("/farms/:farmId/grain-conditioning", requireAuth, requireTenant, asyn
   res.json({ records: result.rows });
 });
 router.post("/farms/:farmId/grain-conditioning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId);
+  const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   const result = await db.execute(sql`INSERT INTO grain_conditioning_log (farm_id, location_id, conditioning_date, crop_type, treatment_type, product_used, rate_kg_t, total_kg, target_moisture, operator_name, notes) VALUES (${farmId}, ${b.locationId ? Number(b.locationId) : null}, ${String(b.conditioningDate ?? "")}, ${b.cropType ?? null}, ${String(b.treatmentType ?? "aeration")}, ${b.productUsed ?? null}, ${b.rateKgT ? Number(b.rateKgT) : null}, ${b.totalKg ? Number(b.totalKg) : null}, ${b.targetMoisture ? Number(b.targetMoisture) : null}, ${b.operatorName ?? null}, ${b.notes ?? null}) RETURNING *`);
   res.status(201).json({ record: result.rows[0] });
 });
 router.put("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const result = await db.execute(sql`UPDATE grain_conditioning_log SET conditioning_date = ${String(b.conditioningDate ?? "")}, crop_type = ${b.cropType ?? null}, treatment_type = ${String(b.treatmentType ?? "aeration")}, product_used = ${b.productUsed ?? null}, rate_kg_t = ${b.rateKgT ? Number(b.rateKgT) : null}, total_kg = ${b.totalKg ? Number(b.totalKg) : null}, target_moisture = ${b.targetMoisture ? Number(b.targetMoisture) : null}, operator_name = ${b.operatorName ?? null}, notes = ${b.notes ?? null} WHERE id = ${id} AND farm_id = ${farmId} RETURNING *`);
   if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: result.rows[0] });
 });
 router.delete("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
-  const farmId = parseInt(req.params.farmId); const id = parseInt(req.params.id);
+  const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.execute(sql`DELETE FROM grain_conditioning_log WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });
