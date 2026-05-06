@@ -37,7 +37,18 @@ function policyLabel(value: string) {
 }
 
 function policyIsCritical(value: string) {
-  return POLICY_TYPES.find(p => p.value === value)?.critical ?? false;
+  if (!value) return false;
+  // Exact match on enum value
+  const exact = POLICY_TYPES.find(p => p.value === value);
+  if (exact) return exact.critical;
+  // Case-insensitive label match
+  const lower = value.toLowerCase();
+  const byLabel = POLICY_TYPES.find(p => p.label.toLowerCase() === lower);
+  if (byLabel) return byLabel.critical;
+  // Keyword fallback — catches free-text entries like "Employer Liability Insurance"
+  if (lower.includes("employer")) return true;
+  if (lower.includes("public liability")) return true;
+  return false;
 }
 
 interface InsuranceRecord {
@@ -1002,12 +1013,16 @@ export default function InsurancePage() {
                     const isCrit = policyIsCritical(r.policyType);
                     return (
                       <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < visibleRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : status === "expired" ? "#fff5f5" : "transparent", outline: hlId === r.id ? "2px solid #f59e0b" : "none", outlineOffset: -2, transition: "background 0.5s, outline 0.5s" }}>
-                        <td style={{ padding: "11px 14px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <td style={{ padding: "11px 14px", minWidth: 170 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: isCrit ? 3 : 0 }}>
                             {isCrit && <span style={{ width: 7, height: 7, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
-                            <span style={{ fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>{policyLabel(r.policyType)}</span>
-                            {isCrit && <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>Required</span>}
+                            <span style={{ fontWeight: 600, color: "#111827" }}>{policyLabel(r.policyType)}</span>
                           </div>
+                          {isCrit && (
+                            <span style={{ display: "inline-flex", alignItems: "center", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 9px", borderRadius: 20 }}>
+                              Required
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: "11px 14px", color: "#374151" }}>{r.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
                         <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
