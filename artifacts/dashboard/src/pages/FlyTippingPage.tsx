@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera, ClipboardList } from "lucide-react";
+import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera, ClipboardList, ExternalLink } from "lucide-react";
 import { PhotoPanel } from "./fly-tipping/PhotoPanel";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
@@ -54,7 +54,15 @@ const fmt = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+interface InsurancePolicy { id: number; policyType: string; insurer: string | null; policyNumber: string | null; expiryDate: string | null; supersededByRenewal: boolean; }
+interface InsuranceClaimItem { id: number; claimRef: string | null; insurer: string | null; description: string | null; status: string; }
 interface Photo { id: number; objectPath: string; fileName: string | null; }
+
+function claimStatusLabel(status: string) {
+  const labels: Record<string, string> = { draft: "Draft", reported: "Reported", acknowledged: "Acknowledged", under_investigation: "Under Investigation", settled: "Settled", rejected: "Rejected", withdrawn: "Withdrawn" };
+  return labels[status] ?? status;
+}
+
 interface Incident {
   id: number;
   farmId: number;
@@ -76,6 +84,9 @@ interface Incident {
   clearanceContractor: string | null;
   clearanceDate: string | null;
   wasteTransferNoteRef: string | null;
+  insuranceClaimMade: boolean;
+  insurancePolicyId: number | null;
+  insuranceClaimRef: string | null;
   notes: string | null;
   photos: Photo[];
 }
@@ -89,7 +100,7 @@ function viewField(label: string, value?: string | null | boolean) {
   );
 }
 
-function viewDialogContent(inc: Incident) {
+function viewDialogContent(inc: Incident, policies: InsurancePolicy[] = []) {
   const types: string[] = parseWasteTypes(inc.wasteTypes);
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   return (
@@ -120,6 +131,11 @@ function viewDialogContent(inc: Incident) {
         </div>
       )}
       {inc.wasteTransferNoteRef && viewField("Waste Transfer Note Ref", inc.wasteTransferNoteRef)}
+      {inc.insuranceClaimMade && viewField("Insurance", [
+        inc.insurancePolicyId ? (policies.find(p => p.id === inc.insurancePolicyId)?.policyType ?? "Linked policy") : null,
+        inc.insurancePolicyId && policies.find(p => p.id === inc.insurancePolicyId)?.policyNumber ? `No. ${policies.find(p => p.id === inc.insurancePolicyId)?.policyNumber}` : null,
+        inc.insuranceClaimRef ? `Ref: ${inc.insuranceClaimRef}` : null,
+      ].filter(Boolean).join(" · ") || "Claim made")}
       {inc.notes && viewField("Notes", inc.notes)}
     </div>
   );
@@ -144,6 +160,9 @@ const EMPTY: Omit<Incident, "id" | "farmId" | "photos"> = {
   clearanceContractor: null,
   clearanceDate: null,
   wasteTransferNoteRef: null,
+  insuranceClaimMade: false,
+  insurancePolicyId: null,
+  insuranceClaimRef: null,
   notes: null,
 };
 
@@ -164,6 +183,20 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   });
   const incidents: Incident[] = q.data?.records ?? [];
 
+  const insuranceQ = useQuery<{ records: InsurancePolicy[] }>({
+    queryKey: ["insurance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const policies: InsurancePolicy[] = insuranceQ.data?.records ?? [];
+
+  const claimsQ = useQuery<{ claims: InsuranceClaimItem[] }>({
+    queryKey: ["insurance-claims", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance-claims`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const allClaims: InsuranceClaimItem[] = claimsQ.data?.claims ?? [];
+
   const [addOpen, setAddOpen] = useState(false);
   const [viewItem, setViewItem] = useState<Incident | null>(null);
   const [editItem, setEditItem] = useState<Incident | null>(null);
@@ -174,10 +207,20 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [form, setForm] = useState<Omit<Incident, "id" | "farmId" | "photos">>({ ...EMPTY });
+  const [claimDropdownVal, setClaimDropdownVal] = useState("");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const validPolicies = policies.filter(p => !p.supersededByRenewal && (!p.expiryDate || p.expiryDate >= today));
+  const selectedPolicy = policies.find(p => p.id === form.insurancePolicyId) ?? null;
+  const openClaims = allClaims.filter(c =>
+    !["settled", "rejected", "withdrawn"].includes(c.status) &&
+    (!selectedPolicy?.insurer || !c.insurer || c.insurer.toLowerCase().includes(selectedPolicy.insurer.toLowerCase()) || selectedPolicy.insurer.toLowerCase().includes(c.insurer.toLowerCase()))
+  );
 
   function openAdd() {
     setEditItem(null);
     setSelectedWasteTypes([]);
+    setClaimDropdownVal("");
     setForm({ ...EMPTY, discoveredAt: new Date().toISOString().slice(0, 10) });
     setAddOpen(true);
   }
@@ -205,8 +248,13 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
       clearanceContractor: r.clearanceContractor ?? null,
       clearanceDate: r.clearanceDate?.slice(0, 10) ?? null,
       wasteTransferNoteRef: r.wasteTransferNoteRef ?? null,
+      insuranceClaimMade: r.insuranceClaimMade ?? false,
+      insurancePolicyId: r.insurancePolicyId ?? null,
+      insuranceClaimRef: r.insuranceClaimRef ?? null,
       notes: r.notes ?? null,
     });
+    const matchedClaim = allClaims.find(c => c.claimRef === r.insuranceClaimRef && !["settled", "rejected", "withdrawn"].includes(c.status));
+    setClaimDropdownVal(matchedClaim ? String(matchedClaim.id) : r.insuranceClaimRef ? "manual" : "");
     setAddOpen(true);
   }
 
@@ -452,7 +500,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
               <DialogHeader>
                 <DialogTitle>Fly-Tipping Incident</DialogTitle>
               </DialogHeader>
-              {viewDialogContent(viewItem)}
+              {viewDialogContent(viewItem, policies)}
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
                 <Button onClick={() => { const r = viewItem; setViewItem(null); openEdit(r); }}>Edit Incident</Button>
@@ -622,6 +670,100 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
                     <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>A Waste Transfer Note is legally required for all collected waste under the Environmental Protection (Duty of Care) Regulations 1991.</p>
                   </div>
                 )}
+
+                {/* Insurance */}
+                <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 14 }}>
+                  <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "#374151", marginBottom: 8 }}>Insurance</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: form.insuranceClaimMade ? "#eff6ff" : "#f9fafb", border: `1px solid ${form.insuranceClaimMade ? "#bfdbfe" : "#e5e7eb"}`, borderRadius: 7, marginBottom: form.insuranceClaimMade ? 12 : 0 }}>
+                    <input type="checkbox" id="insuranceClaimMade" checked={!!form.insuranceClaimMade}
+                      onChange={e => { setForm(f => ({ ...f, insuranceClaimMade: e.target.checked, insurancePolicyId: null, insuranceClaimRef: null })); setClaimDropdownVal(""); }}
+                      style={{ width: 15, height: 15 }} />
+                    <label htmlFor="insuranceClaimMade" style={{ fontWeight: 500, fontSize: "0.875rem", cursor: "pointer", color: "#111827" }}>
+                      Insurance claim made or intended against this incident
+                    </label>
+                  </div>
+                  {form.insuranceClaimMade && (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div>
+                        <Label>Linked Insurance Policy</Label>
+                        <select
+                          style={{ width: "100%", height: 40, padding: "0 12px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#fff", fontSize: "0.875rem", marginTop: 4 }}
+                          value={form.insurancePolicyId ?? ""}
+                          onChange={e => { const val = e.target.value ? Number(e.target.value) : null; setForm(f => ({ ...f, insurancePolicyId: val, insuranceClaimRef: null })); setClaimDropdownVal(""); }}>
+                          <option value="">— Select current policy…</option>
+                          {validPolicies.map(p => (
+                            <option key={p.id} value={p.id}>{p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}</option>
+                          ))}
+                          {form.insurancePolicyId && !validPolicies.find(p => p.id === form.insurancePolicyId) &&
+                            policies.filter(p => p.id === form.insurancePolicyId).map(p => (
+                              <option key={p.id} value={p.id}>{p.policyType} — expired / superseded</option>
+                            ))
+                          }
+                        </select>
+                        {selectedPolicy && (
+                          <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: "0.8rem", flexWrap: "wrap" }}>
+                            {selectedPolicy.policyNumber
+                              ? <span style={{ color: "#6b7280" }}>Policy No: <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#374151" }}>{selectedPolicy.policyNumber}</span></span>
+                              : <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No policy number recorded</span>
+                            }
+                            <a href={`/dashboard/insurance?open=${selectedPolicy.id}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "#2563eb", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap" }}>
+                              View policy &amp; documents <ExternalLink size={11} />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <Label>Claim Reference</Label>
+                        {openClaims.length > 0 ? (
+                          <>
+                            <select
+                              style={{ width: "100%", height: 40, padding: "0 12px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#fff", fontSize: "0.875rem", marginTop: 4 }}
+                              value={claimDropdownVal}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setClaimDropdownVal(val);
+                                if (val !== "" && val !== "manual") {
+                                  const claim = openClaims.find(c => String(c.id) === val);
+                                  if (claim?.claimRef) setForm(f => ({ ...f, insuranceClaimRef: claim.claimRef }));
+                                }
+                              }}>
+                              <option value="">— Link to an open claim from register…</option>
+                              {openClaims.map(c => (
+                                <option key={c.id} value={String(c.id)}>
+                                  {c.claimRef ? `${c.claimRef} — ` : ""}{(c.description ?? "No description").slice(0, 55)}{(c.description?.length ?? 0) > 55 ? "…" : ""} [{claimStatusLabel(c.status)}]
+                                </option>
+                              ))}
+                              <option value="manual">Enter reference manually…</option>
+                            </select>
+                            {(claimDropdownVal === "" || claimDropdownVal === "manual") && (
+                              <input
+                                style={{ width: "100%", height: 36, padding: "0 12px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#fff", fontSize: "0.875rem", marginTop: 8, boxSizing: "border-box" }}
+                                value={form.insuranceClaimRef ?? ""}
+                                onChange={e => setForm(f => ({ ...f, insuranceClaimRef: e.target.value || null }))}
+                                placeholder="e.g. CLM-2025-00123" />
+                            )}
+                            {claimDropdownVal !== "" && claimDropdownVal !== "manual" && (
+                              <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>
+                                Ref <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#374151" }}>{form.insuranceClaimRef || "—"}</span> linked from Claims Register.
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              style={{ width: "100%", height: 36, padding: "0 12px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#fff", fontSize: "0.875rem", marginTop: 4, boxSizing: "border-box" }}
+                              value={form.insuranceClaimRef ?? ""}
+                              onChange={e => setForm(f => ({ ...f, insuranceClaimRef: e.target.value || null }))}
+                              placeholder="e.g. CLM-2025-00123" />
+                            <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>
+                              {form.insurancePolicyId ? "No open claims on record for this insurer — enter the reference once issued." : "Select a policy above to see matching open claims, or enter the reference manually."}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <Label>Notes</Label>
