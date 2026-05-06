@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tent, Plus, Trash2, Camera, File, Upload, Loader2, MapPin, Phone, Printer, ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
+import { Tent, Plus, Trash2, Camera, File, Upload, Loader2, MapPin, Phone, Printer, ChevronDown, ChevronUp, ClipboardList, ExternalLink } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
@@ -54,8 +54,14 @@ const LAND_CONDITIONS = [
 ];
 
 interface Field { id: number; name: string; fieldReference: string | null; }
-interface InsurancePolicy { id: number; policyType: string; insurer: string | null; policyNumber: string | null; }
+interface InsurancePolicy { id: number; policyType: string; insurer: string | null; policyNumber: string | null; expiryDate: string | null; supersededByRenewal: boolean; }
+interface InsuranceClaimItem { id: number; claimRef: string | null; insurer: string | null; description: string | null; status: string; }
 interface Photo { id: number; objectPath: string; fileName: string | null; }
+
+function claimStatusLabel(status: string) {
+  const labels: Record<string, string> = { draft: "Draft", reported: "Reported", acknowledged: "Acknowledged", under_investigation: "Under Investigation", settled: "Settled", rejected: "Rejected", withdrawn: "Withdrawn" };
+  return labels[status] ?? status;
+}
 interface Encampment {
   id: number;
   farmId: number;
@@ -213,6 +219,13 @@ export default function EncampmentPage() {
   });
   const policies: InsurancePolicy[] = insuranceQ.data?.records ?? [];
 
+  const claimsQ = useQuery<{ claims: InsuranceClaimItem[] }>({
+    queryKey: ["insurance-claims", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance-claims`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const allClaims: InsuranceClaimItem[] = claimsQ.data?.claims ?? [];
+
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Encampment | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -220,6 +233,7 @@ export default function EncampmentPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [raiseTaskFor, setRaiseTaskFor] = useState<Encampment | null>(null);
   const [form, setForm] = useState<Omit<Encampment, "id" | "farmId" | "photos">>({ ...EMPTY });
+  const [claimDropdownVal, setClaimDropdownVal] = useState("");
 
   function openAdd() {
     setForm({ ...EMPTY, discoveredAt: new Date().toISOString().slice(0, 10) });
@@ -263,6 +277,8 @@ export default function EncampmentPage() {
       status: r.status,
       notes: r.notes ?? "",
     });
+    const matchedClaim = allClaims.find(c => c.claimRef === r.insuranceClaimRef && !["settled", "rejected", "withdrawn"].includes(c.status));
+    setClaimDropdownVal(matchedClaim ? String(matchedClaim.id) : r.insuranceClaimRef ? "manual" : "");
     setEditItem(r);
   }
 
@@ -330,6 +346,14 @@ export default function EncampmentPage() {
   const isSaving = createMut.isPending || updateMut.isPending;
 
   const ff = (k: keyof typeof form, v: any) => setForm(p => ({ ...p, [k]: v }));
+
+  const today = new Date().toISOString().slice(0, 10);
+  const validPolicies = policies.filter(p => !p.supersededByRenewal && (!p.expiryDate || p.expiryDate >= today));
+  const selectedPolicy = policies.find(p => p.id === form.insurancePolicyId) ?? null;
+  const openClaims = allClaims.filter(c =>
+    !["settled", "rejected", "withdrawn"].includes(c.status) &&
+    (!selectedPolicy?.insurer || !c.insurer || c.insurer.toLowerCase().includes(selectedPolicy.insurer.toLowerCase()) || selectedPolicy.insurer.toLowerCase().includes(c.insurer.toLowerCase()))
+  );
 
   return (
     <AppLayout title="Unauthorized Encampments">
@@ -432,8 +456,9 @@ export default function EncampmentPage() {
                         {r.insuranceClaimMade && (
                           <InfoRow label="Insurance" value={[
                             r.insurancePolicyId ? (policies.find(p => p.id === r.insurancePolicyId)?.policyType ?? null) : null,
-                            r.insuranceClaimRef || null,
-                          ].filter(Boolean).join(" — ") || "Claim made"} />
+                            r.insurancePolicyId && policies.find(p => p.id === r.insurancePolicyId)?.policyNumber ? `No. ${policies.find(p => p.id === r.insurancePolicyId)?.policyNumber}` : null,
+                            r.insuranceClaimRef ? `Ref: ${r.insuranceClaimRef}` : null,
+                          ].filter(Boolean).join(" · ") || "Claim made"} />
                         )}
                         {r.remediationRequired && <InfoRow label="Remediation" value={`${r.remediationNotes || "Required"}${r.remediationCost ? ` — £${r.remediationCost}` : ""}`} span />}
                         {r.notes && <InfoRow label="Notes" value={r.notes} span />}
@@ -611,25 +636,77 @@ export default function EncampmentPage() {
               </Section>
 
               <Section title="Insurance & Remediation">
-                <CheckField label="Insurance claim made?" checked={form.insuranceClaimMade} onChange={v => { ff("insuranceClaimMade", v); if (!v) { ff("insurancePolicyId", null); ff("insuranceClaimRef", ""); } }} />
+                <CheckField label="Insurance claim made?" checked={form.insuranceClaimMade} onChange={v => { ff("insuranceClaimMade", v); if (!v) { ff("insurancePolicyId", null); ff("insuranceClaimRef", ""); setClaimDropdownVal(""); } }} />
                 {form.insuranceClaimMade && (
-                  <Row2>
+                  <>
                     <Field label="Linked Insurance Policy">
                       <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
                         value={form.insurancePolicyId ?? ""}
-                        onChange={e => ff("insurancePolicyId", e.target.value ? Number(e.target.value) : null)}>
-                        <option value="">— Select registered policy…</option>
-                        {policies.map(p => (
+                        onChange={e => { const val = e.target.value ? Number(e.target.value) : null; ff("insurancePolicyId", val); ff("insuranceClaimRef", ""); setClaimDropdownVal(""); }}>
+                        <option value="">— Select current policy…</option>
+                        {validPolicies.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}{p.policyNumber ? ` (${p.policyNumber})` : ""}
+                            {p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}
                           </option>
                         ))}
+                        {form.insurancePolicyId && !validPolicies.find(p => p.id === form.insurancePolicyId) &&
+                          policies.filter(p => p.id === form.insurancePolicyId).map(p => (
+                            <option key={p.id} value={p.id}>{p.policyType} — expired / superseded</option>
+                          ))
+                        }
                       </select>
+                      {selectedPolicy && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: "0.8rem", flexWrap: "wrap" }}>
+                          {selectedPolicy.policyNumber
+                            ? <span style={{ color: "#6b7280" }}>Policy No: <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#374151" }}>{selectedPolicy.policyNumber}</span></span>
+                            : <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No policy number recorded</span>
+                          }
+                          <a href={`/dashboard/insurance?open=${selectedPolicy.id}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "#2563eb", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap" }}>
+                            View policy &amp; documents <ExternalLink size={11} />
+                          </a>
+                        </div>
+                      )}
                     </Field>
-                    <Field label="Claim Reference (issued by insurer)">
-                      <Input value={form.insuranceClaimRef ?? ""} onChange={e => ff("insuranceClaimRef", e.target.value)} placeholder="e.g. CLM-2025-00123" />
+                    <Field label="Claim Reference">
+                      {openClaims.length > 0 ? (
+                        <>
+                          <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                            value={claimDropdownVal}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setClaimDropdownVal(val);
+                              if (val !== "" && val !== "manual") {
+                                const claim = openClaims.find(c => String(c.id) === val);
+                                if (claim?.claimRef) ff("insuranceClaimRef", claim.claimRef);
+                              }
+                            }}>
+                            <option value="">— Link to an open claim from register…</option>
+                            {openClaims.map(c => (
+                              <option key={c.id} value={String(c.id)}>
+                                {c.claimRef ? `${c.claimRef} — ` : ""}{(c.description ?? "No description").slice(0, 55)}{(c.description?.length ?? 0) > 55 ? "…" : ""} [{claimStatusLabel(c.status)}]
+                              </option>
+                            ))}
+                            <option value="manual">Enter reference manually…</option>
+                          </select>
+                          {(claimDropdownVal === "" || claimDropdownVal === "manual") && (
+                            <Input style={{ marginTop: 8 }} value={form.insuranceClaimRef ?? ""} onChange={e => ff("insuranceClaimRef", e.target.value)} placeholder="e.g. CLM-2025-00123" />
+                          )}
+                          {claimDropdownVal !== "" && claimDropdownVal !== "manual" && (
+                            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>
+                              Ref <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#374151" }}>{form.insuranceClaimRef || "—"}</span> linked from Claims Register.
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Input value={form.insuranceClaimRef ?? ""} onChange={e => ff("insuranceClaimRef", e.target.value)} placeholder="e.g. CLM-2025-00123" />
+                          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>
+                            {form.insurancePolicyId ? "No open claims on record for this insurer — enter the reference manually once issued." : "Select a policy above to see matching open claims, or enter the reference manually."}
+                          </p>
+                        </>
+                      )}
                     </Field>
-                  </Row2>
+                  </>
                 )}
                 <Row2>
                   <CheckField label="Remediation required?" checked={form.remediationRequired} onChange={v => ff("remediationRequired", v)} />
