@@ -41,7 +41,7 @@ export default function SoilSampleScreen() {
   const { fields, loading: fieldsLoading, error: fieldsError, fromCache: fieldsCached } = useApiFields(currentFarm?.id);
   const { labs, loading: labsLoading, error: labsError, fromCache: labsCached } = useApiLabs(currentFarm?.id);
   const [saving, setSaving] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   gpsCard: {
-    backgroundColor: colors.cardBackground ?? "#f9fafb",
+    backgroundColor: colors.surface ?? "#f9fafb",
     borderWidth: 1,
     borderColor: colors.border ?? "#e5e7eb",
     borderRadius: 10,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   gpsCoordsValue: {
-    fontFamily: fonts.mono ?? fonts.regular,
+    fontFamily: fonts.regular ?? fonts.regular,
     fontSize: fontSize.xs,
     color: "#15803d",
     fontWeight: "600",

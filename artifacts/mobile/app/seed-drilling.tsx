@@ -191,7 +191,7 @@ export default function SeedDrillingScreen() {
                 onChange={(name) => setFieldName(name)}
                 onChangeField={handleFieldChange}
                 error={null}
-                placeholder="Select or type field name…"
+                label="Field"
               />
             </View>
 

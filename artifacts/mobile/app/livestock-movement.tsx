@@ -48,7 +48,7 @@ export default function LivestockMovementScreen() {
   const { print, savePdf } = usePrint();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
   const [saving, setSaving] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [herdName, setHerdName] = useState("");
   const [species, setSpecies] = useState("");

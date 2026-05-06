@@ -234,7 +234,7 @@ export default function RightToWorkScreen() {
       synced: savedOnline,
     };
 
-    await appendToList(STORAGE_KEYS.RIGHT_TO_WORK_CHECKS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.RIGHT_TO_WORK_CHECKS, record);
     if (!savedOnline) await refreshPendingCount();
     setSaving(false);
 

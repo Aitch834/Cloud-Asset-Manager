@@ -532,12 +532,11 @@ export default function FlyTippingScreen() {
 
         {/* Save */}
         <Button
+          title={saving ? "Saving…" : "Record Incident"}
           onPress={handleSave}
           disabled={!canSave || saving}
           style={{ marginTop: spacing.xs }}
-        >
-          {saving ? "Saving…" : "Record Incident"}
-        </Button>
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -612,7 +611,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: fonts.semiBold,
-    fontSize: fontSize.base,
+    fontSize: fontSize.md,
     color: colors.text,
     marginBottom: 2,
   },

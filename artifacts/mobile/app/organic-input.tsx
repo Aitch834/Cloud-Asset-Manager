@@ -202,13 +202,7 @@ export default function OrganicInputScreen() {
 
             <View style={styles.field}>
               <Text style={styles.label}>Field</Text>
-              <FieldPicker
-                fields={fields}
-                loading={fieldsLoading}
-                value={fieldName}
-                onChange={setFieldName}
-                placeholder="Select field (optional)"
-              />
+              <FieldPicker fields={fields} loading={fieldsLoading} value={fieldName} onChange={setFieldName} label="Field (optional)" error={null} />
             </View>
 
             <View style={styles.row}>

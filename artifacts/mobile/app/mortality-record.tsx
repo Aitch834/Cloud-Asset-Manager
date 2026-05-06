@@ -134,7 +134,7 @@ function ToggleRow({
         value={value}
         onValueChange={onChange}
         trackColor={{ false: colors.borderLight, true: colors.error }}
-        thumbColor={colors.white}
+        thumbColor={"#fff"}
       />
     </View>
   );
@@ -249,7 +249,7 @@ export default function MortalityRecordScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
+          <Feather name="arrow-left" size={20} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Animal Mortality Record</Text>
@@ -417,12 +417,11 @@ export default function MortalityRecordScreen() {
           promptTitle="Attach Mortality Document"
         />
         <Button
+          title={saving ? "Saving…" : "Save Mortality Record"}
           onPress={handleSave}
           disabled={saving}
           style={{ backgroundColor: colors.error }}
-        >
-          {saving ? "Saving…" : "Save Mortality Record"}
-        </Button>
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -450,7 +449,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fonts.bold,
     fontSize: fontSize.lg,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   headerSub: {
     fontFamily: fonts.regular,
@@ -467,7 +466,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   warningBadgeText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: 11,
     color: "#92400E",
   },
@@ -500,7 +499,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -510,7 +509,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: 2,
   },
   optionGrid: {
@@ -536,7 +535,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   optionChipTextSelected: {
-    color: colors.white,
+    color: "#fff",
   },
   speciesChip: {
     paddingHorizontal: 12,
@@ -556,7 +555,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   speciesChipTextSelected: {
-    color: colors.white,
+    color: "#fff",
   },
   toggleRow: {
     flexDirection: "row",
@@ -567,7 +566,7 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   toggleSublabel: {
     fontFamily: fonts.regular,

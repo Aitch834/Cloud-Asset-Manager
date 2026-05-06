@@ -116,8 +116,8 @@ export default function FoodHygieneInspectionScreen() {
           <Text style={styles.sectionTitle}>Relates To *</Text>
           <View style={styles.chipRow}>
             {RELATES_TO.map((r) => (
-              <Pressable key={r} onPress={() => setRelatesTo(r)} style={[styles.chip, relatesTo === r && styles.chipActive]}>
-                <Text style={[styles.chipText, relatesTo === r && styles.chipTextActive]}>{r}</Text>
+              <Pressable key={r} onPress={() => setRelatesTo(r)} style={[styles.chip, relatesTo === r ? styles.chipActive : null]}>
+                <Text style={[styles.chipText, relatesTo === r ? styles.chipTextActive : null]}>{r}</Text>
               </Pressable>
             ))}
           </View>
@@ -128,8 +128,8 @@ export default function FoodHygieneInspectionScreen() {
           <Text style={styles.label}>Inspection Type</Text>
           <View style={styles.chipRow}>
             {INSPECTION_TYPES.map((t) => (
-              <Pressable key={t.key} onPress={() => setInspectionType(t.key)} style={[styles.chip, inspectionType === t.key && styles.chipActive]}>
-                <Text style={[styles.chipText, inspectionType === t.key && styles.chipTextActive]}>{t.label}</Text>
+              <Pressable key={t.key} onPress={() => setInspectionType(t.key)} style={[styles.chip, inspectionType === t.key ? styles.chipActive : null]}>
+                <Text style={[styles.chipText, inspectionType === t.key ? styles.chipTextActive : null]}>{t.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -144,9 +144,9 @@ export default function FoodHygieneInspectionScreen() {
               <Pressable
                 key={r}
                 onPress={() => setHygieneRating(hygieneRating === r ? null : r)}
-                style={[styles.ratingChip, hygieneRating === r && styles.ratingChipActive(r)]}
+                style={[styles.ratingChip, hygieneRating === r ? { borderColor: ratingColors[r], backgroundColor: ratingColors[r] + "20" } : null]}
               >
-                <Text style={[styles.ratingText, hygieneRating === r && styles.ratingTextActive]}>{r}</Text>
+                <Text style={[styles.ratingText, hygieneRating === r ? styles.ratingTextActive : null]}>{r}</Text>
               </Pressable>
             ))}
           </View>
@@ -204,7 +204,6 @@ const styles = StyleSheet.create({
   chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   chipTextActive: { color: colors.primary, fontFamily: fonts.semiBold },
   ratingChip: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.border },
-  ratingChipActive: (r: number) => ({ borderColor: ratingColors[r], backgroundColor: ratingColors[r] + "20" }),
   ratingText: { fontFamily: fonts.bold, fontSize: fontSize.md, color: colors.text },
   ratingTextActive: { color: colors.text },
   ratingHint: { fontFamily: fonts.medium, fontSize: fontSize.sm, marginTop: -spacing.sm, marginBottom: spacing.sm },

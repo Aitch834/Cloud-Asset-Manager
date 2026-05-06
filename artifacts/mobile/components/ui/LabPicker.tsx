@@ -66,7 +66,7 @@ export function LabPicker({
           onPress={() => { Haptics.selectionAsync(); setModalOpen(true); }}
           style={[styles.selector, !displayText && styles.selectorEmpty]}
         >
-          <Feather name="flask" size={15} color={displayText ? colors.primary : colors.textSecondary} />
+          <Feather name="activity" size={15} color={displayText ? colors.primary : colors.textSecondary} />
           <Text style={[styles.selectorText, !displayText && styles.selectorPlaceholder]} numberOfLines={1}>
             {displayText || "Select a laboratory…"}
           </Text>
@@ -121,7 +121,7 @@ export function LabPicker({
             </View>
           ) : labs.length === 0 ? (
             <View style={styles.centre}>
-              <Feather name="flask" size={40} color={colors.border} />
+              <Feather name="activity" size={40} color={colors.border} />
               <Text style={styles.centreTitle}>No laboratories registered</Text>
               <Text style={styles.centreText}>
                 {error
@@ -145,7 +145,7 @@ export function LabPicker({
                   style={[styles.itemRow, item.id === value && styles.itemRowSelected]}
                 >
                   <View style={[styles.itemIcon, item.id === value && styles.itemIconSelected]}>
-                    <Feather name="flask" size={14} color={item.id === value ? colors.textInverse : colors.primary} />
+                    <Feather name="activity" size={14} color={item.id === value ? colors.textInverse : colors.primary} />
                   </View>
                   <View style={styles.itemInfo}>
                     <Text style={[styles.itemName, item.id === value && styles.itemNameSelected]}>

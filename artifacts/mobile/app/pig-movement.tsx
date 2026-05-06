@@ -41,7 +41,7 @@ export default function PigMovementScreen() {
   const [movementType, setMovementType] = useState("off");
   const [fromLocation, setFromLocation] = useState(currentFarm?.name || "");
   const [toLocation, setToLocation] = useState("");
-  const [fromCph, setFromCph] = useState(currentFarm?.cphNumber || "");
+  const [fromCph, setFromCph] = useState("");
   const [toCph, setToCph] = useState("");
   const [numberOfAnimals, setNumberOfAnimals] = useState("");
   const [eaml2Reference, setEaml2Reference] = useState("");

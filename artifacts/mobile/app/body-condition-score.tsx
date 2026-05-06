@@ -152,7 +152,7 @@ export default function BodyConditionScoreScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
+          <Feather name="arrow-left" size={20} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Body Condition Score</Text>
@@ -301,9 +301,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: fontSize.base,
-    color: colors.textPrimary,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
   },
   headerSub: {
     fontFamily: fonts.regular,
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   dairyBadgeText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.xs,
     color: "#065f46",
   },
@@ -355,9 +355,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: spacing.sm,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     flex: 1,
   },
   chipRow: {
@@ -439,8 +439,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   saveBtnText: {
-    fontFamily: fonts.semibold,
-    fontSize: fontSize.base,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
     color: "#fff",
   },
 });

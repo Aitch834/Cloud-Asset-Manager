@@ -240,7 +240,7 @@ export default function FeedRecordScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
+          <Feather name="arrow-left" size={20} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Feed Record</Text>
@@ -362,12 +362,11 @@ export default function FeedRecordScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Button
+          title={saving ? "Saving…" : "Save Feed Record"}
           onPress={handleSave}
           disabled={saving}
           style={{ backgroundColor: "#059669" }}
-        >
-          {saving ? "Saving…" : "Save Feed Record"}
-        </Button>
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -395,7 +394,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fonts.bold,
     fontSize: fontSize.lg,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   headerSub: {
     fontFamily: fonts.regular,
@@ -412,7 +411,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   greenBadgeText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: 11,
     color: "#065F46",
   },
@@ -445,7 +444,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -455,7 +454,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: 2,
   },
   feedGrid: {

@@ -21,7 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { STORAGE_KEYS, appendToList } from "@/lib/storage";
+import { STORAGE_KEYS, appendToList, generateId } from "@/lib/storage";
 
 const RECORD_TYPES = [
   { value: "daily-temperature", label: "Daily Temperature Check" },
@@ -48,7 +48,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function BulkTankRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { syncNow } = useSync();
+  const { triggerSync } = useSync();
   const params = useLocalSearchParams<{ tankId?: string; tankName?: string; presetType?: string }>();
 
   const [recordDate, setRecordDate] = useState(today());
@@ -110,9 +110,9 @@ export default function BulkTankRecordScreen() {
       );
 
       if (res.ok) {
-        await appendToList(STORAGE_KEYS.PENDING_SYNC, { type: "dairy-tank-record", payload, savedAt: new Date().toISOString() });
+        await appendToList(STORAGE_KEYS.PENDING_SYNC, { id: generateId(), savedAt: new Date().toISOString() });
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        syncNow?.();
+        triggerSync();
         router.back();
       } else {
         const body = await res.json().catch(() => ({}));
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   headerSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "rgba(255,255,255,0.75)", marginTop: 2 },
   content: { padding: spacing.lg, gap: spacing.md },
   section: { gap: spacing.xs },
-  sectionTitle: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textPrimary },
+  sectionTitle: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     fontFamily: fonts.regular,
     fontSize: fontSize.md,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   textarea: { minHeight: 80, textAlignVertical: "top", paddingTop: spacing.sm },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipGreen: { backgroundColor: "#16a34a", borderColor: "#16a34a" },
   chipRed: { backgroundColor: "#dc2626", borderColor: "#dc2626" },
-  chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textPrimary },
+  chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   chipTextSelected: { color: "#fff" },
   switchRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.xs },
   switchLabel: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },

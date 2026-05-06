@@ -103,7 +103,7 @@ export default function VineOperationScreen() {
       _pendingSync: true,
     };
 
-    await appendToList("bde_vine_operations", currentFarm?.id, entry);
+    await appendToList("bde_vine_operations", entry);
     await refreshPendingCount();
 
     setSaving(false);
@@ -154,7 +154,7 @@ export default function VineOperationScreen() {
                   onPress={() => { Haptics.selectionAsync(); setOperationType(op.key); }}
                 >
                   <Feather name={op.icon} size={16} color={operationType === op.key ? colors.primary : colors.textSecondary} />
-                  <Text style={[styles.typeText, operationType === op.key && { color: colors.primary, fontFamily: fonts.semibold }]}>{op.key}</Text>
+                  <Text style={[styles.typeText, operationType === op.key && { color: colors.primary, fontFamily: fonts.semiBold }]}>{op.key}</Text>
                   {operationType === op.key && <Feather name="check" size={14} color={colors.primary} />}
                 </Pressable>
               ))}
@@ -205,12 +205,7 @@ export default function VineOperationScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Labour & Equipment</Text>
           <Text style={styles.fieldLabel}>Operator</Text>
-          <StaffMemberPicker
-            members={members}
-            selected={selectedOperator}
-            onSelect={setSelectedOperator}
-            placeholder="Select staff member…"
-          />
+          <StaffMemberPicker members={members} selected={selectedOperator} onSelect={setSelectedOperator} loading={false} error={null} />
           {!selectedOperator && (
             <Input placeholder="Or type name manually" value={manualOperator} onChangeText={setManualOperator} style={{ marginTop: spacing.xs }} />
           )}
@@ -246,7 +241,7 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs },
   title: { fontSize: fontSize.lg, fontFamily: fonts.bold, color: colors.text, flex: 1 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
-  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semibold, color: colors.text },
+  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.text },
   fieldLabel: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: spacing.xs },
   groupLabel: { fontSize: fontSize.xs, fontFamily: fonts.bold, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: spacing.xs, marginBottom: 2 },
   twoCol: { flexDirection: "row", gap: spacing.sm },

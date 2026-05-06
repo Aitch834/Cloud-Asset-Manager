@@ -171,7 +171,7 @@ export default function LambingRecordScreen() {
   const [perinatalDisposalMethod, setPerinatalDisposalMethod] = useState("");
   const [perinatalDisposalNotes, setPerinatalDisposalNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   function updateLamb(index: number, fields: Partial<LambFields>) {
     setLambs((prev) => {

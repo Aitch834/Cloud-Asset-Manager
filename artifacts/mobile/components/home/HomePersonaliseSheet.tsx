@@ -86,7 +86,7 @@ export function HomePersonaliseSheet({
                   onPress={() => { onSelect(opt.value); onClose(); }}
                 >
                   <View style={[styles.optionIcon, { backgroundColor: active ? opt.accentColor : colors.borderLight }]}>
-                    <Feather name={opt.icon} size={20} color={active ? "white" : colors.textMuted} />
+                    <Feather name={opt.icon} size={20} color={active ? "white" : colors.textSecondary} />
                   </View>
 
                   <View style={styles.optionText}>

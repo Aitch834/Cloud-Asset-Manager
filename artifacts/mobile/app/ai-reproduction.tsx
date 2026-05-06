@@ -159,7 +159,6 @@ export default function AiReproductionScreen() {
       sireBreed: sireBreed.trim(),
       sireSource: sireSource.trim(),
       strawnBatchNumber: strawBatch.trim(),
-      strawInventoryId: strawInventoryId ?? undefined,
       technicianName: technicianName.trim(),
       expectedCalvingDate,
       pregnancyConfirmed,

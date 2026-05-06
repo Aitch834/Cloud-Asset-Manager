@@ -29,6 +29,7 @@ const ENTITY_LABELS: Record<BdeEntityType, string> = {
   field:     "Field",
   animal:    "Animal",
   storage:   "Storage Location",
+  tank:      "Bulk Tank",
 };
 
 interface QrScanModalProps {

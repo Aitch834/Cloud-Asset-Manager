@@ -241,7 +241,7 @@ export default function ScanQRScreen() {
     const normalised = normaliseBdeCode(data);
     try {
       const headers = await getAuthHeaders();
-      const entityData = await lookupEntity(data, type, currentFarm.id, headers);
+      const entityData = await lookupEntity(data, type, parseInt(currentFarm.id), headers);
       if (entityData) {
         setResult({ type, code: normalised, data: entityData });
       } else {
@@ -271,7 +271,7 @@ export default function ScanQRScreen() {
         <Feather name="camera-off" size={48} color={colors.textSecondary} style={{ marginBottom: spacing.md }} />
         <Text style={styles.permTitle}>Camera Access Required</Text>
         <Text style={styles.permSub}>BDE Farm Trac needs camera access to scan QR labels.</Text>
-        <Button title="Grant Camera Access" onPress={requestPermission} style={{ marginTop: spacing.lg }} />
+        <Button title="Grant Camera Access" onPress={() => { requestPermission(); }} style={{ marginTop: spacing.lg }} />
         <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
           <Text style={styles.backLink}>Go back</Text>
         </Pressable>
@@ -366,7 +366,7 @@ export default function ScanQRScreen() {
                           [action.paramKey]: result.data.id,
                           ...(action.nameKey ? { [action.nameKey]: entityDisplayName(result.type, result.data) } : {}),
                           ...(action.extraParams ?? {}),
-                        },
+                        } as Record<string, string>,
                       })}
                     >
                       <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   entityIconBox: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
   entityTypeLabel: { fontSize: fontSize.xs, fontFamily: fonts.semiBold, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 },
   entityCode: { fontSize: 24, fontFamily: fonts.bold, letterSpacing: 2, marginBottom: spacing.xs },
-  entityName: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.textPrimary, textAlign: "center" },
+  entityName: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.text, textAlign: "center" },
   entitySub: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary, textTransform: "capitalize" },
   statusPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: spacing.sm },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
@@ -461,10 +461,10 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#f1f5f9" },
   actionIcon: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   actionTextBlock: { flex: 1 },
-  actionTitle: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textPrimary },
+  actionTitle: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.text },
   actionSub: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: colors.textSecondary },
 
-  permTitle: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.textPrimary, textAlign: "center", marginBottom: spacing.sm },
+  permTitle: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.text, textAlign: "center", marginBottom: spacing.sm },
   permSub: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary, textAlign: "center" },
   backLink: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.primary },
 });

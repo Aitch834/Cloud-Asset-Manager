@@ -104,7 +104,7 @@ export default function IrrigationMeterScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.IRRIGATION_METER_READINGS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.IRRIGATION_METER_READINGS, record);
     await refreshPendingCount();
     setSaving(false);
 

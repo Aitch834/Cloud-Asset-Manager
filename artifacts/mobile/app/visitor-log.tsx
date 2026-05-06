@@ -41,7 +41,7 @@ export default function VisitorLogScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [visitorName, setVisitorName] = useState("");
   const [organisation, setOrganisation] = useState("");

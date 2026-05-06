@@ -143,7 +143,7 @@ export default function VineScoutingScreen() {
       _pendingSync: true,
     };
 
-    await appendToList("bde_vine_scouting", currentFarm?.id, entry);
+    await appendToList("bde_vine_scouting", entry);
     await refreshPendingCount();
 
     setSaving(false);
@@ -189,7 +189,8 @@ export default function VineScoutingScreen() {
             members={members}
             selected={selectedScout}
             onSelect={setSelectedScout}
-            placeholder="Select staff member…"
+            loading={false}
+            error={null}
           />
           {!selectedScout && (
             <Input placeholder="Or type name manually" value={manualScout} onChangeText={setManualScout} style={{ marginTop: spacing.xs }} />
@@ -247,10 +248,12 @@ export default function VineScoutingScreen() {
       {taskSheet && (
         <RaiseTaskSheet
           visible
+          farmId={currentFarm?.id ?? ""}
+          module="viticulture"
           defaultTitle={taskSheet.title}
           defaultDescription={taskSheet.description}
-          farmId={currentFarm?.id}
-          onDismiss={() => { setTaskSheet(null); router.back(); }}
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
         />
       )}
     </KeyboardAvoidingView>
@@ -264,7 +267,7 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs },
   title: { fontSize: fontSize.lg, fontFamily: fonts.bold, color: colors.text, flex: 1 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
-  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semibold, color: colors.text },
+  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.text },
   fieldLabel: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: spacing.xs },
   helperText: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
   pressureRow: { gap: spacing.xs },

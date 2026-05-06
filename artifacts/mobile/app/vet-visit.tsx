@@ -270,7 +270,7 @@ export default function VetVisitScreen() {
                   visitReason === r.key && { borderColor: colors.primary, backgroundColor: colors.primary + "10" },
                 ]}
               >
-                <View style={[styles.reasonIcon, { backgroundColor: visitReason === r.key ? colors.primary + "20" : colors.surfaceAlt }]}>
+                <View style={[styles.reasonIcon, { backgroundColor: visitReason === r.key ? colors.primary + "20" : colors.surface }]}>
                   <Feather name={r.icon} size={15} color={visitReason === r.key ? colors.primary : colors.textSecondary} />
                 </View>
                 <Text style={[styles.reasonLabel, visitReason === r.key && { color: colors.primary, fontFamily: fonts.semiBold }]}>
@@ -317,12 +317,7 @@ export default function VetVisitScreen() {
               onChangeText={setHerdName}
             />
           ) : (
-            <HerdPicker
-              herds={herds}
-              selected={herdName}
-              onSelect={setHerdName}
-              label="Herd / Group"
-            />
+            <HerdPicker herds={herds} value={herdName} onChange={setHerdName} label="Herd / Group" loading={false} fromCache={false} error={null} />
           )}
           <Input
             label="Individual animal tags (optional)"

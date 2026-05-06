@@ -91,7 +91,7 @@ export default function PoultryThinningScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.POULTRY_THINNING_RECORDS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.POULTRY_THINNING_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
 

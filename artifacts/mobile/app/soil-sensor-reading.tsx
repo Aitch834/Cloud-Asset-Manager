@@ -137,12 +137,12 @@ export default function SoilSensorReadingScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.backgroundLight }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
+          <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Soil Sensor Reading</Text>
         <View style={{ width: 40 }} />
@@ -297,18 +297,12 @@ export default function SoilSensorReadingScreen() {
         </View>
 
         <Button
+          title={saving ? "Saving…" : "Save Sensor Reading"}
+          loading={saving}
           onPress={handleSave}
           disabled={saving || !selectedProbeId || (!moisturePercent && !temperatureCelsius && !ecUsPerCm)}
           style={{ marginTop: spacing.md }}
-        >
-          {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={{ color: "#fff", fontFamily: fonts.semiBold, fontSize: fontSize.base }}>
-              Record Reading
-            </Text>
-          )}
-        </Button>
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -326,7 +320,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0f0f0",
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.textPrimary },
+  headerTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.md, gap: spacing.sm },
   section: { gap: spacing.xs },
@@ -347,9 +341,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     gap: spacing.xs,
   },
-  pickerBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.base, color: colors.textPrimary },
+  pickerBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   pickerBtnSub: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 1 },
-  pickerPlaceholder: { fontFamily: fonts.regular, fontSize: fontSize.base, color: "#9ca3af" },
+  pickerPlaceholder: { fontFamily: fonts.regular, fontSize: fontSize.md, color: "#9ca3af" },
   dropdownList: {
     borderWidth: 1,
     borderColor: "#e5e7eb",
@@ -368,7 +362,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   dropdownItemActive: { backgroundColor: "#f0fdf4" },
-  dropdownItemText: { fontFamily: fonts.medium, fontSize: fontSize.base, color: colors.textPrimary },
+  dropdownItemText: { fontFamily: fonts.medium, fontSize: fontSize.md, color: colors.text },
   dropdownItemTextActive: { color: colors.primary },
   dropdownItemSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
   errorBox: {

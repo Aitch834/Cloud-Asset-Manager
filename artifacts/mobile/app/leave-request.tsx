@@ -304,7 +304,7 @@ export default function LeaveRequestScreen() {
           onPress={handleSubmit}
           disabled={submitting || !isValid}
           loading={submitting}
-          style={[styles.submitBtn, { opacity: isValid ? 1 : 0.5 }]}
+          style={{ ...styles.submitBtn, opacity: isValid ? 1 : 0.5 }}
         />
       </View>
     </KeyboardAvoidingView>

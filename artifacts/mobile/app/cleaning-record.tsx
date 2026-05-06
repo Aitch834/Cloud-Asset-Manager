@@ -399,11 +399,11 @@ export default function CleaningRecordScreen() {
                     <Text style={styles.stockProductName} numberOfLines={1}>{product}</Text>
                     <View style={styles.stockRowRight}>
                       <Pressable
-                        style={[styles.stockLinkBtn, link?.stockItemId && styles.stockLinkBtnLinked]}
+                        style={[styles.stockLinkBtn, link?.stockItemId ? styles.stockLinkBtnLinked : null]}
                         onPress={() => openStockPicker(product)}
                       >
                         <Feather name="link" size={12} color={link?.stockItemId ? "#0e7490" : colors.textSecondary} />
-                        <Text style={[styles.stockLinkBtnText, link?.stockItemId && styles.stockLinkBtnTextLinked]} numberOfLines={1}>
+                        <Text style={[styles.stockLinkBtnText, link?.stockItemId ? styles.stockLinkBtnTextLinked : null]} numberOfLines={1}>
                           {link?.stockItemName || "Link stock…"}
                         </Text>
                       </Pressable>

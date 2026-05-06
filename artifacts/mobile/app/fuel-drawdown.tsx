@@ -87,7 +87,7 @@ export default function FuelDrawdownScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.FUEL_DRAWDOWNS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.FUEL_DRAWDOWNS, record);
     await refreshPendingCount();
     setSaving(false);
 
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   optionSub: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: 1,
   },
 });

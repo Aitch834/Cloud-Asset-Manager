@@ -166,7 +166,7 @@ export default function OrganicOverviewScreen() {
         ) : (
           <>
             <View style={styles.infoBox}>
-              <Feather name="leaf" size={14} color="#16a34a" />
+              <Feather name="sun" size={14} color="#16a34a" />
               <Text style={styles.infoText}>
                 Complementary evidence records alongside your certifier's portal — Soil Association, OF&G, BDOCA.
               </Text>

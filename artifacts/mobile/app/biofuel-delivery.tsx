@@ -231,7 +231,7 @@ export default function BiofuelDeliveryScreen() {
         </View>
 
         <View style={styles.submitSection}>
-          <Button label={saving ? "Saving..." : "Save Delivery Record"} onPress={handleSave} disabled={saving} />
+          <Button title={saving ? "Saving..." : "Save Delivery Record"} onPress={handleSave} disabled={saving} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -679,9 +679,7 @@ export default function EncampmentsScreen() {
         </View>
 
         {/* Save */}
-        <Button onPress={handleSave} disabled={!canSave || saving} style={{ marginTop: spacing.xs }}>
-          {saving ? "Saving…" : "Log Encampment"}
-        </Button>
+        <Button title={saving ? "Saving…" : "Log Encampment"} onPress={handleSave} disabled={!canSave || saving} style={{ marginTop: spacing.xs }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -739,7 +737,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: fonts.semiBold,
-    fontSize: fontSize.base,
+    fontSize: fontSize.md,
     color: colors.text,
     marginBottom: 2,
   },

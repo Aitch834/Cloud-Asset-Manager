@@ -47,7 +47,7 @@ function MethodPicker({ value, onChange }: { value: string; onChange: (v: string
           onPress={() => { Haptics.selectionAsync(); onChange(m.key); }}
         >
           <Feather name={m.icon} size={20} color={value === m.key ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.methodText, value === m.key && { color: colors.primary, fontFamily: fonts.semibold }]}>{m.key}</Text>
+          <Text style={[styles.methodText, value === m.key && { color: colors.primary, fontFamily: fonts.semiBold }]}>{m.key}</Text>
         </Pressable>
       ))}
     </View>
@@ -133,7 +133,7 @@ export default function VineHarvestScreen() {
       _pendingSync: true,
     };
 
-    await appendToList("bde_vine_harvest", currentFarm?.id, entry);
+    await appendToList("bde_vine_harvest", entry);
     await refreshPendingCount();
 
     setSaving(false);
@@ -256,12 +256,7 @@ export default function VineHarvestScreen() {
           <Text style={styles.fieldLabel}>Destination Winery</Text>
           <Input placeholder="e.g. Chapel Down, own winery" value={destinationWinery} onChangeText={setDestinationWinery} />
           <Text style={styles.fieldLabel}>Operator / Harvest Manager</Text>
-          <StaffMemberPicker
-            members={members}
-            selected={selectedOperator}
-            onSelect={setSelectedOperator}
-            placeholder="Select staff member…"
-          />
+          <StaffMemberPicker members={members} selected={selectedOperator} onSelect={setSelectedOperator} loading={false} error={null} />
           {!selectedOperator && (
             <Input placeholder="Or type name manually" value={manualOperator} onChangeText={setManualOperator} style={{ marginTop: spacing.xs }} />
           )}
@@ -278,10 +273,12 @@ export default function VineHarvestScreen() {
       {taskSheet && (
         <RaiseTaskSheet
           visible
+          farmId={currentFarm?.id ?? ""}
+          module="viticulture"
           defaultTitle={taskSheet.title}
           defaultDescription={taskSheet.description}
-          farmId={currentFarm?.id}
-          onDismiss={() => { setTaskSheet(null); router.back(); }}
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
         />
       )}
     </KeyboardAvoidingView>
@@ -295,7 +292,7 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs },
   title: { fontSize: fontSize.lg, fontFamily: fonts.bold, color: colors.text, flex: 1 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
-  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semibold, color: colors.text },
+  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.text },
   fieldLabel: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: spacing.xs },
   twoCol: { flexDirection: "row", gap: spacing.sm },
   threeCol: { flexDirection: "row", gap: spacing.sm },

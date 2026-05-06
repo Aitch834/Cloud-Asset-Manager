@@ -52,7 +52,7 @@ const STATUS_COLOURS: Record<string, string> = {
   pending: colors.warning ?? "#f59e0b",
   in_progress: "#3b82f6",
   completed: colors.success ?? "#22c55e",
-  cancelled: colors.textMuted ?? "#6b7280",
+  cancelled: colors.textSecondary ?? "#6b7280",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -176,7 +176,7 @@ function AssignmentCard({
         style={styles.cardHeader}
       >
         <View style={styles.cardHeaderLeft}>
-          <View style={[styles.statusDot, { backgroundColor: STATUS_COLOURS[item.status] ?? colors.textMuted }]} />
+          <View style={[styles.statusDot, { backgroundColor: STATUS_COLOURS[item.status] ?? colors.textSecondary }]} />
           <View style={styles.cardHeaderText}>
             <Text style={[styles.cardTitle, isDone && styles.cardTitleDone]} numberOfLines={2}>
               {item.title}
@@ -193,12 +193,12 @@ function AssignmentCard({
           </View>
         </View>
         <View style={styles.cardHeaderRight}>
-          <View style={[styles.statusBadge, { borderColor: STATUS_COLOURS[item.status] ?? colors.textMuted }]}>
-            <Text style={[styles.statusBadgeText, { color: STATUS_COLOURS[item.status] ?? colors.textMuted }]}>
+          <View style={[styles.statusBadge, { borderColor: STATUS_COLOURS[item.status] ?? colors.textSecondary }]}>
+            <Text style={[styles.statusBadgeText, { color: STATUS_COLOURS[item.status] ?? colors.textSecondary }]}>
               {STATUS_LABELS[item.status] ?? item.status}
             </Text>
           </View>
-          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
         </View>
       </TouchableOpacity>
 
@@ -251,7 +251,7 @@ function AssignmentCard({
                     value={hoursInput}
                     onChangeText={setHoursInput}
                     placeholder="Hours, e.g. 1.5"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor={colors.textSecondary}
                     style={styles.timeInput}
                     keyboardType="decimal-pad"
                   />
@@ -268,7 +268,7 @@ function AssignmentCard({
                 value={completionNote}
                 onChangeText={setCompletionNote}
                 placeholder="Completion note (optional)…"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={colors.textSecondary}
                 style={styles.noteInput}
                 multiline
                 numberOfLines={2}
@@ -405,7 +405,7 @@ export default function TaskInboxScreen() {
         </View>
       ) : displayed.length === 0 ? (
         <View style={styles.centered}>
-          <Feather name="check-circle" size={40} color={colors.textMuted} />
+          <Feather name="check-circle" size={40} color={colors.textSecondary} />
           <Text style={styles.emptyTitle}>
             {filter === "open" ? "No open tasks" : "No completed tasks"}
           </Text>
@@ -468,13 +468,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff", shadowColor: "#000",
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  tabText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textMuted ?? "#6b7280" },
+  tabText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textSecondary ?? "#6b7280" },
   tabTextActive: { fontFamily: fonts.bold, color: colors.text },
 
   centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl },
-  loadingText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.sm },
+  loadingText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.sm },
   emptyTitle: { fontFamily: fonts.bold, fontSize: fontSize.md, color: colors.text, marginTop: spacing.md, textAlign: "center" },
-  emptySubtitle: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs, textAlign: "center" },
+  emptySubtitle: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs, textAlign: "center" },
   errorText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.error ?? "#ef4444", textAlign: "center", margin: spacing.lg },
   list: { flex: 1 },
 
@@ -492,10 +492,10 @@ const styles = StyleSheet.create({
   cardHeaderText: { flex: 1 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
   cardTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text, lineHeight: 20 },
-  cardTitleDone: { textDecorationLine: "line-through", color: colors.textMuted },
-  cardDue: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  cardTitleDone: { textDecorationLine: "line-through", color: colors.textSecondary },
+  cardDue: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   cardDueOverdue: { color: "#dc2626", fontFamily: fonts.semiBold },
-  cardModule: { fontFamily: fonts.regular, fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  cardModule: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSecondary, marginTop: 2 },
   statusBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   statusBadgeText: { fontFamily: fonts.semiBold, fontSize: 10 },
 
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   completionNoteBox: { backgroundColor: "#f0fdf4" },
   completionNoteLabel: { color: "#15803d" },
   completionNoteText: { color: "#15803d" },
-  completedAt: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: spacing.sm },
+  completedAt: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: spacing.sm },
 
   timesheetConfirm: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,

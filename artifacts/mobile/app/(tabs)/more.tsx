@@ -120,7 +120,7 @@ export default function MoreScreen() {
             }
             icon="upload-cloud"
             iconColor={colors.primary}
-            iconBgColor={colors.primaryBg ?? colors.primary + "15"}
+            iconBgColor={colors.primary ?? colors.primary + "15"}
             onPress={triggerSync}
             showChevron={false}
           />
@@ -154,7 +154,7 @@ export default function MoreScreen() {
           <ListItem
             title="Organic Overview"
             subtitle="Certification status, inspections and input register"
-            icon="leaf"
+            icon="sun"
             iconColor="#16a34a"
             iconBgColor="#f0fdf4"
             onPress={() => router.push("/organic-overview")}

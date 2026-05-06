@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemName: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   itemNameSelected: { color: colors.primary },
-  itemBatch: { fontFamily: fonts.mono ?? fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
+  itemBatch: { fontFamily: fonts.regular ?? fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
   itemMeta: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
   stockBadge: { marginTop: spacing.xs, alignSelf: "flex-start", paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
   stockOk: { backgroundColor: "#dcfce7" },

@@ -100,7 +100,7 @@ export default function VinePhenologyScreen() {
       _pendingSync: true,
     };
 
-    await appendToList("bde_vine_phenology", currentFarm?.id, entry);
+    await appendToList("bde_vine_phenology", entry);
     await refreshPendingCount();
 
     setSaving(false);
@@ -137,7 +137,8 @@ export default function VinePhenologyScreen() {
             members={members}
             selected={selectedObserver}
             onSelect={setSelectedObserver}
-            placeholder="Select staff member…"
+            loading={false}
+            error={null}
           />
           {!selectedObserver && (
             <Input placeholder="Or type name manually" value={manualObserver} onChangeText={setManualObserver} style={{ marginTop: spacing.xs }} />
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs },
   title: { fontSize: fontSize.lg, fontFamily: fonts.bold, color: colors.text, flex: 1 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
-  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semibold, color: colors.text },
+  sectionTitle: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.text },
   fieldLabel: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textSecondary, marginTop: spacing.xs },
   helperText: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
   twoCol: { flexDirection: "row", gap: spacing.sm },

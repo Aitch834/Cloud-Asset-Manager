@@ -44,7 +44,7 @@ export default function MaintenanceLogScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 

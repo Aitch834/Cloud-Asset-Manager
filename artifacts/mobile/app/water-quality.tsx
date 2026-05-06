@@ -238,7 +238,7 @@ export default function WaterQualityScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
+          <Feather name="arrow-left" size={20} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Water Quality Record</Text>
@@ -380,7 +380,7 @@ export default function WaterQualityScreen() {
               value={testPass}
               onValueChange={handleTogglePass}
               trackColor={{ false: colors.error, true: colors.success }}
-              thumbColor={colors.white}
+              thumbColor={"#fff"}
             />
           </View>
         </Section>
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fonts.bold,
     fontSize: fontSize.lg,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   headerSub: {
     fontFamily: fonts.regular,
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: 2,
   },
   optionGrid: {
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
   herdChipName: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   herdChipType: {
     fontFamily: fonts.regular,
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   toggleSublabel: {
     fontFamily: fonts.regular,

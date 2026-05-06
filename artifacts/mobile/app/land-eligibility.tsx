@@ -141,10 +141,10 @@ export default function LandEligibilityScreen() {
           <FieldPicker
             fields={fields}
             loading={fieldsLoading}
-            error={fieldsError || undefined}
+            error={fieldsError || null}
             value={fieldName}
-            onChange={setFieldName}
-            placeholder="Select or enter field name"
+            onChange={(name) => setFieldName(name)}
+            label="Field"
           />
         </View>
 
@@ -236,7 +236,7 @@ export default function LandEligibilityScreen() {
         </View>
 
         <View style={styles.submitSection}>
-          <Button label={saving ? "Saving..." : "Save Declaration"} onPress={handleSave} disabled={saving} />
+          <Button title={saving ? "Saving..." : "Save Declaration"} onPress={handleSave} disabled={saving} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

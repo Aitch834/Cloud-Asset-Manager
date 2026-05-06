@@ -126,7 +126,7 @@ export default function CropTrialsScreen() {
     }
   }
 
-  const paddingBottom = insets.bottom + spacing[4];
+  const paddingBottom = insets.bottom + spacing.xl;
 
   if (!farmId) {
     return (
@@ -139,7 +139,7 @@ export default function CropTrialsScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.header, { paddingTop: insets.top + spacing[2] }]}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Feather name="chevron-left" size={20} color={colors.primary} />
             <Text style={styles.backText}>Back</Text>
@@ -152,12 +152,12 @@ export default function CropTrialsScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
         ) : trials.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Feather name="flask" size={28} color={colors.textMuted} />
+            <Feather name="activity" size={28} color={colors.textSecondary} />
             <Text style={styles.emptyTitle}>No active trials</Text>
             <Text style={styles.emptyText}>Active and planned trials will appear here for GPS capture.</Text>
           </View>
         ) : !selectedTrial ? (
-          <View style={{ padding: spacing[4], gap: spacing[3] }}>
+          <View style={{ padding: spacing.xl, gap: spacing.lg }}>
             <Text style={styles.sectionLabel}>SELECT TRIAL</Text>
             {trials.map(t => (
               <Pressable key={t.id} style={styles.card} onPress={() => setSelectedTrial(t)}>
@@ -175,7 +175,7 @@ export default function CropTrialsScreen() {
             ))}
           </View>
         ) : !selectedPlot ? (
-          <View style={{ padding: spacing[4], gap: spacing[3] }}>
+          <View style={{ padding: spacing.xl, gap: spacing.lg }}>
             <Pressable onPress={() => setSelectedTrial(null)} style={styles.breadcrumb}>
               <Feather name="chevron-left" size={14} color={colors.primary} />
               <Text style={styles.breadcrumbText}>All Trials</Text>
@@ -200,7 +200,7 @@ export default function CropTrialsScreen() {
                     </View>
                   ) : (
                     <View style={styles.gpsNeeded}>
-                      <Feather name="map-pin" size={13} color={colors.textMuted} />
+                      <Feather name="map-pin" size={13} color={colors.textSecondary} />
                       <Text style={styles.gpsNeededText}>No GPS</Text>
                     </View>
                   )}
@@ -209,7 +209,7 @@ export default function CropTrialsScreen() {
             ))}
           </View>
         ) : (
-          <View style={{ padding: spacing[4], gap: spacing[4] }}>
+          <View style={{ padding: spacing.xl, gap: spacing.xl }}>
             <Pressable onPress={() => { setSelectedPlot(null); setGpsCoords(null); setNotes(""); }} style={styles.breadcrumb}>
               <Feather name="chevron-left" size={14} color={colors.primary} />
               <Text style={styles.breadcrumbText}>{selectedTrial.trialName}</Text>
@@ -233,7 +233,7 @@ export default function CropTrialsScreen() {
                 </View>
               ) : (
                 <View style={styles.coordsEmpty}>
-                  <Feather name="navigation" size={20} color={colors.textMuted} />
+                  <Feather name="navigation" size={20} color={colors.textSecondary} />
                   <Text style={styles.emptyText}>Stand at the centre of the plot and tap the button below</Text>
                 </View>
               )}
@@ -274,26 +274,26 @@ export default function CropTrialsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { paddingHorizontal: spacing[4], paddingBottom: spacing[3], borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: spacing[2] },
+  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: spacing.md },
   backText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
   title: { fontFamily: fonts.bold, fontSize: fontSize.xl, color: colors.text },
-  subtitle: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  sectionLabel: { fontFamily: fonts.semibold, fontSize: fontSize.xs, color: colors.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing[4], gap: spacing[2] },
+  subtitle: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
+  sectionLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, gap: spacing.md },
   cardSaved: { borderColor: colors.success + "60", backgroundColor: "#f0fdf4" },
-  cardRow: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
-  cardTitle: { fontFamily: fonts.semibold, fontSize: fontSize.base, color: colors.text },
-  cardSub: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textMuted, marginTop: 1 },
-  plotCount: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textMuted },
+  cardRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  cardTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
+  cardSub: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 1 },
+  plotCount: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
-  statusText: { fontFamily: fonts.semibold, fontSize: fontSize.xs, textTransform: "capitalize" },
-  emptyCard: { margin: spacing[4], alignItems: "center", gap: spacing[2], padding: spacing[6] },
-  emptyTitle: { fontFamily: fonts.semibold, fontSize: fontSize.base, color: colors.text },
-  emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
+  statusText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, textTransform: "capitalize" },
+  emptyCard: { margin: spacing.xl, alignItems: "center", gap: spacing.md, padding: spacing.xxxl },
+  emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
+  emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
   breadcrumb: { flexDirection: "row", alignItems: "center", gap: 4 },
   breadcrumbText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
-  plotHeader: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
+  plotHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   plotTitle: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   controlBadge: { backgroundColor: "#fde047", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   controlBadgeText: { fontFamily: fonts.bold, fontSize: fontSize.xs, color: "#92400e" },
@@ -301,13 +301,13 @@ const styles = StyleSheet.create({
   gpsSaved: { flexDirection: "row", alignItems: "center", gap: 4 },
   gpsSavedText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.success },
   gpsNeeded: { flexDirection: "row", alignItems: "center", gap: 4 },
-  gpsNeededText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textMuted },
-  gpsSection: { gap: spacing[3] },
-  coordsBox: { flexDirection: "row", alignItems: "flex-start", gap: spacing[3], backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0", borderRadius: radius.md, padding: spacing[3] },
-  coordsText: { fontFamily: fonts.mono ?? fonts.medium, fontSize: fontSize.sm, color: colors.text },
-  coordsHint: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  coordsEmpty: { alignItems: "center", gap: spacing[2], padding: spacing[4], backgroundColor: colors.backgroundAlt ?? "#f9fafb", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  gpsButton: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing[3], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[2] },
+  gpsNeededText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  gpsSection: { gap: spacing.lg },
+  coordsBox: { flexDirection: "row", alignItems: "flex-start", gap: spacing.lg, backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#bbf7d0", borderRadius: radius.md, padding: spacing.lg },
+  coordsText: { fontFamily: fonts.regular ?? fonts.medium, fontSize: fontSize.sm, color: colors.text },
+  coordsHint: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },
+  coordsEmpty: { alignItems: "center", gap: spacing.md, padding: spacing.xl, backgroundColor: colors.background ?? "#f9fafb", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  gpsButton: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md },
   gpsButtonDisabled: { opacity: 0.6 },
-  gpsButtonText: { fontFamily: fonts.semibold, fontSize: fontSize.base, color: "#fff" },
+  gpsButtonText: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: "#fff" },
 });

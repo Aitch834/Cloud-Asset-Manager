@@ -207,7 +207,7 @@ export default function FuelMeterReadingScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.FUEL_METER_READINGS, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.FUEL_METER_READINGS, record);
     await refreshPendingCount();
     setSaving(false);
 
@@ -380,7 +380,7 @@ export default function FuelMeterReadingScreen() {
               </View>
             ) : (
               <Pressable style={styles.photoPrompt} onPress={takeOrPickPhoto}>
-                <Feather name="camera" size={28} color={colors.textMuted} />
+                <Feather name="camera" size={28} color={colors.textSecondary} />
                 <Text style={styles.photoPromptTitle}>Photograph meter display</Text>
                 <Text style={styles.photoPromptSub}>Tap to use camera or choose from library</Text>
               </Pressable>
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   optionSub: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
   consumptionCard: {
     flexDirection: "row",
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   photoPromptSub: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
   photoContainer: {
     borderRadius: radius.lg,

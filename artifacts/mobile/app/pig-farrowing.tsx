@@ -52,7 +52,7 @@ export default function PigFarrowingScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -122,7 +122,7 @@ export default function PigFarrowingScreen() {
       stillborn: stillborn.trim() || "0",
       mummified: mummified.trim() || "0",
       averageBirthWeightKg: avgBirthWeightKg.trim(),
-      farrowingEase,
+      farrowingEase: farrowingEase as "easy" | "assisted" | "difficult" | "caesarean",
       colostrum,
       sowConditionScore: sowBcs,
       attendedBy: attendedBy.trim(),
@@ -137,7 +137,7 @@ export default function PigFarrowingScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.PIG_FARROWING_RECORDS, { ...record, documentUrl } as PigFarrowingRecord, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.PIG_FARROWING_RECORDS, { ...record, documentUrl } as PigFarrowingRecord);
     await refreshPendingCount();
     setSaving(false);
 

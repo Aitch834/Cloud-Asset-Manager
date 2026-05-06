@@ -240,7 +240,7 @@ export default function FuelTankDeliveryScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.FUEL_TANK_DELIVERIES, record, currentFarm?.id);
+    await appendToList(STORAGE_KEYS.FUEL_TANK_DELIVERIES, record);
     await refreshPendingCount();
     setSaving(false);
 
@@ -355,7 +355,7 @@ export default function FuelTankDeliveryScreen() {
             />
             {totalCostPence !== null && (
               <View style={styles.costCard}>
-                <Feather name="pound-sign" size={15} color={colors.primary} />
+                <Feather name="dollar-sign" size={15} color={colors.primary} />
                 <Text style={styles.costText}>
                   Total cost: <Text style={styles.costValue}>£{(totalCostPence / 100).toFixed(2)}</Text>
                 </Text>
@@ -432,7 +432,7 @@ export default function FuelTankDeliveryScreen() {
               </View>
             ) : (
               <Pressable style={styles.photoPrompt} onPress={takeOrPickPhoto}>
-                <Feather name="camera" size={28} color={colors.textMuted} />
+                <Feather name="camera" size={28} color={colors.textSecondary} />
                 <Text style={styles.photoPromptTitle}>Photograph delivery note</Text>
                 <Text style={styles.photoPromptSub}>Tap to use camera or choose from library</Text>
               </Pressable>
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
   optionSub: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   costCard: {
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
   photoPromptSub: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
   photoContainer: {
     borderRadius: radius.lg,

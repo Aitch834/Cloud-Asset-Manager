@@ -105,7 +105,7 @@ export function LookupPicker({
         <Feather
           name={icon}
           size={14}
-          color={value ? colors.textPrimary : colors.textSecondary}
+          color={value ? colors.text : colors.textSecondary}
           style={{ marginRight: 6 }}
         />
         <Text
@@ -140,7 +140,7 @@ export function LookupPicker({
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{label}</Text>
             <Pressable onPress={() => setVisible(false)} hitSlop={8}>
-              <Feather name="x" size={20} color={colors.textPrimary} />
+              <Feather name="x" size={20} color={colors.text} />
             </Pressable>
           </View>
 
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   triggerPlaceholder: {
     color: colors.textSecondary,
@@ -305,9 +305,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   sheetTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: fontSize.base,
-    color: colors.textPrimary,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
   },
   searchRow: {
     flexDirection: "row",
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   list: {
     flex: 1,
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   optionSublabel: {
     fontFamily: fonts.regular,
@@ -391,9 +391,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: fontSize.base,
-    color: colors.textPrimary,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
     marginTop: spacing.sm,
   },
   emptyMsg: {
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   manualEntryBtnText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#fff",
   },
@@ -424,9 +424,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   freeTextLabel: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   freeTextInput: {
     borderWidth: 1,
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
     backgroundColor: colors.surface,
   },
   freeTextActions: {
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   cancelBtnText: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
-    color: colors.textPrimary,
+    color: colors.text,
   },
   confirmBtn: {
     flex: 1,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   confirmBtnText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#fff",
   },
