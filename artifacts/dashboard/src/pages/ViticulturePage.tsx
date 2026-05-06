@@ -453,10 +453,10 @@ function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<st
                 </Select>
               </div>
               <div><Label>Link to Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", Number(v))}>
+                <Select value={String(form.blockId ?? "__none__")} onValueChange={v => sf("blockId", v === "__none__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="Select block…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— None —</SelectItem>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)} ({String(b.variety)})</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -796,10 +796,10 @@ function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Record<strin
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date *</Label><Input type="date" max={today} value={String(form.observationDate ?? "")} onChange={e => sf("observationDate", e.target.value)} /></div>
               <div><Label>Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", Number(v))}>
+                <Select value={String(form.blockId ?? "__none__")} onValueChange={v => sf("blockId", v === "__none__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="All blocks…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— All blocks —</SelectItem>
+                    <SelectItem value="__none__">— All blocks —</SelectItem>
                     {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -953,10 +953,10 @@ function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Record<stri
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date *</Label><Input type="date" max={today} value={String(form.operationDate ?? "")} onChange={e => sf("operationDate", e.target.value)} /></div>
               <div><Label>Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", Number(v))}>
+                <Select value={String(form.blockId ?? "__none__")} onValueChange={v => sf("blockId", v === "__none__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="Select block…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— All blocks —</SelectItem>
+                    <SelectItem value="__none__">— All blocks —</SelectItem>
                     {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
                   </SelectContent>
                 </Select>
