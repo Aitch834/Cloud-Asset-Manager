@@ -308,6 +308,9 @@ export interface FlyTippingReport {
   clearanceStatus: string;
   photoUris: string[];
   notes: string;
+  insuranceClaimMade: boolean;
+  insurancePolicyId: number | null;
+  insuranceClaimRef: string;
   createdAt: string;
   synced: boolean;
 }

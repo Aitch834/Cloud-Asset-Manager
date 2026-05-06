@@ -11149,6 +11149,45 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Organophosphate sheep dips and many pour-on products are COSHH-regulated substances. Ensure the dipping product also appears in your COSHH register (Health, Safety &amp; Risk → COSHH) with health surveillance requirements recorded — particularly for OP dips, where regular cholinesterase blood testing of operators is required under HSE guidance.</p>`,
     },
     {
+      id: 10071,
+      title: "Viticulture Module — Vine Register, Blocks, Phenology & Compliance Records",
+      category: "Viticulture",
+      content: `<h2>Viticulture Module — Vine Register, Blocks, Phenology &amp; Compliance Records</h2>
+
+<p>The Viticulture module provides six dedicated record types for UK vineyard compliance. Navigate to <strong>Viticulture</strong> in the left sidebar to access all tabs.</p>
+
+<h3>Vine Register</h3>
+<p>The Vine Register is your permanent record of every vine variety on the holding. Click <strong>Add Vine</strong> to open the entry form. Fields include:</p>
+<ul>
+<li><strong>Variety</strong> — choose from 24 UK-grown varieties (Bacchus, Pinot Noir, Pinot Gris, Pinot Blanc, Pinot Meunier, Chardonnay, Rondo, Solaris, Regent, Sauvignon Blanc, Müller-Thurgau, Ortega, Seyval Blanc, Reichensteiner, Madeleine Angevine, Dornfelder, Phoenix, Siegerrebe, Gewürztraminer, Kernling, Maréchal Foch, Johanniter, Cabernet Cortis, and Other)</li>
+<li><strong>Rootstock</strong> — 14 options including SO4, 5C Teleki, 420A, 3309 Couderc, 161-49 Couderc, 101-14 Millardet de Grasset, Riparia Gloire de Montpellier, 1103 Paulsen, 110 Richter, 140 Ruggeri, 196-17 Castel, Börner, Gravesac (41B), and Own Rooted</li>
+<li><strong>GI Classification</strong> — English Wine PDO, English Wine PGI, Welsh Wine PDO, Welsh Wine PGI, UK Table Wine, or No GI; used for geographical indication compliance under UK wine regulations post-Brexit</li>
+<li><strong>Wine Colour</strong> — White, Rosé, Red, Sparkling base, or Multiple</li>
+<li><strong>Vine Count</strong>, <strong>Plant Spacing (m)</strong>, and <strong>Date Planted</strong></li>
+<li><strong>Linked Block</strong> — link the vine variety to a Vineyard Block for block-to-vine traceability</li>
+<li><strong>Removed</strong> — flag with removal date and reason for a permanent audit trail of removed stock</li>
+</ul>
+<p>Click any row to open a view dialog showing all details before editing. Click <strong>Edit Vine</strong> inside the view dialog to make changes.</p>
+
+<h3>Vineyard Blocks</h3>
+<p>Add and manage named vineyard blocks — each with area (ha), number of vines, training system, trellis type, aspect, soil type, and organic status. Blocks are used as a linking key throughout the module: phenology records, operations, harvest records, and scouting records all reference a block.</p>
+
+<h3>Phenology Records (BBCH)</h3>
+<p>Log observed BBCH growth stages for each block throughout the season. 23 standard BBCH stages are available from Stage 00 (Winter dormancy) through to Stage 97 (Harvest ripeness). Each record captures the date, block, stage, percentage of vines that have reached that stage, a description, observer name (pre-filled from your account), and air temperature. Export all records to CSV for season-by-season comparison.</p>
+
+<h3>Canopy &amp; Pruning Operations</h3>
+<p>Record all vineyard operations — Winter Pruning, Spur Pruning, Guyot Pruning, Cane Renewal, Shoot Positioning, Leaf Removal, Green Harvest, Mechanical Harvest, Hand Harvest, and more. Each record captures date, block, pruning system, target and actual buds per vine, pruning weight (kg/vine), shoots removed percentage, leaves removed zone, machine used, operator (auto-filled), contractor, and hours worked.</p>
+
+<h3>Harvest Records</h3>
+<p>Log each vintage harvest event per block: total yield (kg), yield per vine (kg/vine), yield per hectare (t/ha), Brix degrees, pH, titratable acidity (g/L), potential alcohol percentage, botrytis present flag (with botrytis percentage if ticked), destination winery, and operator name. Export to CSV for winery intake documentation.</p>
+
+<h3>Disease &amp; Pest Scouting</h3>
+<p>Record walkabout scouting observations with pressure ratings (None / Low / Medium / High) for Botrytis, Downy Mildew, Powdery Mildew, Leafhopper, Spider Mite, Vine Weevil, and Eutypa dieback. Two notifiable organism flags — <strong>Xylella fastidiosa suspected</strong> and <strong>Phytophthora viticola suspected</strong> — trigger a mandatory APHA alert (03000 200 301) before the record can be saved. The Raise Task button in any scouting view dialog lets you assign a follow-up task directly from a high-pressure record.</p>
+
+<h3>CSV Export &amp; Task Assignment</h3>
+<p>Every tab has an <strong>Export CSV</strong> button. All six data sets (vine register, vineyard blocks, phenology, operations, harvest, scouting) export with UTF-8 BOM encoding for Excel compatibility. A <strong>Raise Task</strong> button appears inside every view dialog to assign follow-up work to a named staff member with the record details pre-populated in the task title and description.</p>`,
+    },
+    {
       id: 10070,
       title: "ATA Number — Animal Transporter Authorisation on Livestock Movements",
       category: "Livestock",

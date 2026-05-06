@@ -24,6 +24,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiInsurance } from "@/lib/hooks/useApiInsurance";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { FlyTippingReport } from "@/lib/types";
 
@@ -58,6 +59,9 @@ export default function FlyTippingScreen() {
   const { currentFarm } = useFarm();
   const { triggerSync } = useSync();
 
+  const farmIdStr = currentFarm ? String(currentFarm.id) : undefined;
+  const { policies } = useApiInsurance(farmIdStr);
+
   const [discoveredAt, setDiscoveredAt] = useState(todayDate());
   const [locationDescription, setLocationDescription] = useState("");
   const [latitude, setLatitude] = useState("");
@@ -74,6 +78,9 @@ export default function FlyTippingScreen() {
   const [eaRefNumber, setEaRefNumber] = useState("");
   const [clearanceStatus, setClearanceStatus] = useState("pending");
   const [notes, setNotes] = useState("");
+  const [insuranceClaimMade, setInsuranceClaimMade] = useState(false);
+  const [insurancePolicyId, setInsurancePolicyId] = useState<number | null>(null);
+  const [insuranceClaimRef, setInsuranceClaimRef] = useState("");
   const [saving, setSaving] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
 
@@ -124,6 +131,9 @@ export default function FlyTippingScreen() {
         clearanceStatus,
         photoUris,
         notes: notes.trim(),
+        insuranceClaimMade,
+        insurancePolicyId,
+        insuranceClaimRef: insuranceClaimRef.trim(),
         createdAt: new Date().toISOString(),
         synced: false,
       };
@@ -403,6 +413,52 @@ export default function FlyTippingScreen() {
                 </Text>
               </Pressable>
             ))}
+          </View>
+        </View>
+
+        {/* Insurance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Insurance Claim</Text>
+          <View style={styles.reportRow}>
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Insurance claim made?</Text>
+              </View>
+              <Switch
+                value={insuranceClaimMade}
+                onValueChange={v => { Haptics.selectionAsync(); setInsuranceClaimMade(v); }}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor="#fff"
+              />
+            </View>
+            {insuranceClaimMade && (
+              <>
+                {policies.length > 0 && (
+                  <View style={{ marginTop: spacing.xs }}>
+                    <Text style={[styles.label, { marginBottom: 4 }]}>Linked Insurance Policy</Text>
+                    <View style={styles.chipWrap}>
+                      {policies.map(p => (
+                        <Pressable
+                          key={p.id}
+                          style={[styles.chip, insurancePolicyId === p.id && styles.chipSelected]}
+                          onPress={() => { Haptics.selectionAsync(); setInsurancePolicyId(insurancePolicyId === p.id ? null : p.id); }}
+                        >
+                          <Text style={[styles.chipText, { fontSize: 11 }, insurancePolicyId === p.id && styles.chipTextSelected]}>
+                            {p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+                <Input
+                  placeholder="Claim Reference (issued by insurer)"
+                  value={insuranceClaimRef}
+                  onChangeText={setInsuranceClaimRef}
+                  style={{ marginTop: spacing.xs }}
+                />
+              </>
+            )}
           </View>
         </View>
 
