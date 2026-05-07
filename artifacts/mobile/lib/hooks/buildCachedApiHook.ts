@@ -101,7 +101,11 @@ export function buildCachedApiHook<T>(
             "Content-Type": "application/json",
             "x-tenant-slug": tenantSlug,
           };
-          if (token) headers["Authorization"] = `Bearer ${token}`;
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          } else if (__DEV__) {
+            headers["x-dev-bypass"] = "bde-dev-bypass-local";
+          }
 
           const res = await fetch(`https://${getEndpoint(farmId, apiDomain)}`, { headers });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);

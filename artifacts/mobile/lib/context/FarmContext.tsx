@@ -19,12 +19,22 @@ async function getAuthToken(): Promise<string | null> {
   return null;
 }
 
-async function fetchUserProfileFromApi(token: string): Promise<UserProfile | null> {
+function buildApiHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else if (__DEV__) {
+    headers["x-dev-bypass"] = "bde-dev-bypass-local";
+  }
+  return headers;
+}
+
+async function fetchUserProfileFromApi(token: string | null): Promise<UserProfile | null> {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) return null;
   try {
     const res = await fetch(`https://${domain}/api/auth/user`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildApiHeaders(token),
     });
     if (!res.ok) return null;
     const data = await res.json() as { user?: { id: string; email: string | null; firstName: string | null; lastName: string | null } };
@@ -37,12 +47,12 @@ async function fetchUserProfileFromApi(token: string): Promise<UserProfile | nul
   }
 }
 
-async function fetchFarmsFromApi(token: string): Promise<Farm[]> {
+async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) return [];
   try {
     const res = await fetch(`https://${domain}/api/my-farms`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: buildApiHeaders(token),
     });
     if (!res.ok) return [];
     const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; }> };
@@ -104,11 +114,12 @@ const [FarmProviderInner, useFarm] = createContextHook(
         const savedFarm = await getItem<Farm>(STORAGE_KEYS.CURRENT_FARM);
         const savedUser = await getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE);
 
-        // Try to load real farms and user profile from the API using the stored auth token.
-        // This ensures: the farm ID is the real numeric DB ID, and the user's real
-        // name populates "Checked By" / operator fields throughout the app.
+        // Try to load real farms and user profile from the API.
+        // In production: requires a real auth token.
+        // In development: falls back to the dev bypass header so the preview works
+        // without the user having to complete an OIDC login flow.
         const token = await getAuthToken();
-        if (token) {
+        if (token || __DEV__) {
           const [apiFarms, apiUser] = await Promise.all([
             fetchFarmsFromApi(token),
             fetchUserProfileFromApi(token),

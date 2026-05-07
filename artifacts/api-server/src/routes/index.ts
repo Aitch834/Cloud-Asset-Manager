@@ -13,6 +13,7 @@ import storageRouter from "./storage";
 import accountRouter from "./account";
 import eaRouter from "./ea";
 import viticultureRouter from "./viticulture";
+import mobileRouter from "./mobile";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(storageRouter);
 router.use(accountRouter);
 router.use(eaRouter);
 router.use(viticultureRouter);
+router.use(mobileRouter);
 
 export default router;
