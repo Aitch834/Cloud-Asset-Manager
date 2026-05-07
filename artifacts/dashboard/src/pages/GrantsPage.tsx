@@ -476,16 +476,18 @@ export default function GrantsPage() {
               {availableYears.length === 0 && <option disabled>No years available</option>}
             </select>
           </div>
-          <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
-          <button
-            onClick={() => { setHideArchived(h => !h); setQuickFilter(null); }}
-            style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.82rem", padding: "3px 10px", borderRadius: 6, border: "1px solid", background: hideArchived ? "#fff" : "#fef9c3", borderColor: hideArchived ? "#e5e7eb" : "#fbbf24", color: hideArchived ? "#374151" : "#92400e", cursor: "pointer", fontWeight: 500 }}
-          >
-            <Archive size={13} />
-            {hideArchived
-              ? `Show archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`
-              : "Hide archived"}
-          </button>
+          {(archivedCount > 0 || !hideArchived) && (
+            <>
+              <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
+              <button
+                onClick={() => { setHideArchived(h => !h); setQuickFilter(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.82rem", padding: "3px 10px", borderRadius: 6, border: "1px solid", background: hideArchived ? "#fff" : "#fef9c3", borderColor: hideArchived ? "#e5e7eb" : "#fbbf24", color: hideArchived ? "#374151" : "#92400e", cursor: "pointer", fontWeight: 500 }}
+              >
+                <Archive size={13} />
+                {hideArchived ? `Show archived (${archivedCount})` : `Hide archived (${archivedCount})`}
+              </button>
+            </>
+          )}
           {(yearFilter !== "all" || !hideArchived) && (
             <button
               onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(null); setStatusFilter("all"); }}
