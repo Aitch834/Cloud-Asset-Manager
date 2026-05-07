@@ -4097,6 +4097,7 @@ router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModu
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const supplierAlias = suppliersTable;
+  const approverAlias = usersTable;
   const records = await db.select({
     id: stockItemsTable.id,
     farmId: stockItemsTable.farmId,
@@ -4111,9 +4112,13 @@ router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModu
     defaultSupplierName: supplierAlias.name,
     notes: stockItemsTable.notes,
     isActive: stockItemsTable.isActive,
+    approvalRequired: stockItemsTable.approvalRequired,
+    approverId: stockItemsTable.approverId,
+    approverName: sql<string>`trim(concat(${approverAlias.firstName}, ' ', ${approverAlias.lastName}))`,
     createdAt: stockItemsTable.createdAt,
   }).from(stockItemsTable)
     .leftJoin(supplierAlias, eq(stockItemsTable.defaultSupplierId, supplierAlias.id))
+    .leftJoin(approverAlias, eq(stockItemsTable.approverId, approverAlias.id))
     .where(eq(stockItemsTable.farmId, farmId))
     .orderBy(stockItemsTable.name);
   res.json({ records });
@@ -4389,6 +4394,22 @@ router.delete("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant
   await recalcFeedStockForPO(farmId, poId);
   await db.delete(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// All farm staff (for approver selection)
+router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const staff = await db
+    .select({
+      id: usersTable.id,
+      name: sql<string>`trim(concat(${usersTable.firstName}, ' ', ${usersTable.lastName}))`,
+      role: staffFarmAssignmentsTable.farmRole,
+    })
+    .from(staffFarmAssignmentsTable)
+    .innerJoin(usersTable, eq(staffFarmAssignmentsTable.userId, usersTable.id))
+    .where(eq(staffFarmAssignmentsTable.farmId, farmId));
+  res.json({ staff });
 });
 
 // PO status counts summary

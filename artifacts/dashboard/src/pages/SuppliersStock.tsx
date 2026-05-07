@@ -778,9 +778,9 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState<any>({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "" });
+  const [form, setForm] = useState<any>({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "", approvalRequired: false, approverId: "" });
 
-  const resetForm = () => setForm({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "" });
+  const resetForm = () => setForm({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "", approvalRequired: false, approverId: "" });
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
@@ -793,11 +793,14 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
+  const { data: staffData } = useQuery({ queryKey: ["farm-staff", farmId], queryFn: () => fetch(`/api/farms/${farmId}/staff`).then(r => r.json()), enabled: !!farmId, staleTime: 120_000 });
+  const staffList = staffData?.staff ?? [];
+
   const filtered = (products ?? []).filter((p: any) => !search || p.name?.toLowerCase().includes(search.toLowerCase()) || p.category?.toLowerCase().includes(search.toLowerCase()));
 
   const openEdit = (p: any) => {
     setEditItem(p);
-    setForm({ name: p.name, category: p.category || "", productCode: p.productCode || "", mappNumber: p.mappNumber || "", unit: p.unit || "", reorderLevel: p.reorderLevel || "", storageLocation: p.storageLocation || "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes || "" });
+    setForm({ name: p.name, category: p.category || "", productCode: p.productCode || "", mappNumber: p.mappNumber || "", unit: p.unit || "", reorderLevel: p.reorderLevel || "", storageLocation: p.storageLocation || "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes || "", approvalRequired: p.approvalRequired || false, approverId: p.approverId ? String(p.approverId) : "" });
     setOpen(true);
   };
 
@@ -820,7 +823,7 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Product Name", "Category", "Code", "MAPP No.", "Unit", "Reorder At", "Default Supplier", ""].map(h => (
+                {["Product Name", "Category", "Code", "MAPP No.", "Unit", "Reorder At", "Default Supplier", "Approval", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -835,6 +838,15 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
                   <td style={{ padding: "0.625rem 0.875rem" }}>{p.unit || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{p.reorderLevel ? `${p.reorderLevel} ${p.unit || ""}` : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{p.defaultSupplierName || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>
+                    {p.approvalRequired ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#ede9fe", color: "#6d28d9", borderRadius: 20, padding: "2px 8px", fontSize: "0.7rem", fontWeight: 700, whiteSpace: "nowrap" }}>
+                        ✓ {p.approverName || "Any manager"}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>—</span>
+                    )}
+                  </td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewRecord(p)}>
@@ -908,10 +920,58 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
               <Label>Notes</Label>
               <Textarea rows={2} value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
             </div>
+
+            {/* ── Approval Settings ── */}
+            <div style={{ background: "#f8f4ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "0.875rem 1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: form.approvalRequired ? 12 : 0 }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: "0.85rem", color: "#4c1d95" }}>Purchase Approval Required</p>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6d28d9" }}>When ordering this product, a specific person must approve the PO</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((f: any) => ({ ...f, approvalRequired: !f.approvalRequired, approverId: !f.approvalRequired ? f.approverId : "" }))}
+                  style={{
+                    width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
+                    background: form.approvalRequired ? "#7c3aed" : "#d1d5db", position: "relative"
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 3, width: 18, height: 18, borderRadius: "50%", background: "white",
+                    transition: "left 0.2s", left: form.approvalRequired ? 21 : 3,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+                  }} />
+                </button>
+              </div>
+              {form.approvalRequired && (
+                <div>
+                  <Label style={{ fontSize: "0.78rem", color: "#4c1d95" }}>Required Approver</Label>
+                  <Select value={form.approverId} onValueChange={v => setForm((f: any) => ({ ...f, approverId: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select staff member..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— No specific person (any manager)</SelectItem>
+                      {staffList.map((s: any) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.name} <span style={{ color: "#9ca3af", fontSize: "0.75em" }}>· {s.role}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {staffList.length === 0 && (
+                    <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>No staff assigned to this farm yet. Staff can be added in the Staff & Training section.</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditItem(null); resetForm(); }}>Cancel</Button>
-            <Button onClick={() => editItem ? updateMut.mutate(form) : createMut.mutate(form)} disabled={!form.name || (editItem ? updateMut.isPending : createMut.isPending)}>
+            <Button onClick={() => {
+              const body = { ...form, approverId: form.approverId && form.approverId !== "__none__" ? Number(form.approverId) : null };
+              editItem ? updateMut.mutate(body) : createMut.mutate(body);
+            }} disabled={!form.name || (editItem ? updateMut.isPending : createMut.isPending)}>
               {editItem ? "Save Changes" : "Add Product"}
             </Button>
           </DialogFooter>
@@ -932,6 +992,18 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Default Supplier</p><p className="font-medium">{viewRecord.defaultSupplierName || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Storage Location</p><p className="font-medium">{viewRecord.storageLocation || "—"}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{viewRecord.notes || "—"}</p></div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Approval</p>
+                {viewRecord.approvalRequired ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ede9fe", border: "1px solid #c4b5fd", borderRadius: 8, padding: "4px 12px", marginTop: 4 }}>
+                    <span style={{ color: "#6d28d9", fontWeight: 600, fontSize: "0.85rem" }}>
+                      Approval required{viewRecord.approverName ? ` from ${viewRecord.approverName}` : " from any manager"}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="font-medium text-muted-foreground">Not required</p>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -1301,6 +1373,18 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                                 </SelectContent>
                               </Select>
                             )}
+                            {/* Approval indicator */}
+                            {!isService && l.stockItemId && (() => {
+                              const prod = (products ?? []).find((p: any) => String(p.id) === l.stockItemId);
+                              if (!prod?.approvalRequired) return null;
+                              return (
+                                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, background: "#ede9fe", borderRadius: 4, padding: "2px 7px" }}>
+                                  <span style={{ fontSize: "0.68rem", color: "#6d28d9", fontWeight: 600 }}>
+                                    ⚠ Approval required{prod.approverName ? ` from ${prod.approverName}` : ""}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Qty */}

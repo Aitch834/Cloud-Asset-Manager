@@ -41,6 +41,8 @@ export const stockItemsTable = pgTable("stock_items", {
   defaultSupplierId: integer("default_supplier_id").references(() => suppliersTable.id),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  approvalRequired: boolean("approval_required").notNull().default(false),
+  approverId: integer("approver_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
