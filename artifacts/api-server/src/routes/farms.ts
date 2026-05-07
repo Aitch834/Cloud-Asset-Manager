@@ -9395,7 +9395,10 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Many SFI and CS options have requirements that link directly to other BDE Farm Trac records — such as soil sampling frequency, fertiliser application restrictions, and cover cropping. Cross-reference your agreement conditions against your field operation records to ensure alignment.</p>
 
 <h3>Dedicated SFI & ELM Dashboard Page</h3>
-<p>BDE Farm Trac includes a dedicated <strong>SFI / ELM</strong> page accessible directly from the sidebar under the Environmental module. This gives you a full-page agreement manager with complete CRUD — add, view, edit, and delete agreements and their individual actions or options. Evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days) so you can act before a review or submission date is missed. A print-ready compliance report is available directly from the page for RPA inspection visits.</p>`,
+<p>BDE Farm Trac includes a dedicated <strong>SFI / ELM</strong> page accessible directly from the sidebar under the Environmental module. This gives you a full-page agreement manager with complete CRUD — add, view, edit, and delete agreements and their individual actions or options. Evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days) so you can act before a review or submission date is missed. A print-ready compliance report is available directly from the page for RPA inspection visits.</p>
+
+<h3>Starting an SFI / ELM Record from Grants & Funding</h3>
+<p>If an SFI or CS capital grant application in your Grants & Funding register reaches <strong>Approved</strong> status, the RPA will have issued you an agreement reference number. Record that reference in the <strong>RPA Agreement / Approval Reference</strong> field on the grant record, then click the green <strong>Start SFI / ELM Record →</strong> button. BDE Farm Trac will take you straight to the SFI / ELM page with the Add Agreement dialog already open and pre-filled with the agreement reference, scheme name, and managing body. You only need to add the start and end dates and your action codes — no re-typing of the reference number.</p>`,
     },
     {
       id: 10011,
@@ -10097,6 +10100,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Item Reference Code</strong> — for FETF applications, every fundable item has an alphanumeric reference code published by the RPA (e.g. T-SYS-1 for GPS auto-steering, LESS-2 for a dribble bar slurry spreader). Use the <strong>Browse FETF items</strong> button to pick from a searchable list based on previous FETF rounds — always verify the code and eligible cost against the current RPA prospectus before applying.</li>
 <li><strong>Item Description</strong> — a plain-English description of what you are buying, e.g. "John Deere StarFire 6000 GPS receiver for 8370R tractor". Be specific — this is what you will quote when submitting your claim evidence.</li>
 <li><strong>Application Reference</strong> — the reference number issued by the RPA or scheme administrator when you submit. Record this immediately to save searching for it later.</li>
+<li><strong>RPA Agreement / Approval Reference</strong> — for SFI and CS applications only, this field appears automatically once the status is set to Approved or beyond. It holds the separate agreement reference number that the RPA issues at the point of approval (e.g. SFI-2024-123456), which is distinct from the original application reference. Record it here as soon as you receive your offer letter. Once saved, it will carry through to the SFI / ELM page automatically when you use the <strong>Start SFI / ELM Record →</strong> button.</li>
 <li><strong>Application Date / Approval Date</strong> — log both dates to establish a clear timeline. The approval date triggers the start of most purchase and claim windows.</li>
 <li><strong>Purchase Deadline</strong> — the date by which the equipment must be purchased and invoiced. Missing this deadline normally forfeits the grant entirely. This date automatically appears in the Farm Planner (amber if within 30 days, red if overdue).</li>
 <li><strong>Claim Deadline</strong> — the date by which you must submit your claim to the scheme administrator, including all evidence. This also appears in the Farm Planner.</li>
@@ -10109,7 +10113,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <ul>
 <li><strong>Draft</strong> — preparing the application, not yet submitted</li>
 <li><strong>Applied</strong> — submitted to the scheme, awaiting decision</li>
-<li><strong>Approved</strong> — offer letter received; you can now proceed to purchase within the purchase deadline</li>
+<li><strong>Approved</strong> — offer letter received; you can now proceed to purchase within the purchase deadline. For SFI and CS applications, the <strong>RPA Agreement / Approval Reference</strong> field now appears in the record — enter the agreement reference from your offer letter. A green <strong>Start SFI / ELM Record →</strong> button also appears on the record, both in the table row and in the view dialog. Clicking it takes you directly to the SFI / ELM page with the Add Agreement dialog pre-filled with the agreement reference, scheme name, and managing body — so there is no need to type the reference again.</li>
 <li><strong>Purchased</strong> — equipment bought and invoiced; ready to submit claim evidence</li>
 <li><strong>Claimed</strong> — claim submitted to scheme; awaiting payment</li>
 <li><strong>Rejected</strong> — application or claim rejected; purchase and claim deadline alerts are suppressed</li>

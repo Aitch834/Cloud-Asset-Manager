@@ -77,6 +77,8 @@ const sections: Section[] = [
           "Evidence attachment — upload RPA offer letters, purchase invoices, and equipment photos directly to each grant record",
           "Summary dashboard — total approved grant value, live count by status, upcoming deadline warning card",
           "Application reference tracking — store RPA reference numbers at point of submission for audit trail",
+          "RPA Agreement / Approval Reference — separate field for SFI and CS applications that appears automatically on approval; holds the agreement reference number issued by the RPA at the point of approval, distinct from the original application reference",
+          "One-click SFI / ELM handoff — approved SFI and CS grant records show a 'Start SFI / ELM Record →' button that navigates to the SFI / ELM page with the agreement reference, scheme name, and managing body pre-filled; no re-typing of references",
         ],
       },
     ],
