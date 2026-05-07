@@ -160,6 +160,7 @@ export default function GrantsPage() {
   const [fetfPickerOpen, setFetfPickerOpen] = useState(false);
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [quickFilter, setQuickFilter] = useState<"approved" | "active" | "deadlines" | null>(null);
   const { uploadFile } = useUpload();
 
   const { data, isLoading } = useQuery({
@@ -185,20 +186,42 @@ export default function GrantsPage() {
   }, [openId, records]);
 
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return records;
-    return records.filter(r => r.status === statusFilter);
-  }, [records, statusFilter]);
+    if (quickFilter === "approved") {
+      return records.filter(r => ["approved","purchased","claimed"].includes(r.status));
+    }
+    if (quickFilter === "active") {
+      return records.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
+    }
+    if (quickFilter === "deadlines") {
+      return records.filter(r => {
+        const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
+        const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
+        return (purchSt === "warning" || purchSt === "overdue" || claimSt === "warning" || claimSt === "overdue")
+          && !["claimed","rejected","withdrawn"].includes(r.status);
+      });
+    }
+    if (statusFilter !== "all") return records.filter(r => r.status === statusFilter);
+    return records;
+  }, [records, statusFilter, quickFilter]);
 
   const totalGrantApproved = records
     .filter(r => ["approved","purchased","claimed"].includes(r.status))
     .reduce((sum, r) => sum + (r.grantAmountPence ?? 0), 0);
 
-  const upcomingDeadlines = records.filter(r => {
+  // Only count deadlines genuinely within the next 30 days (warning); overdue tracked separately
+  const warningDeadlineRecords = records.filter(r => {
     const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
     const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
-    return (purchSt === "warning" || purchSt === "overdue" || claimSt === "warning" || claimSt === "overdue")
+    return (purchSt === "warning" || claimSt === "warning")
       && !["claimed","rejected","withdrawn"].includes(r.status);
-  }).length;
+  });
+  const overdueDeadlineRecords = records.filter(r => {
+    const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
+    const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
+    return (purchSt === "overdue" || claimSt === "overdue")
+      && !["claimed","rejected","withdrawn"].includes(r.status);
+  });
+  const deadlineAlertCount = warningDeadlineRecords.length + overdueDeadlineRecords.length;
 
   const saveMut = useMutation({
     mutationFn: async (payload: typeof form) => {
@@ -316,6 +339,20 @@ export default function GrantsPage() {
     return counts;
   }, [records]);
 
+  // Summary card helpers — computed before return to avoid hook-rule violations
+  const cardApprovedRecords = records.filter(r => ["approved","purchased","claimed"].includes(r.status));
+  const cardActiveRecords = records.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
+  const cardNeedsAction = records.filter(r => ["draft","applied"].includes(r.status)).length;
+  const isApprovedActive = quickFilter === "approved";
+  const isActiveFilterOn = quickFilter === "active";
+  const isDeadlinesFilterOn = quickFilter === "deadlines";
+  const dlHasAlert = deadlineAlertCount > 0;
+  const dlHasOverdue = overdueDeadlineRecords.length > 0;
+  const dlBg = isDeadlinesFilterOn ? (dlHasOverdue ? "#fef2f2" : "#fffbeb") : dlHasOverdue ? "#fef2f2" : dlHasAlert ? "#fffbeb" : "#fff";
+  const dlBorder = isDeadlinesFilterOn ? (dlHasOverdue ? "#f87171" : "#fbbf24") : dlHasOverdue ? "#fca5a5" : dlHasAlert ? "#fde68a" : "#e5e7eb";
+  const dlAccent = dlHasOverdue ? "#dc2626" : dlHasAlert ? "#d97706" : "#9ca3af";
+  const cardStyle = { borderRadius: 10, padding: "16px 20px", cursor: "pointer" as const, transition: "box-shadow 0.15s, transform 0.1s", userSelect: "none" as const };
+
   return (
     <AppLayout>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 16px" }}>
@@ -334,37 +371,58 @@ export default function GrantsPage() {
 
         {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "16px 20px" }}>
+          {/* Approved Grant Value */}
+          <div
+            style={{ ...cardStyle, background: isApprovedActive ? "#f5f3ff" : "#fff", border: `1px solid ${isApprovedActive ? "#a78bfa" : "#e5e7eb"}`, outline: isApprovedActive ? "2px solid #7c3aed" : "none", outlineOffset: 2 }}
+            onClick={() => { setQuickFilter(isApprovedActive ? null : "approved"); setStatusFilter("all"); }}
+            title="Click to filter by approved, purchased & claimed"
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <PoundSterling size={18} color="#7c3aed" />
               <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em" }}>Approved Grant Value</span>
             </div>
             <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{formatGBP(totalGrantApproved)}</div>
-            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>Approved, purchased & claimed grants</div>
-          </div>
-          {(() => {
-            const active = records.filter(r => ["draft", "applied", "approved", "purchased"].includes(r.status));
-            const needsAction = records.filter(r => ["draft", "applied"].includes(r.status)).length;
-            return (
-              <div style={{ background: active.length > 0 ? "#f0fdf4" : "#fff", border: `1px solid ${active.length > 0 ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 10, padding: "16px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <CheckCircle2 size={18} color="#059669" />
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active Applications</span>
-                </div>
-                <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{active.length}</div>
-                <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
-                  {needsAction > 0 ? `${needsAction} awaiting decision` : "all concluded or approved"}
-                </div>
-              </div>
-            );
-          })()}
-          <div style={{ background: upcomingDeadlines > 0 ? "#fffbeb" : "#fff", border: `1px solid ${upcomingDeadlines > 0 ? "#fde68a" : "#e5e7eb"}`, borderRadius: 10, padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <AlertTriangle size={18} color={upcomingDeadlines > 0 ? "#d97706" : "#9ca3af"} />
-              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: upcomingDeadlines > 0 ? "#d97706" : "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upcoming Deadlines</span>
+            <div style={{ fontSize: "0.78rem", color: isApprovedActive ? "#7c3aed" : "#6b7280", marginTop: 2 }}>
+              {isApprovedActive ? `Showing ${cardApprovedRecords.length} record${cardApprovedRecords.length !== 1 ? "s" : ""} — click to clear` : `${cardApprovedRecords.length} approved, purchased & claimed`}
             </div>
-            <div style={{ fontSize: "1.6rem", fontWeight: 700, color: upcomingDeadlines > 0 ? "#92400e" : "#111827" }}>{upcomingDeadlines}</div>
-            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>Purchase or claim deadlines within 30 days</div>
+          </div>
+
+          {/* Active Applications */}
+          <div
+            style={{ ...cardStyle, background: isActiveFilterOn ? "#f0fdf4" : cardActiveRecords.length > 0 ? "#f0fdf4" : "#fff", border: `1px solid ${isActiveFilterOn ? "#16a34a" : cardActiveRecords.length > 0 ? "#bbf7d0" : "#e5e7eb"}`, outline: isActiveFilterOn ? "2px solid #16a34a" : "none", outlineOffset: 2 }}
+            onClick={() => { setQuickFilter(isActiveFilterOn ? null : "active"); setStatusFilter("all"); }}
+            title="Click to filter active applications"
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <CheckCircle2 size={18} color="#059669" />
+              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active Applications</span>
+            </div>
+            <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{cardActiveRecords.length}</div>
+            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
+              {isActiveFilterOn ? `Showing ${cardActiveRecords.length} record${cardActiveRecords.length !== 1 ? "s" : ""} — click to clear` : cardNeedsAction > 0 ? `${cardNeedsAction} awaiting decision` : "all concluded or approved"}
+            </div>
+          </div>
+
+          {/* Upcoming Deadlines */}
+          <div
+            style={{ ...cardStyle, background: dlBg, border: `1px solid ${dlBorder}`, outline: isDeadlinesFilterOn ? `2px solid ${dlAccent}` : "none", outlineOffset: 2 }}
+            onClick={() => { setQuickFilter(isDeadlinesFilterOn ? null : "deadlines"); setStatusFilter("all"); }}
+            title="Click to filter records with upcoming or overdue deadlines"
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <AlertTriangle size={18} color={dlAccent} />
+              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: dlAccent, textTransform: "uppercase", letterSpacing: "0.05em" }}>Upcoming Deadlines</span>
+            </div>
+            <div style={{ fontSize: "1.6rem", fontWeight: 700, color: dlHasAlert ? (dlHasOverdue ? "#991b1b" : "#92400e") : "#111827" }}>
+              {warningDeadlineRecords.length}
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
+              {isDeadlinesFilterOn
+                ? `Showing ${deadlineAlertCount} record${deadlineAlertCount !== 1 ? "s" : ""} — click to clear`
+                : dlHasOverdue
+                  ? `within 30 days · ${overdueDeadlineRecords.length} overdue`
+                  : "Purchase or claim deadlines within 30 days"}
+            </div>
           </div>
         </div>
 
@@ -386,7 +444,7 @@ export default function GrantsPage() {
             const active = statusFilter === s;
             const cfg = s === "all" ? null : STATUS_CONFIG[s];
             return (
-              <button key={s} onClick={() => setStatusFilter(s)}
+              <button key={s} onClick={() => { setStatusFilter(s); setQuickFilter(null); }}
                 style={{
                   padding: "4px 12px", borderRadius: 20, fontSize: "0.8rem", fontWeight: active ? 700 : 500, cursor: "pointer", border: "1px solid",
                   background: active ? "#f0f4ff" : "#fff",
@@ -406,12 +464,16 @@ export default function GrantsPage() {
           <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
             <PoundSterling size={32} color="#d1d5db" style={{ margin: "0 auto 12px" }} />
             <div style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-              {statusFilter === "all" ? "No grants recorded yet" : `No ${STATUS_CONFIG[statusFilter].label.toLowerCase()} grants`}
+              {quickFilter === "approved" ? "No approved grants yet"
+                : quickFilter === "active" ? "No active applications"
+                : quickFilter === "deadlines" ? "No upcoming or overdue deadlines"
+                : statusFilter === "all" ? "No grants recorded yet"
+                : `No ${STATUS_CONFIG[statusFilter].label.toLowerCase()} grants`}
             </div>
             <div style={{ color: "#6b7280", fontSize: "0.875rem", marginBottom: 16 }}>
-              {statusFilter === "all" ? "Add your first FETF or scheme application to start tracking deadlines and grant values." : ""}
+              {quickFilter ? "No records match this filter." : statusFilter === "all" ? "Add your first FETF or scheme application to start tracking deadlines and grant values." : ""}
             </div>
-            {statusFilter === "all" && <Button onClick={openAdd} variant="outline"><Plus size={14} /> Add Grant</Button>}
+            {!quickFilter && statusFilter === "all" && <Button onClick={openAdd} variant="outline"><Plus size={14} /> Add Grant</Button>}
           </div>
         ) : (
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
