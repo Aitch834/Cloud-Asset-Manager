@@ -34,7 +34,7 @@ const MODULES = [
   { id: "organic-dairy", label: "Organic Dairy (herd conversion with milk certification date, milk collection records, treatment compliance with organic milk & meat withdrawal tracking, organic feed records)" },
   { id: "organic-fresh-produce", label: "Organic Fresh Produce (block conversion status register, organic input log with supplier/PO/GRN/applied-by tracking, certificates register, buyer declarations, print-ready compliance reports)" },
   { id: "staff-training", label: "Staff & Training (certificates, right-to-work, PPE Stock / Issue / Risk Assessments registers, PPE Compliance Pack & Staff Record reports, labour & timesheet management, rota & shift planning, mobile leave request submission with manager approval & SMS notifications, holiday & absence tracking, WTR compliance monitoring)" },
-  { id: "finance", label: "Finance & Business" },
+  { id: "finance", label: "Finance & Business (Trade Contacts with supplier directory & UFAS/FEMAS tracking, Purchase Orders with multi-stage status tracking and manager approval workflow, Goods Received Notes with 3-way matching, Financial Records & Business Reports)" },
   { id: "safety-risk-audits", label: "Safety, Risk & Audits" },
   { id: "environment-sustainability", label: "Environment & Sustainability" },
   { id: "equipment-workshop", label: "Equipment, Workshop & Fuel (date-validated records, operator name auto-populates)" },

@@ -149,6 +149,27 @@ export default function MoreScreen() {
           />
         </View>
 
+        <SectionHeader title="Trade Contacts & Stock" />
+        <View style={styles.section}>
+          <ListItem
+            title="Purchase Orders"
+            subtitle="View and manage orders by status — Outstanding, Awaiting Approval, Sent, Received"
+            icon="shopping-cart"
+            iconColor="#059669"
+            iconBgColor="#ecfdf5"
+            onPress={() => router.push("/purchase-orders")}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Raise Purchase Order"
+            subtitle="Create a new order for a supplier with line items and estimated value"
+            icon="plus-circle"
+            iconColor="#0891b2"
+            iconBgColor="#e0f2fe"
+            onPress={() => router.push("/raise-purchase-order")}
+          />
+        </View>
+
         <SectionHeader title="Organic Compliance" />
         <View style={styles.section}>
           <ListItem

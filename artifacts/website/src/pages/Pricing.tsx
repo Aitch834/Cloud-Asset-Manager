@@ -23,7 +23,7 @@ const MODULES = [
   { id: "safety-risk-audits", name: "Safety, Risk & Audits", price: 20, note: "Combines HS&R and Inspections & Audits; includes Contractor H&S File (PLI & RAMS tracking, induction records), accident book (RIDDOR), COSHH register, PAT testing, fire extinguisher log, waste disposal, fly-tipping and encampment records" },
   { id: "environment-sustainability", name: "Environment & Sustainability", price: 16, note: "Combines Environmental Management and Carbon & Sustainability" },
   { id: "water-irrigation", name: "Water & Irrigation Management", price: 10 },
-  { id: "finance-business", name: "Finance & Business", price: 32, note: "Combines Trade Contacts, Financial Records & Business Reports" },
+  { id: "finance-business", name: "Finance & Business", price: 32, note: "Combines Trade Contacts, Financial Records & Business Reports; includes multi-stage Purchase Order approval workflow with product-level approver assignment, pending approvals widget for managers, and submitter name tracking on every order" },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
   { id: "platform-addons", name: "Platform Add-ons", price: 10, note: "Includes SMS Alerts & Advisor/Inspector Access" },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
