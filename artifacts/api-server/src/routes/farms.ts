@@ -10125,6 +10125,14 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Each grant record has an evidence attachment slot. Use it to upload the item you would need to produce on request: for an in-progress FETF application this might be the RPA offer letter; once claimed, upload the purchase invoice and photo of the installed equipment. Accepted formats are PDF, Word, JPEG, and PNG.</p>
 <p>For FETF claims, typical evidence requirements are: a copy of the VAT invoice dated before the purchase deadline, a photograph showing the equipment installed and operational on your farm, and proof that the equipment matches the approved item reference. Keep copies of all correspondence with the RPA as well.</p>
 
+<h3>Managing Your Records Over Time</h3>
+<p>As your grant register grows over multiple years, two controls at the top of the table help you keep the view manageable:</p>
+<ul>
+<li><strong>Year filter</strong> — the dropdown defaults to "All years". Select a specific year (e.g. 2026) to show only grants whose application date or approval date falls in that year. The summary cards, status tab counts, and deadline alerts all update to reflect the selected year, so you get an accurate snapshot of one scheme year at a time. The year list is built automatically from the application and approval dates on your records — make sure those dates are filled in to make the most of this filter. Records without a date set on either field will only appear under "All years".</li>
+<li><strong>Show / Hide archived</strong> — records with a status of Claimed, Rejected, or Withdrawn are considered archived. By default they are hidden to keep the active view uncluttered. Click <strong>Show archived (N)</strong> to reveal them — the count in brackets tells you how many are hidden in the current year view. Click <strong>Hide archived</strong> to return to the clean active view.</li>
+</ul>
+<p>Use <strong>Reset filters</strong> (appears whenever a non-default filter is active) to return to the default view — all years, archived records hidden.</p>
+
 <h3>Farm Planner Integration</h3>
 <p>Purchase deadlines and claim deadlines for active grants appear automatically in the Week Ahead and Month Ahead planner views as violet-badged items. Switch to the 30-day Month Ahead view at the start of each month to see whether any purchase or claim deadlines are approaching over the next four weeks — FETF deadlines in particular can be difficult to extend and penalties for missing them are severe.</p>
 

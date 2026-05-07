@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useLocation } from "wouter";
 
@@ -102,6 +102,11 @@ function deadlineStatus(dateStr: string | null): "overdue" | "warning" | "ok" | 
   return "ok";
 }
 
+function grantYear(r: GrantRecord): number | null {
+  const d = r.applicationDate || r.approvalDate;
+  return d ? new Date(d).getFullYear() : null;
+}
+
 function DeadlineBadge({ dateStr }: { dateStr: string | null }) {
   if (!dateStr) return <span className="text-gray-400 text-sm">—</span>;
   const status = deadlineStatus(dateStr);
@@ -161,6 +166,8 @@ export default function GrantsPage() {
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [quickFilter, setQuickFilter] = useState<"approved" | "active" | "deadlines" | null>(null);
+  const [yearFilter, setYearFilter] = useState<number | "all">("all");
+  const [hideArchived, setHideArchived] = useState(true);
   const { uploadFile } = useUpload();
 
   const { data, isLoading } = useQuery({
@@ -175,6 +182,25 @@ export default function GrantsPage() {
 
   const records = data?.records ?? [];
 
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const r of records) { const y = grantYear(r); if (y) years.add(y); }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [records]);
+
+  const baseRecords = useMemo(() => {
+    let rs = records;
+    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === yearFilter);
+    if (hideArchived) rs = rs.filter(r => !["claimed","rejected","withdrawn"].includes(r.status));
+    return rs;
+  }, [records, yearFilter, hideArchived]);
+
+  const archivedCount = useMemo(() => {
+    let rs = records;
+    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === yearFilter);
+    return rs.filter(r => ["claimed","rejected","withdrawn"].includes(r.status)).length;
+  }, [records, yearFilter]);
+
   useEffect(() => {
     if (!openId || autoOpened.current || records.length === 0) return;
     const target = records.find(r => r.id === openId);
@@ -187,39 +213,37 @@ export default function GrantsPage() {
 
   const filtered = useMemo(() => {
     if (quickFilter === "approved") {
-      return records.filter(r => ["approved","purchased","claimed"].includes(r.status));
+      return baseRecords.filter(r => ["approved","purchased","claimed"].includes(r.status));
     }
     if (quickFilter === "active") {
-      return records.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
+      return baseRecords.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
     }
     if (quickFilter === "deadlines") {
-      return records.filter(r => {
+      return baseRecords.filter(r => {
         const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
         const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
-        return (purchSt === "warning" || purchSt === "overdue" || claimSt === "warning" || claimSt === "overdue")
-          && !["claimed","rejected","withdrawn"].includes(r.status);
+        return purchSt === "warning" || purchSt === "overdue" || claimSt === "warning" || claimSt === "overdue";
       });
     }
-    if (statusFilter !== "all") return records.filter(r => r.status === statusFilter);
-    return records;
-  }, [records, statusFilter, quickFilter]);
+    if (statusFilter !== "all") return baseRecords.filter(r => r.status === statusFilter);
+    return baseRecords;
+  }, [baseRecords, statusFilter, quickFilter]);
 
-  const totalGrantApproved = records
+  const totalGrantApproved = baseRecords
     .filter(r => ["approved","purchased","claimed"].includes(r.status))
     .reduce((sum, r) => sum + (r.grantAmountPence ?? 0), 0);
 
   // Only count deadlines genuinely within the next 30 days (warning); overdue tracked separately
-  const warningDeadlineRecords = records.filter(r => {
+  // Both computed from baseRecords so year filter + hide-archived are respected
+  const warningDeadlineRecords = baseRecords.filter(r => {
     const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
     const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
-    return (purchSt === "warning" || claimSt === "warning")
-      && !["claimed","rejected","withdrawn"].includes(r.status);
+    return purchSt === "warning" || claimSt === "warning";
   });
-  const overdueDeadlineRecords = records.filter(r => {
+  const overdueDeadlineRecords = baseRecords.filter(r => {
     const purchSt = r.purchaseDeadline ? deadlineStatus(r.purchaseDeadline) : "none";
     const claimSt = r.claimDeadline ? deadlineStatus(r.claimDeadline) : "none";
-    return (purchSt === "overdue" || claimSt === "overdue")
-      && !["claimed","rejected","withdrawn"].includes(r.status);
+    return purchSt === "overdue" || claimSt === "overdue";
   });
   const deadlineAlertCount = warningDeadlineRecords.length + overdueDeadlineRecords.length;
 
@@ -334,15 +358,15 @@ export default function GrantsPage() {
   );
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: records.length };
-    for (const s of STATUSES) counts[s] = records.filter(r => r.status === s).length;
+    const counts: Record<string, number> = { all: baseRecords.length };
+    for (const s of STATUSES) counts[s] = baseRecords.filter(r => r.status === s).length;
     return counts;
-  }, [records]);
+  }, [baseRecords]);
 
   // Summary card helpers — computed before return to avoid hook-rule violations
-  const cardApprovedRecords = records.filter(r => ["approved","purchased","claimed"].includes(r.status));
-  const cardActiveRecords = records.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
-  const cardNeedsAction = records.filter(r => ["draft","applied"].includes(r.status)).length;
+  const cardApprovedRecords = baseRecords.filter(r => ["approved","purchased","claimed"].includes(r.status));
+  const cardActiveRecords = baseRecords.filter(r => ["draft","applied","approved","purchased"].includes(r.status));
+  const cardNeedsAction = baseRecords.filter(r => ["draft","applied"].includes(r.status)).length;
   const isApprovedActive = quickFilter === "approved";
   const isActiveFilterOn = quickFilter === "active";
   const isDeadlinesFilterOn = quickFilter === "deadlines";
@@ -437,6 +461,46 @@ export default function GrantsPage() {
           </div>
         </div>
 
+        {/* Year & Archive toolbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", padding: "8px 12px", background: "#f9fafb", borderRadius: 8, border: "1px solid #f3f4f6" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <CalendarDays size={14} color="#6b7280" />
+            <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</span>
+            <select
+              value={yearFilter}
+              onChange={e => { const v = e.target.value; setYearFilter(v === "all" ? "all" : Number(v)); setQuickFilter(null); setStatusFilter("all"); }}
+              style={{ fontSize: "0.85rem", padding: "3px 8px", borderRadius: 6, border: "1px solid #e5e7eb", background: yearFilter !== "all" ? "#eff6ff" : "#fff", color: "#111827", cursor: "pointer", fontWeight: yearFilter !== "all" ? 600 : 400 }}
+            >
+              <option value="all">All years</option>
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              {availableYears.length === 0 && <option disabled>No years available</option>}
+            </select>
+          </div>
+          <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
+          <button
+            onClick={() => { setHideArchived(h => !h); setQuickFilter(null); }}
+            style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.82rem", padding: "3px 10px", borderRadius: 6, border: "1px solid", background: hideArchived ? "#fff" : "#fef9c3", borderColor: hideArchived ? "#e5e7eb" : "#fbbf24", color: hideArchived ? "#374151" : "#92400e", cursor: "pointer", fontWeight: 500 }}
+          >
+            <Archive size={13} />
+            {hideArchived
+              ? `Show archived${archivedCount > 0 ? ` (${archivedCount})` : ""}`
+              : "Hide archived"}
+          </button>
+          {(yearFilter !== "all" || !hideArchived) && (
+            <button
+              onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(null); setStatusFilter("all"); }}
+              style={{ fontSize: "0.78rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginLeft: 2 }}
+            >
+              Reset filters
+            </button>
+          )}
+          {records.length > 0 && availableYears.length === 0 && (
+            <span style={{ fontSize: "0.75rem", color: "#9ca3af", marginLeft: 4 }}>
+              Add an Application Date to records to enable year filtering
+            </span>
+          )}
+        </div>
+
         {/* Status filter tabs */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
           {(["all", ...STATUSES] as const).map(s => {
@@ -464,16 +528,23 @@ export default function GrantsPage() {
           <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
             <PoundSterling size={32} color="#d1d5db" style={{ margin: "0 auto 12px" }} />
             <div style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-              {quickFilter === "approved" ? "No approved grants yet"
+              {quickFilter === "approved" ? "No approved grants"
                 : quickFilter === "active" ? "No active applications"
                 : quickFilter === "deadlines" ? "No upcoming or overdue deadlines"
-                : statusFilter === "all" ? "No grants recorded yet"
-                : `No ${STATUS_CONFIG[statusFilter].label.toLowerCase()} grants`}
+                : statusFilter !== "all" ? `No ${STATUS_CONFIG[statusFilter].label.toLowerCase()} grants`
+                : records.length === 0 ? "No grants recorded yet"
+                : "No records match the current filters"}
             </div>
             <div style={{ color: "#6b7280", fontSize: "0.875rem", marginBottom: 16 }}>
-              {quickFilter ? "No records match this filter." : statusFilter === "all" ? "Add your first FETF or scheme application to start tracking deadlines and grant values." : ""}
+              {records.length === 0
+                ? "Add your first FETF or scheme application to start tracking deadlines and grant values."
+                : hideArchived && archivedCount > 0
+                  ? `${archivedCount} archived record${archivedCount !== 1 ? "s" : ""} (claimed, rejected, withdrawn) are hidden — click "Show archived" above to reveal them.`
+                  : yearFilter !== "all"
+                    ? `No records have an application or approval date in ${yearFilter}. Switch to "All years" to see all records.`
+                    : "Try adjusting the year filter or status tabs."}
             </div>
-            {!quickFilter && statusFilter === "all" && <Button onClick={openAdd} variant="outline"><Plus size={14} /> Add Grant</Button>}
+            {records.length === 0 && !quickFilter && statusFilter === "all" && <Button onClick={openAdd} variant="outline"><Plus size={14} /> Add Grant</Button>}
           </div>
         ) : (
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
