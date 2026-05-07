@@ -36,7 +36,7 @@ const MODULES = [
   { id: "staff-training", label: "Staff & Training (certificates, right-to-work, PPE Stock / Issue / Risk Assessments registers, PPE Compliance Pack & Staff Record reports, labour & timesheet management, rota & shift planning, mobile leave request submission with manager approval & SMS notifications, holiday & absence tracking, WTR compliance monitoring)" },
   { id: "finance", label: "Finance & Business (Trade Contacts with supplier directory & UFAS/FEMAS tracking, Purchase Orders with multi-stage status tracking and manager approval workflow, Goods Received Notes with 3-way matching, Financial Records & Business Reports)" },
   { id: "safety-risk-audits", label: "Safety, Risk & Audits" },
-  { id: "environment-sustainability", label: "Environment & Sustainability" },
+  { id: "environment-sustainability", label: "Environment & Sustainability (dedicated SFI / ELM agreement manager with action codes, evidence-due deadline alerts, and print-ready compliance report)" },
   { id: "equipment-workshop", label: "Equipment, Workshop & Fuel (date-validated records, operator name auto-populates)" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "water-irrigation", label: "Water & Irrigation Management" },
@@ -50,8 +50,8 @@ const MODULES = [
   { id: "farm-diversification", label: "Farm Diversification" },
   { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking)" },
   { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
-  { id: "weather-tracking", label: "Weather Tracking" },
-  { id: "platform-addons", label: "Platform Add-ons (SMS Alerts & Advisor / Inspector Access)" },
+  { id: "weather-tracking", label: "Weather Tracking (manual station readings + Fetch Live — auto-fills from Open-Meteo GPS weather with one click, no API key needed; spray-record auto-link and historical charting)" },
+  { id: "platform-addons", label: "Platform Add-ons (SMS Alerts, push notifications to mobile app on task assignment, and Advisor / Inspector Access)" },
 ];
 
 const HEARD_VIA = [

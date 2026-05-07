@@ -7314,7 +7314,11 @@ The Control of Substances Hazardous to Health Regulations 2002 (COSHH) require e
       category: "Weather",
       content: `<img src="/api/help-images/dashboard-overview.png" alt="Weather and Dashboard" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Accurate weather data is an important part of spray application records. Under Red Tractor, spray records must include the wind speed and direction, temperature, and rainfall status at the time of application. This information helps demonstrate that applications were made within the safe working conditions defined on the product label.\n\nBDE Farm Trac can pull weather data in three ways. If you have a weather station on the farm (for example a Davis Vantage or similar), you can connect it via its API and the system will automatically associate recorded conditions with spray events logged at the same time. If you use a third-party weather service such as ADAS Weather, you can configure your nearest weather station postcode and the system will retrieve daily summaries.\n\nFor farms without a connected station, manual entry is available. When logging a spray application, you will be prompted to enter the wind speed in metres per second (or Beaufort scale), the wind direction, the air temperature in degrees Celsius, and whether there was rain or dew present. This takes only a moment and ensures the record is complete.\n\nIf you are in doubt about wind speed, a simple field guide: leaves rustling and small twigs moving is around 3–4 m/s (Beaufort 3), which is typically within the acceptable range for most boom sprayers. Sustained gusts above 5 m/s (Beaufort 4) usually indicate conditions where spraying should stop to prevent drift onto neighbouring land or watercourses.`,
+Accurate weather data is an important part of spray application records. Under Red Tractor, spray records must include the wind speed and direction, temperature, and rainfall status at the time of application. This information helps demonstrate that applications were made within the safe working conditions defined on the product label.\n\nBDE Farm Trac can pull weather data in three ways. If you have a weather station on the farm (for example a Davis Vantage or similar), you can connect it via its API and the system will automatically associate recorded conditions with spray events logged at the same time. If you use a third-party weather service such as ADAS Weather, you can configure your nearest weather station postcode and the system will retrieve daily summaries.\n\nFor farms without a connected station, manual entry is available. When logging a spray application, you will be prompted to enter the wind speed in metres per second (or Beaufort scale), the wind direction, the air temperature in degrees Celsius, and whether there was rain or dew present. This takes only a moment and ensures the record is complete.\n\nIf you are in doubt about wind speed, a simple field guide: leaves rustling and small twigs moving is around 3–4 m/s (Beaufort 3), which is typically within the acceptable range for most boom sprayers. Sustained gusts above 5 m/s (Beaufort 4) usually indicate conditions where spraying should stop to prevent drift onto neighbouring land or watercourses.
+
+<h3>Fetch Live Weather — Open-Meteo Integration</h3>
+<p>The <strong>Add Weather Reading</strong> dialog includes a <strong>Fetch Live</strong> button. Clicking it asks your browser for your current location, then queries the Open-Meteo API to retrieve the conditions at your farm's GPS coordinates — temperature (°C), wind speed (km/h), relative humidity (%), and precipitation (mm). All matching fields in the form are filled automatically. No API key or separate weather subscription is needed: Open-Meteo is a free, open-data weather service used by millions of users worldwide.</p>
+<p>You can edit any auto-filled value before saving, and you can switch between weather stations in the dialog as normal. The Fetch Live button is the fastest way to log an accurate weather snapshot at the exact moment of a spray application — one click replaces looking up a forecast or estimating from observation.</p>`,
     },
     {
       id: 12,
@@ -8114,6 +8118,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Staff member's name and due date</strong></li>
 <li><strong>Status badge</strong> — Pending (grey), In Progress (blue), Completed (green), Cancelled (dim)</li>
 <li><strong>SMS indicator</strong> — whether an SMS was sent to the staff member when the task was assigned</li>
+<li><strong>Push notification</strong> — the staff member also receives an instant push notification on their mobile app device when assigned; tapping the notification opens the Task Inbox directly</li>
 </ul>
 <p>Click the expand icon on any card to see the full details: the original description, your assignment note, the staff member's completion note, and the completion timestamp if applicable.</p>
 
@@ -8124,6 +8129,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Use the <strong>Delete</strong> button in the expanded card to remove an assignment that is no longer needed. This does not affect the original planner task or any records logged against it — only the assignment itself is removed.</p>
 
 <h3>How Staff See Their Tasks (Mobile)</h3>
+<p>When a task is assigned, the staff member receives both an SMS text message and an instant push notification on their mobile device. Tapping the push notification opens <strong>My Task Inbox</strong> in the BDE Farm Trac app directly — no manual navigation required. Push notifications are registered automatically the first time a staff member logs in to the mobile app.</p>
 <p>Any staff member with mobile app access can open <strong>My Task Inbox</strong> (first option in the mobile app's Record tab). Their inbox shows two tabs — Open and Completed. Open tasks are those in Pending or In Progress status. Each card shows the task title, due date, and your assignment note. They can tap to expand, mark the task In Progress (if it is still Pending), or mark it Complete with an optional completion note. Status changes appear on the Task Board immediately.</p>
 
 <h3>Relationship with the Week Ahead Planner</h3>
@@ -9384,7 +9390,10 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Record each payment received against its agreement, including the payment date, the amount, and the claim reference. This provides a complete financial record of agri-environment income, which is useful for farm business accounting and for demonstrating scheme compliance over time.</p>
 
 <h3>Integration with Soil Sampling and Field Records</h3>
-<p>Many SFI and CS options have requirements that link directly to other BDE Farm Trac records — such as soil sampling frequency, fertiliser application restrictions, and cover cropping. Cross-reference your agreement conditions against your field operation records to ensure alignment.</p>`,
+<p>Many SFI and CS options have requirements that link directly to other BDE Farm Trac records — such as soil sampling frequency, fertiliser application restrictions, and cover cropping. Cross-reference your agreement conditions against your field operation records to ensure alignment.</p>
+
+<h3>Dedicated SFI & ELM Dashboard Page</h3>
+<p>BDE Farm Trac includes a dedicated <strong>SFI / ELM</strong> page accessible directly from the sidebar under the Environmental module. This gives you a full-page agreement manager with complete CRUD — add, view, edit, and delete agreements and their individual actions or options. Evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days) so you can act before a review or submission date is missed. A print-ready compliance report is available directly from the page for RPA inspection visits.</p>`,
     },
     {
       id: 10011,
@@ -9832,7 +9841,10 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 
 <h3>Keeping Compliant</h3>
-<p>SFI and CS agreements are inspected by the Rural Payments Agency. Failure to comply with agreement conditions can result in payment reductions or recovery of payments already made. BDE Farm Trac helps you keep evidence of each action undertaken, including dates, areas, and outcomes, ready for an inspection visit.</p>`,
+<p>SFI and CS agreements are inspected by the Rural Payments Agency. Failure to comply with agreement conditions can result in payment reductions or recovery of payments already made. BDE Farm Trac helps you keep evidence of each action undertaken, including dates, areas, and outcomes, ready for an inspection visit.</p>
+
+<h3>Dedicated SFI & ELM Dashboard Page</h3>
+<p>A dedicated <strong>SFI / ELM</strong> page is accessible directly from the sidebar under Environmental. It provides a full-page agreement manager — separate from the Environmental module tab — with CRUD for both agreements and their individual action or option codes. Evidence-due deadline alerts appear in amber (within 60 days) and red (within 14 days) as review or submission dates approach. A print-ready compliance report is available from the page for use during RPA or Natural England inspection visits.</p>`,
     },
     {
       id: 10029,
