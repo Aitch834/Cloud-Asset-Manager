@@ -6988,7 +6988,7 @@ router.get("/farms/:farmId/grants", requireAuth, requireTenant, async (req: Requ
 router.post("/farms/:farmId/grants", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
+  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, approvalAgreementReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
   if (!schemeName) { res.status(400).json({ error: "schemeName is required" }); return; }
   const [record] = await db.insert(farmGrantsTable).values({
     farmId,
@@ -6997,6 +6997,7 @@ router.post("/farms/:farmId/grants", requireAuth, requireTenant, async (req: Req
     itemReferenceCode: itemReferenceCode || null,
     itemDescription: itemDescription || null,
     applicationReference: applicationReference || null,
+    approvalAgreementReference: approvalAgreementReference || null,
     applicationDate: applicationDate || null,
     approvalDate: approvalDate || null,
     purchaseDeadline: purchaseDeadline || null,
@@ -7014,13 +7015,14 @@ router.patch("/farms/:farmId/grants/:recordId", requireAuth, requireTenant, asyn
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
+  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, approvalAgreementReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (schemeName !== undefined) updates.schemeName = schemeName;
   if (schemeType !== undefined) updates.schemeType = schemeType;
   if (itemReferenceCode !== undefined) updates.itemReferenceCode = itemReferenceCode || null;
   if (itemDescription !== undefined) updates.itemDescription = itemDescription || null;
   if (applicationReference !== undefined) updates.applicationReference = applicationReference || null;
+  if (approvalAgreementReference !== undefined) updates.approvalAgreementReference = approvalAgreementReference || null;
   if (applicationDate !== undefined) updates.applicationDate = applicationDate || null;
   if (approvalDate !== undefined) updates.approvalDate = approvalDate || null;
   if (purchaseDeadline !== undefined) updates.purchaseDeadline = purchaseDeadline || null;

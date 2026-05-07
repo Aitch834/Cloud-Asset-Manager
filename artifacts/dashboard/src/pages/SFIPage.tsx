@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -120,6 +120,23 @@ export default function SFIPage() {
   const [deleteActionId, setDeleteActionId] = useState<number | null>(null);
   const [actionForm, setActionForm] = useState<any>(emptyAction);
   const [actionSearch, setActionSearch] = useState("");
+
+  // Handle ?prefill= param from Grants & Funding "Start SFI / ELM Record" button
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("prefill");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(atob(raw));
+      setAgreementForm((f: any) => ({ ...f, ...data }));
+      setAddAgreementOpen(true);
+      // Clear the param from the URL without a page reload
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+    } catch {
+      // ignore malformed prefill
+    }
+  }, []);
 
   const agreementsQ = useQuery({
     queryKey: ["sfi-agreements", farmId],

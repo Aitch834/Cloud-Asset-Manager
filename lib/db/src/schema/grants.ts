@@ -9,6 +9,7 @@ export const farmGrantsTable = pgTable("farm_grants", {
   itemReferenceCode: text("item_reference_code"),
   itemDescription: text("item_description"),
   applicationReference: text("application_reference"),
+  approvalAgreementReference: text("approval_agreement_reference"),
   applicationDate: date("application_date"),
   approvalDate: date("approval_date"),
   purchaseDeadline: date("purchase_deadline"),

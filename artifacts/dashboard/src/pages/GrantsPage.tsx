@@ -8,8 +8,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { useLocation } from "wouter";
 
 // ─── FETF Item Reference Data ──────────────────────
 const FETF_ITEMS: { code: string; description: string; category: string }[] = [
@@ -68,6 +69,7 @@ interface GrantRecord {
   itemReferenceCode: string | null;
   itemDescription: string | null;
   applicationReference: string | null;
+  approvalAgreementReference: string | null;
   applicationDate: string | null;
   approvalDate: string | null;
   purchaseDeadline: string | null;
@@ -127,6 +129,7 @@ const BLANK_FORM = {
   itemReferenceCode: "",
   itemDescription: "",
   applicationReference: "",
+  approvalAgreementReference: "",
   applicationDate: "",
   approvalDate: "",
   purchaseDeadline: "",
@@ -141,6 +144,7 @@ export default function GrantsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { farmId } = useAppStore();
+  const [, navigate] = useLocation();
 
   const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
@@ -204,6 +208,7 @@ export default function GrantsPage() {
         itemReferenceCode: payload.itemReferenceCode || null,
         itemDescription: payload.itemDescription || null,
         applicationReference: payload.applicationReference || null,
+        approvalAgreementReference: payload.approvalAgreementReference || null,
         applicationDate: payload.applicationDate || null,
         approvalDate: payload.approvalDate || null,
         purchaseDeadline: payload.purchaseDeadline || null,
@@ -252,6 +257,7 @@ export default function GrantsPage() {
       itemReferenceCode: r.itemReferenceCode ?? "",
       itemDescription: r.itemDescription ?? "",
       applicationReference: r.applicationReference ?? "",
+      approvalAgreementReference: r.approvalAgreementReference ?? "",
       applicationDate: r.applicationDate ?? "",
       approvalDate: r.approvalDate ?? "",
       purchaseDeadline: r.purchaseDeadline ?? "",
@@ -440,7 +446,10 @@ export default function GrantsPage() {
                           <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 1, maxWidth: 280 }}>{r.itemDescription}</div>
                         )}
                         {r.applicationReference && (
-                          <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>Ref: {r.applicationReference}</div>
+                          <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>App ref: {r.applicationReference}</div>
+                        )}
+                        {r.approvalAgreementReference && (
+                          <div style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 500, marginTop: 2 }}>Agreement: {r.approvalAgreementReference}</div>
                         )}
                       </td>
                       <td style={{ padding: "12px 16px" }}><StatusBadge status={r.status} /></td>
@@ -498,6 +507,19 @@ export default function GrantsPage() {
                               <ClipboardList size={15} />
                             </button>
                           )}
+                          {(r.schemeType === "SFI" || r.schemeType === "CS") && ["approved","purchased","claimed"].includes(r.status) && (
+                            <button
+                              onClick={() => {
+                                const schemeName = r.schemeType === "SFI" ? "SFI 2024" : "Countryside Stewardship (CS)";
+                                const prefill = btoa(JSON.stringify({ agreementNumber: r.approvalAgreementReference ?? "", schemeName, managingBody: "RPA", status: "active" }));
+                                navigate(`/sfi?prefill=${prefill}`);
+                              }}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4, borderRadius: 4 }}
+                              title="Start SFI / ELM Record"
+                            >
+                              <ArrowRight size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -519,6 +541,7 @@ export default function GrantsPage() {
                   <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Type</p><p>{viewRecord.schemeType || "—"}</p></div>
                   {viewRecord.itemReferenceCode && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Item Ref</p><p className="font-mono text-xs">{viewRecord.itemReferenceCode}</p></div>}
                   {viewRecord.applicationReference && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Application Ref</p><p className="font-mono text-xs">{viewRecord.applicationReference}</p></div>}
+                  {viewRecord.approvalAgreementReference && <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, padding: "8px 10px" }}><p className="text-xs font-medium mb-1" style={{ color: "#166534" }}>RPA Agreement Ref</p><p className="font-mono text-xs font-semibold" style={{ color: "#15803d" }}>{viewRecord.approvalAgreementReference}</p></div>}
                   <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><p className="capitalize">{viewRecord.status}</p></div>
                   <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Application Date</p><p>{formatDate(viewRecord.applicationDate)}</p></div>
                   <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Approval Date</p><p>{formatDate(viewRecord.approvalDate)}</p></div>
@@ -532,6 +555,20 @@ export default function GrantsPage() {
                 {viewRecord.documentPath && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Document</p><a href={`/api/storage${viewRecord.documentPath}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 text-sm"><FileText size={14} />{viewRecord.documentName ?? "View Document"}</a></div>}
               </div>
               <DialogFooter>
+                {(viewRecord.schemeType === "SFI" || viewRecord.schemeType === "CS") && ["approved","purchased","claimed"].includes(viewRecord.status) && (
+                  <Button
+                    variant="outline"
+                    style={{ borderColor: "#16a34a", color: "#16a34a", marginRight: "auto" }}
+                    onClick={() => {
+                      const schemeName = viewRecord.schemeType === "SFI" ? "SFI 2024" : "Countryside Stewardship (CS)";
+                      const prefill = btoa(JSON.stringify({ agreementNumber: viewRecord.approvalAgreementReference ?? "", schemeName, managingBody: "RPA", status: "active" }));
+                      setViewRecord(null);
+                      navigate(`/sfi?prefill=${prefill}`);
+                    }}
+                  >
+                    Start SFI / ELM Record <ArrowRight size={14} className="ml-1" />
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
                 <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
               </DialogFooter>
@@ -600,6 +637,25 @@ export default function GrantsPage() {
                 <Input value={form.applicationReference} onChange={e => setForm(f => ({ ...f, applicationReference: e.target.value }))}
                   placeholder="RPA / scheme application reference number" />
               </div>
+
+              {/* RPA Agreement Reference — only for SFI/CS when approved or beyond */}
+              {(form.schemeType === "SFI" || form.schemeType === "CS") && ["approved","purchased","claimed"].includes(form.status) && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 14px" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#166534", display: "block", marginBottom: 4 }}>
+                    RPA Agreement / Approval Reference
+                    <span style={{ fontWeight: 400, color: "#15803d", marginLeft: 6 }}>— issued by RPA on approval</span>
+                  </label>
+                  <Input
+                    value={form.approvalAgreementReference}
+                    onChange={e => setForm(f => ({ ...f, approvalAgreementReference: e.target.value }))}
+                    placeholder={form.schemeType === "SFI" ? "e.g. SFI-2024-123456" : "e.g. CS-2024-78901"}
+                    style={{ borderColor: "#86efac" }}
+                  />
+                  <p style={{ fontSize: "0.72rem", color: "#15803d", marginTop: 6 }}>
+                    This reference carries through to the SFI / ELM page when you start your agreement record.
+                  </p>
+                </div>
+              )}
 
               {/* Dates row 1 */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
