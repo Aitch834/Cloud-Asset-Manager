@@ -156,6 +156,7 @@ const specialistNav: NavItem[] = [
 const otherNav: NavItem[] = [
   { name: "Trade Contacts & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Farm Services", href: "/farm-services", icon: Building2 },
+  { name: "SFI / ELM", href: "/sfi", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Grants & Funding", href: "/grants", icon: Landmark },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
   { name: "Sales & Trading", href: "/sales-trading", icon: TrendingUp, moduleKeys: ["financial-records"], minRole: "manager" },

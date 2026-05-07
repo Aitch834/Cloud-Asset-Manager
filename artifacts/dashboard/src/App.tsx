@@ -80,6 +80,7 @@ import WaterIrrigationPage from "@/pages/WaterIrrigationPage";
 import InsurancePage from "@/pages/InsurancePage";
 import FarmServicesPage from "@/pages/FarmServicesPage";
 import GrantsPage from "@/pages/GrantsPage";
+import SFIPage from "@/pages/SFIPage";
 import FuelEnergyPage from "@/pages/FuelEnergyPage";
 import FeedManagementPage from "@/pages/FeedManagementPage";
 import SalesTradingPage from "@/pages/SalesTradingPage";
@@ -365,6 +366,7 @@ function ProtectedContent() {
         <Route path="/insurance" component={InsurancePage} />
         <Route path="/farm-services" component={FarmServicesPage} />
         <Route path="/grants" component={GrantsPage} />
+        <Route path="/sfi" component={SFIPage} />
         <Route path="/fuel-energy" component={FuelEnergyPage} />
         <Route path="/feed" component={FeedManagementPage} />
         <Route path="/organic" component={OrganicPage} />
@@ -477,6 +479,7 @@ function DevBypassContent() {
         <Route path="/insurance" component={InsurancePage} />
         <Route path="/farm-services" component={FarmServicesPage} />
         <Route path="/grants" component={GrantsPage} />
+        <Route path="/sfi" component={SFIPage} />
         <Route path="/fuel-energy" component={FuelEnergyPage} />
         <Route path="/feed" component={FeedManagementPage} />
         <Route path="/organic" component={OrganicPage} />

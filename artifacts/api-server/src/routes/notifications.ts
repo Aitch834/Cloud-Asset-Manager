@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationsTable, expoPushTokensTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
 
@@ -76,6 +76,60 @@ router.delete("/farms/:farmId/notifications/:id", requireAuth, requireTenant, as
       eq(notificationsTable.id, notifId),
       eq(notificationsTable.farmId, farmId),
       eq(notificationsTable.tenantId, req.tenantId!),
+    ));
+
+  res.json({ success: true });
+});
+
+// ── Expo Push Token Registration ──
+
+router.post("/farms/:farmId/push-tokens", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { expoPushToken, platform, deviceName } = req.body as { expoPushToken?: string; platform?: string; deviceName?: string };
+  if (!expoPushToken || typeof expoPushToken !== "string") {
+    res.status(400).json({ error: "expoPushToken is required" });
+    return;
+  }
+
+  const userId = req.userId!;
+  const existing = await db
+    .select({ id: expoPushTokensTable.id })
+    .from(expoPushTokensTable)
+    .where(eq(expoPushTokensTable.expoPushToken, expoPushToken))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(expoPushTokensTable)
+      .set({ isActive: true, lastSeenAt: new Date(), userId, farmId })
+      .where(eq(expoPushTokensTable.expoPushToken, expoPushToken));
+  } else {
+    await db.insert(expoPushTokensTable).values({
+      userId,
+      farmId,
+      expoPushToken,
+      platform: platform ?? null,
+      deviceName: deviceName ?? null,
+      isActive: true,
+    });
+  }
+
+  res.json({ success: true });
+});
+
+router.delete("/farms/:farmId/push-tokens/:token", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const token = decodeURIComponent(req.params.token as string);
+  await db
+    .update(expoPushTokensTable)
+    .set({ isActive: false })
+    .where(and(
+      eq(expoPushTokensTable.expoPushToken, token),
+      eq(expoPushTokensTable.userId, req.userId!),
     ));
 
   res.json({ success: true });

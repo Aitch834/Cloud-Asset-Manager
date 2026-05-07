@@ -48,6 +48,7 @@ import {
   livestockMovementsTable,
   livestockMovementAnimalsTable,
   lisFarmTokensTable,
+  expoPushTokensTable,
   lisSubmissionsTable,
   bcmsFarmCredentialsTable,
   bcmsSubmissionsTable,
@@ -6685,7 +6686,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const tenantId = farmId;
   const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
-  const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone })
+  const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
   if (!member) { res.status(404).json({ error: "Staff member not found" }); return; }
   const staffName = `${member.firstName} ${member.lastName}`.trim();
@@ -6728,6 +6729,35 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     if (smsSent) {
       await db.update(farmTaskAssignmentsTable).set({ smsSent: true, smsSentAt: new Date() }).where(eq(farmTaskAssignmentsTable.id, record.id));
     }
+  }
+  // Fire-and-forget: send Expo push notification to assigned worker's mobile devices
+  if (member.linkedUserId) {
+    (async () => {
+      try {
+        const pushTokens = await db
+          .select({ token: expoPushTokensTable.expoPushToken })
+          .from(expoPushTokensTable)
+          .where(and(eq(expoPushTokensTable.userId, member.linkedUserId!), eq(expoPushTokensTable.isActive, true)));
+        if (pushTokens.length > 0) {
+          const duePart = dueDate ? ` Due: ${new Date(dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
+          const messages = pushTokens.map(t => ({
+            to: t.token,
+            sound: "default",
+            title: "New Task Assigned",
+            body: `${String(title).trim()}${duePart}`,
+            data: { taskId: record.id, href: href || null },
+          }));
+          await fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(messages.length === 1 ? messages[0] : messages),
+          });
+          console.log(`[PUSH] Sent task notification to ${pushTokens.length} device(s) for user ${member.linkedUserId}`);
+        }
+      } catch (err) {
+        console.warn("[PUSH] Failed to send task notification:", err);
+      }
+    })();
   }
   res.json({ record, smsSent, smsReason: smsReason ?? null });
 });

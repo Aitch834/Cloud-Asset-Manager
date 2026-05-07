@@ -71,6 +71,51 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
   }
 }
 
+async function registerPushToken(token: string | null, farmId: string): Promise<void> {
+  if (Platform.OS === "web") return;
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) return;
+  try {
+    const Notifications = await import("expo-notifications");
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") {
+      console.log("[PUSH] Permission not granted, skipping token registration");
+      return;
+    }
+
+    const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+    const pushToken = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    const expoPushToken = pushToken.data;
+
+    await fetch(`https://${domain}/api/farms/${farmId}/push-tokens`, {
+      method: "POST",
+      headers: buildApiHeaders(token),
+      body: JSON.stringify({ expoPushToken, platform: Platform.OS }),
+    });
+    console.log("[PUSH] Token registered:", expoPushToken);
+  } catch (err) {
+    console.warn("[PUSH] Token registration failed:", err);
+  }
+}
+
 const DEMO_FARMS: Farm[] = [
   {
     id: "farm-1",
@@ -138,6 +183,8 @@ const [FarmProviderInner, useFarm] = createContextHook(
             setUser(resolvedUser);
             setIsLoading(false);
             syncRefData(currentApiFarm.id).catch(() => {});
+            // Register Expo push token in background (fire-and-forget)
+            registerPushToken(token, currentApiFarm.id).catch(() => {});
             return;
           }
         }

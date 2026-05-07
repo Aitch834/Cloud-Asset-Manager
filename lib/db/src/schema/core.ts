@@ -316,6 +316,21 @@ export const farmRecordAttachmentsTable = pgTable("farm_record_attachments", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
+// ── Expo Push Notification Tokens ──
+// Stores Expo push tokens registered by mobile workers.
+// Tokens are linked to a Clerk user ID so tasks can be pushed to the correct device(s).
+export const expoPushTokensTable = pgTable("expo_push_tokens", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  farmId: integer("farm_id").references(() => farmsTable.id, { onDelete: "set null" }),
+  expoPushToken: text("expo_push_token").notNull().unique(),
+  platform: text("platform"),
+  deviceName: text("device_name"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Platform admin audit log ──
 // Records every sensitive action taken in the admin portal.
 // Rows are append-only — no updates or deletes should ever be performed on this table.

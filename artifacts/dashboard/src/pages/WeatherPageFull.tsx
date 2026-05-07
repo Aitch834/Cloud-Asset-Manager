@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Cloud, TrendingUp, Truck } from "lucide-react";
+import { Plus, Trash2, Cloud, TrendingUp, Truck, Loader2, MapPin } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -21,6 +21,24 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+
+function degreesToCompass(deg: number): string {
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function wmoToCondition(code: number): string {
+  if (code <= 1) return "Clear";
+  if (code === 2) return "Partly Cloudy";
+  if (code === 3) return "Overcast";
+  if (code === 45 || code === 48) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if (code >= 61 && code <= 67) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Rain Showers";
+  if (code >= 95) return "Thunderstorm";
+  return "Variable";
+}
 
 type Tab = "readings" | "chart" | "vehicle";
 
@@ -84,8 +102,46 @@ function ReadingsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  const [fetchingWeather, setFetchingWeather] = useState(false);
+  const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
+
+  const fetchWeatherFromApi = useCallback(async () => {
+    setFetchingWeather(true);
+    setWeatherFetchMsg(null);
+    try {
+      if (!navigator.geolocation) throw new Error("Geolocation not available in this browser");
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+      );
+      const { latitude, longitude } = pos.coords;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh&temperature_unit=celsius&precipitation_unit=mm&timezone=auto`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Open-Meteo returned ${resp.status}`);
+      const data = await resp.json();
+      const c = data.current;
+      const now = new Date().toISOString().slice(0, 16);
+      setForm((f: any) => ({
+        ...f,
+        readingTimestamp: f.readingTimestamp || now,
+        temperatureC: c.temperature_2m != null ? String(Math.round(c.temperature_2m * 10) / 10) : f.temperatureC,
+        humidityPercent: c.relative_humidity_2m != null ? String(Math.round(c.relative_humidity_2m)) : f.humidityPercent,
+        rainfallMm: c.precipitation != null ? String(Math.round(c.precipitation * 10) / 10) : f.rainfallMm,
+        windSpeedKmh: c.wind_speed_10m != null ? String(Math.round(c.wind_speed_10m)) : f.windSpeedKmh,
+        windDirection: c.wind_direction_10m != null ? degreesToCompass(c.wind_direction_10m) : f.windDirection,
+        pressureHpa: c.pressure_msl != null ? String(Math.round(c.pressure_msl)) : f.pressureHpa,
+        notes: f.notes || (c.weather_code != null ? `Conditions: ${wmoToCondition(c.weather_code)}` : ""),
+      }));
+      setWeatherFetchMsg(`Live data fetched · ${latitude.toFixed(3)}°N, ${Math.abs(longitude).toFixed(3)}°${longitude < 0 ? "W" : "E"}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setWeatherFetchMsg(`Could not fetch: ${msg}`);
+    } finally {
+      setFetchingWeather(false);
+    }
+  }, []);
+
   const sprayApps: any[] = sprayAppsQ.data ?? [];
-  const resetForm = () => setForm({ readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", pressureHpa: "", linkedSprayApplicationId: "", notes: "" });
+  const resetForm = () => { setForm({ readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", pressureHpa: "", linkedSprayApplicationId: "", notes: "" }); setWeatherFetchMsg(null); };
   const records: any[] = q.data ?? [];
 
   return (
@@ -134,6 +190,15 @@ function ReadingsTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Add Weather Reading</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.625rem 0.875rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: "0.8125rem", color: "#166534" }}>
+                <strong>Auto-fill from Open-Meteo</strong> — uses your browser location to fetch live conditions (free, no API key needed)
+                {weatherFetchMsg && <div style={{ marginTop: 3, fontSize: "0.75rem", color: weatherFetchMsg.startsWith("Could") ? "#991b1b" : "#166534" }}>{weatherFetchMsg}</div>}
+              </div>
+              <Button size="sm" variant="outline" onClick={fetchWeatherFromApi} disabled={fetchingWeather} style={{ flexShrink: 0, borderColor: "#86efac", color: "#166534" }}>
+                {fetchingWeather ? <><Loader2 size={13} className="mr-1 animate-spin" />Fetching…</> : <><MapPin size={13} className="mr-1" />Fetch Live</>}
+              </Button>
+            </div>
             <div><Label>Date &amp; Time <span style={{ color: "#ef4444" }}>*</span></Label><Input type="datetime-local" value={form.readingTimestamp} onChange={e => setForm((f: any) => ({ ...f, readingTimestamp: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={form.temperatureC} onChange={e => setForm((f: any) => ({ ...f, temperatureC: e.target.value }))} /></div>
