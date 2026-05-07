@@ -6,3 +6,9 @@ id = "u5PV2CPpbAZ3SN6WcbL7r"
 uri = "file://threat_model.md"
 type = "text"
 title = "BDE Farm Trac — Threat Model"
+
+[[outputs]]
+id = "54DDEDwbzIHkzWo1T81BB"
+uri = "file://artifacts/website/public/bde-farm-trac-logo.svg"
+type = "image"
+title = "BDE Farm Trac — Master Vector Logo (SVG)"
