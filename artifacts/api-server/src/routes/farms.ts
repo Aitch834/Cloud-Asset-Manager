@@ -9376,29 +9376,33 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     },
     {
       id: 10010,
-      title: "SFI / ELMS Agreements — Recording and Tracking Agri-Environment Schemes",
+      title: "SFI / ELM Agreements & Actions — Recording and Tracking Agri-Environment Schemes",
       category: "Environmental",
-      content: `<img src="/api/help-images/field-operations.png" alt="SFI and ELMS Agreements" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+      content: `<img src="/api/help-images/field-operations.png" alt="SFI and ELM Agreements" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>The <strong>SFI / ELMS</strong> tab in the Environmental section provides a central record for all Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and other agri-environment agreements your farm holds. This includes actions, options, and their associated payment rates, management prescriptions, and agreement end dates.</p>
+<p>The dedicated <strong>SFI / ELM</strong> page (accessible from the sidebar under Environmental) is the central register for all Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and other agri-environment scheme agreements and actions your farm holds. It tracks agreement details, individual action codes and payment rates, evidence due dates, and compliance status — all in one place.</p>
 
-<h3>What to Record</h3>
-<p>For each agreement or agreement option, record: the scheme name (SFI 2023/2024, CS Mid-Tier, CS Higher Tier, etc.), the agreement reference number (from Natural England or the Rural Payments Agency), the start and end dates, the annual payment rate, the land parcels or field blocks covered, and the management requirements (e.g. "AB8 Flower-rich margins — 6m buffer, no fertiliser, cut and remove August–September").</p>
+<h3>Agreements Before Actions — How the Workflow Works</h3>
+<p>The SFI / ELM page is structured around a clear hierarchy: <strong>Agreements come first, Actions follow</strong>. An SFI or CS <em>Agreement</em> is the contract with the RPA — it has a reference number, scheme name, start and end dates, and a total annual payment value. An <em>Action</em> (or Option, in CS terminology) is a specific land management activity you commit to within that agreement — for example SAM1 (soil assessment), AB8 (flower-rich margins), or WBD6 (managing existing hedgerows) — with a land parcel, eligible area, payment rate, and evidence due dates.</p>
+<p>Because every action must belong to an agreement, <strong>the Add Action button is disabled until at least one agreement is in place</strong>. When you add a new action, the Agreement field is the first required field in the form — you must select which agreement that action falls under before saving. The Actions table also shows the agreement reference and scheme name alongside each action row, so you can see at a glance which actions belong to which agreement.</p>
 
-<h3>Compliance Evidence</h3>
-<p>Each agreement option has specific management requirements that must be evidenced at inspection. Use the notes field to record any field-level management actions relevant to the option — for example, confirming that in-field trees in an agroforestry option have been maintained, or that overwintered stubble has been left in accordance with the CS option conditions.</p>
+<h3>The Recommended Workflow — Start from Grants & Funding</h3>
+<p>The recommended route for creating a new SFI or CS agreement is via the <strong>Grants &amp; Funding</strong> register, not directly in the SFI / ELM page. When an SFI or CS application in your Grants &amp; Funding register reaches <strong>Approved</strong> status, a green <strong>Start SFI / ELM Record →</strong> button appears on the grant record. Clicking it takes you directly to the SFI / ELM page with the Add Agreement dialog already open and pre-filled with the agreement reference number, scheme name, and managing body from your grant record. You only need to add the start and end dates — no re-typing of the reference. This ensures your Grants &amp; Funding register and your SFI / ELM records stay aligned.</p>
 
-<h3>Payment Tracking</h3>
-<p>Record each payment received against its agreement, including the payment date, the amount, and the claim reference. This provides a complete financial record of agri-environment income, which is useful for farm business accounting and for demonstrating scheme compliance over time.</p>
+<h3>Direct Agreement Creation — for Existing or Historical Agreements</h3>
+<p>You can also add an agreement directly from the Agreements tab in the SFI / ELM page by clicking <strong>Add Agreement</strong>. This is the right approach for agreements that pre-date your use of BDE Farm Trac, or for agreements that were set up before you started using the Grants &amp; Funding register. The same Add Agreement dialog opens, where you enter the agreement reference number, scheme name, start and end dates, annual payment, managing body, and any agent or advisor details.</p>
 
-<h3>Integration with Soil Sampling and Field Records</h3>
-<p>Many SFI and CS options have requirements that link directly to other BDE Farm Trac records — such as soil sampling frequency, fertiliser application restrictions, and cover cropping. Cross-reference your agreement conditions against your field operation records to ensure alignment.</p>
+<h3>Adding Actions to an Agreement</h3>
+<p>Once an agreement is in place, go to the <strong>Actions / Options</strong> tab and click <strong>Add Action</strong>. The first field in the form is the Agreement selector — choose which agreement this action falls under. Then select the action code from the built-in list of SFI action codes (SAM1, SAM2, NUM1, AB8, WBD6, and all others), or enter a custom code for CS or other scheme options. Fill in the land parcel reference, eligible area in hectares, payment rate per hectare and annual payment amount, evidence required, last and next evidence dates, and compliance status. If your farm has only one agreement, it is pre-selected automatically.</p>
 
-<h3>Dedicated SFI & ELM Dashboard Page</h3>
-<p>BDE Farm Trac includes a dedicated <strong>SFI / ELM</strong> page accessible directly from the sidebar under the Environmental module. This gives you a full-page agreement manager with complete CRUD — add, view, edit, and delete agreements and their individual actions or options. Evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days) so you can act before a review or submission date is missed. A print-ready compliance report is available directly from the page for RPA inspection visits.</p>
+<h3>Evidence Deadlines and Compliance Tracking</h3>
+<p>Evidence due dates on each action are monitored automatically. Actions with a next evidence date within 60 days are highlighted in amber on the overview tab and in the actions table; dates within 14 days appear in red. The summary cards at the top of the page show total estimated annual payment, total enrolled actions, compliant count, at-risk or non-compliant count, and the number of actions with evidence due within 60 days. A print-ready compliance report is available from the Actions tab for use during RPA or Natural England inspection visits.</p>
 
-<h3>Starting an SFI / ELM Record from Grants & Funding</h3>
-<p>If an SFI or CS capital grant application in your Grants & Funding register reaches <strong>Approved</strong> status, the RPA will have issued you an agreement reference number. Record that reference in the <strong>RPA Agreement / Approval Reference</strong> field on the grant record, then click the green <strong>Start SFI / ELM Record →</strong> button. BDE Farm Trac will take you straight to the SFI / ELM page with the Add Agreement dialog already open and pre-filled with the agreement reference, scheme name, and managing body. You only need to add the start and end dates and your action codes — no re-typing of the reference number.</p>`,
+<h3>Compliance Evidence and Notes</h3>
+<p>Each action has a Notes field where you can record management actions taken — for example confirming that overwintered stubble has been maintained in accordance with AB1 conditions, or that a soil health plan has been completed for SAM1. Use this alongside dated evidence records (soil tests, management plans, photographs) to build the audit trail an RPA inspector will expect to see.</p>
+
+<h3>Integration with Other Records</h3>
+<p>Many SFI and CS actions have requirements that link directly to other BDE Farm Trac records — soil sampling frequency, fertiliser application restrictions, and cover cropping for example. When recording non-crop land use in the Fields &amp; Crops module, you can reference your SFI agreement and action code against each field parcel, creating a continuous, field-level audit trail from agreement through to field management. Cross-reference your agreement conditions against your field operation records regularly to ensure alignment before an inspection visit.</p>`,
     },
     {
       id: 10011,
@@ -9832,24 +9836,41 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     },
     {
       id: 10028,
-      title: "SFI / ELMs Actions & Agreements — Environmental Module",
+      title: "SFI / ELM Actions & Agreements — Environmental Module",
       category: "Environmental",
-      content: `<p>The SFI / ELMs tab in the Environmental module provides a register of your Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Environmental Land Management (ELM) agreements. It is essential for cross-referencing land management actions required by your agreements against the field operations and spray records in BDE Farm Trac.</p>
+      content: `<p>The dedicated <strong>SFI / ELM</strong> page in BDE Farm Trac provides a full register of your Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Environmental Land Management (ELM) agreements and their individual actions or options. It is essential for cross-referencing the management actions required by your agreements against the field operations and spray records in BDE Farm Trac.</p>
 
-<h3>What to Record</h3>
+<h3>Agreements Must Come Before Actions</h3>
+<p>The SFI / ELM page enforces the correct hierarchy: you must have at least one agreement recorded before you can add any actions. The <strong>Add Action</strong> button remains disabled until an agreement is in place. When you create an action, the first required field is the <strong>Agreement</strong> selector — every action must be linked to a specific agreement. This reflects how the RPA structures SFI and CS: each action code (SAM1, AB8, WBD6, etc.) is part of a named, dated agreement contract, and cannot exist independently. The Actions table shows the agreement reference and scheme name on every action row so you can see at a glance which agreement each action belongs to.</p>
+
+<h3>What to Record — Agreements</h3>
 <ul>
-<li><strong>Agreement Reference</strong> — Your unique SFI, CS, or ELMS agreement reference number as issued by the Rural Payments Agency.</li>
-<li><strong>Scheme Name & Type</strong> — e.g. SFI 2024, Countryside Stewardship Mid-Tier, Higher Tier, or Landscape Recovery.</li>
-<li><strong>Agreement Period</strong> — Start and end dates of the agreement.</li>
-<li><strong>Actions / Options</strong> — Each action within the agreement (e.g. SAM1: Assess Soil, SAM2: Herbal Leys, AB1: Flower Margins) with the associated payment rate and target area or quantity.</li>
-<li><strong>Evidence Records</strong> — Attach photos, soil tests, or management plans as evidence that actions have been carried out as required.</li>
+<li><strong>Agreement Reference</strong> — your unique SFI, CS, or ELM agreement reference number as issued by the Rural Payments Agency (e.g. SFI-2024-123456).</li>
+<li><strong>Scheme Name &amp; Type</strong> — e.g. SFI 2024, Countryside Stewardship Mid-Tier, Higher Tier CS, or Landscape Recovery.</li>
+<li><strong>Agreement Period</strong> — start and end dates of the agreement.</li>
+<li><strong>Total Annual Payment</strong> — the agreed annual payment value across all actions in this agreement.</li>
+<li><strong>Managing Body &amp; Agent</strong> — the RPA or Natural England contact, and the name of any advisor or agent acting on your behalf.</li>
+</ul>
+
+<h3>What to Record — Actions / Options</h3>
+<ul>
+<li><strong>Agreement</strong> — which agreement this action belongs to (required).</li>
+<li><strong>Action Code</strong> — select from the built-in list (SAM1, SAM2, NUM1, AB1, AB8, WBD6, and all current SFI codes) or enter a custom CS option code.</li>
+<li><strong>Land Parcel Reference</strong> — the field or parcel where the action is being delivered.</li>
+<li><strong>Eligible Area (ha) and Payment Rate</strong> — used to calculate and record the annual payment amount for this action.</li>
+<li><strong>Evidence Required</strong> — describe what must be photographed or documented to demonstrate compliance.</li>
+<li><strong>Evidence Dates</strong> — last evidence date and next evidence date; these drive the deadline alerts on the overview and actions table.</li>
+<li><strong>Compliance Status</strong> — Compliant, At Risk, Non-Compliant, or Not Started.</li>
 </ul>
 
 <h3>Keeping Compliant</h3>
-<p>SFI and CS agreements are inspected by the Rural Payments Agency. Failure to comply with agreement conditions can result in payment reductions or recovery of payments already made. BDE Farm Trac helps you keep evidence of each action undertaken, including dates, areas, and outcomes, ready for an inspection visit.</p>
+<p>SFI and CS agreements are inspected by the Rural Payments Agency. Failure to comply with agreement conditions can result in payment reductions or recovery of payments already made. BDE Farm Trac monitors evidence due dates and flags actions in amber (within 60 days) and red (within 14 days) so you can act before a review or submission date is missed. The overview tab highlights non-compliant actions and those with approaching evidence deadlines in a single view.</p>
 
-<h3>Dedicated SFI & ELM Dashboard Page</h3>
-<p>A dedicated <strong>SFI / ELM</strong> page is accessible directly from the sidebar under Environmental. It provides a full-page agreement manager — separate from the Environmental module tab — with CRUD for both agreements and their individual action or option codes. Evidence-due deadline alerts appear in amber (within 60 days) and red (within 14 days) as review or submission dates approach. A print-ready compliance report is available from the page for use during RPA or Natural England inspection visits.</p>`,
+<h3>Starting a New Agreement — Recommended Route</h3>
+<p>The recommended way to create a new SFI or CS agreement is via <strong>Grants &amp; Funding</strong>. When an application reaches <strong>Approved</strong> status, a green <strong>Start SFI / ELM Record →</strong> button appears. Clicking it pre-fills the Add Agreement dialog with your agreement reference, scheme name, and managing body — so you only need to add start and end dates before saving. For agreements that pre-date BDE Farm Trac or that were not tracked through Grants &amp; Funding, use the <strong>Add Agreement</strong> button directly on the Agreements tab.</p>
+
+<h3>Print-Ready Compliance Report</h3>
+<p>A print-ready compliance report is available from the Actions tab for use during RPA or Natural England inspection visits. It lists every enrolled action with its code, title, land parcel, area, annual payment, last and next evidence dates, and compliance status — formatted for A4 landscape presentation to an inspector.</p>`,
     },
     {
       id: 10029,
@@ -10113,7 +10134,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <ul>
 <li><strong>Draft</strong> — preparing the application, not yet submitted</li>
 <li><strong>Applied</strong> — submitted to the scheme, awaiting decision</li>
-<li><strong>Approved</strong> — offer letter received; you can now proceed to purchase within the purchase deadline. For SFI and CS applications, the <strong>RPA Agreement / Approval Reference</strong> field now appears in the record — enter the agreement reference from your offer letter. A green <strong>Start SFI / ELM Record →</strong> button also appears on the record, both in the table row and in the view dialog. Clicking it takes you directly to the SFI / ELM page with the Add Agreement dialog pre-filled with the agreement reference, scheme name, and managing body — so there is no need to type the reference again.</li>
+<li><strong>Approved</strong> — offer letter received; you can now proceed to purchase within the purchase deadline. For SFI and CS applications, the <strong>RPA Agreement / Approval Reference</strong> field now appears in the record — enter the agreement reference from your offer letter. A green <strong>Start SFI / ELM Record →</strong> button also appears on the record, both in the table row and in the view dialog. Clicking it takes you directly to the SFI / ELM page with the Add Agreement dialog pre-filled with the agreement reference, scheme name, and managing body — so there is no need to type the reference again. Once the agreement is saved, open the <strong>Actions / Options</strong> tab on the SFI / ELM page and add each action code from your agreement — the Agreement field will be pre-selected if you have only one agreement on file.</li>
 <li><strong>Purchased</strong> — equipment bought and invoiced; ready to submit claim evidence</li>
 <li><strong>Claimed</strong> — claim submitted to scheme; awaiting payment</li>
 <li><strong>Rejected</strong> — application or claim rejected; purchase and claim deadline alerts are suppressed</li>
