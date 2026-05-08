@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printProReport } from "@/lib/print-report";
-import { Plus, Trash2, Pencil, Printer, PoundSterling, AlertTriangle, CheckCircle2, Clock, Leaf, ExternalLink, Info } from "lucide-react";
+import { Plus, Trash2, Pencil, Printer, FileText, PoundSterling, AlertTriangle, CheckCircle2, Clock, Leaf, ExternalLink, Info } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -222,21 +222,134 @@ export default function SFIPage() {
   function handlePrintActions() {
     const rows = actions.map((a: any) => {
       const cfg = COMPLIANCE_CONFIG[a.complianceStatus] ?? COMPLIANCE_CONFIG.not_started;
+      const linkedAg = agreements.find((ag: any) => ag.id === a.agreementId);
+      const daysLeft = a.nextEvidenceDate ? Math.ceil((new Date(a.nextEvidenceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+      const isOverdue = daysLeft !== null && daysLeft < 0;
+      const nextEvCell = a.nextEvidenceDate
+        ? `${fmt(a.nextEvidenceDate)}${isOverdue ? ' <span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 4px;font-size:6px">Overdue</span>' : daysLeft !== null && daysLeft <= 60 ? ` <span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 4px;font-size:6px">${daysLeft}d</span>` : ""}`
+        : "—";
       return `<tr>
-        <td>${a.actionCode}</td>
+        <td style="font-family:monospace;font-size:7px;color:#1a3a1a">${linkedAg ? `${linkedAg.agreementNumber}<br><span style="color:#6b7280;font-size:6px">${linkedAg.schemeName}</span>` : "—"}</td>
+        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${a.actionCode}</td>
         <td>${a.actionTitle}</td>
-        <td>${a.landParcelReference || "—"}</td>
-        <td>${a.eligibleAreaHa ?? "—"} ha</td>
+        <td style="font-family:monospace;font-size:7px">${a.landParcelReference || "—"}</td>
+        <td>${a.eligibleAreaHa ? Number(a.eligibleAreaHa).toFixed(2) : "—"}</td>
         <td>${fmtMoney(a.annualPaymentAmount)}</td>
         <td>${fmt(a.lastEvidenceDate)}</td>
-        <td>${fmt(a.nextEvidenceDate)}</td>
+        <td>${nextEvCell}</td>
         <td><span style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};padding:1px 5px;border-radius:4px;font-size:6.5px">${cfg.label}</span></td>
       </tr>`;
     }).join("");
     printProReport({
       title: "SFI / ELM Actions Register",
-      subtitle: `${actions.length} enrolled actions — Total annual payment: ${fmtMoney(totalAnnualPayment)}`,
-      tableHtml: `<table><thead><tr><th>Code</th><th>Action Title</th><th>Land Parcel Ref</th><th>Area (ha)</th><th>Annual Payment</th><th>Last Evidence</th><th>Next Evidence</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
+      subtitle: `${actions.length} enrolled action${actions.length !== 1 ? "s" : ""} — Total estimated annual payment: ${fmtMoney(totalAnnualPayment)}`,
+      tableHtml: `<table><thead><tr><th>Agreement</th><th>Code</th><th>Action Title</th><th>Land Parcel Ref</th><th>Area (ha)</th><th>Annual Payment</th><th>Last Evidence</th><th>Next Evidence</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
+      footerNote: "SFI / ELM records are for farm record-keeping. Submit applications and evidence through the RPA Rural Payments service. Retain for a minimum of 5 years.",
+    });
+  }
+
+  function handlePrintAgreements() {
+    const scConfig: Record<string, { label: string; bg: string; color: string }> = AGREEMENT_STATUS_CONFIG;
+    const rows = agreements.map((ag: any) => {
+      const sc = scConfig[ag.status] ?? scConfig.active;
+      const agActions = actions.filter((a: any) => a.agreementId === ag.id);
+      const agPayment = agActions.reduce((s: number, a: any) => s + (parseFloat(a.annualPaymentAmount ?? "0") || 0), 0);
+      return `<tr>
+        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${ag.agreementNumber}</td>
+        <td style="font-weight:600">${ag.schemeName}</td>
+        <td>${fmt(ag.agreementStartDate)}</td>
+        <td>${fmt(ag.agreementEndDate)}</td>
+        <td style="font-weight:600;color:#166534">${ag.totalAnnualPayment ? fmtMoney(ag.totalAnnualPayment) : "—"}</td>
+        <td>${ag.managingBody || "—"}</td>
+        <td>${ag.agentOrAdvisorName || "—"}</td>
+        <td>${agActions.length}</td>
+        <td style="color:#166534">${agPayment > 0 ? fmtMoney(agPayment) : "—"}</td>
+        <td><span style="background:${sc.bg};color:${sc.color};padding:1px 5px;border-radius:4px;font-size:6.5px;font-weight:600">${sc.label}</span></td>
+      </tr>`;
+    }).join("");
+    printProReport({
+      title: "SFI / ELM Agreements Register",
+      subtitle: `${agreements.length} agreement${agreements.length !== 1 ? "s" : ""} — Total estimated annual payment: ${fmtMoney(totalAnnualPayment)}`,
+      recordCount: agreements.length,
+      recordLabel: "agreement",
+      tableHtml: `<table><thead><tr><th>Agreement No.</th><th>Scheme Name</th><th>Start Date</th><th>End Date</th><th>Annual Payment</th><th>Managing Body</th><th>Agent / Advisor</th><th>Actions</th><th>Actions Payment</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
+      footerNote: "SFI / ELM records are for farm record-keeping. Submit applications and evidence through the RPA Rural Payments service. Retain for a minimum of 5 years.",
+    });
+  }
+
+  function handlePrintComplianceReport() {
+    const today2 = new Date();
+    const statRows = [
+      ["Active Agreements", String(agreements.filter((a: any) => a.status === "active").length)],
+      ["Total Enrolled Actions", String(actions.length)],
+      ["Compliant", String(compliantCount)],
+      ["At Risk", String(atRiskCount)],
+      ["Non-Compliant", String(nonCompliantCount)],
+      ["Not Started", String(actions.filter((a: any) => a.complianceStatus === "not_started").length)],
+      ["Evidence Due ≤ 60 days", String(upcomingEvidenceCount)],
+      ["Est. Total Annual Payment", fmtMoney(totalAnnualPayment)],
+    ];
+    const summaryTable = `
+      <div class="section-head">Compliance Summary</div>
+      <table style="width:auto;margin-bottom:12px">
+        <tbody>${statRows.map(([k, v]) => `<tr><td style="font-weight:600;padding-right:20px">${k}</td><td>${v}</td></tr>`).join("")}</tbody>
+      </table>`;
+
+    const agreementSections = agreements.map((ag: any) => {
+      const sc = AGREEMENT_STATUS_CONFIG[ag.status] ?? AGREEMENT_STATUS_CONFIG.active;
+      const agActions = actions.filter((a: any) => a.agreementId === ag.id);
+      const agPayment = agActions.reduce((s: number, a: any) => s + (parseFloat(a.annualPaymentAmount ?? "0") || 0), 0);
+
+      const agHead = `<div class="section-head" style="margin-top:16px">
+        <span style="font-family:monospace;color:#1d4ed8">${ag.agreementNumber}</span>
+        &nbsp;·&nbsp;${ag.schemeName}
+        &nbsp;·&nbsp;<span style="background:${sc.bg};color:${sc.color};padding:1px 6px;border-radius:4px;font-size:7px;font-weight:600">${sc.label}</span>
+        &nbsp;·&nbsp;${fmt(ag.agreementStartDate)} → ${fmt(ag.agreementEndDate)}
+        &nbsp;·&nbsp;Annual value: <strong>${ag.totalAnnualPayment ? fmtMoney(ag.totalAnnualPayment) : "not recorded"}</strong>
+        ${ag.managingBody ? `&nbsp;·&nbsp;${ag.managingBody}` : ""}
+        ${ag.agentOrAdvisorName ? `&nbsp;·&nbsp;Agent: ${ag.agentOrAdvisorName}` : ""}
+      </div>`;
+
+      if (agActions.length === 0) {
+        return `${agHead}<p style="font-size:7.5px;color:#6b7280;margin:4px 0 10px">No actions recorded against this agreement.</p>`;
+      }
+
+      const actionRows = agActions.map((a: any) => {
+        const cfg = COMPLIANCE_CONFIG[a.complianceStatus] ?? COMPLIANCE_CONFIG.not_started;
+        const daysLeft = a.nextEvidenceDate ? Math.ceil((new Date(a.nextEvidenceDate).getTime() - today2.getTime()) / (1000 * 60 * 60 * 24)) : null;
+        const isOverdue = daysLeft !== null && daysLeft < 0;
+        const nextEvCell = a.nextEvidenceDate
+          ? `${fmt(a.nextEvidenceDate)}${isOverdue ? ' <span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 3px;font-size:5.5px">Overdue</span>' : daysLeft !== null && daysLeft <= 60 ? ` <span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:1px 3px;font-size:5.5px">${daysLeft}d</span>` : ""}`
+          : "—";
+        return `<tr>
+          <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${a.actionCode}</td>
+          <td>${a.actionTitle}</td>
+          <td style="font-family:monospace;font-size:7px">${a.landParcelReference || "—"}</td>
+          <td>${a.eligibleAreaHa ? Number(a.eligibleAreaHa).toFixed(2) : "—"}</td>
+          <td>${fmtMoney(a.annualPaymentAmount)}</td>
+          <td>${a.evidenceRequired || "—"}</td>
+          <td>${fmt(a.lastEvidenceDate)}</td>
+          <td>${nextEvCell}</td>
+          <td><span style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};padding:1px 4px;border-radius:4px;font-size:6px">${cfg.label}</span></td>
+        </tr>`;
+      }).join("");
+
+      const actionsTable = `
+        <table>
+          <thead><tr><th>Code</th><th>Action Title</th><th>Land Parcel</th><th>Area (ha)</th><th>Annual Payment</th><th>Evidence Required</th><th>Last Evidence</th><th>Next Evidence</th><th>Status</th></tr></thead>
+          <tbody>${actionRows}</tbody>
+          <tfoot><tr><td colspan="4" style="font-weight:700;text-align:right;font-size:7px;color:#166534">Actions subtotal:</td><td style="font-weight:700;color:#166534">${fmtMoney(agPayment)}</td><td colspan="4"></td></tr></tfoot>
+        </table>`;
+
+      return `${agHead}${actionsTable}`;
+    }).join("");
+
+    printProReport({
+      title: "SFI / ELM Compliance Report",
+      subtitle: `${agreements.length} agreement${agreements.length !== 1 ? "s" : ""} · ${actions.length} enrolled action${actions.length !== 1 ? "s" : ""} · Est. total annual payment: ${fmtMoney(totalAnnualPayment)}`,
+      tableHtml: `${summaryTable}${agreementSections}`,
+      footerNote: "SFI / ELM records are for farm record-keeping purposes. Submit applications and evidence through the RPA Rural Payments service. Retain for a minimum of 5 years and make available at RPA inspection.",
+      landscape: true,
     });
   }
 
@@ -250,20 +363,40 @@ export default function SFIPage() {
             <p style={{ color: "#6b7280", marginTop: 4, fontSize: "0.875rem" }}>Sustainable Farming Incentive &amp; Environmental Land Management agreements and action tracking</p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {tab === "overview" && (agreements.length > 0 || actions.length > 0) && (
+              <Button variant="outline" size="sm" onClick={handlePrintComplianceReport}>
+                <FileText size={14} className="mr-1.5" />Print Compliance Report
+              </Button>
+            )}
+            {tab === "agreements" && (
+              <>
+                {agreements.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handlePrintAgreements}>
+                    <Printer size={14} className="mr-1.5" />Print Register
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => { setAgreementForm(emptyAgreement); setAddAgreementOpen(true); }}>
+                  <Plus size={14} className="mr-1.5" />Add Agreement
+                </Button>
+              </>
+            )}
             {tab === "actions" && (
               <>
-                <Button variant="outline" size="sm" onClick={handlePrintActions}><Printer size={14} className="mr-1.5" />Print Register</Button>
+                {actions.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handlePrintActions}>
+                    <Printer size={14} className="mr-1.5" />Print Register
+                  </Button>
+                )}
                 {agreements.length === 0 ? (
                   <Button size="sm" disabled title="An agreement must be in place before actions can be added">
                     <Plus size={14} className="mr-1.5" />Add Action
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => { setActionForm({ ...emptyAction, agreementId: agreements.length === 1 ? String(agreements[0].id) : "" }); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
+                  <Button size="sm" onClick={() => { setActionForm({ ...emptyAction, agreementId: agreements.length === 1 ? String(agreements[0].id) : "" }); setAddActionOpen(true); }}>
+                    <Plus size={14} className="mr-1.5" />Add Action
+                  </Button>
                 )}
               </>
-            )}
-            {tab === "agreements" && (
-              <Button size="sm" onClick={() => { setAgreementForm(emptyAgreement); setAddAgreementOpen(true); }}><Plus size={14} className="mr-1.5" />Add Agreement</Button>
             )}
           </div>
         </div>
