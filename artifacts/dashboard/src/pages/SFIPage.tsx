@@ -249,11 +249,17 @@ export default function SFIPage() {
             <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827", margin: 0 }}>SFI &amp; ELM</h1>
             <p style={{ color: "#6b7280", marginTop: 4, fontSize: "0.875rem" }}>Sustainable Farming Incentive &amp; Environmental Land Management agreements and action tracking</p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {tab === "actions" && (
               <>
                 <Button variant="outline" size="sm" onClick={handlePrintActions}><Printer size={14} className="mr-1.5" />Print Register</Button>
-                <Button size="sm" onClick={() => { setActionForm(emptyAction); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
+                {agreements.length === 0 ? (
+                  <Button size="sm" disabled title="An agreement must be in place before actions can be added">
+                    <Plus size={14} className="mr-1.5" />Add Action
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => { setActionForm({ ...emptyAction, agreementId: agreements.length === 1 ? String(agreements[0].id) : "" }); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
+                )}
               </>
             )}
             {tab === "agreements" && (
@@ -309,11 +315,13 @@ export default function SFIPage() {
                 <div style={{ textAlign: "center", padding: "4rem 2rem", color: "#9ca3af" }}>
                   <Leaf size={40} style={{ margin: "0 auto 16px", opacity: 0.4 }} />
                   <p style={{ fontWeight: 600, color: "#374151", fontSize: "1rem" }}>No SFI / ELM records yet</p>
-                  <p style={{ fontSize: "0.875rem", marginTop: 6, maxWidth: 440, margin: "8px auto 0" }}>Add your SFI agreement details and enrolled actions to track annual payments, evidence due dates and compliance status.</p>
+                  <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: 6, maxWidth: 480, margin: "8px auto 0" }}>
+                    Start by adding your SFI or CS agreement. The recommended route is via <strong>Grants &amp; Funding</strong> — once an application reaches <strong>Approved</strong> status, click <em>Start SFI / ELM Record →</em> to create the agreement here automatically. You can also add it directly below.
+                  </p>
                   <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 20 }}>
                     <Button size="sm" onClick={() => { setTab("agreements"); setAddAgreementOpen(true); }}><Plus size={14} className="mr-1.5" />Add Agreement</Button>
-                    <Button size="sm" variant="outline" onClick={() => { setTab("actions"); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
                   </div>
+                  <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 10 }}>Actions can be added once an agreement is in place</p>
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
@@ -409,7 +417,9 @@ export default function SFIPage() {
                   <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
                     <Leaf size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
                     <p style={{ fontWeight: 600, color: "#374151" }}>No agreements recorded</p>
-                    <p style={{ fontSize: "0.875rem" }}>Add your SFI or CS agreement details to get started.</p>
+                    <p style={{ fontSize: "0.875rem", color: "#6b7280", maxWidth: 420, margin: "6px auto 0" }}>
+                      The recommended route is from <strong>Grants &amp; Funding</strong> — when an application is approved, use <em>Start SFI / ELM Record →</em> to pre-fill the details here. You can also add an existing agreement directly.
+                    </p>
                     <Button size="sm" style={{ marginTop: 16 }} onClick={() => { setAgreementForm(emptyAgreement); setAddAgreementOpen(true); }}><Plus size={14} className="mr-1.5" />Add Agreement</Button>
                   </div>
                 ) : (
@@ -453,63 +463,87 @@ export default function SFIPage() {
           {/* ── ACTIONS TAB ── */}
           {tab === "actions" && (
             <div>
-              <div style={{ marginBottom: 12 }}>
-                <Input placeholder="Search by action code, title or land parcel..." value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ maxWidth: 360 }} />
-              </div>
-              {actionsQ.isLoading ? <p style={{ color: "#9ca3af", textAlign: "center", padding: "3rem" }}>Loading...</p>
-                : filteredActions.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-                    <Leaf size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-                    <p style={{ fontWeight: 600, color: "#374151" }}>No actions recorded</p>
-                    <p style={{ fontSize: "0.875rem" }}>Add the SFI / CS action codes from your agreement to track evidence and compliance.</p>
-                    <Button size="sm" style={{ marginTop: 16 }} onClick={() => { setActionForm(emptyAction); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
+              {agreements.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "3rem 2rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, color: "#9ca3af" }}>
+                  <AlertTriangle size={32} style={{ margin: "0 auto 12px", color: "#f59e0b" }} />
+                  <p style={{ fontWeight: 600, color: "#374151" }}>No agreements in place yet</p>
+                  <p style={{ fontSize: "0.875rem", color: "#6b7280", maxWidth: 440, margin: "6px auto 0" }}>
+                    Actions must be linked to an SFI or CS agreement. Add your agreement first — either from <strong>Grants &amp; Funding</strong> (Approved → <em>Start SFI / ELM Record →</em>) or directly on the Agreements tab.
+                  </p>
+                  <Button size="sm" style={{ marginTop: 16 }} onClick={() => { setTab("agreements"); setAgreementForm(emptyAgreement); setAddAgreementOpen(true); }}>
+                    <Plus size={14} className="mr-1.5" />Add Agreement First
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <Input placeholder="Search by action code, title or land parcel..." value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ maxWidth: 360 }} />
                   </div>
-                ) : (
-                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-                      <thead>
-                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                          {["Code", "Action Title", "Land Parcel", "Area (ha)", "Payment/ha", "Annual Payment", "Last Evidence", "Next Evidence", "Status", ""].map(h => (
-                            <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredActions.map((a: any, i: number) => {
-                          const cfg = COMPLIANCE_CONFIG[a.complianceStatus] ?? COMPLIANCE_CONFIG.not_started;
-                          const evidenceDue = a.nextEvidenceDate ? new Date(a.nextEvidenceDate) : null;
-                          const daysLeft = evidenceDue ? Math.ceil((evidenceDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                          const isOverdue = daysLeft !== null && daysLeft < 0;
-                          return (
-                            <tr key={a.id} style={{ borderBottom: i < filteredActions.length - 1 ? "1px solid #f3f4f6" : "none", background: isOverdue ? "#fff7ed" : undefined }}>
-                              <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontWeight: 700, color: "#1d4ed8", whiteSpace: "nowrap" }}>{a.actionCode}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", color: "#111827", maxWidth: 220 }}>{a.actionTitle}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8125rem" }}>{a.landParcelReference || "—"}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{a.eligibleAreaHa ? `${Number(a.eligibleAreaHa).toFixed(2)}` : "—"}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{a.annualPaymentPerHa ? fmtMoney(a.annualPaymentPerHa) : "—"}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600, color: "#166534", whiteSpace: "nowrap" }}>{a.annualPaymentAmount ? fmtMoney(a.annualPaymentAmount) : "—"}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(a.lastEvidenceDate)}</td>
-                              <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
-                                <div style={{ color: isOverdue ? "#991b1b" : daysLeft !== null && daysLeft <= 30 ? "#b45309" : "#6b7280", fontWeight: isOverdue ? 600 : 400 }}>
-                                  {fmt(a.nextEvidenceDate)}
-                                  {daysLeft !== null && !isOverdue && daysLeft <= 60 && <span style={{ marginLeft: 4, fontSize: "0.7rem", background: "#fef9c3", color: "#854d0e", borderRadius: 8, padding: "1px 5px" }}>{daysLeft}d</span>}
-                                  {isOverdue && <span style={{ marginLeft: 4, fontSize: "0.7rem", background: "#fee2e2", color: "#991b1b", borderRadius: 8, padding: "1px 5px" }}>Overdue</span>}
-                                </div>
-                              </td>
-                              <td style={{ padding: "0.625rem 0.875rem" }}>
-                                <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, padding: "2px 8px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 500, whiteSpace: "nowrap" }}>{cfg.label}</span>
-                              </td>
-                              <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>
-                                <button onClick={() => { setEditAction(a); setActionForm({ ...a, agreementId: a.agreementId ?? "" }); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", marginRight: 4, padding: 4 }}><Pencil size={14} /></button>
-                                <button onClick={() => setDeleteActionId(a.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={14} /></button>
-                              </td>
+                  {actionsQ.isLoading ? <p style={{ color: "#9ca3af", textAlign: "center", padding: "3rem" }}>Loading...</p>
+                    : filteredActions.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+                        <Leaf size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
+                        <p style={{ fontWeight: 600, color: "#374151" }}>No actions recorded</p>
+                        <p style={{ fontSize: "0.875rem" }}>Add the SFI / CS action codes from your agreement to track evidence and compliance.</p>
+                        <Button size="sm" style={{ marginTop: 16 }} onClick={() => { setActionForm({ ...emptyAction, agreementId: agreements.length === 1 ? String(agreements[0].id) : "" }); setAddActionOpen(true); }}><Plus size={14} className="mr-1.5" />Add Action</Button>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                          <thead>
+                            <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                              {["Agreement", "Code", "Action Title", "Land Parcel", "Area (ha)", "Payment/ha", "Annual Payment", "Last Evidence", "Next Evidence", "Status", ""].map(h => (
+                                <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                              ))}
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                          </thead>
+                          <tbody>
+                            {filteredActions.map((a: any, i: number) => {
+                              const cfg = COMPLIANCE_CONFIG[a.complianceStatus] ?? COMPLIANCE_CONFIG.not_started;
+                              const evidenceDue = a.nextEvidenceDate ? new Date(a.nextEvidenceDate) : null;
+                              const daysLeft = evidenceDue ? Math.ceil((evidenceDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                              const isOverdue = daysLeft !== null && daysLeft < 0;
+                              const linkedAgreement = agreements.find((ag: any) => ag.id === a.agreementId);
+                              return (
+                                <tr key={a.id} style={{ borderBottom: i < filteredActions.length - 1 ? "1px solid #f3f4f6" : "none", background: isOverdue ? "#fff7ed" : undefined }}>
+                                  <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
+                                    {linkedAgreement ? (
+                                      <div>
+                                        <div style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#1d4ed8", fontWeight: 600 }}>{linkedAgreement.agreementNumber}</div>
+                                        <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>{linkedAgreement.schemeName}</div>
+                                      </div>
+                                    ) : <span style={{ color: "#d1d5db" }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontWeight: 700, color: "#1d4ed8", whiteSpace: "nowrap" }}>{a.actionCode}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", color: "#111827", maxWidth: 200 }}>{a.actionTitle}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8125rem" }}>{a.landParcelReference || "—"}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{a.eligibleAreaHa ? `${Number(a.eligibleAreaHa).toFixed(2)}` : "—"}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{a.annualPaymentPerHa ? fmtMoney(a.annualPaymentPerHa) : "—"}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600, color: "#166534", whiteSpace: "nowrap" }}>{a.annualPaymentAmount ? fmtMoney(a.annualPaymentAmount) : "—"}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(a.lastEvidenceDate)}</td>
+                                  <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
+                                    <div style={{ color: isOverdue ? "#991b1b" : daysLeft !== null && daysLeft <= 30 ? "#b45309" : "#6b7280", fontWeight: isOverdue ? 600 : 400 }}>
+                                      {fmt(a.nextEvidenceDate)}
+                                      {daysLeft !== null && !isOverdue && daysLeft <= 60 && <span style={{ marginLeft: 4, fontSize: "0.7rem", background: "#fef9c3", color: "#854d0e", borderRadius: 8, padding: "1px 5px" }}>{daysLeft}d</span>}
+                                      {isOverdue && <span style={{ marginLeft: 4, fontSize: "0.7rem", background: "#fee2e2", color: "#991b1b", borderRadius: 8, padding: "1px 5px" }}>Overdue</span>}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "0.625rem 0.875rem" }}>
+                                    <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, padding: "2px 8px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 500, whiteSpace: "nowrap" }}>{cfg.label}</span>
+                                  </td>
+                                  <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>
+                                    <button onClick={() => { setEditAction(a); setActionForm({ ...a, agreementId: a.agreementId ? String(a.agreementId) : "" }); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", marginRight: 4, padding: 4 }}><Pencil size={14} /></button>
+                                    <button onClick={() => setDeleteActionId(a.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={14} /></button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -567,6 +601,15 @@ export default function SFIPage() {
           <DialogContent style={{ maxWidth: 600 }}>
             <DialogHeader><DialogTitle>{editAction ? "Edit SFI Action" : "Add SFI / CS Action"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-1">
+              <div>
+                <Label>Agreement <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={actionForm.agreementId ? String(actionForm.agreementId) : ""} onValueChange={v => setActionForm((f: any) => ({ ...f, agreementId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select agreement..." /></SelectTrigger>
+                  <SelectContent>
+                    {agreements.map((ag: any) => <SelectItem key={ag.id} value={String(ag.id)}><span style={{ fontFamily: "monospace", fontWeight: 600, marginRight: 6 }}>{ag.agreementNumber}</span>{ag.schemeName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Action Code <span style={{ color: "#ef4444" }}>*</span></Label>
@@ -592,34 +635,22 @@ export default function SFIPage() {
                 <div><Label>Last Evidence Date</Label><Input type="date" value={actionForm.lastEvidenceDate} onChange={e => setActionForm((f: any) => ({ ...f, lastEvidenceDate: e.target.value }))} /></div>
                 <div><Label>Next Evidence Date</Label><Input type="date" value={actionForm.nextEvidenceDate} onChange={e => setActionForm((f: any) => ({ ...f, nextEvidenceDate: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Linked Agreement</Label>
-                  <Select value={actionForm.agreementId ? String(actionForm.agreementId) : "__none__"} onValueChange={v => setActionForm((f: any) => ({ ...f, agreementId: v === "__none__" ? "" : v }))}>
-                    <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— None —</SelectItem>
-                      {agreements.map((ag: any) => <SelectItem key={ag.id} value={String(ag.id)}>{ag.agreementNumber} — {ag.schemeName}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Compliance Status</Label>
-                  <Select value={actionForm.complianceStatus} onValueChange={v => setActionForm((f: any) => ({ ...f, complianceStatus: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{COMPLIANCE_STATUSES.map(s => <SelectItem key={s} value={s}>{COMPLIANCE_CONFIG[s]?.label ?? s}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label>Compliance Status</Label>
+                <Select value={actionForm.complianceStatus} onValueChange={v => setActionForm((f: any) => ({ ...f, complianceStatus: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{COMPLIANCE_STATUSES.map(s => <SelectItem key={s} value={s}>{COMPLIANCE_CONFIG[s]?.label ?? s}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
               <div><Label>Notes</Label><Textarea rows={2} value={actionForm.notes} onChange={e => setActionForm((f: any) => ({ ...f, notes: e.target.value }))} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddActionOpen(false); setEditAction(null); setActionForm(emptyAction); }}>Cancel</Button>
               <Button onClick={() => {
-                if (!actionForm.actionCode || !actionForm.actionTitle) {
-                  toast({ title: "Action code and title are required", variant: "destructive" }); return;
+                if (!actionForm.agreementId || !actionForm.actionCode || !actionForm.actionTitle) {
+                  toast({ title: "Agreement, action code and title are required", variant: "destructive" }); return;
                 }
-                const body = { ...actionForm, agreementId: actionForm.agreementId ? Number(actionForm.agreementId) : null };
+                const body = { ...actionForm, agreementId: Number(actionForm.agreementId) };
                 if (editAction) updateAction.mutate({ id: editAction.id, body });
                 else createAction.mutate(body);
               }} disabled={createAction.isPending || updateAction.isPending}>
