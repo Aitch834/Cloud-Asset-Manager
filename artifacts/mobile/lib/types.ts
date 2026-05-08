@@ -58,6 +58,9 @@ export interface WeatherEntry {
   vehicleMode: boolean;
   vehicleName: string;
   vehicleReg: string;
+  deviceId?: string;
+  deviceName?: string;
+  deviceSerial?: string;
   notes: string;
   latitude?: number;
   longitude?: number;

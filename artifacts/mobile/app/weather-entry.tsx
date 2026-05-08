@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { LookupPicker } from "@/components/ui/LookupPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -89,11 +90,51 @@ export default function WeatherEntryScreen() {
   const [vehicleMode, setVehicleMode] = useState(false);
   const [vehicleName, setVehicleName] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string>("");
+  const [selectedDeviceSerial, setSelectedDeviceSerial] = useState<string>("");
+  const [devicesList, setDevicesList] = useState<Array<{ id: string; label: string; sublabel?: string }>>([]);
 
   const [fetchingStation, setFetchingStation] = useState(false);
   const [stationError, setStationError] = useState<string | null>(null);
   const [stationFetchedAt, setStationFetchedAt] = useState<Date | null>(null);
   const [stationLocation, setStationLocation] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!vehicleMode || !currentFarm?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+        if (!apiDomain) return;
+        let token: string | null = null;
+        if (Platform.OS !== "web") {
+          const SecureStore = await import("expo-secure-store");
+          token = await SecureStore.getItemAsync("auth_session_token");
+        } else {
+          try { token = localStorage.getItem("auth_session_token"); } catch { }
+        }
+        const { kvGet } = await import("@/lib/database");
+        const raw = await kvGet("bde_current_farm");
+        const farm = raw ? JSON.parse(raw) : null;
+        const tenantSlug = farm ? (farm.tenantSlug || farm.slug || "") : "";
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/vehicle-weather-devices`, { headers });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const active = (data.records ?? []).filter((d: any) => d.isActive !== false);
+        if (!cancelled) {
+          setDevicesList(active.map((d: any) => ({
+            id: String(d.id),
+            label: d.name,
+            sublabel: [d.manufacturer, d.serialNumber ? `S/N: ${d.serialNumber}` : null].filter(Boolean).join(" · ") || undefined,
+          })));
+        }
+      } catch { }
+    })();
+    return () => { cancelled = true; };
+  }, [vehicleMode, currentFarm?.id]);
 
   const fetchWeatherFromStation = useCallback(async () => {
     setFetchingStation(true);
@@ -195,6 +236,9 @@ export default function WeatherEntryScreen() {
       vehicleMode,
       vehicleName: vehicleName.trim(),
       vehicleReg: vehicleReg.trim(),
+      deviceId: selectedDeviceId || undefined,
+      deviceName: selectedDeviceName || undefined,
+      deviceSerial: selectedDeviceSerial || undefined,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -422,22 +466,43 @@ export default function WeatherEntryScreen() {
             />
           </Pressable>
           {vehicleMode && (
-            <View style={styles.row}>
-              <Input
-                label="Vehicle / Machine Name"
-                placeholder="e.g. Amazone sprayer"
-                value={vehicleName}
-                onChangeText={setVehicleName}
-                containerStyle={styles.flex}
-              />
-              <Input
-                label="Registration"
-                placeholder="e.g. YX21 ABC"
-                value={vehicleReg}
-                onChangeText={setVehicleReg}
-                containerStyle={styles.flex}
-              />
-            </View>
+            <>
+              <View style={styles.row}>
+                <Input
+                  label="Vehicle / Machine Name"
+                  placeholder="e.g. Amazone sprayer"
+                  value={vehicleName}
+                  onChangeText={setVehicleName}
+                  containerStyle={styles.flex}
+                />
+                <Input
+                  label="Registration"
+                  placeholder="e.g. YX21 ABC"
+                  value={vehicleReg}
+                  onChangeText={setVehicleReg}
+                  containerStyle={styles.flex}
+                />
+              </View>
+              {devicesList.length > 0 && (
+                <LookupPicker
+                  label="Weather Device (optional)"
+                  value={selectedDeviceName}
+                  onSelect={(id, label) => {
+                    const found = devicesList.find((d) => d.id === id);
+                    setSelectedDeviceId(id);
+                    setSelectedDeviceName(label);
+                    const serial = found?.sublabel?.includes("S/N:") ? found.sublabel.split("S/N: ")[1]?.split(" ·")[0] ?? "" : "";
+                    setSelectedDeviceSerial(serial);
+                  }}
+                  options={devicesList}
+                  placeholder="Select from Device Register…"
+                  allowFreeText={false}
+                  emptyMessage="No devices in register."
+                  icon="cpu"
+                  required={false}
+                />
+              )}
+            </>
           )}
 
           <Input

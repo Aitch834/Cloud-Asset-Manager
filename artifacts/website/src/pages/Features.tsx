@@ -594,10 +594,14 @@ const sections: Section[] = [
         badge: "module",
         features: [
           "Weather station register — register named stations (farm base, vehicle-mounted, remote field sensor) and link readings to each",
+          "Vehicle weather device register — register named vehicle-mounted and portable weather devices (manufacturer, model, serial number, installation type) and link each vehicle reading to the specific calibrated instrument that captured it; serial number stored as the key for future cloud API integration with Davis WeatherLink, Pessl iMETOS, and similar platforms",
+          "Calibration tracking — last calibration date and calibration due date per device with colour-coded status badges (OK / Due soon / Overdue) and a prominent amber alert banner on the Device Register tab when any device is within 30 days of its due date or already overdue",
           "Fetch Live — click the Fetch Live button in the Add Weather Reading dialog to auto-fill temperature, wind speed, humidity, and precipitation from the current conditions at your farm's GPS coordinates; powered by Open-Meteo, a free open-data weather service; no API key or subscription required",
           "Manual reading entry — log temperature (°C), rainfall (mm), wind speed, wind direction, humidity, and pressure for any date and time",
+          "Vehicle station readings — link vehicle weather readings to both a vehicle from the Equipment Register (auto-populates registration) and a device from the Device Register (auto-populates serial number) for a complete chain of custody from instrument to record",
           "Spray-record auto-link — weather readings are associated with spray applications logged on the same date for a complete application audit trail",
           "Historical charting — view temperature, rainfall, and wind trends over selectable date ranges",
+          "Print device register — print a formatted device register from the Device Register tab for inclusion in audit packs or calibration management records",
         ],
       },
       {

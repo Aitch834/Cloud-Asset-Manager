@@ -249,6 +249,7 @@ import {
   renewableEnergyProductionTable,
   biodiversityNetGainTable,
   vehicleWeatherReadingsTable,
+  vehicleWeatherDevicesTable,
   poultryBiosecurityChecklistTable,
   poultrySchemeRecordsTable,
   pigRedTractorChecklistTable,
@@ -18880,6 +18881,58 @@ router.put("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTe
 router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   await db.delete(vehicleWeatherReadingsTable).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id as string)), eq(vehicleWeatherReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+
+// --- Vehicle Weather Devices (Device Register) ---
+router.get("/farms/:farmId/vehicle-weather-devices", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(vehicleWeatherDevicesTable).where(eq(vehicleWeatherDevicesTable.farmId, farmId)).orderBy(vehicleWeatherDevicesTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vehicle-weather-devices", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const { name, manufacturer, model, serialNumber, installationType, calibrationDate, calibrationDueDate, apiDeviceId, notes } = req.body;
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  const [record] = await db.insert(vehicleWeatherDevicesTable).values({
+    farmId,
+    name,
+    manufacturer: manufacturer || null,
+    model: model || null,
+    serialNumber: serialNumber || null,
+    installationType: installationType || "portable",
+    calibrationDate: calibrationDate ? new Date(calibrationDate) : null,
+    calibrationDueDate: calibrationDueDate ? new Date(calibrationDueDate) : null,
+    apiDeviceId: apiDeviceId || null,
+    notes: notes || null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/vehicle-weather-devices/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { name, manufacturer, model, serialNumber, installationType, calibrationDate, calibrationDueDate, apiDeviceId, notes, isActive } = req.body;
+  const [record] = await db.update(vehicleWeatherDevicesTable).set({
+    name,
+    manufacturer: manufacturer || null,
+    model: model || null,
+    serialNumber: serialNumber || null,
+    installationType: installationType || "portable",
+    calibrationDate: calibrationDate ? new Date(calibrationDate) : null,
+    calibrationDueDate: calibrationDueDate ? new Date(calibrationDueDate) : null,
+    apiDeviceId: apiDeviceId || null,
+    notes: notes || null,
+    isActive: isActive !== undefined ? isActive : true,
+  }).where(and(eq(vehicleWeatherDevicesTable.id, id), eq(vehicleWeatherDevicesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/vehicle-weather-devices/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(vehicleWeatherDevicesTable).where(and(eq(vehicleWeatherDevicesTable.id, parseInt(req.params.id as string)), eq(vehicleWeatherDevicesTable.farmId, farmId)));
   res.json({ success: true });
 });
 

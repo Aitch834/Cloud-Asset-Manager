@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Cloud, TrendingUp, Truck, Loader2, MapPin } from "lucide-react";
+import { Plus, Trash2, Cloud, TrendingUp, Truck, Loader2, MapPin, Cpu, AlertTriangle, Pencil, Eye, Printer } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -18,7 +18,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 
@@ -40,7 +39,7 @@ function wmoToCondition(code: number): string {
   return "Variable";
 }
 
-type Tab = "readings" | "chart" | "vehicle";
+type Tab = "readings" | "chart" | "vehicle" | "devices";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -49,74 +48,45 @@ const fmt = (d: string | null | undefined) => {
 
 const fmtTime = (d: string | null | undefined) => {
   if (!d) return "—";
-  const dt = new Date(d);
-  return dt.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
+
+// ─── Readings Tab ─────────────────────────────────────────────────────────────
 
 function ReadingsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({
-    readingTimestamp: "",
-    temperatureC: "",
-    humidityPercent: "",
-    windSpeedKmh: "",
-    windDirection: "",
-    rainfallMm: "",
-    pressureHpa: "",
-    linkedSprayApplicationId: "",
-    notes: "",
-  });
+  const [form, setForm] = useState<any>({ readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", pressureHpa: "", linkedSprayApplicationId: "", notes: "" });
+  const [fetchingWeather, setFetchingWeather] = useState(false);
+  const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
 
-  const sprayAppsQ = useQuery({
-    queryKey: ["spray-applications", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? d ?? [],
-  });
-
-  const q = useQuery({
-    queryKey: ["weather-readings", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? [],
-  });
-
+  const sprayAppsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? d ?? [] });
+  const q = useQuery({ queryKey: ["weather-readings", farmId], queryFn: () => fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? [] });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["weather-readings", farmId] });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/weather-readings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     onSuccess: () => { toast({ title: "Reading saved" }); invalidate(); setAddOpen(false); resetForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
-
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/weather-readings/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
-
-  const [fetchingWeather, setFetchingWeather] = useState(false);
-  const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
 
   const fetchWeatherFromApi = useCallback(async () => {
     setFetchingWeather(true);
     setWeatherFetchMsg(null);
     try {
-      if (!navigator.geolocation) throw new Error("Geolocation not available in this browser");
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+      const pos: GeolocationPosition = await new Promise((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
       );
       const { latitude, longitude } = pos.coords;
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh&temperature_unit=celsius&precipitation_unit=mm&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh`;
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Open-Meteo returned ${resp.status}`);
+      if (!resp.ok) throw new Error(`Open-Meteo error ${resp.status}`);
       const data = await resp.json();
       const c = data.current;
       const now = new Date().toISOString().slice(0, 16);
@@ -133,8 +103,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
       }));
       setWeatherFetchMsg(`Live data fetched · ${latitude.toFixed(3)}°N, ${Math.abs(longitude).toFixed(3)}°${longitude < 0 ? "W" : "E"}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setWeatherFetchMsg(`Could not fetch: ${msg}`);
+      setWeatherFetchMsg(`Could not fetch: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setFetchingWeather(false);
     }
@@ -149,7 +118,6 @@ function ReadingsTab({ farmId }: { farmId: number }) {
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
         <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Reading</Button>
       </div>
-
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Cloud size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
@@ -192,7 +160,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
           <div className="space-y-3 py-2">
             <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.625rem 0.875rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <div style={{ fontSize: "0.8125rem", color: "#166534" }}>
-                <strong>Auto-fill from Open-Meteo</strong> — uses your browser location to fetch live conditions (free, no API key needed)
+                <strong>Auto-fill from Open-Meteo</strong> — uses your browser location to fetch live conditions
                 {weatherFetchMsg && <div style={{ marginTop: 3, fontSize: "0.75rem", color: weatherFetchMsg.startsWith("Could") ? "#991b1b" : "#166534" }}>{weatherFetchMsg}</div>}
               </div>
               <Button size="sm" variant="outline" onClick={fetchWeatherFromApi} disabled={fetchingWeather} style={{ flexShrink: 0, borderColor: "#86efac", color: "#166534" }}>
@@ -209,9 +177,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
               <div><Label>Wind Direction</Label>
                 <Select value={form.windDirection} onValueChange={v => setForm((f: any) => ({ ...f, windDirection: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    {["N", "NE", "E", "SE", "S", "SW", "W", "NW", "Variable", "Calm"].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{["N","NE","E","SE","S","SW","W","NW","Variable","Calm"].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
@@ -230,6 +196,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             )}
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
@@ -252,17 +219,13 @@ function ReadingsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Chart Tab ────────────────────────────────────────────────────────────────
+
 function ChartTab({ farmId }: { farmId: number }) {
   const [metric, setMetric] = useState<"temperature" | "rainfall" | "humidity" | "wind">("temperature");
   const [days, setDays] = useState(30);
 
-  const q = useQuery({
-    queryKey: ["weather-readings", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? [],
-  });
-
+  const q = useQuery({ queryKey: ["weather-readings", farmId], queryFn: () => fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? [] });
   const records: any[] = q.data ?? [];
 
   const cutoff = new Date();
@@ -285,7 +248,6 @@ function ChartTab({ farmId }: { farmId: number }) {
     humidity: { key: "humidity", label: "Humidity (%)", color: "#8b5cf6", unit: "%" },
     wind: { key: "wind", label: "Wind Speed (km/h)", color: "#10b981", unit: "km/h" },
   };
-
   const cfg = metricConfig[metric];
 
   return (
@@ -293,21 +255,7 @@ function ChartTab({ farmId }: { farmId: number }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 4 }}>
           {(["temperature", "rainfall", "humidity", "wind"] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => setMetric(m)}
-              style={{
-                padding: "4px 12px",
-                borderRadius: 6,
-                border: "1px solid",
-                borderColor: metric === m ? metricConfig[m].color : "#e5e7eb",
-                background: metric === m ? metricConfig[m].color : "#fff",
-                color: metric === m ? "#fff" : "#374151",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
+            <button key={m} onClick={() => setMetric(m)} style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid", borderColor: metric === m ? metricConfig[m].color : "#e5e7eb", background: metric === m ? metricConfig[m].color : "#fff", color: metric === m ? "#fff" : "#374151", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}>
               {metricConfig[m].label.split(" ")[0]}
             </button>
           ))}
@@ -315,18 +263,11 @@ function ChartTab({ farmId }: { farmId: number }) {
         <Select value={String(days)} onValueChange={v => setDays(parseInt(v))}>
           <SelectTrigger style={{ width: 120 }}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="14">Last 14 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
-            <SelectItem value="365">Last year</SelectItem>
+            {[["7","Last 7 days"],["14","Last 14 days"],["30","Last 30 days"],["90","Last 90 days"],["365","Last year"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
-
-      {q.isLoading ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
-      ) : chartData.length === 0 ? (
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : chartData.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <TrendingUp size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No data for selected period</p>
@@ -340,18 +281,8 @@ function ChartTab({ farmId }: { farmId: number }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} />
               <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} unit={cfg.unit} />
-              <Tooltip
-                contentStyle={{ fontSize: "0.8rem", borderRadius: 8, border: "1px solid #e5e7eb" }}
-                formatter={(v: any) => [`${v}${cfg.unit}`, cfg.label]}
-              />
-              <Line
-                type="monotone"
-                dataKey={cfg.key}
-                stroke={cfg.color}
-                strokeWidth={2}
-                dot={{ r: 3, fill: cfg.color }}
-                connectNulls
-              />
+              <Tooltip contentStyle={{ fontSize: "0.8rem", borderRadius: 8, border: "1px solid #e5e7eb" }} formatter={(v: any) => [`${v}${cfg.unit}`, cfg.label]} />
+              <Line type="monotone" dataKey={cfg.key} stroke={cfg.color} strokeWidth={2} dot={{ r: 3, fill: cfg.color }} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -360,36 +291,80 @@ function ChartTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Vehicle Readings Tab ─────────────────────────────────────────────────────
+
+const DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW", "Variable", "Calm"];
+const EMPTY_VEH_FORM = { selectedEquipmentId: "", vehicleName: "", vehicleRegistration: "", deviceId: "", readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", leafWetness: "", fieldDescription: "", linkedSprayApplicationId: "", notes: "" };
+
 function VehicleReadingsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({ vehicleName: "", vehicleRegistration: "", readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", notes: "" });
+  const [form, setForm] = useState<any>(EMPTY_VEH_FORM);
 
   const sprayAppsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? d ?? [] });
-  const sprayApps: any[] = sprayAppsQ.data ?? [];
-
+  const equipmentQ = useQuery({ queryKey: ["equipment", farmId], queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then(r => r.json()), enabled: !!farmId, select: (d) => (d.records ?? []).filter((e: any) => e.isActive !== false) });
+  const devicesQ = useQuery({ queryKey: ["vehicle-weather-devices", farmId], queryFn: () => fetch(`/api/farms/${farmId}/vehicle-weather-devices`).then(r => r.json()), enabled: !!farmId, select: (d) => (d.records ?? []).filter((d: any) => d.isActive !== false) });
   const q = useQuery({ queryKey: ["vehicle-weather", farmId], queryFn: () => fetch(`/api/farms/${farmId}/vehicle-weather-readings`).then(r => r.json()), enabled: !!farmId });
+
+  const sprayApps: any[] = sprayAppsQ.data ?? [];
+  const equipment: any[] = equipmentQ.data ?? [];
+  const devices: any[] = devicesQ.data ?? [];
   const records: any[] = q.data?.records ?? [];
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["vehicle-weather", farmId] });
+
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, linkedSprayApplicationId: body.linkedSprayApplicationId ? parseInt(body.linkedSprayApplicationId) : null }) }),
-    onSuccess: () => { toast({ title: "Reading saved" }); invalidate(); setAddOpen(false); setForm({ vehicleName: "", vehicleRegistration: "", readingTimestamp: "", temperatureC: "", humidityPercent: "", windSpeedKmh: "", windDirection: "", rainfallMm: "", notes: "" }); },
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Reading saved" }); invalidate(); setAddOpen(false); setForm(EMPTY_VEH_FORM); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
-  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-readings/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); } });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-readings/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+  });
 
-  const DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const handleEquipmentSelect = (val: string) => {
+    if (val === "__manual__" || val === "__none__") {
+      setForm((f: any) => ({ ...f, selectedEquipmentId: val, vehicleName: "", vehicleRegistration: "" }));
+      return;
+    }
+    const eq = equipment.find((e: any) => String(e.id) === val);
+    if (eq) setForm((f: any) => ({ ...f, selectedEquipmentId: val, vehicleName: eq.name, vehicleRegistration: eq.registrationNumber || "" }));
+  };
+
+  const selectedDevice = devices.find((d: any) => String(d.id) === form.deviceId);
+  const devForRecord = (r: any) => devices.find((d: any) => d.id === r.deviceId);
+
+  const buildPayload = () => ({
+    vehicleName: form.vehicleName,
+    vehicleRegistration: form.vehicleRegistration || null,
+    readingTimestamp: form.readingTimestamp,
+    temperatureC: form.temperatureC || null,
+    humidityPercent: form.humidityPercent || null,
+    windSpeedKmh: form.windSpeedKmh || null,
+    windDirection: form.windDirection || null,
+    rainfallMm: form.rainfallMm || null,
+    leafWetness: form.leafWetness || null,
+    fieldDescription: form.fieldDescription || null,
+    linkedSprayApplicationId: form.linkedSprayApplicationId ? parseInt(form.linkedSprayApplicationId) : null,
+    notes: form.notes || null,
+    equipmentId: form.selectedEquipmentId && form.selectedEquipmentId !== "__manual__" && form.selectedEquipmentId !== "__none__" ? parseInt(form.selectedEquipmentId) : null,
+    deviceId: form.deviceId ? parseInt(form.deviceId) : null,
+  });
+
+  const showManualVehicle = !equipment.length || form.selectedEquipmentId === "__manual__" || form.selectedEquipmentId === "__none__" || !form.selectedEquipmentId;
+  const showEquipmentPicker = equipment.length > 0;
+
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <p className="text-sm text-muted-foreground">Log weather conditions captured by vehicle-mounted stations (e.g. Davis WeatherLink, Pessl iMETOS) at the point of spraying. Provides field-level evidence for spray records and Red Tractor compliance.</p>
-      </div>
+      <p className="text-sm text-muted-foreground mb-3">Log weather conditions captured by vehicle-mounted stations at the point of spraying. Select the vehicle from the Equipment Register and the recording device from the Device Register.</p>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={() => setAddOpen(true)}><Plus size={14} className="mr-1" />Add Vehicle Reading</Button>
+        <Button size="sm" onClick={() => { setForm(EMPTY_VEH_FORM); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Vehicle Reading</Button>
       </div>
+
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Truck size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
@@ -400,34 +375,139 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
         <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead><tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-              {["Date/Time", "Vehicle", "Reg", "Temp (°C)", "RH (%)", "Wind (km/h)", "Dir", "Rain (mm)", "Linked Spray", ""].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, fontSize: "0.75rem", color: "#374151", whiteSpace: "nowrap" }}>{h}</th>)}
+              {["Date/Time","Vehicle","Reg","Device","Temp °C","RH %","Wind km/h","Dir","Rain mm",""].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, fontSize: "0.75rem", color: "#374151", whiteSpace: "nowrap" }}>{h}</th>)}
             </tr></thead>
-            <tbody>{records.map((r: any, i: number) => (
-              <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280", fontSize: "0.8rem" }}>{fmt(r.readingTimestamp)}</td>
-                <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{r.vehicleName || "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{r.vehicleRegistration || "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.temperatureC ?? "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.humidityPercent ? `${r.humidityPercent}%` : "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.windSpeedKmh ?? "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.windDirection || "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.rainfallMm ?? "—"}</td>
-                <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", fontSize: "0.8rem" }}>{r.linkedSprayApplicationId ? `#${r.linkedSprayApplicationId}` : "—"}</td>
-                <td style={{ padding: "0.5rem" }}><button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={13} /></button></td>
-              </tr>
-            ))}</tbody>
+            <tbody>{records.map((r: any, i: number) => {
+              const dev = devForRecord(r);
+              return (
+                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }} onClick={() => setViewRecord(r)}>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmtTime(r.readingTimestamp)}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{r.vehicleName || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.vehicleRegistration || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{dev ? <span>{dev.name}{dev.serialNumber ? <span style={{ color: "#9ca3af" }}> · {dev.serialNumber}</span> : null}</span> : "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem" }}>{r.temperatureC ?? "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.humidityPercent ?? "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.windSpeedKmh ?? "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.windDirection || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.rainfallMm ?? "—"}</td>
+                  <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              );
+            })}</tbody>
           </table>
         </div>
       )}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) setAddOpen(false); }}>
-        <DialogContent style={{ maxWidth: 560 }}>
+
+      {/* View dialog */}
+      <Dialog open={!!viewRecord} onOpenChange={o => { if (!o) setViewRecord(null); }}>
+        <DialogContent style={{ maxWidth: 500 }}>
           <DialogHeader><DialogTitle>Vehicle Weather Reading</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Vehicle Name</Label><Input placeholder="e.g. John Deere 6120R" value={form.vehicleName} onChange={e => setForm((f: any) => ({ ...f, vehicleName: e.target.value }))} /></div>
-              <div><Label>Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
+          {viewRecord && (() => {
+            const dev = devForRecord(viewRecord);
+            return (
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Date / Time</Label><p className="text-sm font-medium">{fmtTime(viewRecord.readingTimestamp)}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Vehicle</Label><p className="text-sm font-medium">{viewRecord.vehicleName || "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Registration</Label><p className="text-sm">{viewRecord.vehicleRegistration || "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Weather Device</Label><p className="text-sm">{dev ? `${dev.name}${dev.serialNumber ? ` (${dev.serialNumber})` : ""}` : "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Temp (°C)</Label><p className="text-sm font-medium">{viewRecord.temperatureC ?? "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Humidity (%)</Label><p className="text-sm">{viewRecord.humidityPercent ?? "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Wind (km/h)</Label><p className="text-sm">{viewRecord.windSpeedKmh ?? "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Direction</Label><p className="text-sm">{viewRecord.windDirection || "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Rainfall (mm)</Label><p className="text-sm">{viewRecord.rainfallMm ?? "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Leaf Wetness</Label><p className="text-sm">{viewRecord.leafWetness || "—"}</p></div>
+                </div>
+                {viewRecord.fieldDescription && <div><Label className="text-xs text-muted-foreground">Field / Location</Label><p className="text-sm">{viewRecord.fieldDescription}</p></div>}
+                {viewRecord.notes && <div><Label className="text-xs text-muted-foreground">Notes</Label><p className="text-sm">{viewRecord.notes}</p></div>}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+            <Button variant="destructive" size="sm" onClick={() => { setDeleteId(viewRecord?.id); setViewRecord(null); }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add dialog */}
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(EMPTY_VEH_FORM); }}>
+        <DialogContent style={{ maxWidth: 520 }}>
+          <DialogHeader><DialogTitle>Add Vehicle Weather Reading</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+            {/* Vehicle */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.75rem" }}>
+              <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Vehicle</p>
+              {showEquipmentPicker ? (
+                <>
+                  <div>
+                    <Label>Select from Equipment Register</Label>
+                    <Select value={form.selectedEquipmentId || "__none__"} onValueChange={handleEquipmentSelect}>
+                      <SelectTrigger><SelectValue placeholder="Choose vehicle / machine…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Choose vehicle / machine —</SelectItem>
+                        {equipment.map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.name}{e.registrationNumber ? ` (${e.registrationNumber})` : ""}</SelectItem>)}
+                        <SelectItem value="__manual__">— Enter manually —</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {showManualVehicle && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div><Label>Vehicle Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Amazone UX sprayer" value={form.vehicleName} onChange={e => setForm((f: any) => ({ ...f, vehicleName: e.target.value }))} /></div>
+                      <div><Label>Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
+                    </div>
+                  )}
+                  {!showManualVehicle && form.vehicleName && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div><Label className="text-xs text-muted-foreground">Vehicle</Label><p className="text-sm font-medium">{form.vehicleName}</p></div>
+                      <div><Label className="text-xs text-muted-foreground">Registration</Label><p className="text-sm">{form.vehicleRegistration || "—"}</p></div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Vehicle Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Amazone UX sprayer" value={form.vehicleName} onChange={e => setForm((f: any) => ({ ...f, vehicleName: e.target.value }))} /></div>
+                  <div><Label>Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
+                </div>
+              )}
             </div>
-            <div><Label>Date & Time *</Label><Input type="datetime-local" value={form.readingTimestamp} onChange={e => setForm((f: any) => ({ ...f, readingTimestamp: e.target.value }))} /></div>
+
+            {/* Device */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.75rem" }}>
+              <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Weather Device</p>
+              {devices.length > 0 ? (
+                <>
+                  <div>
+                    <Label>Select from Device Register</Label>
+                    <Select value={form.deviceId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, deviceId: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Choose device…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Not linked to a device —</SelectItem>
+                        {devices.map((d: any) => <SelectItem key={d.id} value={String(d.id)}>{d.name}{d.serialNumber ? ` · ${d.serialNumber}` : ""}{d.manufacturer ? ` (${d.manufacturer})` : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedDevice && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div><Label className="text-xs text-muted-foreground">Model</Label><p className="text-sm">{[selectedDevice.manufacturer, selectedDevice.model].filter(Boolean).join(" ") || "—"}</p></div>
+                      <div><Label className="text-xs text-muted-foreground">Serial No.</Label><p className="text-sm font-mono">{selectedDevice.serialNumber || "—"}</p></div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">No devices registered — go to the <strong>Device Register</strong> tab to add weather devices.</p>
+              )}
+            </div>
+
+            <div><Label>Date &amp; Time <span style={{ color: "#ef4444" }}>*</span></Label><Input type="datetime-local" value={form.readingTimestamp} onChange={e => setForm((f: any) => ({ ...f, readingTimestamp: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={form.temperatureC} onChange={e => setForm((f: any) => ({ ...f, temperatureC: e.target.value }))} /></div>
               <div><Label>Relative Humidity (%)</Label><Input type="number" step="0.1" min="0" max="100" value={form.humidityPercent} onChange={e => setForm((f: any) => ({ ...f, humidityPercent: e.target.value }))} /></div>
@@ -441,7 +521,16 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div><Label>Rainfall (mm)</Label><Input type="number" step="0.1" min="0" value={form.rainfallMm} onChange={e => setForm((f: any) => ({ ...f, rainfallMm: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Rainfall (mm)</Label><Input type="number" step="0.1" min="0" value={form.rainfallMm} onChange={e => setForm((f: any) => ({ ...f, rainfallMm: e.target.value }))} /></div>
+              <div><Label>Leaf Wetness</Label>
+                <Select value={form.leafWetness || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, leafWetness: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">— None —</SelectItem>{["Dry","Slightly Wet","Moderately Wet","Very Wet"].map(lw => <SelectItem key={lw} value={lw}>{lw}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label>Field / Location</Label><Input placeholder="e.g. North field — Barley" value={form.fieldDescription} onChange={e => setForm((f: any) => ({ ...f, fieldDescription: e.target.value }))} /></div>
             {sprayApps.length > 0 && (
               <div><Label>Link to Spray Application (optional)</Label>
                 <Select value={form.linkedSprayApplicationId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, linkedSprayApplicationId: v === "__none__" ? "" : v }))}>
@@ -457,14 +546,15 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.readingTimestamp || createMut.isPending}>Save</Button>
+            <Button onClick={() => createMut.mutate(buildPayload())} disabled={!form.vehicleName || !form.readingTimestamp || createMut.isPending}>Save Reading</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Reading</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Are you sure?</p>
+          <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this reading?</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -474,6 +564,234 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
     </div>
   );
 }
+
+// ─── Device Register Tab ──────────────────────────────────────────────────────
+
+const INSTALL_TYPES = ["portable", "permanent", "fixed-field-sensor"] as const;
+const INSTALL_LABELS: Record<string, string> = { portable: "Portable", permanent: "Permanent (vehicle-fixed)", "fixed-field-sensor": "Fixed Field Sensor" };
+const EMPTY_DEV_FORM = { name: "", manufacturer: "", model: "", serialNumber: "", installationType: "portable", calibrationDate: "", calibrationDueDate: "", apiDeviceId: "", notes: "" };
+
+function calibrationStatus(r: any): { label: string; color: string; bg: string } {
+  if (!r.calibrationDueDate) return { label: "No due date", color: "#6b7280", bg: "#f3f4f6" };
+  const diffDays = Math.floor((new Date(r.calibrationDueDate).getTime() - Date.now()) / 86400000);
+  if (diffDays < 0) return { label: "Overdue", color: "#991b1b", bg: "#fef2f2" };
+  if (diffDays <= 30) return { label: `Due in ${diffDays}d`, color: "#92400e", bg: "#fffbeb" };
+  return { label: "OK", color: "#166534", bg: "#f0fdf4" };
+}
+
+function DevicesTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
+  const [viewRecord, setViewRecord] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [form, setForm] = useState<any>(EMPTY_DEV_FORM);
+
+  const q = useQuery({ queryKey: ["vehicle-weather-devices", farmId], queryFn: () => fetch(`/api/farms/${farmId}/vehicle-weather-devices`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? [] });
+  const records: any[] = q.data ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["vehicle-weather-devices", farmId] });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-devices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Device added" }); invalidate(); setAddOpen(false); setForm(EMPTY_DEV_FORM); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Device updated" }); invalidate(); setEditRecord(null); setForm(EMPTY_DEV_FORM); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Device removed" }); invalidate(); setDeleteId(null); },
+  });
+
+  const openEdit = (r: any) => {
+    setForm({
+      name: r.name || "", manufacturer: r.manufacturer || "", model: r.model || "", serialNumber: r.serialNumber || "",
+      installationType: r.installationType || "portable",
+      calibrationDate: r.calibrationDate ? new Date(r.calibrationDate).toISOString().slice(0, 10) : "",
+      calibrationDueDate: r.calibrationDueDate ? new Date(r.calibrationDueDate).toISOString().slice(0, 10) : "",
+      apiDeviceId: r.apiDeviceId || "", notes: r.notes || "",
+    });
+    setEditRecord(r);
+    setViewRecord(null);
+  };
+
+  const formPayload = () => ({ ...form, calibrationDate: form.calibrationDate || null, calibrationDueDate: form.calibrationDueDate || null, apiDeviceId: form.apiDeviceId || null });
+
+  const attnItems = records.filter((r: any) => {
+    if (!r.calibrationDueDate) return false;
+    return Math.floor((new Date(r.calibrationDueDate).getTime() - Date.now()) / 86400000) < 30;
+  });
+
+  const DeviceFormFields = () => (
+    <div className="space-y-3 py-2">
+      <div><Label>Device Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Davis WeatherLink 6100" value={form.name} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Manufacturer</Label><Input placeholder="e.g. Davis Instruments" value={form.manufacturer} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} /></div>
+        <div><Label>Model</Label><Input placeholder="e.g. WeatherLink 6100" value={form.model} onChange={e => setForm((f: any) => ({ ...f, model: e.target.value }))} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Serial Number</Label><Input placeholder="e.g. WL-2024-00123" value={form.serialNumber} onChange={e => setForm((f: any) => ({ ...f, serialNumber: e.target.value }))} /></div>
+        <div><Label>Installation Type</Label>
+          <Select value={form.installationType} onValueChange={v => setForm((f: any) => ({ ...f, installationType: v }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{INSTALL_TYPES.map(t => <SelectItem key={t} value={t}>{INSTALL_LABELS[t]}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Last Calibration Date</Label><Input type="date" value={form.calibrationDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDate: e.target.value }))} /></div>
+        <div><Label>Calibration Due Date</Label><Input type="date" value={form.calibrationDueDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDueDate: e.target.value }))} /></div>
+      </div>
+      <div><Label>API Device ID <span style={{ fontSize: "0.73rem", color: "#9ca3af", fontWeight: 400 }}>(for future cloud integration)</span></Label><Input placeholder="e.g. station ID from device provider" value={form.apiDeviceId} onChange={e => setForm((f: any) => ({ ...f, apiDeviceId: e.target.value }))} /></div>
+      <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+    </div>
+  );
+
+  return (
+    <div>
+      {attnItems.length > 0 && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <AlertTriangle size={16} style={{ color: "#d97706", flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: "0.875rem" }}>
+            <strong style={{ color: "#92400e" }}>Calibration attention needed</strong>
+            <ul style={{ margin: "4px 0 0 0", paddingLeft: 16, color: "#78350f" }}>
+              {attnItems.map((r: any) => {
+                const s = calibrationStatus(r);
+                return <li key={r.id}><strong>{r.name}</strong>{r.serialNumber ? ` (${r.serialNumber})` : ""} — <span style={{ color: s.color }}>{s.label}</span>{r.calibrationDueDate ? ` · due ${fmt(r.calibrationDueDate)}` : ""}</li>;
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12 }}>
+        <p className="text-sm text-muted-foreground">Register vehicle-mounted and portable weather devices. Serial numbers and calibration dates are stored here and linked to readings automatically.</p>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={() => window.print()}><Printer size={14} className="mr-1" />Print Register</Button>}
+          <Button size="sm" onClick={() => { setForm(EMPTY_DEV_FORM); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Device</Button>
+        </div>
+      </div>
+
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Cpu size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No devices registered</p>
+          <p style={{ fontSize: "0.875rem" }}>Add vehicle-mounted weather devices (Davis WeatherLink, Pessl iMETOS, etc.) to link readings to specific calibrated instruments.</p>
+        </div>
+      ) : (
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead><tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+              {["Device Name","Make / Model","Serial No.","Install Type","Last Calibrated","Due Date","Status",""].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, fontSize: "0.75rem", color: "#374151", whiteSpace: "nowrap" }}>{h}</th>)}
+            </tr></thead>
+            <tbody>{records.map((r: any, i: number) => {
+              const s = calibrationStatus(r);
+              return (
+                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }} onClick={() => setViewRecord(r)}>
+                  <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{r.name}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{[r.manufacturer, r.model].filter(Boolean).join(" ") || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151" }}>{r.serialNumber || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{INSTALL_LABELS[r.installationType] || r.installationType || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{fmt(r.calibrationDate)}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{fmt(r.calibrationDueDate)}</td>
+                  <td style={{ padding: "0.5rem 0.75rem" }}><span style={{ background: s.bg, color: s.color, padding: "2px 8px", borderRadius: 12, fontSize: "0.73rem", fontWeight: 600, whiteSpace: "nowrap" }}>{s.label}</span></td>
+                  <td style={{ padding: "0.5rem", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: "2px 4px" }} title="View"><Eye size={14} /></button>
+                    <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: "2px 4px" }} title="Edit"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: "2px 4px" }} title="Remove"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        </div>
+      )}
+
+      {/* View dialog */}
+      <Dialog open={!!viewRecord} onOpenChange={o => { if (!o) setViewRecord(null); }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Device Details</DialogTitle></DialogHeader>
+          {viewRecord && (() => {
+            const s = calibrationStatus(viewRecord);
+            return (
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Device Name</Label><p className="text-sm font-medium">{viewRecord.name}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Installation Type</Label><p className="text-sm">{INSTALL_LABELS[viewRecord.installationType] || viewRecord.installationType}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Manufacturer</Label><p className="text-sm">{viewRecord.manufacturer || "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">Model</Label><p className="text-sm">{viewRecord.model || "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Serial Number</Label><p className="text-sm font-mono">{viewRecord.serialNumber || "—"}</p></div>
+                  <div><Label className="text-xs text-muted-foreground">API Device ID</Label><p className="text-sm font-mono text-muted-foreground">{viewRecord.apiDeviceId || "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs text-muted-foreground">Last Calibrated</Label><p className="text-sm">{fmt(viewRecord.calibrationDate)}</p></div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Calibration Due</Label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <p className="text-sm">{fmt(viewRecord.calibrationDueDate)}</p>
+                      {viewRecord.calibrationDueDate && <span style={{ background: s.bg, color: s.color, padding: "1px 7px", borderRadius: 10, fontSize: "0.7rem", fontWeight: 600 }}>{s.label}</span>}
+                    </div>
+                  </div>
+                </div>
+                {viewRecord.notes && <div><Label className="text-xs text-muted-foreground">Notes</Label><p className="text-sm">{viewRecord.notes}</p></div>}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+            <Button variant="outline" onClick={() => openEdit(viewRecord)}><Pencil size={14} className="mr-1" />Edit</Button>
+            <Button variant="destructive" size="sm" onClick={() => { setDeleteId(viewRecord?.id); setViewRecord(null); }}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add dialog */}
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(EMPTY_DEV_FORM); }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Add Weather Device</DialogTitle></DialogHeader>
+          <DeviceFormFields />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={() => createMut.mutate(formPayload())} disabled={!form.name || createMut.isPending}>Add Device</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); setForm(EMPTY_DEV_FORM); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Edit Device</DialogTitle></DialogHeader>
+          <DeviceFormFields />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditRecord(null); setForm(EMPTY_DEV_FORM); }}>Cancel</Button>
+            <Button onClick={() => updateMut.mutate({ id: editRecord.id, body: formPayload() })} disabled={!form.name || updateMut.isPending}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Remove Device</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">This will remove the device from your register. Existing readings linked to this device will retain their data.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WeatherPageFull() {
   const { farmId } = useAppStore();
@@ -489,10 +807,12 @@ export default function WeatherPageFull() {
           <TabButton active={tab === "readings"} onClick={() => setTab("readings")}><Cloud size={14} className="mr-1" />Readings</TabButton>
           <TabButton active={tab === "chart"} onClick={() => setTab("chart")}><TrendingUp size={14} className="mr-1" />Chart</TabButton>
           <TabButton active={tab === "vehicle"} onClick={() => setTab("vehicle")}><Truck size={14} className="mr-1" />Vehicle Stations</TabButton>
+          <TabButton active={tab === "devices"} onClick={() => setTab("devices")}><Cpu size={14} className="mr-1" />Device Register</TabButton>
         </TabBar>
         {farmId && tab === "readings" && <ReadingsTab farmId={farmId} />}
         {farmId && tab === "chart" && <ChartTab farmId={farmId} />}
         {farmId && tab === "vehicle" && <VehicleReadingsTab farmId={farmId} />}
+        {farmId && tab === "devices" && <DevicesTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

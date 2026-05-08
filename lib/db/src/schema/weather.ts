@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
+import { equipmentTable } from "./equipment";
 
 export const weatherStationsTable = pgTable("weather_stations", {
   id: serial("id").primaryKey(),
@@ -44,9 +45,27 @@ export const weatherReadingsTable = pgTable("weather_readings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const vehicleWeatherDevicesTable = pgTable("vehicle_weather_devices", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  installationType: text("installation_type").notNull().default("portable"),
+  calibrationDate: timestamp("calibration_date", { withTimezone: true }),
+  calibrationDueDate: timestamp("calibration_due_date", { withTimezone: true }),
+  apiDeviceId: text("api_device_id"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const vehicleWeatherReadingsTable = pgTable("vehicle_weather_readings", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  equipmentId: integer("equipment_id").references(() => equipmentTable.id),
+  deviceId: integer("device_id").references(() => vehicleWeatherDevicesTable.id),
   vehicleName: text("vehicle_name").notNull(),
   vehicleRegistration: text("vehicle_registration"),
   readingTimestamp: timestamp("reading_timestamp", { withTimezone: true }).notNull(),
