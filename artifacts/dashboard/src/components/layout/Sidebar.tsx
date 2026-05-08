@@ -81,7 +81,7 @@ const coreNav: NavItem[] = [
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Labour", href: "/labour", icon: Clock },
-  { name: "Training", href: "/training", icon: GraduationCap },
+  { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },
   { name: "Field Operations", href: "/field-operations", icon: Shovel, moduleKeys: ["field-crop-management"] },
@@ -418,8 +418,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const currentFarm = farmDetail?.record;
 
-  const subscriptionsLoaded = !!dashboardData;
-
   const activeModuleKeys = useMemo(() => {
     const keys = new Set<string>();
     const subs = dashboardData?.activeSubscriptions;
@@ -454,14 +452,14 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     return { daysRemaining, endsAt: earliest.currentPeriodEnd! };
   }, [dashboardData?.activeSubscriptions]);
 
-  const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole) : coreNav;
-  const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole) : complianceNav;
-  const filteredOrganicFarmingNav = subscriptionsLoaded ? filterNavItems(organicFarmingNav, activeModuleKeys, farmSectors, userRole) : organicFarmingNav;
-  const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole) : biosecurityNav;
-  const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole) : livestockNav;
+  const filteredCoreNav = filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole);
+  const filteredComplianceNav = filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole);
+  const filteredOrganicFarmingNav = filterNavItems(organicFarmingNav, activeModuleKeys, farmSectors, userRole);
+  const filteredBiosecurityNav = filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole);
+  const filteredLivestockNav = filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole);
   const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors, userRole);
-  const filteredSpecialistNav = subscriptionsLoaded ? filterNavItems(specialistNav, activeModuleKeys, farmSectors, userRole) : [];
-  const filteredOtherNav = subscriptionsLoaded ? filterNavItems(otherNav, activeModuleKeys, farmSectors, userRole) : otherNav;
+  const filteredSpecialistNav = filterNavItems(specialistNav, activeModuleKeys, farmSectors, userRole);
+  const filteredOtherNav = filterNavItems(otherNav, activeModuleKeys, farmSectors, userRole);
   const filteredBottomNav = filterNavItems(bottomNav, new Set(), { hasLivestock: true }, userRole);
 
   const handleLogout = () => {

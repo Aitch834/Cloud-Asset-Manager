@@ -18,6 +18,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 import { removeItem, STORAGE_KEYS } from "@/lib/storage";
 
 export default function MoreScreen() {
@@ -25,6 +26,7 @@ export default function MoreScreen() {
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
   const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
+  const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -149,56 +151,64 @@ export default function MoreScreen() {
           />
         </View>
 
-        <SectionHeader title="Trade Contacts & Stock" />
-        <View style={styles.section}>
-          <ListItem
-            title="Purchase Orders"
-            subtitle="View and manage orders by status — Outstanding, Awaiting Approval, Sent, Received"
-            icon="shopping-cart"
-            iconColor="#059669"
-            iconBgColor="#ecfdf5"
-            onPress={() => router.push("/purchase-orders")}
-          />
-          <View style={styles.divider} />
-          <ListItem
-            title="Raise Purchase Order"
-            subtitle="Create a new order for a supplier with line items and estimated value"
-            icon="plus-circle"
-            iconColor="#0891b2"
-            iconBgColor="#e0f2fe"
-            onPress={() => router.push("/raise-purchase-order")}
-          />
-        </View>
+        {activeModuleKeys.includes("stock-suppliers") && (
+          <>
+            <SectionHeader title="Trade Contacts & Stock" />
+            <View style={styles.section}>
+              <ListItem
+                title="Purchase Orders"
+                subtitle="View and manage orders by status — Outstanding, Awaiting Approval, Sent, Received"
+                icon="shopping-cart"
+                iconColor="#059669"
+                iconBgColor="#ecfdf5"
+                onPress={() => router.push("/purchase-orders")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Raise Purchase Order"
+                subtitle="Create a new order for a supplier with line items and estimated value"
+                icon="plus-circle"
+                iconColor="#0891b2"
+                iconBgColor="#e0f2fe"
+                onPress={() => router.push("/raise-purchase-order")}
+              />
+            </View>
+          </>
+        )}
 
-        <SectionHeader title="Organic Compliance" />
-        <View style={styles.section}>
-          <ListItem
-            title="Organic Overview"
-            subtitle="Certification status, inspections and input register"
-            icon="sun"
-            iconColor="#16a34a"
-            iconBgColor="#f0fdf4"
-            onPress={() => router.push("/organic-overview")}
-          />
-          <View style={styles.divider} />
-          <ListItem
-            title="Record Inspection Visit"
-            subtitle="Log an organic certifier inspection"
-            icon="shield"
-            iconColor="#16a34a"
-            iconBgColor="#f0fdf4"
-            onPress={() => router.push("/organic-inspection")}
-          />
-          <View style={styles.divider} />
-          <ListItem
-            title="Log Organic Input"
-            subtitle="Add to the organic input register"
-            icon="package"
-            iconColor="#2563eb"
-            iconBgColor="#eff6ff"
-            onPress={() => router.push("/organic-input")}
-          />
-        </View>
+        {activeModuleKeys.includes("organic-compliance") && (
+          <>
+            <SectionHeader title="Organic Compliance" />
+            <View style={styles.section}>
+              <ListItem
+                title="Organic Overview"
+                subtitle="Certification status, inspections and input register"
+                icon="sun"
+                iconColor="#16a34a"
+                iconBgColor="#f0fdf4"
+                onPress={() => router.push("/organic-overview")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Record Inspection Visit"
+                subtitle="Log an organic certifier inspection"
+                icon="shield"
+                iconColor="#16a34a"
+                iconBgColor="#f0fdf4"
+                onPress={() => router.push("/organic-inspection")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Log Organic Input"
+                subtitle="Add to the organic input register"
+                icon="package"
+                iconColor="#2563eb"
+                iconBgColor="#eff6ff"
+                onPress={() => router.push("/organic-input")}
+              />
+            </View>
+          </>
+        )}
 
         <SectionHeader title="Equipment" />
         <View style={styles.section}>

@@ -242,7 +242,7 @@ const recordOptions: RecordOption[] = [
     color: "#65a30d",
     bgColor: "#f7fee7",
     route: "/crop-trials",
-    moduleKeys: ["crop-trials"],
+    moduleKeys: ["field-crop-management"],
   },
   {
     id: "medicine",
@@ -608,16 +608,6 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["poultry"],
   },
   {
-    id: "grain-quality-test",
-    title: "Grain Quality Test",
-    description: "Record mycotoxin, pesticide residue, specific weight or DON test — lab name, sample date, result, batch reference and pass/fail status for grain store compliance",
-    icon: "thermometer",
-    color: "#d97706",
-    bgColor: "#fef3c7",
-    route: "/grain-quality-test",
-    moduleKeys: ["grain-crop-storage"],
-  },
-  {
     id: "vine-scouting",
     title: "Vineyard Disease Scouting",
     description: "Walkabout disease & pest pressure log — downy mildew, powdery mildew, botrytis, phomopsis, leafhopper, vine weevil and notifiable organisms (Xylella, Phytophthora viticola)",
@@ -745,7 +735,7 @@ const recordOptions: RecordOption[] = [
     color: "#15803D",
     bgColor: "#DCFCE7",
     route: "/organic-inspection",
-    moduleKeys: ["organic"],
+    moduleKeys: ["organic-compliance"],
   },
   {
     id: "organic-input",
@@ -755,7 +745,7 @@ const recordOptions: RecordOption[] = [
     color: "#15803D",
     bgColor: "#DCFCE7",
     route: "/organic-input",
-    moduleKeys: ["organic"],
+    moduleKeys: ["organic-compliance"],
   },
   {
     id: "equipment-defect",
