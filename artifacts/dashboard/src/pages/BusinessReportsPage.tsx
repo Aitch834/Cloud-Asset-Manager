@@ -10,9 +10,66 @@ import { Printer, Download, TrendingUp, TrendingDown, BarChart3, Package, Leaf, 
 
 type Tab = "gross-margin" | "pl" | "input-costs" | "grain-position" | "subsidies" | "year-on-year" | "assets" | "benchmarking";
 
-const VARIABLE_COST_CATS = ["Seeds & Seed Treatments", "Fertiliser", "Pesticides & Herbicides", "Fungicides", "Insecticides", "Veterinary & Medicine", "Feed & Bedding", "Haulage"];
-const FIXED_COST_CATS = ["Labour", "Fuel", "Machinery & Equipment"];
-const INCOME_CATS = ["Crop Sales", "Livestock Sales", "Agri-Environment Scheme", "Grant / Subsidy", "Other Income"];
+const VARIABLE_COST_CATS = [
+  "Seeds & Seed Treatments",
+  "Fertiliser",
+  "Pesticides & Herbicides",
+  "Fungicides",
+  "Insecticides",
+  "Veterinary & Medicine",
+  "Feed & Forage",
+  "Feed & Bedding",
+  "Haulage",
+  "Electricity",
+  "Contracting & Machinery Hire",
+];
+const FIXED_COST_CATS = [
+  // Machinery & fuel
+  "Fuel",
+  "Fuel & Energy",
+  "Machinery & Equipment",
+  // People
+  "Labour",
+  "Training & Development",
+  // Property & occupancy
+  "Rent & Land Charges",
+  "Buildings Repairs & Maintenance",
+  "Water & Drainage",
+  "Business Rates",
+  // Professional & admin
+  "Professional Fees & Accountancy",
+  "Legal Costs",
+  "Office & Administration",
+  "Telephone & IT",
+  "Subscriptions & Memberships",
+  "Marketing & Advertising",
+  // Finance & insurance
+  "Insurance Premiums",
+  "Bank Charges & Loan Interest",
+  "Hire Purchase & Leasing",
+  // Other
+  "Other Expense",
+];
+const INCOME_CATS = [
+  "Crop Sales",
+  "Livestock Sales",
+  "Milk Sales",
+  "Wool Sales",
+  "Straw & Crop By-Product Sales",
+  "Timber & Woodland Sales",
+  "Agri-Environment Scheme",
+  "Grant / Subsidy",
+  "Diversification Income",
+  "Shooting & Sporting Rights Income",
+  "Property & Building Rental Income",
+  "Renewable Energy Income",
+  "Telecom Mast & Wayleave Income",
+  "Contracting Income",
+  "Insurance Receipts & Compensation",
+  "Machinery & Asset Disposal Income",
+  "Interest Received",
+  "Other Income",
+];
 
 const fmt = (p: number | null | undefined) => {
   if (p == null) return "—";
@@ -238,22 +295,18 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   const sumCat = (cat: string) => costs.filter(t => t.category === cat).reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const sumCats = (cats: string[], type?: string) => costs.filter(t => (!type || t.transactionType === type) && cats.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
-  const cropSales = sumCat("Crop Sales");
-  const livestockSales = sumCat("Livestock Sales");
-  const agriEnvIncome = sumCat("Agri-Environment Scheme");
-  const grantIncome = sumCat("Grant / Subsidy");
-  const otherIncome = sumCat("Other Income");
-  const totalOutput = cropSales + livestockSales + agriEnvIncome + grantIncome + otherIncome;
+  // Income by category
+  const incomeValues = INCOME_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
+  const totalOutput = Object.values(incomeValues).reduce((s, v) => s + v, 0);
 
+  // Variable costs
   const varCosts = VARIABLE_COST_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
   const totalVarCosts = Object.values(varCosts).reduce((s, v) => s + v, 0);
   const grossMargin = totalOutput - totalVarCosts;
 
-  const labour = sumCat("Labour");
-  const fuel = sumCat("Fuel");
-  const machinery = sumCat("Machinery & Equipment");
-  const otherExp = costs.filter(t => t.transactionType === "expense" && t.category === "Other Expense").reduce((s, t) => s + t.amountPence, 0);
-  const totalFixed = labour + fuel + machinery + otherExp;
+  // Fixed costs / overheads — all categories in FIXED_COST_CATS
+  const fixedCosts = FIXED_COST_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
+  const totalFixed = Object.values(fixedCosts).reduce((s, v) => s + v, 0);
   const netFarmIncome = grossMargin - totalFixed;
 
   useEffect(() => {
@@ -261,11 +314,7 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
       const rows: (string | number)[][] = [
         ["Line Item", "Amount"],
         ["INCOME", ""],
-        ["Crop Sales", fmt(cropSales)],
-        ["Livestock Sales", fmt(livestockSales)],
-        ["Agri-Environment Scheme Payments", fmt(agriEnvIncome)],
-        ["Grants & Subsidies", fmt(grantIncome)],
-        ["Other Income", fmt(otherIncome)],
+        ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c])]),
         ["Total Farm Output", fmt(totalOutput)],
         [],
         ["VARIABLE COSTS", ""],
@@ -274,10 +323,7 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
         ["Gross Margin", fmt(grossMargin)],
         [],
         ["FIXED COSTS / OVERHEADS", ""],
-        ["Labour", fmt(labour)],
-        ["Fuel", fmt(fuel)],
-        ["Machinery & Equipment", fmt(machinery)],
-        ["Other Overhead Costs", fmt(otherExp)],
+        ...FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => [c, fmt(fixedCosts[c])]),
         ["Total Fixed Costs", `(${fmt(totalFixed)})`],
         ["Net Farm Income", fmt(netFarmIncome)],
       ];
@@ -300,11 +346,9 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <tbody>
             <SectionDivider label="Income" />
-            {cropSales > 0 && <DataRow label="Crop Sales" value={fmt(cropSales)} indent />}
-            {livestockSales > 0 && <DataRow label="Livestock Sales" value={fmt(livestockSales)} indent />}
-            {agriEnvIncome > 0 && <DataRow label="Agri-Environment Scheme Payments" value={fmt(agriEnvIncome)} indent />}
-            {grantIncome > 0 && <DataRow label="Grants & Subsidies" value={fmt(grantIncome)} indent />}
-            {otherIncome > 0 && <DataRow label="Other Income" value={fmt(otherIncome)} indent />}
+            {INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => (
+              <DataRow key={c} label={c} value={fmt(incomeValues[c])} indent />
+            ))}
             <TotalRow label="Total Farm Output" value={fmt(totalOutput)} />
 
             <SectionDivider label="Variable Costs" />
@@ -315,17 +359,16 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
             <TotalRow label="Gross Margin" value={fmt(grossMargin)} highlight />
 
             <SectionDivider label="Fixed Costs / Overheads" />
-            {labour > 0 && <DataRow label="Labour" value={fmt(labour)} indent />}
-            {fuel > 0 && <DataRow label="Fuel" value={fmt(fuel)} indent />}
-            {machinery > 0 && <DataRow label="Machinery & Equipment" value={fmt(machinery)} indent />}
-            {otherExp > 0 && <DataRow label="Other Overhead Costs" value={fmt(otherExp)} indent />}
+            {FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => (
+              <DataRow key={c} label={c} value={fmt(fixedCosts[c])} indent />
+            ))}
             <TotalRow label="Total Fixed Costs" value={`(${fmt(totalFixed)})`} />
             <TotalRow label="Net Farm Income" value={fmt(netFarmIncome)} highlight />
           </tbody>
         </table>
       </div>
       <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 8 }}>
-        Based on {costs.length} financial transactions recorded for {year}. Rent, finance charges, and depreciation should be added as transactions for a complete picture.
+        Based on {costs.length} financial transactions recorded for {year}. Record depreciation as a "Machinery &amp; Equipment" or "Other Expense" transaction to include it in the P&amp;L. For a full balance sheet add assets and liabilities via the Asset Register.
       </p>
     </div>
   );

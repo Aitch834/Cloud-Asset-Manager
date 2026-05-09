@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -18,7 +18,33 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics";
 
-const CATEGORIES = [
+const INCOME_CATEGORIES = [
+  // Core agricultural sales
+  "Crop Sales",
+  "Livestock Sales",
+  "Milk Sales",
+  "Wool Sales",
+  "Straw & Crop By-Product Sales",
+  "Timber & Woodland Sales",
+  // Subsidies & grants
+  "Agri-Environment Scheme",
+  "Grant / Subsidy",
+  // Diversification & other enterprise
+  "Diversification Income",
+  "Shooting & Sporting Rights Income",
+  "Property & Building Rental Income",
+  "Renewable Energy Income",
+  "Telecom Mast & Wayleave Income",
+  "Contracting Income",
+  // Receipts & other
+  "Insurance Receipts & Compensation",
+  "Machinery & Asset Disposal Income",
+  "Interest Received",
+  "Other Income",
+];
+
+const EXPENSE_CATEGORIES = [
+  // Variable / production inputs
   "Seeds & Seed Treatments",
   "Fertiliser",
   "Pesticides & Herbicides",
@@ -27,19 +53,38 @@ const CATEGORIES = [
   "Veterinary & Medicine",
   "Feed & Forage",
   "Feed & Bedding",
-  "Fuel & Energy",
-  "Fuel",
-  "Machinery & Equipment",
-  "Labour",
-  "Agri-Environment Scheme",
-  "Grant / Subsidy",
-  "Crop Sales",
-  "Livestock Sales",
-  "Milk Sales",
   "Haulage",
-  "Other Income",
+  "Electricity",
+  "Contracting & Machinery Hire",
+  // Fixed overheads — property & occupancy
+  "Rent & Land Charges",
+  "Buildings Repairs & Maintenance",
+  "Water & Drainage",
+  "Business Rates",
+  // Fixed overheads — machinery & equipment
+  "Fuel",
+  "Fuel & Energy",
+  "Machinery & Equipment",
+  // Fixed overheads — people
+  "Labour",
+  "Training & Development",
+  // Fixed overheads — professional & admin
+  "Professional Fees & Accountancy",
+  "Legal Costs",
+  "Office & Administration",
+  "Telephone & IT",
+  "Subscriptions & Memberships",
+  "Marketing & Advertising",
+  // Fixed overheads — finance & insurance
+  "Insurance Premiums",
+  "Bank Charges & Loan Interest",
+  "Hire Purchase & Leasing",
+  // Catch-all
   "Other Expense",
 ];
+
+// Combined for search/filter purposes
+const CATEGORIES = [...new Set([...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES])];
 
 const SOURCE_CONFIG: Record<string, { label: string; bg: string; color: string; border: string }> = {
   grain_sale:            { label: "Grain Sales",        bg: "#fef9c3", color: "#854d0e", border: "#fde68a" },
@@ -401,7 +446,59 @@ function TransactionsTab({ farmId }: { farmId: number }) {
               <div><Label>Category <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.category} onValueChange={v => setForm((f: any) => ({ ...f, category: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
-                  <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {form.transactionType === "income" ? (
+                      <>
+                        <SelectGroup>
+                          <SelectLabel>Agricultural Sales</SelectLabel>
+                          {["Crop Sales","Livestock Sales","Milk Sales","Wool Sales","Straw & Crop By-Product Sales","Timber & Woodland Sales"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Subsidies & Grants</SelectLabel>
+                          {["Agri-Environment Scheme","Grant / Subsidy"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Diversification & Other Enterprise</SelectLabel>
+                          {["Diversification Income","Shooting & Sporting Rights Income","Property & Building Rental Income","Renewable Energy Income","Telecom Mast & Wayleave Income","Contracting Income"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Receipts & Other</SelectLabel>
+                          {["Insurance Receipts & Compensation","Machinery & Asset Disposal Income","Interest Received","Other Income"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                      </>
+                    ) : (
+                      <>
+                        <SelectGroup>
+                          <SelectLabel>Variable / Production Inputs</SelectLabel>
+                          {["Seeds & Seed Treatments","Fertiliser","Pesticides & Herbicides","Fungicides","Insecticides","Veterinary & Medicine","Feed & Forage","Feed & Bedding","Haulage","Electricity","Contracting & Machinery Hire"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Property & Occupancy</SelectLabel>
+                          {["Rent & Land Charges","Buildings Repairs & Maintenance","Water & Drainage","Business Rates"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Machinery & Equipment</SelectLabel>
+                          {["Fuel","Fuel & Energy","Machinery & Equipment"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>People</SelectLabel>
+                          {["Labour","Training & Development"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Professional & Administration</SelectLabel>
+                          {["Professional Fees & Accountancy","Legal Costs","Office & Administration","Telephone & IT","Subscriptions & Memberships","Marketing & Advertising"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Finance & Insurance</SelectLabel>
+                          {["Insurance Premiums","Bank Charges & Loan Interest","Hire Purchase & Leasing"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Other</SelectLabel>
+                          <SelectItem value="Other Expense">Other Expense</SelectItem>
+                        </SelectGroup>
+                      </>
+                    )}
+                  </SelectContent>
                 </Select>
               </div>
               <div><Label>Payment Method</Label>
