@@ -13470,6 +13470,15 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     expectedHarvestRows,
     plantingDateRows,
     livestockPurchaseDueRows,
+    sheepVaccinationDueRows,
+    sheepParasiteTestRows,
+    sheepRTChecklistRows,
+    beefRTChecklistRows,
+    organicInspectionDueRows,
+    serviceAgreementPaymentRows,
+    carbonActionRows,
+    allergenReviewRows,
+    organicFPCertRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -13837,6 +13846,51 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: livestockPurchasesTable.id, supplierName: livestockPurchasesTable.supplierName, invoiceRef: livestockPurchasesTable.invoiceRef, species: livestockPurchasesTable.species, numberOfHead: livestockPurchasesTable.numberOfHead, totalAmountPence: livestockPurchasesTable.totalAmountPence, paymentDueDate: livestockPurchasesTable.paymentDueDate, paymentStatus: livestockPurchasesTable.paymentStatus })
       .from(livestockPurchasesTable)
       .where(and(eq(livestockPurchasesTable.farmId, farmId), inArray(livestockPurchasesTable.paymentStatus, ["outstanding", "overdue"]), isNotNull(livestockPurchasesTable.paymentDueDate), gte(livestockPurchasesTable.paymentDueDate, overdueStart as any), lt(livestockPurchasesTable.paymentDueDate, rangeEnd as any))),
+
+    // ── Sheep Vaccination Programmes: next due date ───────────────────────────
+    db.select({ id: sheepVaccinationProgrammesTable.id, vaccineName: sheepVaccinationProgrammesTable.vaccineName, nextDueDate: sheepVaccinationProgrammesTable.nextDueDate })
+      .from(sheepVaccinationProgrammesTable)
+      .where(and(eq(sheepVaccinationProgrammesTable.farmId, farmId), isNotNull(sheepVaccinationProgrammesTable.nextDueDate), gte(sheepVaccinationProgrammesTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(sheepVaccinationProgrammesTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Sheep Disease Monitoring (parasite/worm counts): next test due ─────────
+    db.select({ id: sheepDiseaseMonitoringTable.id, diseaseType: sheepDiseaseMonitoringTable.diseaseType, nextTestDue: sheepDiseaseMonitoringTable.nextTestDue })
+      .from(sheepDiseaseMonitoringTable)
+      .where(and(eq(sheepDiseaseMonitoringTable.farmId, farmId), isNotNull(sheepDiseaseMonitoringTable.nextTestDue), gte(sheepDiseaseMonitoringTable.nextTestDue, overdueStart.toISOString().split("T")[0]), lt(sheepDiseaseMonitoringTable.nextTestDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Sheep Red Tractor: cert expiry, corrective action deadline, next assessment ──
+    db.select({ id: sheepRedTractorChecklistTable.id, certificateExpiryDate: sheepRedTractorChecklistTable.certificateExpiryDate, correctiveActionDeadline: sheepRedTractorChecklistTable.correctiveActionDeadline, nextAssessmentDue: sheepRedTractorChecklistTable.nextAssessmentDue })
+      .from(sheepRedTractorChecklistTable)
+      .where(eq(sheepRedTractorChecklistTable.farmId, farmId)),
+
+    // ── Beef Red Tractor: cert expiry, corrective action deadline, next assessment ──
+    db.select({ id: beefRedTractorChecklistTable.id, certificateExpiryDate: beefRedTractorChecklistTable.certificateExpiryDate, correctiveActionDeadline: beefRedTractorChecklistTable.correctiveActionDeadline, nextAssessmentDue: beefRedTractorChecklistTable.nextAssessmentDue })
+      .from(beefRedTractorChecklistTable)
+      .where(eq(beefRedTractorChecklistTable.farmId, farmId)),
+
+    // ── Organic Inspection: next due date ─────────────────────────────────────
+    db.select({ id: organicInspectionTable.id, certifier: organicInspectionTable.certifier, nextDueDate: organicInspectionTable.nextDueDate })
+      .from(organicInspectionTable)
+      .where(and(eq(organicInspectionTable.farmId, farmId), isNotNull(organicInspectionTable.nextDueDate), gte(organicInspectionTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(organicInspectionTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Service Agreements: next payment date ─────────────────────────────────
+    db.select({ id: serviceAgreementsTable.id, title: serviceAgreementsTable.title, agreementType: serviceAgreementsTable.agreementType, nextPaymentDate: serviceAgreementsTable.nextPaymentDate })
+      .from(serviceAgreementsTable)
+      .where(and(eq(serviceAgreementsTable.farmId, farmId), isNotNull(serviceAgreementsTable.nextPaymentDate), gte(serviceAgreementsTable.nextPaymentDate, overdueStart.toISOString().split("T")[0]), lt(serviceAgreementsTable.nextPaymentDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Carbon Reduction Actions: planned completion date ─────────────────────
+    db.select({ id: carbonReductionActionsTable.id, actionTitle: carbonReductionActionsTable.actionTitle, plannedCompletionDate: carbonReductionActionsTable.plannedCompletionDate, status: carbonReductionActionsTable.status })
+      .from(carbonReductionActionsTable)
+      .where(and(eq(carbonReductionActionsTable.farmId, farmId), isNotNull(carbonReductionActionsTable.plannedCompletionDate), isNull(carbonReductionActionsTable.actualCompletionDate), gte(carbonReductionActionsTable.plannedCompletionDate, overdueStart.toISOString().split("T")[0]), lt(carbonReductionActionsTable.plannedCompletionDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Allergen Management Records: next review date ─────────────────────────
+    db.select({ id: allergenManagementRecordsTable.id, nextReviewDate: allergenManagementRecordsTable.nextReviewDate })
+      .from(allergenManagementRecordsTable)
+      .where(and(eq(allergenManagementRecordsTable.farmId, farmId), isNotNull(allergenManagementRecordsTable.nextReviewDate), gte(allergenManagementRecordsTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(allergenManagementRecordsTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Fresh Produce Certificates: annual renewal due ────────────────
+    db.select({ id: organicFreshProduceCertificatesTable.id, certBody: organicFreshProduceCertificatesTable.certBody, expiryDate: organicFreshProduceCertificatesTable.expiryDate, annualRenewalDue: organicFreshProduceCertificatesTable.annualRenewalDue })
+      .from(organicFreshProduceCertificatesTable)
+      .where(and(eq(organicFreshProduceCertificatesTable.farmId, farmId), or(and(isNotNull(organicFreshProduceCertificatesTable.annualRenewalDue), gte(organicFreshProduceCertificatesTable.annualRenewalDue, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.annualRenewalDue, rangeEnd.toISOString().split("T")[0])), and(isNotNull(organicFreshProduceCertificatesTable.expiryDate), gte(organicFreshProduceCertificatesTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.expiryDate, rangeEnd.toISOString().split("T")[0]))))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -14439,6 +14493,90 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       href: "/financial?tab=livestock-purchases",
       colour: isOverdue ? "red" : "amber",
     });
+  }
+
+  for (const r of sheepVaccinationDueRows) {
+    if (!r.nextDueDate) continue;
+    const isOverdue = new Date(r.nextDueDate + "T00:00:00Z") < now;
+    tasks.push({ id: `sheep-vacc-${r.id}`, type: "sheep_vaccination_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Vaccination Due — ${r.vaccineName || "Programme"}`, description: `Sheep vaccination programme '${r.vaccineName || "unnamed"}' is ${isOverdue ? "overdue" : "due"}. Administer and record in Sheep → Vaccination Programmes.`, dueDate: new Date(r.nextDueDate + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=vaccination", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of sheepParasiteTestRows) {
+    if (!r.nextTestDue) continue;
+    const isOverdue = new Date(r.nextTestDue + "T00:00:00Z") < now;
+    tasks.push({ id: `sheep-parasite-${r.id}`, type: "sheep_parasite_test_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Parasite Test Due${r.diseaseType ? ` — ${r.diseaseType}` : ""}`, description: `A parasite monitoring test${r.diseaseType ? ` for ${r.diseaseType}` : ""} is ${isOverdue ? "overdue" : "due"}. Collect samples and submit to a recognised laboratory. Record the result in Sheep → Disease Monitoring.`, dueDate: new Date(r.nextTestDue + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=disease", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of sheepRTChecklistRows) {
+    const inRange = (d: string | null | undefined) => {
+      if (!d) return false;
+      const dt = new Date(d + "T00:00:00Z");
+      return dt >= overdueStart && dt < rangeEnd;
+    };
+    if (r.correctiveActionDeadline && inRange(r.correctiveActionDeadline)) {
+      const isOverdue = new Date(r.correctiveActionDeadline + "T00:00:00Z") < now;
+      tasks.push({ id: `sheep-rt-ca-${r.id}`, type: "sheep_rt_corrective_action", title: `${isOverdue ? "Overdue: " : ""}Sheep Red Tractor — Corrective Action Deadline`, description: `A corrective action from the Sheep Red Tractor checklist is ${isOverdue ? "overdue" : "due"}. Complete and document the action in Sheep → Red Tractor.`, dueDate: new Date(r.correctiveActionDeadline + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+    if (r.nextAssessmentDue && inRange(r.nextAssessmentDue)) {
+      const isOverdue = new Date(r.nextAssessmentDue + "T00:00:00Z") < now;
+      tasks.push({ id: `sheep-rt-next-${r.id}`, type: "sheep_rt_assessment_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Red Tractor Assessment Due`, description: `The next Sheep Red Tractor self-assessment or audit is ${isOverdue ? "overdue" : "due"}. Complete the checklist in Sheep → Red Tractor.`, dueDate: new Date(r.nextAssessmentDue + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+    if (r.certificateExpiryDate && inRange(r.certificateExpiryDate)) {
+      const isOverdue = new Date(r.certificateExpiryDate + "T00:00:00Z") < now;
+      tasks.push({ id: `sheep-rt-cert-${r.id}`, type: "sheep_rt_cert_expiry", title: `${isOverdue ? "Expired: " : ""}Sheep Red Tractor Certificate ${isOverdue ? "Expired" : "Expiring"}`, description: `The Sheep Red Tractor certificate ${isOverdue ? "has expired" : "is expiring soon"}. Contact your assurance body to arrange renewal. Update in Sheep → Red Tractor.`, dueDate: new Date(r.certificateExpiryDate + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+  }
+
+  for (const r of beefRTChecklistRows) {
+    const inRange = (d: string | null | undefined) => {
+      if (!d) return false;
+      const dt = new Date(d + "T00:00:00Z");
+      return dt >= overdueStart && dt < rangeEnd;
+    };
+    if (r.correctiveActionDeadline && inRange(r.correctiveActionDeadline)) {
+      const isOverdue = new Date(r.correctiveActionDeadline + "T00:00:00Z") < now;
+      tasks.push({ id: `beef-rt-ca-${r.id}`, type: "beef_rt_corrective_action", title: `${isOverdue ? "Overdue: " : ""}Beef Red Tractor — Corrective Action Deadline`, description: `A corrective action from the Beef Red Tractor checklist is ${isOverdue ? "overdue" : "due"}. Complete and document in Livestock → Beef → Red Tractor.`, dueDate: new Date(r.correctiveActionDeadline + "T00:00:00Z").toISOString(), module: "Livestock", href: "/beef?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+    if (r.nextAssessmentDue && inRange(r.nextAssessmentDue)) {
+      const isOverdue = new Date(r.nextAssessmentDue + "T00:00:00Z") < now;
+      tasks.push({ id: `beef-rt-next-${r.id}`, type: "beef_rt_assessment_due", title: `${isOverdue ? "Overdue: " : ""}Beef Red Tractor Assessment Due`, description: `The next Beef Red Tractor self-assessment or audit is ${isOverdue ? "overdue" : "due"}. Complete the checklist in Livestock → Beef → Red Tractor.`, dueDate: new Date(r.nextAssessmentDue + "T00:00:00Z").toISOString(), module: "Livestock", href: "/beef?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+    if (r.certificateExpiryDate && inRange(r.certificateExpiryDate)) {
+      const isOverdue = new Date(r.certificateExpiryDate + "T00:00:00Z") < now;
+      tasks.push({ id: `beef-rt-cert-${r.id}`, type: "beef_rt_cert_expiry", title: `${isOverdue ? "Expired: " : ""}Beef Red Tractor Certificate ${isOverdue ? "Expired" : "Expiring"}`, description: `The Beef Red Tractor certificate ${isOverdue ? "has expired" : "is expiring soon"}. Contact your assurance body to arrange renewal.`, dueDate: new Date(r.certificateExpiryDate + "T00:00:00Z").toISOString(), module: "Livestock", href: "/beef?tab=red-tractor", colour: isOverdue ? "red" : "orange" });
+    }
+  }
+
+  for (const r of organicInspectionDueRows) {
+    if (!r.nextDueDate) continue;
+    const isOverdue = new Date(r.nextDueDate + "T00:00:00Z") < now;
+    tasks.push({ id: `org-insp-${r.id}`, type: "organic_inspection_due", title: `${isOverdue ? "Overdue: " : ""}Organic Inspection Due${r.certifier ? ` — ${r.certifier}` : ""}`, description: `Annual organic inspection ${r.certifier ? `with ${r.certifier}` : ""} is ${isOverdue ? "overdue" : "due"}. Contact your certifier to book a date and prepare evidence. Record the outcome in Organic → Inspections.`, dueDate: new Date(r.nextDueDate + "T00:00:00Z").toISOString(), module: "Organic", href: "/organic?tab=inspections", colour: isOverdue ? "red" : "violet" });
+  }
+
+  for (const r of serviceAgreementPaymentRows) {
+    if (!r.nextPaymentDate) continue;
+    const isOverdue = new Date(r.nextPaymentDate + "T00:00:00Z") < now;
+    tasks.push({ id: `svc-pay-${r.id}`, type: "service_agreement_payment_due", title: `${isOverdue ? "Overdue: " : ""}Service Agreement Payment Due — ${r.title || r.agreementType || "Agreement"}`, description: `A recurring payment is ${isOverdue ? "overdue" : "due"} for service agreement '${r.title || r.agreementType || "unnamed"}'. Mark as paid in Farm Services → Agreements.`, dueDate: new Date(r.nextPaymentDate + "T00:00:00Z").toISOString(), module: "Farm Services", href: "/farm-services?tab=agreements", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of carbonActionRows) {
+    if (!r.plannedCompletionDate) continue;
+    const isOverdue = new Date(r.plannedCompletionDate + "T00:00:00Z") < now;
+    tasks.push({ id: `carbon-act-${r.id}`, type: "carbon_action_due", title: `${isOverdue ? "Overdue: " : ""}Carbon Action Due — ${r.actionTitle || "Action"}`, description: `Carbon reduction action '${r.actionTitle || "unnamed"}' has a planned completion ${isOverdue ? "that has passed" : "date approaching"}. Update progress in Carbon → Reduction Actions.`, dueDate: new Date(r.plannedCompletionDate + "T00:00:00Z").toISOString(), module: "Carbon", href: "/carbon?tab=actions", colour: isOverdue ? "red" : "green" });
+  }
+
+  for (const r of allergenReviewRows) {
+    if (!r.nextReviewDate) continue;
+    const isOverdue = new Date(r.nextReviewDate + "T00:00:00Z") < now;
+    tasks.push({ id: `allergen-${r.id}`, type: "allergen_review_due", title: `${isOverdue ? "Overdue: " : ""}Allergen Management Review Due`, description: `The allergen management record review is ${isOverdue ? "overdue" : "due"}. Review allergen controls and update the record in Horticulture → Allergen Management.`, dueDate: new Date(r.nextReviewDate + "T00:00:00Z").toISOString(), module: "Horticulture", href: "/horticulture?tab=allergens", colour: isOverdue ? "red" : "orange" });
+  }
+
+  for (const r of organicFPCertRows) {
+    const dateStr = r.annualRenewalDue || r.expiryDate;
+    if (!dateStr) continue;
+    const isOverdue = new Date(dateStr + "T00:00:00Z") < now;
+    const label = r.annualRenewalDue ? "Annual Renewal Due" : "Expiring";
+    tasks.push({ id: `org-fp-cert-${r.id}`, type: "organic_fp_cert_due", title: `${isOverdue ? "Overdue: " : ""}Organic Fresh Produce Certificate — ${label}`, description: `The organic fresh produce certificate${r.certBody ? ` from ${r.certBody}` : ""} ${isOverdue ? "is overdue for renewal" : "has an annual renewal or expiry approaching"}. Update in Horticulture → Organic Certification.`, dueDate: new Date(dateStr + "T00:00:00Z").toISOString(), module: "Horticulture", href: "/horticulture?tab=organic", colour: isOverdue ? "red" : "violet" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
