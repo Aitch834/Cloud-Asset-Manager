@@ -1109,6 +1109,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["financial-records"],
   },
   {
+    id: "livestock-purchase",
+    title: "Livestock Purchase Invoice",
+    description: "Record a livestock purchase — supplier, CPH, market, species, head count and invoice amount",
+    icon: "shopping-cart",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    route: "/livestock-purchase",
+    moduleKeys: ["financial-records"],
+  },
+  {
     id: "livestock-sale",
     title: "Livestock Sale",
     description: "Record a deadweight kill sheet or mart auction sale — species, head count, grade and payment",

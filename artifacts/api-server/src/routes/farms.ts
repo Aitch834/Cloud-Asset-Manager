@@ -4026,6 +4026,25 @@ router.post("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleBy
   res.status(201).json({ record });
 });
 
+// Livestock supplier lookup — all active suppliers with CPH number (for purchase invoice autocomplete)
+router.get("/farms/:farmId/livestock-suppliers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: suppliersTable.id,
+      name: suppliersTable.name,
+      cph: suppliersTable.cph,
+      contactName: suppliersTable.contactName,
+      phone: suppliersTable.phone,
+      address: suppliersTable.address,
+    })
+    .from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true)))
+    .orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
 router.post("/farms/:farmId/suppliers", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

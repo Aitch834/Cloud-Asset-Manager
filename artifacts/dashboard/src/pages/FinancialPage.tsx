@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3 } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics";
@@ -53,6 +53,60 @@ const SOURCE_CONFIG: Record<string, { label: string; bg: string; color: string; 
 const PAYMENT_METHODS = ["Bank Transfer", "Direct Debit", "Cheque", "Cash", "Card", "BACS", "Other"];
 
 const SPECIES_LIST = ["Cattle", "Sheep", "Pigs", "Goats", "Horses", "Deer", "Poultry", "Other"];
+
+const UK_LIVESTOCK_MARKETS = [
+  "Skipton Auction Mart",
+  "Carlisle Borderway Mart",
+  "Hexham & Northern Marts",
+  "Longtown Auction Mart",
+  "Penrith Auction Mart",
+  "Kirkby Stephen Mart",
+  "Appleby Mart",
+  "Northallerton Livestock Market",
+  "Malton Livestock Market",
+  "Thirsk Auction Mart",
+  "Otley Auction Mart",
+  "Bakewell Livestock Market",
+  "Newark Livestock Market",
+  "Melton Mowbray Livestock Market",
+  "Chelford Livestock Market",
+  "Welshpool Livestock Sales",
+  "Shrewsbury Auction Centre",
+  "Hereford Livestock Market",
+  "Oswestry Livestock Market",
+  "Ludlow Livestock Market",
+  "Exeter Livestock Centre",
+  "Sedgemoor Auction Centre",
+  "Holsworthy Livestock Market",
+  "Hatherleigh Livestock Market",
+  "Truro Livestock Market",
+  "Frome Livestock Market",
+  "Thame Livestock Market",
+  "Banbury Livestock Market",
+  "Stirling Agricultural Centre",
+  "St Boswells Livestock Market",
+  "Ayr Livestock Market",
+  "Inverurie Mart",
+  "Dingwall & Highland Marts",
+  "Lairg Livestock Sales",
+  "Builth Wells Livestock Sales",
+  "Carmarthen Livestock Market",
+  "Aberystwyth Livestock Market",
+  "Ballymena Livestock Market",
+  "Markethill Livestock Market",
+  "Other",
+];
+
+const SPECIES_HERD_KEYWORDS: Record<string, string[]> = {
+  "Cattle":  ["cattle", "beef", "dairy", "suckler", "heifer", "cow", "bull", "bovine"],
+  "Sheep":   ["sheep", "flock", "ewe", "lamb", "ram", "ovine"],
+  "Pigs":    ["pig", "swine", "sow", "boar", "pork", "porcine"],
+  "Goats":   ["goat", "caprine", "nanny", "billy"],
+  "Horses":  ["horse", "equine", "pony", "mare", "stallion"],
+  "Deer":    ["deer", "stag", "cervine", "hind"],
+  "Poultry": ["poultry", "chicken", "hen", "turkey", "duck", "goose", "broiler", "layer"],
+  "Other":   [],
+};
 
 const PURCHASE_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   outstanding: { label: "Outstanding", bg: "#fef3c7", color: "#92400e" },
@@ -721,6 +775,53 @@ function GrantsTab({ farmId }: { farmId: number }) {
   );
 }
 
+function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: number }) {
+  const qc = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const attQ = useQuery({
+    queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments?recordType=livestock-purchase&recordId=${purchaseId}`).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
+  });
+  const atts: any[] = attQ.data ?? [];
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/record-attachments/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId] }),
+  });
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    try {
+      setUploading(true);
+      const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }) });
+      if (!urlRes.ok) throw new Error();
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+      await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: purchaseId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) });
+      qc.invalidateQueries({ queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId] });
+    } catch { /* silent */ } finally { setUploading(false); }
+  }
+  return (
+    <div style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+      {atts.map((a: any) => (
+        <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <FileText size={13} style={{ color: "#2563eb", flexShrink: 0 }} />
+          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8125rem", color: "#2563eb", flex: 1 }}>{a.fileName || "Document"}</a>
+          <button onClick={() => deleteMut.mutate(a.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}><X size={13} /></button>
+        </div>
+      ))}
+      {atts.length === 0 && <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 8 }}>No documents attached yet</p>}
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+        <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={uploading} onChange={handleFile} />
+        <span style={{ fontSize: "0.75rem", padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 5, color: "#374151", background: "#fff", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          {uploading ? <><Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Uploading…</> : <><Upload size={11} /> Add document / photo</>}
+        </span>
+        <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>JPG, PNG or PDF</span>
+      </label>
+    </div>
+  );
+}
+
 function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -732,12 +833,20 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
   const [paidRef, setPaidRef] = useState("");
   const [paidMethod, setPaidMethod] = useState("Bank Transfer");
+  const [supplierDropdown, setSupplierDropdown] = useState(false);
 
-  const EMPTY: any = { invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", notes: "", paymentMethod: "Bank Transfer" };
+  const EMPTY: any = { supplierId: "", invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", marketIsOther: false, invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", notes: "", paymentMethod: "Bank Transfer" };
   const [form, setForm] = useState<any>(EMPTY);
 
   const herdsQ = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
   const herds: any[] = herdsQ.data ?? [];
+
+  const suppliersQ = useQuery({ queryKey: ["livestock-suppliers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-suppliers`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
+  const suppliers: any[] = suppliersQ.data ?? [];
+  const filteredSuppliers = suppliers.filter((s: any) => !form.supplierName || s.name.toLowerCase().includes(form.supplierName.toLowerCase()));
+
+  const speciesKw = SPECIES_HERD_KEYWORDS[form.species ?? "Cattle"] ?? [];
+  const herdsForSpecies = speciesKw.length === 0 ? herds : herds.filter((h: any) => { const t = (h.type || h.name || "").toLowerCase(); return speciesKw.some((k: string) => t.includes(k)); });
 
   const q = useQuery({ queryKey: ["livestock-purchases", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-purchases`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
   const records: any[] = q.data ?? [];
@@ -850,7 +959,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
                             <CheckCircle2 size={11} className="mr-1" />Mark Paid
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "" }); setAddOpen(true); }}>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }}>
                           <Pencil size={13} />
                         </Button>
                         <Button size="sm" variant="ghost" style={{ color: "#ef4444" }} onClick={() => setDeleteId(Number(r.id))}>
@@ -900,16 +1009,58 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
               <div><Label>Arrival date</Label><Input type="date" value={form.arrivalDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, arrivalDate: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Supplier name *</Label><Input value={form.supplierName ?? ""} onChange={e => setForm((f: any) => ({ ...f, supplierName: e.target.value }))} placeholder="Seller name or auction mart" /></div>
+              {/* ── Supplier name — searchable combobox ── */}
+              <div>
+                <Label>Supplier name *</Label>
+                <div style={{ position: "relative" }}>
+                  <Input
+                    value={form.supplierName ?? ""}
+                    onChange={e => { setForm((f: any) => ({ ...f, supplierName: e.target.value, supplierId: "" })); setSupplierDropdown(true); }}
+                    onFocus={() => setSupplierDropdown(true)}
+                    onBlur={() => setTimeout(() => setSupplierDropdown(false), 180)}
+                    placeholder="Search existing supplier or enter name"
+                  />
+                  {supplierDropdown && filteredSuppliers.length > 0 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 200, overflowY: "auto" }}>
+                      {filteredSuppliers.slice(0, 8).map((s: any) => (
+                        <div key={s.id} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f3f4f6" }} onMouseDown={e => e.preventDefault()} onClick={() => { setForm((f: any) => ({ ...f, supplierName: s.name, supplierCph: s.cph || f.supplierCph, supplierId: s.id })); setSupplierDropdown(false); }}>
+                          <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>{s.name}</div>
+                          {s.cph && <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>CPH: {s.cph}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
               <div><Label>Supplier CPH no.</Label><Input value={form.supplierCph ?? ""} onChange={e => setForm((f: any) => ({ ...f, supplierCph: e.target.value }))} placeholder="XX/XXX/XXXX" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Market / auction</Label><Input value={form.marketName ?? ""} onChange={e => setForm((f: any) => ({ ...f, marketName: e.target.value }))} placeholder="e.g. Newark Livestock Market" /></div>
+              {/* ── Market / auction — curated UK markets dropdown ── */}
+              <div>
+                <Label>Market / auction</Label>
+                <Select
+                  value={form.marketIsOther ? "Other" : (form.marketName || "__none__")}
+                  onValueChange={v => {
+                    if (v === "__none__") setForm((f: any) => ({ ...f, marketName: "", marketIsOther: false }));
+                    else if (v === "Other") setForm((f: any) => ({ ...f, marketName: "", marketIsOther: true }));
+                    else setForm((f: any) => ({ ...f, marketName: v, marketIsOther: false }));
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {UK_LIVESTOCK_MARKETS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {form.marketIsOther && (
+                  <Input className="mt-1.5" value={form.marketName || ""} onChange={e => setForm((f: any) => ({ ...f, marketName: e.target.value }))} placeholder="Enter market name…" autoFocus />
+                )}
+              </div>
               <div><Label>Invoice / lot ref</Label><Input value={form.invoiceRef ?? ""} onChange={e => setForm((f: any) => ({ ...f, invoiceRef: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Species *</Label>
-                <Select value={form.species ?? "Cattle"} onValueChange={v => setForm((f: any) => ({ ...f, species: v }))}>
+                <Select value={form.species ?? "Cattle"} onValueChange={v => setForm((f: any) => ({ ...f, species: v, herdId: "" }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{SPECIES_LIST.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -920,9 +1071,10 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
                   <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {herds.map((h: any) => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.herdName || h.name)}</SelectItem>)}
+                    {herdsForSpecies.map((h: any) => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.herdName || h.name || h.type)}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {herdsForSpecies.length === 0 && herds.length > 0 && <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 2 }}>No {form.species} herds registered</p>}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -940,6 +1092,13 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            {editRecord && (
+              <div>
+                <Label style={{ display: "block", marginBottom: 6 }}>Documents &amp; Photos</Label>
+                <AttachmentPanel farmId={farmId} purchaseId={editRecord.id} />
+              </div>
+            )}
+            {!editRecord && <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Save the invoice first, then reopen it to attach documents or photos.</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(EMPTY); }}>Cancel</Button>
