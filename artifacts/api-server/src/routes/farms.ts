@@ -2791,6 +2791,32 @@ router.get("/farms/:farmId/livestock-movements/incoming", requireAuth, requireTe
   res.json({ records });
 });
 
+// ─── Outgoing Movements (for deadweight/mart sale & TB test linkage) ────────
+router.get("/farms/:farmId/livestock-movements/outgoing", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({
+    id: livestockMovementsTable.id,
+    movementType: livestockMovementsTable.movementType,
+    movementDate: livestockMovementsTable.movementDate,
+    numberOfAnimals: livestockMovementsTable.numberOfAnimals,
+    species: livestockMovementsTable.species,
+    fromLocation: livestockMovementsTable.fromLocation,
+    toLocation: livestockMovementsTable.toLocation,
+    licenceNumber: livestockMovementsTable.licenceNumber,
+    bcmsSubmissionRef: livestockMovementsTable.bcmsSubmissionRef,
+    herdId: livestockMovementsTable.herdId,
+  }).from(livestockMovementsTable)
+    .where(and(
+      eq(livestockMovementsTable.farmId, farmId),
+      inArray(livestockMovementsTable.movementType, ["off", "sale", "dispatch"]),
+      isNull(livestockMovementsTable.animalId),
+    ))
+    .orderBy(desc(livestockMovementsTable.movementDate))
+    .limit(100);
+  res.json({ records });
+});
+
 router.post("/farms/:farmId/livestock-movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -21756,6 +21782,7 @@ router.post("/farms/:farmId/tb-tests", requireAuth, requireTenant, requireModule
     documentPath: b.documentPath ? String(b.documentPath) : null,
     herdId: b.herdId != null ? Number(b.herdId) : null,
     animalEarTags: b.animalEarTags ? String(b.animalEarTags) : null,
+    movementId: b.movementId != null ? Number(b.movementId) : null,
     notes: b.notes ? String(b.notes) : null,
   }).returning();
   res.json({ record });
@@ -21766,7 +21793,7 @@ router.put("/farms/:farmId/tb-tests/:id", requireAuth, requireTenant, requireMod
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["testDate","readingDate","testType","species","herdFlockRef","herdId","animalsTested","animalEarTags","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","documentPath","notes"];
+  const fields = ["testDate","readingDate","testType","species","herdFlockRef","herdId","animalsTested","animalEarTags","reactors","inconclusives","outcome","aphaOfficer","aphaCaseRef","movementRestriction","restrictionLiftedDate","nextTestDueDate","testingVet","documentUrl","documentName","documentPath","movementId","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   if (b.movementRestriction !== undefined) updates.movementRestriction = b.movementRestriction === true || b.movementRestriction === "true";
   const [record] = await db.update(tbTestsTable).set(updates).where(and(eq(tbTestsTable.id, id), eq(tbTestsTable.farmId, farmId))).returning();

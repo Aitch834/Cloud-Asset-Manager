@@ -1388,6 +1388,7 @@ export interface GrainSaleRecord {
   saleType: "spot" | "forward" | "pool" | "ex-store";
   buyer: string;
   merchantRef: string;
+  forwardContractRef?: string;
   commodity: string;
   variety: string;
   tonnage: string;

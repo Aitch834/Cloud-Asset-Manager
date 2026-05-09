@@ -99,6 +99,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
     storeBinId: null as number | null, notes: "",
     isOrganicCertified: false as boolean,
     organicCertRef: "",
+    linkedContractId: null as number | null,
   };
   const [form, setForm] = useState<any>(empty);
 
@@ -106,6 +107,9 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
 
   const q = useQuery({ queryKey: ["grain-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`).then(r => r.json()), enabled: !!farmId });
   const records = q.data?.records ?? [];
+
+  const contractsQ = useQuery({ queryKey: ["crop-contracts", farmId], queryFn: () => fetch(`/api/farms/${farmId}/crop-contracts`).then(r => r.json()), enabled: !!farmId });
+  const contracts: any[] = contractsQ.data?.records ?? [];
 
   const availableCropYears = [...new Set<string>(records.map((r: any) => r.cropYear).filter(Boolean))].sort().reverse();
   const filteredRecords: any[] = cropYearFilter === "__all__" ? records : records.filter((r: any) => r.cropYear === cropYearFilter);
@@ -150,6 +154,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
       paymentDate: r.paymentDate ? r.paymentDate.slice(0, 10) : "",
       isOrganicCertified: r.isOrganicCertified ?? false,
       organicCertRef: r.organicCertRef ?? "",
+      linkedContractId: r.linkedContractId ?? null,
     });
     setOpen(true);
   };
@@ -213,6 +218,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                   <Badge style={{ background: r.saleType === "spot" ? "#dbeafe" : r.saleType === "pool" ? "#dcfce7" : "#fef3c7", color: "#374151", border: "none", fontSize: "0.7rem" }}>
                     {SALE_TYPES.find(t => t.value === r.saleType)?.label ?? r.saleType}
                   </Badge>
+                  {r.linkedContractId && <span style={{ marginLeft: 4, fontSize: "0.65rem", background: "#dcfce7", color: "#166534", borderRadius: 4, padding: "1px 5px", fontWeight: 600 }}>Contract</span>}
                 </td>
                 <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.buyer}</td>
                 <td style={{ padding: "8px 12px" }}>{r.commodity}</td>
@@ -297,6 +303,26 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                 <Label>Merchant Ref</Label>
                 <Input value={form.merchantRef} onChange={e => setForm((f: any) => ({ ...f, merchantRef: e.target.value }))} placeholder="Contract / lot reference" />
               </div>
+              {form.saleType === "forward" && (
+                <div style={{ gridColumn: "1/-1" }}>
+                  <Label>Linked Forward Contract</Label>
+                  <select
+                    value={form.linkedContractId ?? ""}
+                    onChange={e => setForm((f: any) => ({ ...f, linkedContractId: e.target.value ? parseInt(e.target.value) : null }))}
+                    style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff" }}
+                  >
+                    <option value="">— No linked contract —</option>
+                    {contracts.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.contractRef ?? `Contract #${c.id}`} — {c.buyer ?? "Unknown buyer"} · {c.commodity ?? "Unknown"} {c.tonnage ? `· ${parseFloat(c.tonnage).toFixed(0)} t` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {contracts.length === 0
+                    ? <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>No forward contracts found. Add a contract on the Contracts tab first.</p>
+                    : <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>Link this call-off to the parent forward contract for tonnage tracking.</p>}
+                </div>
+              )}
               <div>
                 <Label>Commodity *</Label>
                 <Select value={form.commodity} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
@@ -468,6 +494,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
     grossValuePence: "", transportDeductionPence: "", levyDeductionPence: "", otherDeductionsPence: "", netPaymentPence: "",
     paymentDate: "", redTractorAssured: false, organicCertified: false,
     premiumSchemeName: "", premiumPence: "", vendorDeclarationRef: "", animalIds: "", notes: "",
+    movementId: null as number | null,
   };
   const [formDW, setFormDW] = useState<any>(emptyDW);
 
@@ -477,6 +504,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
     pricePerUnitPence: "", grossValuePence: "", commissionPence: "", levyPence: "",
     transportCostPence: "", otherCostsPence: "", netPaymentPence: "",
     buyerName: "", auctioneerRef: "", paymentDate: "", vendorDeclarationRef: "", animalIds: "", notes: "",
+    movementId: null as number | null,
   };
   const [formMart, setFormMart] = useState<any>(emptyMart);
 
@@ -485,6 +513,9 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
 
   const martQ = useQuery({ queryKey: ["mart-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-mart-sales`).then(r => r.json()), enabled: !!farmId });
   const martRecords = martQ.data?.records ?? [];
+
+  const outMovQ = useQuery({ queryKey: ["outgoing-movements", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-movements/outgoing`).then(r => r.json()), enabled: !!farmId });
+  const outgoingMovements: any[] = outMovQ.data?.records ?? [];
 
   const dwMut = useMutation({
     mutationFn: (body: any) => editingDW
@@ -610,7 +641,10 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               {filteredDW.map((r: any) => (
                 <React.Fragment key={r.id}>
                   <tr style={{ borderBottom: expandedDWId === r.id ? "none" : "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "8px 12px" }}>{fmtDate(r.killDate)}</td>
+                    <td style={{ padding: "8px 12px" }}>
+                      <div>{fmtDate(r.killDate)}</div>
+                      {r.movementId && <span style={{ fontSize: "0.65rem", background: "#dcfce7", color: "#166534", borderRadius: 4, padding: "1px 5px", fontWeight: 600 }}>Movement</span>}
+                    </td>
                     <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.processor}</td>
                     <td style={{ padding: "8px 12px" }}>{r.species}</td>
                     <td style={{ padding: "8px 12px" }}>{r.headCount}</td>
@@ -673,7 +707,10 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               {filteredMart.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{martRecords.length === 0 ? "No mart sales yet" : `No mart sales for ${lsYearFilter}`}</td></tr>}
               {filteredMart.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 12px" }}>{fmtDate(r.saleDate)}</td>
+                  <td style={{ padding: "8px 12px" }}>
+                    <div>{fmtDate(r.saleDate)}</div>
+                    {r.movementId && <span style={{ fontSize: "0.65rem", background: "#dbeafe", color: "#1e40af", borderRadius: 4, padding: "1px 5px", fontWeight: 600 }}>Movement</span>}
+                  </td>
                   <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.martName}</td>
                   <td style={{ padding: "8px 12px" }}>{r.species}</td>
                   <td style={{ padding: "8px 12px" }}><Badge style={{ background: "#f3f4f6", color: "#374151", border: "none", fontSize: "0.7rem" }}>{r.category}</Badge></td>
@@ -752,6 +789,23 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                 <input type="checkbox" checked={formDW.organicCertified} onChange={e => setFormDW((f: any) => ({ ...f, organicCertified: e.target.checked }))} id="organic" />
                 <Label htmlFor="organic">Organic Certified</Label>
               </div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <Label>Link to Off-Farm Movement Record</Label>
+                <select
+                  value={formDW.movementId ?? ""}
+                  onChange={e => setFormDW((f: any) => ({ ...f, movementId: e.target.value ? parseInt(e.target.value) : null }))}
+                  style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff" }}
+                >
+                  <option value="">— Not linked to a movement record —</option>
+                  {outgoingMovements.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {new Date(m.movementDate).toLocaleDateString("en-GB")} · {m.movementType.toUpperCase()} · {m.species ?? "Unknown"} · {m.numberOfAnimals ?? "?"} head {m.toLocation ? `→ ${m.toLocation}` : ""} {m.licenceNumber ? `[${m.licenceNumber}]` : ""}
+                    </option>
+                  ))}
+                </select>
+                {outgoingMovements.length === 0 && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>No off-farm movement records found. Log a movement (type: Off/Sale/Dispatch) on the Livestock page to link it here.</p>}
+                {outgoingMovements.length > 0 && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>Linking confirms the BCMS movement record for this kill — essential for audit trail compliance.</p>}
+              </div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formDW.notes} onChange={e => setFormDW((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
             <DialogFooter style={{ marginTop: 16 }}>
@@ -821,6 +875,23 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               <div><Label>Buyer Name</Label><Input value={formMart.buyerName} onChange={e => setFormMart((f: any) => ({ ...f, buyerName: e.target.value }))} /></div>
               <div><Label>Auctioneer Ref</Label><Input value={formMart.auctioneerRef} onChange={e => setFormMart((f: any) => ({ ...f, auctioneerRef: e.target.value }))} /></div>
               <div><Label>Payment Date</Label><Input type="date" value={formMart.paymentDate} onChange={e => setFormMart((f: any) => ({ ...f, paymentDate: e.target.value }))} /></div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <Label>Link to Off-Farm Movement Record</Label>
+                <select
+                  value={formMart.movementId ?? ""}
+                  onChange={e => setFormMart((f: any) => ({ ...f, movementId: e.target.value ? parseInt(e.target.value) : null }))}
+                  style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff" }}
+                >
+                  <option value="">— Not linked to a movement record —</option>
+                  {outgoingMovements.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {new Date(m.movementDate).toLocaleDateString("en-GB")} · {m.movementType.toUpperCase()} · {m.species ?? "Unknown"} · {m.numberOfAnimals ?? "?"} head {m.toLocation ? `→ ${m.toLocation}` : ""} {m.licenceNumber ? `[${m.licenceNumber}]` : ""}
+                    </option>
+                  ))}
+                </select>
+                {outgoingMovements.length === 0 && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>No off-farm movement records found. Log a movement (type: Off/Sale/Dispatch) on the Livestock page to link it here.</p>}
+                {outgoingMovements.length > 0 && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>Linking confirms the BCMS movement record for this mart sale — required for livestock traceability.</p>}
+              </div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formMart.notes} onChange={e => setFormMart((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
             <DialogFooter style={{ marginTop: 16 }}>

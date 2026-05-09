@@ -244,6 +244,15 @@ export default function TbTestScreen() {
             ))}
           </View>
 
+          {(testType === "pre_movement" || testType === "post_movement") && (
+            <View style={{ backgroundColor: "#eff6ff", borderRadius: 8, padding: 12, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: fontSize.sm, color: "#1e40af", marginBottom: 4 }}>Movement Record Required</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#1e40af" }}>
+                Pre- and post-movement tests must be linked to the corresponding livestock movement record. After this test syncs to the dashboard, open the TB Test Register, edit this entry, and use the "Link to Livestock Movement Record" dropdown to connect it to the off-farm movement. This creates the APHA-required audit trail from test certificate to BCMS movement notification.
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.sectionTitle}>Veterinarian</Text>
           <Input
             label="Vet Name *"

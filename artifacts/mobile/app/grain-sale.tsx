@@ -62,6 +62,7 @@ export default function GrainSaleScreen() {
   const [weighbridgeTicket, setWeighbridgeTicket] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
+  const [forwardContractRef, setForwardContractRef] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleSave = async () => {
@@ -88,6 +89,7 @@ export default function GrainSaleScreen() {
       saleType,
       buyer: buyer.trim(),
       merchantRef: merchantRef.trim(),
+      forwardContractRef: saleType === "forward" ? forwardContractRef.trim() : undefined,
       commodity: commodity.trim(),
       variety: variety.trim(),
       tonnage: tonnage.trim(),
@@ -156,6 +158,19 @@ export default function GrainSaleScreen() {
           <Input label="Sale Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" maxDate="today" />
           <Input label="Buyer / Merchant *" value={buyer} onChangeText={setBuyer} placeholder="e.g. Frontier Agriculture" />
           <Input label="Merchant Reference" value={merchantRef} onChangeText={setMerchantRef} placeholder="Contract or lot reference" />
+          {saleType === "forward" && (
+            <>
+              <Input
+                label="Forward Contract Reference"
+                value={forwardContractRef}
+                onChangeText={setForwardContractRef}
+                placeholder="e.g. FC-2024-001"
+              />
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: -8, marginBottom: 12 }}>
+                Note the contract reference here. After syncing, open the Sales &amp; Trading page on the dashboard and edit this sale to link it to the exact forward contract record.
+              </Text>
+            </>
+          )}
 
           <Text style={styles.sectionLabel}>Commodity *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.commodityScroll}>

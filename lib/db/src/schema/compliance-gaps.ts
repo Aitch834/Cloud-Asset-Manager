@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable, stockItemsTable } from "./stock-suppliers";
+import { livestockMovementsTable } from "./livestock";
 
 // ─── TB Test Register ────────────────────────────────────────────────────────
 // Statutory record for cattle and sheep holdings under APHA/TBAEngine rules.
@@ -43,6 +44,7 @@ export const tbTestsTable = pgTable("tb_tests", {
   documentPath: text("document_path"),                 // object-storage path (new upload pattern)
   herdId: integer("herd_id"),                          // soft FK → herd_flock_register.id
   animalEarTags: text("animal_ear_tags"),              // JSON array of individual ear tag strings
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id), // linked pre/post-movement livestock movement record
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

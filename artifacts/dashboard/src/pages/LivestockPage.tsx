@@ -5655,9 +5655,9 @@ ${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
 
 // ─── TB Test Register ──────────────────────────────────────────────────────────
 
-interface TbTest { id: number; farmId: number; testDate: string; readingDate: string | null; testType: string; species: string; herdFlockRef: string | null; herdId: number | null; animalsTested: number | null; animalEarTags: string | null; reactors: number; inconclusives: number; outcome: string; aphaOfficer: string | null; aphaCaseRef: string | null; movementRestriction: boolean; restrictionLiftedDate: string | null; nextTestDueDate: string | null; testingVet: string | null; documentUrl: string | null; documentName: string | null; documentPath: string | null; notes: string | null; }
+interface TbTest { id: number; farmId: number; testDate: string; readingDate: string | null; testType: string; species: string; herdFlockRef: string | null; herdId: number | null; animalsTested: number | null; animalEarTags: string | null; reactors: number; inconclusives: number; outcome: string; aphaOfficer: string | null; aphaCaseRef: string | null; movementRestriction: boolean; restrictionLiftedDate: string | null; nextTestDueDate: string | null; testingVet: string | null; documentUrl: string | null; documentName: string | null; documentPath: string | null; movementId: number | null; notes: string | null; }
 
-const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, herdId: null, animalsTested: null, animalEarTags: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, documentPath: null, notes: null };
+const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, herdId: null, animalsTested: null, animalEarTags: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, documentPath: null, movementId: null, notes: null };
 
 function TbTestsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -5669,6 +5669,9 @@ function TbTestsSection({ farmId }: { farmId: number }) {
   const herds = herdsData?.records ?? [];
 
   const vetNames = [...new Set(records.map(r => r.testingVet).filter((v): v is string => !!v))];
+
+  const outMovQ = useQuery<{ records: { id: number; movementType: string; movementDate: string; numberOfAnimals: number | null; species: string | null; fromLocation: string | null; toLocation: string | null; licenceNumber: string | null }[] }>({ queryKey: ["outgoing-movements", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-movements/outgoing`).then(r => r.json()), enabled: !!farmId });
+  const outgoingMovements = outMovQ.data?.records ?? [];
 
   const { uploadFile, isUploading: isUploadingDoc } = useUpload();
   const [pendingDoc, setPendingDoc] = useState<{ path: string; name: string } | null>(null);
@@ -5685,7 +5688,7 @@ function TbTestsSection({ farmId }: { farmId: number }) {
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_TB & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setShowForm(false); setEditing(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["tb-tests", farmId] }); setDeleteId(null); } });
 
-  function openEdit(r: TbTest) { setEditing(r); setPendingDoc(null); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, herdId: r.herdId ?? null, animalsTested: r.animalsTested, animalEarTags: r.animalEarTags ?? null, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null }); setShowForm(true); }
+  function openEdit(r: TbTest) { setEditing(r); setPendingDoc(null); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, herdId: r.herdId ?? null, animalsTested: r.animalsTested, animalEarTags: r.animalEarTags ?? null, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, movementId: r.movementId ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
     const rows = records.map(r => `<tr><td>${formatDate(r.testDate)}</td><td>${r.testType.replace(/-/g," ")}</td><td>${r.species}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.animalsTested ?? "—"}</td><td>${r.reactors}</td><td>${r.inconclusives}</td><td>${r.outcome.toUpperCase()}</td><td>${r.movementRestriction ? "YES" : "No"}</td><td>${formatDate(r.nextTestDueDate)}</td></tr>`).join("");
@@ -5734,7 +5737,10 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                         ? <div className="text-xs text-muted-foreground mt-0.5">Reading: {formatDate(r.readingDate)}</div>
                         : <div className="text-xs text-amber-600 font-semibold mt-0.5">⏳ Reading pending</div>}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 capitalize">{r.testType.replace(/-/g," ")}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 capitalize">
+                      <div>{r.testType.replace(/-/g," ")}</div>
+                      {r.movementId && <span className="text-xs font-semibold rounded px-1 py-0.5" style={{ fontSize: "0.65rem", background: "#dcfce7", color: "#166534" }}>Movement</span>}
+                    </td>
                     <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">{r.herdFlockRef ?? "—"}</td>
                     <td className="px-4 py-3 text-right">{r.animalsTested ?? "—"}</td>
@@ -5902,6 +5908,23 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                   </Button>
                 )}
               </div>
+              {!(form.testType === "pre-movement" || form.testType === "post-movement") && (
+                <div className="col-span-2">
+                  <Label>Link to Livestock Movement Record <span className="font-normal text-muted-foreground text-xs">(optional)</span></Label>
+                  <select
+                    value={form.movementId ?? ""}
+                    onChange={e => setF("movementId", e.target.value ? Number(e.target.value) : null)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">— Not linked to a movement record —</option>
+                    {outgoingMovements.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {new Date(m.movementDate).toLocaleDateString("en-GB")} · {m.movementType.toUpperCase()} · {m.species ?? "Unknown"} · {m.numberOfAnimals ?? "?"} head {m.toLocation ? `→ ${m.toLocation}` : ""} {m.licenceNumber ? `[${m.licenceNumber}]` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">
