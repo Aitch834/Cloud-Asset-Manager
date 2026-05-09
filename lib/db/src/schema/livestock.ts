@@ -692,6 +692,7 @@ export const livestockPurchasesTable = pgTable("livestock_purchases", {
   paymentMethod: text("payment_method"),
   paymentReference: text("payment_reference"),
   herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

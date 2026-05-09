@@ -2708,6 +2708,7 @@ router.post("/farms/:farmId/livestock-purchases", requireAuth, requireTenant, re
     paymentMethod: body.paymentMethod ?? null,
     paymentReference: body.paymentReference ?? null,
     herdId: body.herdId ? Number(body.herdId) : null,
+    movementId: body.movementId ? Number(body.movementId) : null,
     notes: body.notes ?? null,
   }).returning();
   res.json({ record });
@@ -2747,6 +2748,7 @@ router.put("/farms/:farmId/livestock-purchases/:recordId", requireAuth, requireT
     ...(body.paymentMethod !== undefined && { paymentMethod: body.paymentMethod }),
     ...(body.paymentReference !== undefined && { paymentReference: body.paymentReference }),
     ...(body.herdId !== undefined && { herdId: body.herdId ? Number(body.herdId) : null }),
+    ...(body.movementId !== undefined && { movementId: body.movementId ? Number(body.movementId) : null }),
     ...(body.notes !== undefined && { notes: body.notes }),
   };
   const [record] = await db.update(livestockPurchasesTable).set(updatePayload).where(and(eq(livestockPurchasesTable.id, recordId), eq(livestockPurchasesTable.farmId, farmId))).returning();
@@ -2760,6 +2762,54 @@ router.delete("/farms/:farmId/livestock-purchases/:recordId", requireAuth, requi
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(livestockPurchasesTable).where(and(eq(livestockPurchasesTable.id, recordId), eq(livestockPurchasesTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Livestock Purchase → Movement Linkage ─────────────────────────────────
+
+router.get("/farms/:farmId/livestock-movements/incoming", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({
+    id: livestockMovementsTable.id,
+    movementType: livestockMovementsTable.movementType,
+    movementDate: livestockMovementsTable.movementDate,
+    numberOfAnimals: livestockMovementsTable.numberOfAnimals,
+    species: livestockMovementsTable.species,
+    fromLocation: livestockMovementsTable.fromLocation,
+    toLocation: livestockMovementsTable.toLocation,
+    licenceNumber: livestockMovementsTable.licenceNumber,
+    bcmsSubmissionRef: livestockMovementsTable.bcmsSubmissionRef,
+    herdId: livestockMovementsTable.herdId,
+  }).from(livestockMovementsTable)
+    .where(and(
+      eq(livestockMovementsTable.farmId, farmId),
+      inArray(livestockMovementsTable.movementType, ["on", "purchase", "between"]),
+      isNull(livestockMovementsTable.animalId),
+    ))
+    .orderBy(desc(livestockMovementsTable.movementDate))
+    .limit(100);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/livestock-movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = req.body;
+  const movementDate = body.movementDate ? new Date(body.movementDate) : new Date();
+  const [movement] = await db.insert(livestockMovementsTable).values({
+    farmId,
+    movementType: body.movementType ?? "on",
+    movementDate,
+    numberOfAnimals: body.numberOfAnimals ? Number(body.numberOfAnimals) : null,
+    species: body.species ?? null,
+    fromLocation: body.fromLocation ?? null,
+    toLocation: body.toLocation ?? null,
+    licenceNumber: body.licenceNumber ?? null,
+    bcmsSubmissionRef: body.bcmsSubmissionRef ?? null,
+    herdId: body.herdId ? Number(body.herdId) : null,
+    notes: body.notes ?? null,
+  }).returning();
+  res.json({ movement });
 });
 
 // ─── Livestock Feed ────────────────────────────────

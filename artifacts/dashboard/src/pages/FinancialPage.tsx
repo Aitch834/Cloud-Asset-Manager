@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics";
@@ -837,7 +837,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingUploading, setPendingUploading] = useState(false);
 
-  const EMPTY: any = { supplierId: "", invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", marketIsOther: false, invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", notes: "", paymentMethod: "Bank Transfer" };
+  const EMPTY: any = { supplierId: "", invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", marketIsOther: false, invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", movementId: "", notes: "", paymentMethod: "Bank Transfer" };
   const [form, setForm] = useState<any>(EMPTY);
 
   const herdsQ = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
@@ -852,6 +852,37 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
 
   const q = useQuery({ queryKey: ["livestock-purchases", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-purchases`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
   const records: any[] = q.data ?? [];
+
+  const movementsQ = useQuery({ queryKey: ["livestock-movements-incoming", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-movements/incoming`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
+  const incomingMovements: any[] = movementsQ.data ?? [];
+  const linkedMovement = incomingMovements.find((m: any) => String(m.id) === String(form.movementId)) ?? null;
+
+  const [creatingMovement, setCreatingMovement] = useState(false);
+
+  async function handleCreateMovement() {
+    if (!form.arrivalDate && !form.invoiceDate) { toast({ title: "Set an arrival or invoice date first", variant: "destructive" }); return; }
+    setCreatingMovement(true);
+    try {
+      const body = {
+        movementType: "on",
+        movementDate: form.arrivalDate || form.invoiceDate,
+        numberOfAnimals: form.numberOfHead ? parseInt(String(form.numberOfHead)) : null,
+        species: form.species ?? null,
+        fromLocation: form.supplierCph ? form.supplierCph + (form.supplierName ? ` — ${form.supplierName}` : "") : (form.marketName || form.supplierName || null),
+        herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null,
+        notes: `Auto-created from purchase invoice${form.invoiceRef ? ` ref: ${form.invoiceRef}` : ""}`,
+      };
+      const res = await fetch(`/api/farms/${farmId}/livestock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      const newId = data?.movement?.id;
+      if (newId) {
+        setForm((f: any) => ({ ...f, movementId: String(newId) }));
+        movementsQ.refetch();
+        toast({ title: "Movement record created and linked" });
+      }
+    } catch { toast({ title: "Failed to create movement", variant: "destructive" }); }
+    finally { setCreatingMovement(false); }
+  }
   const filtered = statusFilter === "all" ? records : records.filter(r => r.paymentStatus === statusFilter);
 
   const outstanding = records.filter(r => r.paymentStatus === "outstanding").reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
@@ -972,6 +1003,12 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
                     <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>
                       {r.species || "—"}
                       {herd && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{herd.herdName || herd.name}</div>}
+                      {r.movementId && (
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px" }}>
+                          <Link2 size={9} style={{ color: "#166534" }} />
+                          <span style={{ fontSize: "0.65rem", color: "#166534", fontWeight: 600 }}>Movement linked</span>
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "0.625rem 0.875rem", textAlign: "center", fontWeight: 600 }}>{r.numberOfHead ?? "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{fmtAmt(r.totalAmountPence)}</td>
@@ -993,7 +1030,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
                             <CheckCircle2 size={11} className="mr-1" />Mark Paid
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }}>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", movementId: r.movementId ? String(r.movementId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }}>
                           <Pencil size={13} />
                         </Button>
                         <Button size="sm" variant="ghost" style={{ color: "#ef4444" }} onClick={() => setDeleteId(Number(r.id))}>
@@ -1134,6 +1171,53 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+
+            {/* ─── Movement Record linkage ─── */}
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", background: "#f9fafb" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <ArrowRightLeft size={13} style={{ color: "#6b7280" }} />
+                <span style={{ fontWeight: 600, fontSize: "0.82rem", color: "#374151" }}>Movement Record</span>
+                <span style={{ fontSize: "0.68rem", color: "#6b7280", background: "#e5e7eb", borderRadius: 4, padding: "1px 6px", fontWeight: 500 }}>Compliance</span>
+              </div>
+              {linkedMovement ? (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "#166534", display: "flex", alignItems: "center", gap: 4 }}>
+                      <CheckCircle2 size={12} />
+                      {[linkedMovement.movementDate ? new Date(linkedMovement.movementDate).toLocaleDateString("en-GB") : null, linkedMovement.numberOfAnimals ? `${linkedMovement.numberOfAnimals} head` : null, linkedMovement.species || form.species].filter(Boolean).join(" · ")}
+                    </div>
+                    {(linkedMovement.licenceNumber || linkedMovement.bcmsSubmissionRef) && (
+                      <div style={{ fontSize: "0.7rem", color: "#166534", marginTop: 2 }}>
+                        {linkedMovement.licenceNumber && `Licence: ${linkedMovement.licenceNumber}`}{linkedMovement.licenceNumber && linkedMovement.bcmsSubmissionRef && " · "}{linkedMovement.bcmsSubmissionRef && `BCMS: ${linkedMovement.bcmsSubmissionRef}`}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "0.7rem", color: "#6b7280", marginTop: 1 }}>From: {linkedMovement.fromLocation || "—"}</div>
+                  </div>
+                  <button type="button" onClick={() => setForm((f: any) => ({ ...f, movementId: "" }))} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 0, flexShrink: 0 }}><X size={13} /></button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>Link this invoice to a movement record to complete the compliance audit trail (invoice → BCMS ref).</p>
+                  <Select value={form.movementId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, movementId: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Link to existing movement…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— No link —</SelectItem>
+                      {incomingMovements.map((m: any) => (
+                        <SelectItem key={String(m.id)} value={String(m.id)}>
+                          {new Date(m.movementDate).toLocaleDateString("en-GB")} · {m.numberOfAnimals ?? "?"} head{m.species ? ` (${m.species})` : ""} from {m.fromLocation || "—"}{m.licenceNumber ? ` · ${m.licenceNumber}` : ""}
+                        </SelectItem>
+                      ))}
+                      {incomingMovements.length === 0 && <SelectItem value="__empty__" disabled>No incoming movements recorded yet</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                  <button type="button" onClick={handleCreateMovement} disabled={creatingMovement} style={{ textAlign: "left", background: "none", border: "1px dashed #d1d5db", borderRadius: 6, padding: "6px 12px", cursor: creatingMovement ? "not-allowed" : "pointer", color: "#2563eb", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 6, opacity: creatingMovement ? 0.6 : 1 }}>
+                    {creatingMovement ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Plus size={12} />}
+                    Create &amp; link a new "on" movement from this invoice's data
+                  </button>
+                </div>
+              )}
+            </div>
+
             {editRecord ? (
               <div>
                 <Label style={{ display: "block", marginBottom: 6 }}>Documents &amp; Photos</Label>
