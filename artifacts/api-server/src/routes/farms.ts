@@ -13469,6 +13469,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     mobilityAssessmentRows,
     expectedHarvestRows,
     plantingDateRows,
+    livestockPurchaseDueRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -13831,6 +13832,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
       .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart as any), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd as any))),
+
+    // ── Livestock Purchase Invoices: outstanding/overdue with payment due in range ──
+    db.select({ id: livestockPurchasesTable.id, supplierName: livestockPurchasesTable.supplierName, invoiceRef: livestockPurchasesTable.invoiceRef, species: livestockPurchasesTable.species, numberOfHead: livestockPurchasesTable.numberOfHead, totalAmountPence: livestockPurchasesTable.totalAmountPence, paymentDueDate: livestockPurchasesTable.paymentDueDate, paymentStatus: livestockPurchasesTable.paymentStatus })
+      .from(livestockPurchasesTable)
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), inArray(livestockPurchasesTable.paymentStatus, ["outstanding", "overdue"]), isNotNull(livestockPurchasesTable.paymentDueDate), gte(livestockPurchasesTable.paymentDueDate, overdueStart as any), lt(livestockPurchasesTable.paymentDueDate, rangeEnd as any))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -14414,6 +14420,25 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!r.plantingDate) continue;
     const cropLabel = r.variety ? `${r.cropName} (${r.variety})` : r.cropName;
     tasks.push({ id: `planting-${r.id}`, type: "crop_planting", title: `Planting — ${r.fieldName}`, description: `${cropLabel} is scheduled for planting on ${r.fieldName}. Ensure seed, equipment, and soil conditions are ready. Record the actual sowing date in Fields & Crops once drilling is complete.`, dueDate: toISO(r.plantingDate)!, module: "Fields & Crops", href: `/fields`, colour: "green" });
+  }
+
+  for (const r of livestockPurchaseDueRows) {
+    if (!r.paymentDueDate) continue;
+    const isOverdue = new Date(r.paymentDueDate) < now;
+    const supplier = r.supplierName || "Supplier";
+    const ref = r.invoiceRef ? ` (${r.invoiceRef})` : "";
+    const head = r.numberOfHead ? ` — ${r.numberOfHead} ${r.species || "head"}` : (r.species ? ` — ${r.species}` : "");
+    const total = r.totalAmountPence ? ` £${(r.totalAmountPence / 100).toFixed(2)}` : "";
+    tasks.push({
+      id: `livestock-inv-${r.id}`,
+      type: "livestock_purchase_payment_due",
+      title: `${isOverdue ? "Overdue payment: " : "Payment due: "}${supplier}${ref}`,
+      description: `Livestock purchase invoice${head}${total} is ${isOverdue ? "overdue for payment" : "due for payment"}. Mark as paid in Finance → Livestock Purchases.`,
+      dueDate: toISO(r.paymentDueDate)!,
+      module: "Finance",
+      href: "/financial?tab=livestock-purchases",
+      colour: isOverdue ? "red" : "amber",
+    });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
