@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList, Printer, BarChart3 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -76,23 +76,38 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1"><Label>{label}</Label>{children}</div>;
 }
 
-// ─── WEIGH-IN TAB ─────────────────────────────────────────────────────────────
-function WeighTab({ farmId }: { farmId: number }) {
+// ─── WEIGH-IN & DLWG TAB ──────────────────────────────────────────────────────
+function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: Record<string, unknown>) => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
-  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
-  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["beef-weigh", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: herdsRaw } = useQuery({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()),
+  });
+  const herds: Record<string, unknown>[] = Array.isArray(herdsRaw) ? herdsRaw : [];
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-weigh-records/${editing.id}`) : api(`farms/${farmId}/beef-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-
+  const cols = [
+    { key: "weighDate", label: "Date", render: (r: Record<string, unknown>) => fmtDate(r.weighDate) },
+    { key: "groupRef", label: "Group" },
+    { key: "breed", label: "Breed" },
+    { key: "category", label: "Category" },
+    { key: "numberOfAnimals", label: "Count" },
+    { key: "averageLiveWeightKg", label: "Avg Wt (kg)", render: (r: Record<string, unknown>) => fmtNum(r.averageLiveWeightKg) },
+    { key: "dlwgGPerDay", label: "DLWG (g/day)", render: (r: Record<string, unknown>) => fmtNum(r.dlwgGPerDay) },
+    { key: "averageBcsScore", label: "BCS" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -100,50 +115,30 @@ function WeighTab({ farmId }: { farmId: number }) {
         <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
-        <DataTable
-          cols={[
-            { key: "weighDate", label: "Date", render: r => fmtDate(r.weighDate) },
-            { key: "groupRef", label: "Group" },
-            { key: "breed", label: "Breed" },
-            { key: "category", label: "Category" },
-            { key: "numberOfAnimals", label: "Count" },
-            { key: "averageLiveWeightKg", label: "Avg Wt (kg)", render: r => fmtNum(r.averageLiveWeightKg) },
-            { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay) },
-            { key: "averageBcsScore", label: "BCS" },
-          ]}
-          rows={rows}
-          onView={setViewing}
-          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-          onDelete={r => del.mutate(r.id as number)}
-        />
+        <DataTable cols={cols} rows={rows} onView={setViewing} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />
       )}
-
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
-        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Date", fmtDate(viewing.weighDate)], ["Group Ref", fmt(viewing.groupRef)], ["Breed", fmt(viewing.breed)], ["Category", fmt(viewing.category)], ["Animals Weighed", fmt(viewing.numberOfAnimals)], ["Avg Live Weight (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Total Live Weight (kg)", fmtNum(viewing.totalLiveWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["Avg BCS", fmt(viewing.averageBcsScore)], ["Location", fmt(viewing.location)], ["Weighed By", fmt(viewing.weighedBy)]].map(([l, v]: [string, string]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {!!viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
+          {viewing && (
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {([ ["Date", fmtDate(viewing.weighDate)], ["Group Ref", fmt(viewing.groupRef)], ["Breed", fmt(viewing.breed)], ["Category", fmt(viewing.category)], ["Animals Weighed", fmt(viewing.numberOfAnimals)], ["Avg Live Weight (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Total Live Weight (kg)", fmtNum(viewing.totalLiveWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["Avg BCS", fmt(viewing.averageBcsScore)], ["Location", fmt(viewing.location)], ["Weighed By", fmt(viewing.weighedBy)] ] as [string, string][]).map(([l, v]) => (
+                <div key={l}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{v}</span></div>
+              ))}
+              {!!viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
-            <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
+            <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { onRaiseTask(viewing!); setViewing(null); }}>
+              <ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {raiseTaskFor && (
-        <RaiseTaskDialog
-          farmId={farmId}
-          open={!!raiseTaskFor}
-          onClose={() => setRaiseTaskFor(null)}
-          defaultTitle={`Beef Weigh Review — ${raiseTaskFor.groupRef ?? raiseTaskFor.breed ?? "Group"}`}
-          defaultDescription={`Avg weight: ${raiseTaskFor.averageLiveWeightKg ?? "—"} kg · DLWG: ${raiseTaskFor.dlwgGPerDay ?? "—"} g/day · BCS: ${raiseTaskFor.averageBcsScore ?? "—"}`}
-          module="beef"
-        />
-      )}
-
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Field label="Herd / Group">
               <Select value={form.herdId ?? "__none__"} onValueChange={v => sf("herdId", v === "__none__" ? "" : v)}>
@@ -442,12 +437,122 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── REPORTS TAB ──────────────────────────────────────────────────────────────
+function ReportsTab({ farmId }: { farmId: number }) {
+  const [yearFilter, setYearFilter] = useState("__all__");
+
+  const weighQ = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const finishQ = useQuery({ queryKey: ["beef-finishing", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-finishing-records`), { credentials: "include" }).then(r => r.json()) });
+  const dwQ = useQuery({ queryKey: ["beef-deadweight", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-deadweight-records`), { credentials: "include" }).then(r => r.json()) });
+
+  const weighRows: Record<string, unknown>[] = Array.isArray(weighQ.data) ? weighQ.data : [];
+  const finishRows: Record<string, unknown>[] = Array.isArray(finishQ.data) ? finishQ.data : [];
+  const dwRows: Record<string, unknown>[] = Array.isArray(dwQ.data) ? dwQ.data : [];
+
+  const years = [...new Set([
+    ...weighRows.map(r => r.weighDate ? String(r.weighDate).slice(0, 4) : null),
+    ...finishRows.map(r => r.exitDate ? String(r.exitDate).slice(0, 4) : null),
+    ...dwRows.map(r => r.killDate ? String(r.killDate).slice(0, 4) : null),
+  ].filter((y): y is string => !!y))].sort().reverse();
+
+  const inYear = (date: unknown) => yearFilter === "__all__" || (!!date && String(date).slice(0, 4) === yearFilter);
+  const fw = weighRows.filter(r => inYear(r.weighDate));
+  const ff = finishRows.filter(r => inYear(r.exitDate));
+  const fd = dwRows.filter(r => inYear(r.killDate));
+
+  const avgDlwg = fw.length > 0 ? (fw.reduce((s, r) => s + (parseFloat(String(r.dlwgGPerDay ?? 0)) || 0), 0) / fw.length).toFixed(0) : null;
+  const groups = [...new Set(fw.map(r => r.groupRef).filter(Boolean))].length;
+  const totalDw = fd.reduce((s, r) => s + (parseFloat(String(r.coldDeadweightKg ?? 0)) || 0), 0);
+  const avgKillOut = fd.length > 0 ? (fd.reduce((s, r) => s + (parseFloat(String(r.killOutPct ?? 0)) || 0), 0) / fd.length).toFixed(1) : null;
+  const totalSettlement = fd.reduce((s, r) => s + (parseFloat(String(r.netSettlementValue ?? 0)) || 0), 0);
+  const gradeMap: Record<string, number> = {};
+  fd.forEach(r => { const g = String(r.europConformation ?? "Not recorded"); gradeMap[g] = (gradeMap[g] || 0) + 1; });
+  const statusMap: Record<string, number> = {};
+  ff.forEach(r => { const s = String(r.status ?? "active"); statusMap[s] = (statusMap[s] || 0) + 1; });
+
+  const isLoading = weighQ.isLoading || finishQ.isLoading || dwQ.isLoading;
+  const periodLabel = yearFilter === "__all__" ? "All Time" : yearFilter;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h3 className="font-semibold text-sm">Beef Production Report — {periodLabel}</h3>
+        <div className="flex gap-2 items-center">
+          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+            <option value="__all__">All Time</option>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button size="sm" variant="outline" onClick={() => window.print()}>
+            <Printer className="w-4 h-4 mr-1" />Print
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin" /> : (
+        <>
+          <div className="border rounded-lg p-4 space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2"><Scale className="w-4 h-4 text-amber-700" />Weigh-in & DLWG</h4>
+            {fw.length === 0 ? <p className="text-sm text-muted-foreground italic">No weigh-in records for this period.</p> : (
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div><p className="text-2xl font-bold">{fw.length}</p><p className="text-xs text-muted-foreground">Records</p></div>
+                <div><p className="text-2xl font-bold">{avgDlwg ?? "—"}</p><p className="text-xs text-muted-foreground">Avg DLWG (g/day)</p></div>
+                <div><p className="text-2xl font-bold">{groups || "—"}</p><p className="text-xs text-muted-foreground">Groups Weighed</p></div>
+              </div>
+            )}
+          </div>
+
+          <div className="border rounded-lg p-4 space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-green-700" />Finishing Records</h4>
+            {ff.length === 0 ? <p className="text-sm text-muted-foreground italic">No finishing records for this period.</p> : (
+              <div className="flex flex-wrap gap-4">
+                <div className="text-center"><p className="text-2xl font-bold">{ff.length}</p><p className="text-xs text-muted-foreground">Total Records</p></div>
+                {Object.entries(statusMap).map(([s, n]) => (
+                  <div key={s} className="text-center"><p className="text-2xl font-bold">{n}</p><p className="text-xs text-muted-foreground capitalize">{s}</p></div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border rounded-lg p-4 space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-700" />Deadweight Settlements</h4>
+            {fd.length === 0 ? <p className="text-sm text-muted-foreground italic">No deadweight records for this period.</p> : (
+              <>
+                <div className="grid grid-cols-4 gap-4 text-center">
+                  <div><p className="text-2xl font-bold">{fd.length}</p><p className="text-xs text-muted-foreground">Kill Sheets</p></div>
+                  <div><p className="text-2xl font-bold">{totalDw > 0 ? `${totalDw.toFixed(0)}kg` : "—"}</p><p className="text-xs text-muted-foreground">Total Deadweight</p></div>
+                  <div><p className="text-2xl font-bold">{avgKillOut ? `${avgKillOut}%` : "—"}</p><p className="text-xs text-muted-foreground">Avg Kill-Out</p></div>
+                  <div><p className="text-2xl font-bold">{totalSettlement > 0 ? `£${totalSettlement.toLocaleString("en-GB", { maximumFractionDigits: 0 })}` : "—"}</p><p className="text-xs text-muted-foreground">Total Settlement</p></div>
+                </div>
+                {Object.keys(gradeMap).length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2 font-medium">EUROP Grade Distribution</p>
+                    <div className="flex flex-wrap gap-2">{Object.entries(gradeMap).map(([g, n]) => <Badge key={g} variant="secondary">{g}: {n}</Badge>)}</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist";
+type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist" | "reports";
 
 export default function BeefProductionPage() {
   const farmId = useAppStore(s => s.farmId);
   const [tab, setTab] = useState<Tab>("weigh");
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
+
+  // tabsReady defers the first tab render until after React's commit phase.
+  // Zustand v5 persist uses useSyncExternalStore; the farmId null→1 transition
+  // can land mid-render and leave the hook dispatcher in a torn state when a
+  // tab component first mounts. By gating on tabsReady (set via useEffect, which
+  // only fires after a full commit), tabs always mount in a stable React context.
+  const [tabsReady, setTabsReady] = useState(false);
+  useEffect(() => { if (farmId) setTabsReady(true); else setTabsReady(false); }, [farmId]);
 
   if (!farmId) {
     return (
@@ -473,13 +578,26 @@ export default function BeefProductionPage() {
           <TabButton active={tab === "finishing"} onClick={() => setTab("finishing")}>Finishing Records</TabButton>
           <TabButton active={tab === "deadweight"} onClick={() => setTab("deadweight")}>Deadweight Settlement</TabButton>
           <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
+          <TabButton active={tab === "reports"} onClick={() => setTab("reports")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Reports</TabButton>
         </TabBar>
 
-        {tab === "weigh" && <WeighTab farmId={farmId} />}
-        {tab === "finishing" && <FinishingTab farmId={farmId} />}
-        {tab === "deadweight" && <DeadweightTab farmId={farmId} />}
-        {tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
+        {tabsReady && tab === "weigh" && <WeighTab farmId={farmId} onRaiseTask={setRaiseTaskFor} />}
+        {tabsReady && tab === "finishing" && <FinishingTab farmId={farmId} />}
+        {tabsReady && tab === "deadweight" && <DeadweightTab farmId={farmId} />}
+        {tabsReady && tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
+        {tabsReady && tab === "reports" && <ReportsTab farmId={farmId} />}
       </div>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Beef Weigh Review — ${raiseTaskFor.groupRef ?? raiseTaskFor.breed ?? "Group"}`}
+          defaultDescription={`Avg weight: ${raiseTaskFor.averageLiveWeightKg ?? "—"} kg · DLWG: ${raiseTaskFor.dlwgGPerDay ?? "—"} g/day · BCS: ${raiseTaskFor.averageBcsScore ?? "—"}`}
+          module="beef"
+        />
+      )}
     </AppLayout>
   );
 }

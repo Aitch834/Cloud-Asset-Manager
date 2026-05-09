@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "../../dashboard/src/App";
 import "../../dashboard/src/index.css";
+import { useAppStore } from "../../dashboard/src/hooks/use-app-store";
 
 if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
   try {
@@ -18,6 +19,13 @@ if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
       );
     }
     localStorage.setItem("farmtrac_tenantSlug", TENANT_SLUG);
+
+    // Pre-populate Zustand store synchronously before React renders to avoid
+    // the async rehydration race condition that causes "Invalid hook call" errors.
+    // Zustand persist reads localStorage asynchronously (microtask); calling
+    // setState here ensures farmId=1 is available on the very first render so
+    // child tabs (WeighTab, etc.) are never rendered mid-rehydration.
+    useAppStore.setState({ tenantSlug: TENANT_SLUG, farmId: FARM_ID });
   } catch {
   }
 }

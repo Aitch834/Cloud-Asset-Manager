@@ -185,6 +185,11 @@ export default defineConfig({
       "zustand",
       "zustand/middleware",
       "@clerk/react",
+      // lucide-react must be pre-bundled — it is used by BeefProductionPage,
+      // SheepProductionPage and many other pages, and if Vite discovers it mid-render
+      // it triggers a forced re-optimisation that briefly creates two React instances,
+      // causing "Invalid hook call" errors (same mechanism as the Radix issue below).
+      "lucide-react",
       // Radix UI packages must be pre-bundled before any page renders.
       // Without this, Vite discovers them during the first CompliancePage render
       // (which uses many Radix components via @/components/ui/*), triggers a

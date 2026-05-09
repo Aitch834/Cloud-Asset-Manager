@@ -144,6 +144,23 @@ export default function LivestockSaleScreen() {
             </Pressable>
           </View>
 
+          {saleType === "deadweight" && (
+            <View style={{ backgroundColor: "#eff6ff", borderRadius: 8, padding: 12, marginBottom: 4, borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
+              <Text style={{ fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: "#1e40af", marginBottom: 4 }}>Movement Record Link Required</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#1e40af" }}>
+                After this record syncs, open Sales &amp; Trading → Deadweight tab on the dashboard, edit this kill sheet, and link it to the off-farm movement record. This creates the BCMS audit trail required by Red Tractor and AHDB.
+              </Text>
+            </View>
+          )}
+          {saleType === "mart" && (
+            <View style={{ backgroundColor: "#eff6ff", borderRadius: 8, padding: 12, marginBottom: 4, borderLeftWidth: 3, borderLeftColor: "#2563eb" }}>
+              <Text style={{ fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: "#1e40af", marginBottom: 4 }}>Movement Record Link Required</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#1e40af" }}>
+                After this record syncs, open Sales &amp; Trading → Mart / Auction tab on the dashboard, edit this sale, and link it to the off-farm movement record. This completes the LIS submission audit trail.
+              </Text>
+            </View>
+          )}
+
           <Input label="Sale / Kill Date *" value={saleDate} onChangeText={setSaleDate} placeholder="YYYY-MM-DD" maxDate="today" />
 
           <Text style={styles.sectionLabel}>Species *</Text>
