@@ -13848,12 +13848,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(eq(livestockPurchasesTable.farmId, farmId), inArray(livestockPurchasesTable.paymentStatus, ["outstanding", "overdue"]), isNotNull(livestockPurchasesTable.paymentDueDate), gte(livestockPurchasesTable.paymentDueDate, overdueStart as any), lt(livestockPurchasesTable.paymentDueDate, rangeEnd as any))),
 
     // ── Sheep Vaccination Programmes: next due date ───────────────────────────
-    db.select({ id: sheepVaccinationProgrammesTable.id, vaccineName: sheepVaccinationProgrammesTable.vaccineName, nextDueDate: sheepVaccinationProgrammesTable.nextDueDate })
+    db.select({ id: sheepVaccinationProgrammesTable.id, vaccineProduct: sheepVaccinationProgrammesTable.vaccineProduct, nextDueDate: sheepVaccinationProgrammesTable.nextDueDate })
       .from(sheepVaccinationProgrammesTable)
       .where(and(eq(sheepVaccinationProgrammesTable.farmId, farmId), isNotNull(sheepVaccinationProgrammesTable.nextDueDate), gte(sheepVaccinationProgrammesTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(sheepVaccinationProgrammesTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Sheep Disease Monitoring (parasite/worm counts): next test due ─────────
-    db.select({ id: sheepDiseaseMonitoringTable.id, diseaseType: sheepDiseaseMonitoringTable.diseaseType, nextTestDue: sheepDiseaseMonitoringTable.nextTestDue })
+    db.select({ id: sheepDiseaseMonitoringTable.id, monitoringType: sheepDiseaseMonitoringTable.monitoringType, nextTestDue: sheepDiseaseMonitoringTable.nextTestDue })
       .from(sheepDiseaseMonitoringTable)
       .where(and(eq(sheepDiseaseMonitoringTable.farmId, farmId), isNotNull(sheepDiseaseMonitoringTable.nextTestDue), gte(sheepDiseaseMonitoringTable.nextTestDue, overdueStart.toISOString().split("T")[0]), lt(sheepDiseaseMonitoringTable.nextTestDue, rangeEnd.toISOString().split("T")[0]))),
 
@@ -13888,7 +13888,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(eq(allergenManagementRecordsTable.farmId, farmId), isNotNull(allergenManagementRecordsTable.nextReviewDate), gte(allergenManagementRecordsTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(allergenManagementRecordsTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Organic Fresh Produce Certificates: annual renewal due ────────────────
-    db.select({ id: organicFreshProduceCertificatesTable.id, certBody: organicFreshProduceCertificatesTable.certBody, expiryDate: organicFreshProduceCertificatesTable.expiryDate, annualRenewalDue: organicFreshProduceCertificatesTable.annualRenewalDue })
+    db.select({ id: organicFreshProduceCertificatesTable.id, certifyingBody: organicFreshProduceCertificatesTable.certifyingBody, expiryDate: organicFreshProduceCertificatesTable.expiryDate, annualRenewalDue: organicFreshProduceCertificatesTable.annualRenewalDue })
       .from(organicFreshProduceCertificatesTable)
       .where(and(eq(organicFreshProduceCertificatesTable.farmId, farmId), or(and(isNotNull(organicFreshProduceCertificatesTable.annualRenewalDue), gte(organicFreshProduceCertificatesTable.annualRenewalDue, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.annualRenewalDue, rangeEnd.toISOString().split("T")[0])), and(isNotNull(organicFreshProduceCertificatesTable.expiryDate), gte(organicFreshProduceCertificatesTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.expiryDate, rangeEnd.toISOString().split("T")[0]))))),
 
@@ -14498,13 +14498,13 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of sheepVaccinationDueRows) {
     if (!r.nextDueDate) continue;
     const isOverdue = new Date(r.nextDueDate + "T00:00:00Z") < now;
-    tasks.push({ id: `sheep-vacc-${r.id}`, type: "sheep_vaccination_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Vaccination Due — ${r.vaccineName || "Programme"}`, description: `Sheep vaccination programme '${r.vaccineName || "unnamed"}' is ${isOverdue ? "overdue" : "due"}. Administer and record in Sheep → Vaccination Programmes.`, dueDate: new Date(r.nextDueDate + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=vaccination", colour: isOverdue ? "red" : "amber" });
+    tasks.push({ id: `sheep-vacc-${r.id}`, type: "sheep_vaccination_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Vaccination Due — ${r.vaccineProduct || "Programme"}`, description: `Sheep vaccination programme '${r.vaccineProduct || "unnamed"}' is ${isOverdue ? "overdue" : "due"}. Administer and record in Sheep → Vaccination Programmes.`, dueDate: new Date(r.nextDueDate + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=vaccination", colour: isOverdue ? "red" : "amber" });
   }
 
   for (const r of sheepParasiteTestRows) {
     if (!r.nextTestDue) continue;
     const isOverdue = new Date(r.nextTestDue + "T00:00:00Z") < now;
-    tasks.push({ id: `sheep-parasite-${r.id}`, type: "sheep_parasite_test_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Parasite Test Due${r.diseaseType ? ` — ${r.diseaseType}` : ""}`, description: `A parasite monitoring test${r.diseaseType ? ` for ${r.diseaseType}` : ""} is ${isOverdue ? "overdue" : "due"}. Collect samples and submit to a recognised laboratory. Record the result in Sheep → Disease Monitoring.`, dueDate: new Date(r.nextTestDue + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=disease", colour: isOverdue ? "red" : "amber" });
+    tasks.push({ id: `sheep-parasite-${r.id}`, type: "sheep_parasite_test_due", title: `${isOverdue ? "Overdue: " : ""}Sheep Parasite Test Due${r.monitoringType ? ` — ${r.monitoringType}` : ""}`, description: `A parasite monitoring test${r.monitoringType ? ` for ${r.monitoringType}` : ""} is ${isOverdue ? "overdue" : "due"}. Collect samples and submit to a recognised laboratory. Record the result in Sheep → Disease Monitoring.`, dueDate: new Date(r.nextTestDue + "T00:00:00Z").toISOString(), module: "Livestock", href: "/sheep?tab=disease", colour: isOverdue ? "red" : "amber" });
   }
 
   for (const r of sheepRTChecklistRows) {
@@ -14576,7 +14576,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!dateStr) continue;
     const isOverdue = new Date(dateStr + "T00:00:00Z") < now;
     const label = r.annualRenewalDue ? "Annual Renewal Due" : "Expiring";
-    tasks.push({ id: `org-fp-cert-${r.id}`, type: "organic_fp_cert_due", title: `${isOverdue ? "Overdue: " : ""}Organic Fresh Produce Certificate — ${label}`, description: `The organic fresh produce certificate${r.certBody ? ` from ${r.certBody}` : ""} ${isOverdue ? "is overdue for renewal" : "has an annual renewal or expiry approaching"}. Update in Horticulture → Organic Certification.`, dueDate: new Date(dateStr + "T00:00:00Z").toISOString(), module: "Horticulture", href: "/horticulture?tab=organic", colour: isOverdue ? "red" : "violet" });
+    tasks.push({ id: `org-fp-cert-${r.id}`, type: "organic_fp_cert_due", title: `${isOverdue ? "Overdue: " : ""}Organic Fresh Produce Certificate — ${label}`, description: `The organic fresh produce certificate${r.certifyingBody ? ` from ${r.certifyingBody}` : ""} ${isOverdue ? "is overdue for renewal" : "has an annual renewal or expiry approaching"}. Update in Horticulture → Organic Certification.`, dueDate: new Date(dateStr + "T00:00:00Z").toISOString(), module: "Horticulture", href: "/horticulture?tab=organic", colour: isOverdue ? "red" : "violet" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
