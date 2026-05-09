@@ -14313,6 +14313,39 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     tasks.push({ id: `planting-${r.id}`, type: "crop_planting", title: `Planting — ${r.fieldName}`, description: `${cropLabel} is scheduled for planting on ${r.fieldName}. Ensure seed, equipment, and soil conditions are ready. Record the actual sowing date in Fields & Crops once drilling is complete.`, dueDate: toISO(r.plantingDate)!, module: "Fields & Crops", href: `/fields`, colour: "green" });
   }
 
+  // ── Weather Device Calibration Due Dates ─────────────────────────────────
+  try {
+    const wdRows = await db.select({
+      id: vehicleWeatherDevicesTable.id,
+      name: vehicleWeatherDevicesTable.name,
+      serialNumber: vehicleWeatherDevicesTable.serialNumber,
+      manufacturer: vehicleWeatherDevicesTable.manufacturer,
+      model: vehicleWeatherDevicesTable.model,
+      calibrationDueDate: vehicleWeatherDevicesTable.calibrationDueDate,
+    })
+      .from(vehicleWeatherDevicesTable)
+      .where(and(
+        eq(vehicleWeatherDevicesTable.farmId, farmId),
+        isNotNull(vehicleWeatherDevicesTable.calibrationDueDate),
+        gte(vehicleWeatherDevicesTable.calibrationDueDate, overdueStart as any),
+        lt(vehicleWeatherDevicesTable.calibrationDueDate, rangeEnd as any),
+      ));
+    for (const r of wdRows) {
+      if (!r.calibrationDueDate) continue;
+      const makeModel = [r.manufacturer, r.model].filter(Boolean).join(" ");
+      tasks.push({
+        id: `wdev-calib-${r.id}`,
+        type: "weather_device_calibration",
+        title: `Weather Device Calibration Due — ${r.name}`,
+        description: `${makeModel ? `${makeModel} · ` : ""}${r.serialNumber ? `Serial: ${r.serialNumber} · ` : ""}Calibration certificate renewal required. Update the record in Weather → Device Register.`,
+        dueDate: toISO(r.calibrationDueDate)!,
+        module: "Weather",
+        href: `/weather?tab=devices`,
+        colour: "blue",
+      });
+    }
+  } catch (e) { console.error("[week-ahead] weather device calibration query failed:", e); }
+
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });

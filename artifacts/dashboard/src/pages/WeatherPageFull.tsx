@@ -571,6 +571,20 @@ const INSTALL_TYPES = ["portable", "permanent", "fixed-field-sensor"] as const;
 const INSTALL_LABELS: Record<string, string> = { portable: "Portable", permanent: "Permanent (vehicle-fixed)", "fixed-field-sensor": "Fixed Field Sensor" };
 const EMPTY_DEV_FORM = { name: "", manufacturer: "", model: "", serialNumber: "", installationType: "portable", calibrationDate: "", calibrationDueDate: "", apiDeviceId: "", notes: "" };
 
+const MANUFACTURER_CATALOGUE: Record<string, string[]> = {
+  "Davis Instruments":    ["WeatherLink 6100", "WeatherLink Live", "Vantage Pro2", "Vantage Vue", "EnviroMonitor Node", "Leaf & Soil Station"],
+  "Pessl Instruments":    ["iMETOS 3.3", "iMETOS IMT300", "iMETOS Eco", "FrostPro", "FieldClimate Gateway"],
+  "Onset (HOBO)":         ["RX3000 Station", "H21-USB Micro Station", "U30-NRC Station", "MX2301 Temp/RH", "MX2307 Temp/RH/Light"],
+  "Campbell Scientific":  ["CR300 Datalogger", "CR310 Datalogger", "CR6 Datalogger", "AWS310 Station"],
+  "Vaisala":              ["WXT536 Multi-Parameter", "WXT530 Series", "HMP110 Humidity Probe", "PTB330 Barometer"],
+  "Lufft":                ["WS600 Smart Weather Sensor", "WS700 Smart Weather Sensor", "WS400-UMB", "OPUS20 THI"],
+  "RM Young":             ["05103 Wind Monitor", "41382 Rain Gauge", "61302 Barometric Pressure"],
+  "Meter Group":          ["ATMOS 41 Weather Station", "ATMOS 22 Wind Sensor", "ATMOS 14 Temp/RH/VP", "Zentra ZL6 Datalogger", "Em50G Datalogger"],
+  "WatchDog (Spectrum)":  ["WatchDog 2900ET Station", "WatchDog 2550 Station", "WatchDog 1650 Series"],
+  "Harvest Master":       ["HM1000", "Field Hub", "IntelliAg"],
+  "OTT HydroMet":         ["OTT Parsivel²", "OTT Pluvio² Rain Gauge", "Hydromet Station"],
+};
+
 function calibrationStatus(r: any): { label: string; color: string; bg: string } {
   if (!r.calibrationDueDate) return { label: "No due date", color: "#6b7280", bg: "#f3f4f6" };
   const diffDays = Math.floor((new Date(r.calibrationDueDate).getTime() - Date.now()) / 86400000);
@@ -587,6 +601,8 @@ function DevicesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<any>(EMPTY_DEV_FORM);
+  const [mfgSel, setMfgSel] = useState(""); // catalogue key, "Other", or "" = not chosen
+  const [mdlSel, setMdlSel] = useState(""); // model string, "Other", or ""
 
   const q = useQuery({ queryKey: ["vehicle-weather-devices", farmId], queryFn: () => fetch(`/api/farms/${farmId}/vehicle-weather-devices`).then(r => r.json()), enabled: !!farmId, select: (d) => d.records ?? [] });
   const records: any[] = q.data ?? [];
@@ -608,6 +624,12 @@ function DevicesTab({ farmId }: { farmId: number }) {
   });
 
   const openEdit = (r: any) => {
+    const knownMfg = r.manufacturer && Object.prototype.hasOwnProperty.call(MANUFACTURER_CATALOGUE, r.manufacturer);
+    const mfgSel_ = knownMfg ? r.manufacturer : (r.manufacturer ? "Other" : "");
+    const knownMdl = mfgSel_ && mfgSel_ !== "Other" && r.model && MANUFACTURER_CATALOGUE[mfgSel_]?.includes(r.model);
+    const mdlSel_ = knownMdl ? r.model : (r.model ? "Other" : "");
+    setMfgSel(mfgSel_);
+    setMdlSel(mdlSel_);
     setForm({
       name: r.name || "", manufacturer: r.manufacturer || "", model: r.model || "", serialNumber: r.serialNumber || "",
       installationType: r.installationType || "portable",
@@ -626,27 +648,91 @@ function DevicesTab({ farmId }: { farmId: number }) {
     return Math.floor((new Date(r.calibrationDueDate).getTime() - Date.now()) / 86400000) < 30;
   });
 
+  const knownMfgModels = mfgSel && mfgSel !== "Other" ? (MANUFACTURER_CATALOGUE[mfgSel] ?? []) : [];
+
   const DeviceFormFields = () => (
     <div className="space-y-3 py-2">
-      <div><Label>Device Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Davis WeatherLink 6100" value={form.name} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label>Manufacturer</Label><Input placeholder="e.g. Davis Instruments" value={form.manufacturer} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} /></div>
-        <div><Label>Model</Label><Input placeholder="e.g. WeatherLink 6100" value={form.model} onChange={e => setForm((f: any) => ({ ...f, model: e.target.value }))} /></div>
+      <div>
+        <Label>Device Name <span style={{ color: "#ef4444" }}>*</span></Label>
+        <Input placeholder="e.g. North Field Davis Station" value={form.name} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} />
       </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Serial Number</Label><Input placeholder="e.g. WL-2024-00123" value={form.serialNumber} onChange={e => setForm((f: any) => ({ ...f, serialNumber: e.target.value }))} /></div>
-        <div><Label>Installation Type</Label>
+        {/* Manufacturer — curated lookup */}
+        <div>
+          <Label>Manufacturer</Label>
+          <Select value={mfgSel} onValueChange={v => {
+            setMfgSel(v);
+            setMdlSel("");
+            setForm((f: any) => ({ ...f, manufacturer: v === "Other" ? "" : v, model: "" }));
+          }}>
+            <SelectTrigger><SelectValue placeholder="Select manufacturer…" /></SelectTrigger>
+            <SelectContent>
+              {Object.keys(MANUFACTURER_CATALOGUE).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              <SelectItem value="Other">Other / Not listed</SelectItem>
+            </SelectContent>
+          </Select>
+          {mfgSel === "Other" && (
+            <Input className="mt-2" placeholder="Enter manufacturer name" value={form.manufacturer} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} />
+          )}
+        </div>
+
+        {/* Model — dependent on manufacturer */}
+        <div>
+          <Label>Model</Label>
+          {knownMfgModels.length > 0 ? (
+            <>
+              <Select value={mdlSel} onValueChange={v => {
+                setMdlSel(v);
+                setForm((f: any) => ({ ...f, model: v === "Other" ? "" : v }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select model…" /></SelectTrigger>
+                <SelectContent>
+                  {knownMfgModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  <SelectItem value="Other">Other / Not listed</SelectItem>
+                </SelectContent>
+              </Select>
+              {mdlSel === "Other" && (
+                <Input className="mt-2" placeholder="Enter model name" value={form.model} onChange={e => setForm((f: any) => ({ ...f, model: e.target.value }))} />
+              )}
+            </>
+          ) : (
+            <Input placeholder="e.g. WeatherLink 6100" value={form.model} onChange={e => setForm((f: any) => ({ ...f, model: e.target.value }))} />
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Serial Number</Label>
+          <Input placeholder="e.g. WL-2024-00123" value={form.serialNumber} onChange={e => setForm((f: any) => ({ ...f, serialNumber: e.target.value }))} />
+        </div>
+        <div>
+          <Label>Installation Type</Label>
           <Select value={form.installationType} onValueChange={v => setForm((f: any) => ({ ...f, installationType: v }))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{INSTALL_TYPES.map(t => <SelectItem key={t} value={t}>{INSTALL_LABELS[t]}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Last Calibration Date</Label><Input type="date" value={form.calibrationDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDate: e.target.value }))} /></div>
-        <div><Label>Calibration Due Date</Label><Input type="date" value={form.calibrationDueDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDueDate: e.target.value }))} /></div>
+        <div>
+          <Label>Last Calibration Date</Label>
+          <Input type="date" value={form.calibrationDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDate: e.target.value }))} />
+          <p className="text-xs text-muted-foreground mt-1">Date shown on the calibration certificate issued by your calibrating body.</p>
+        </div>
+        <div>
+          <Label>Calibration Due Date</Label>
+          <Input type="date" value={form.calibrationDueDate} onChange={e => setForm((f: any) => ({ ...f, calibrationDueDate: e.target.value }))} />
+          <p className="text-xs text-muted-foreground mt-1">Next renewal date from the certificate — typically 12 months after last calibration.</p>
+        </div>
       </div>
-      <div><Label>API Device ID <span style={{ fontSize: "0.73rem", color: "#9ca3af", fontWeight: 400 }}>(for future cloud integration)</span></Label><Input placeholder="e.g. station ID from device provider" value={form.apiDeviceId} onChange={e => setForm((f: any) => ({ ...f, apiDeviceId: e.target.value }))} /></div>
+
+      <div>
+        <Label>API Device ID <span style={{ fontSize: "0.73rem", color: "#9ca3af", fontWeight: 400 }}>(for future cloud integration)</span></Label>
+        <Input placeholder="e.g. station ID from device provider" value={form.apiDeviceId} onChange={e => setForm((f: any) => ({ ...f, apiDeviceId: e.target.value }))} />
+      </div>
       <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
     </div>
   );
@@ -672,7 +758,7 @@ function DevicesTab({ farmId }: { farmId: number }) {
         <p className="text-sm text-muted-foreground">Register vehicle-mounted and portable weather devices. Serial numbers and calibration dates are stored here and linked to readings automatically.</p>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           {records.length > 0 && <Button size="sm" variant="outline" onClick={() => window.print()}><Printer size={14} className="mr-1" />Print Register</Button>}
-          <Button size="sm" onClick={() => { setForm(EMPTY_DEV_FORM); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Device</Button>
+          <Button size="sm" onClick={() => { setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Device</Button>
         </div>
       </div>
 
@@ -754,7 +840,7 @@ function DevicesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(EMPTY_DEV_FORM); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Add Weather Device</DialogTitle></DialogHeader>
           <DeviceFormFields />
@@ -766,7 +852,7 @@ function DevicesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Edit dialog */}
-      <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); setForm(EMPTY_DEV_FORM); } }}>
+      <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Edit Device</DialogTitle></DialogHeader>
           <DeviceFormFields />
