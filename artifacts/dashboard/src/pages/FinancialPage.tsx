@@ -834,6 +834,8 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const [paidRef, setPaidRef] = useState("");
   const [paidMethod, setPaidMethod] = useState("Bank Transfer");
   const [supplierDropdown, setSupplierDropdown] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingUploading, setPendingUploading] = useState(false);
 
   const EMPTY: any = { supplierId: "", invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", marketIsOther: false, invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", notes: "", paymentMethod: "Bank Transfer" };
   const [form, setForm] = useState<any>(EMPTY);
@@ -858,7 +860,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["livestock-purchases", farmId] });
 
-  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice added" }); invalidate(); setAddOpen(false); setForm(EMPTY); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()) });
   const updateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice updated" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); } });
   const markPaidMut = useMutation({
@@ -867,6 +869,38 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   });
 
   const sCfg = (s: string) => PURCHASE_STATUS_CONFIG[s] ?? { label: s, bg: "#f3f4f6", color: "#374151" };
+
+  async function handleSaveNew() {
+    if (!form.invoiceDate || !form.supplierName || !form.numberOfHead || !form.totalAmountPence) {
+      toast({ title: "Invoice date, supplier, head count and total are required", variant: "destructive" });
+      return;
+    }
+    const body = { ...form, numberOfHead: parseInt(String(form.numberOfHead)), pricePerHeadPence: form.pricePerHeadPence ? Math.round(parseFloat(form.pricePerHeadPence) * 100) : null, totalAmountPence: Math.round(parseFloat(form.totalAmountPence) * 100), vatAmountPence: form.vatAmountPence ? Math.round(parseFloat(form.vatAmountPence) * 100) : null, paymentTermsDays: form.paymentTermsDays ? parseInt(String(form.paymentTermsDays)) : 30, herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null };
+    try {
+      const result = await createMut.mutateAsync(body);
+      const newId = result?.record?.id ?? result?.id;
+      if (pendingFiles.length > 0 && newId) {
+        setPendingUploading(true);
+        for (const file of pendingFiles) {
+          try {
+            const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }) });
+            if (!urlRes.ok) continue;
+            const { uploadURL, objectPath } = await urlRes.json();
+            await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+            await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: newId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) });
+          } catch { /* skip failed file */ }
+        }
+        setPendingUploading(false);
+      }
+      toast({ title: "Invoice added" });
+      invalidate();
+      setAddOpen(false);
+      setForm(EMPTY);
+      setPendingFiles([]);
+    } catch {
+      toast({ title: "Failed to save", variant: "destructive" });
+    }
+  }
 
   return (
     <div>
@@ -1000,7 +1034,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ─── ADD / EDIT DIALOG ─── */}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(EMPTY); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(EMPTY); setPendingFiles([]); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editRecord ? "Edit Livestock Purchase Invoice" : "Add Livestock Purchase Invoice"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
@@ -1013,21 +1047,29 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
               <div>
                 <Label>Supplier name *</Label>
                 <div style={{ position: "relative" }}>
+                  <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", zIndex: 1 }} />
                   <Input
                     value={form.supplierName ?? ""}
                     onChange={e => { setForm((f: any) => ({ ...f, supplierName: e.target.value, supplierId: "" })); setSupplierDropdown(true); }}
                     onFocus={() => setSupplierDropdown(true)}
                     onBlur={() => setTimeout(() => setSupplierDropdown(false), 180)}
-                    placeholder="Search existing supplier or enter name"
+                    placeholder="Search or enter supplier name"
+                    style={{ paddingLeft: 30 }}
                   />
-                  {supplierDropdown && filteredSuppliers.length > 0 && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 200, overflowY: "auto" }}>
-                      {filteredSuppliers.slice(0, 8).map((s: any) => (
-                        <div key={s.id} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f3f4f6" }} onMouseDown={e => e.preventDefault()} onClick={() => { setForm((f: any) => ({ ...f, supplierName: s.name, supplierCph: s.cph || f.supplierCph, supplierId: s.id })); setSupplierDropdown(false); }}>
-                          <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>{s.name}</div>
-                          {s.cph && <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>CPH: {s.cph}</div>}
+                  {supplierDropdown && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 220, overflowY: "auto" }}>
+                      {filteredSuppliers.length > 0 ? (
+                        filteredSuppliers.slice(0, 8).map((s: any) => (
+                          <div key={s.id} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f3f4f6" }} onMouseDown={e => e.preventDefault()} onClick={() => { setForm((f: any) => ({ ...f, supplierName: s.name, supplierCph: s.cph || f.supplierCph, supplierId: s.id })); setSupplierDropdown(false); }}>
+                            <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>{s.name}</div>
+                            {s.cph && <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>CPH: {s.cph}</div>}
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: "10px 12px", fontSize: "0.8rem", color: "#9ca3af" }}>
+                          {suppliersQ.isLoading ? "Loading saved suppliers…" : suppliers.length === 0 ? "No saved suppliers yet — type a name to continue" : "No match — will be saved as a new supplier"}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>
@@ -1092,22 +1134,45 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-            {editRecord && (
+            {editRecord ? (
               <div>
                 <Label style={{ display: "block", marginBottom: 6 }}>Documents &amp; Photos</Label>
                 <AttachmentPanel farmId={farmId} purchaseId={editRecord.id} />
               </div>
+            ) : (
+              <div>
+                <Label style={{ display: "block", marginBottom: 6 }}>Documents &amp; Photos</Label>
+                <div style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+                  {pendingFiles.length === 0 && <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 8 }}>No documents queued yet</p>}
+                  {pendingFiles.map((f, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <FileText size={13} style={{ color: "#2563eb", flexShrink: 0 }} />
+                      <span style={{ fontSize: "0.8125rem", color: "#374151", flex: 1 }}>{f.name}</span>
+                      <button type="button" onClick={() => setPendingFiles(fs => fs.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}><X size={13} /></button>
+                    </div>
+                  ))}
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) setPendingFiles(fs => [...fs, file]); }} />
+                    <span style={{ fontSize: "0.75rem", padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 5, color: "#374151", background: "#fff", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Upload size={11} /> Add document / photo
+                    </span>
+                    <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>JPG, PNG or PDF — uploaded when you save</span>
+                  </label>
+                </div>
+              </div>
             )}
-            {!editRecord && <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Save the invoice first, then reopen it to attach documents or photos.</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(EMPTY); }}>Cancel</Button>
-            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createMut.isPending || updateMut.isPending} onClick={() => {
-              if (!form.invoiceDate || !form.supplierName || !form.numberOfHead || !form.totalAmountPence) { toast({ title: "Invoice date, supplier, head count and total are required", variant: "destructive" }); return; }
-              const body = { ...form, numberOfHead: parseInt(String(form.numberOfHead)), pricePerHeadPence: form.pricePerHeadPence ? Math.round(parseFloat(form.pricePerHeadPence) * 100) : null, totalAmountPence: Math.round(parseFloat(form.totalAmountPence) * 100), vatAmountPence: form.vatAmountPence ? Math.round(parseFloat(form.vatAmountPence) * 100) : null, paymentTermsDays: form.paymentTermsDays ? parseInt(String(form.paymentTermsDays)) : 30, herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null };
-              if (editRecord) updateMut.mutate({ ...body, id: editRecord.id });
-              else createMut.mutate(body);
-            }}>{editRecord ? "Save Changes" : "Add Invoice"}</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(EMPTY); setPendingFiles([]); }}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createMut.isPending || updateMut.isPending || pendingUploading} onClick={() => {
+              if (editRecord) {
+                if (!form.invoiceDate || !form.supplierName || !form.numberOfHead || !form.totalAmountPence) { toast({ title: "Invoice date, supplier, head count and total are required", variant: "destructive" }); return; }
+                const body = { ...form, numberOfHead: parseInt(String(form.numberOfHead)), pricePerHeadPence: form.pricePerHeadPence ? Math.round(parseFloat(form.pricePerHeadPence) * 100) : null, totalAmountPence: Math.round(parseFloat(form.totalAmountPence) * 100), vatAmountPence: form.vatAmountPence ? Math.round(parseFloat(form.vatAmountPence) * 100) : null, paymentTermsDays: form.paymentTermsDays ? parseInt(String(form.paymentTermsDays)) : 30, herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null };
+                updateMut.mutate({ ...body, id: editRecord.id });
+              } else {
+                handleSaveNew();
+              }
+            }}>{pendingUploading ? "Uploading files…" : editRecord ? "Save Changes" : "Add Invoice"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
