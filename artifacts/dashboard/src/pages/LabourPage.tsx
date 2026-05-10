@@ -418,7 +418,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
   const printBlankTimesheet = () => {
     const taskList = TASK_TYPES.map(t => `<li>${t}</li>`).join("");
-    const blankRows = Array.from({ length: 12 }, () =>
+    const blankRows = Array.from({ length: 9 }, () =>
       `<tr><td style="width:90px">&nbsp;</td><td>&nbsp;</td><td style="width:62px">&nbsp;</td><td style="width:62px">&nbsp;</td><td style="width:58px;text-align:right">&nbsp;</td><td style="width:58px;text-align:right">&nbsp;</td><td>&nbsp;</td></tr>`
     ).join("");
     const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
@@ -426,31 +426,31 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 <html><head><meta charset="utf-8"><title>Blank Daily Timesheet — BDE Farm Trac</title>
 <style>
   *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;margin:0;padding:20px 24px;color:#111}
-  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:10px;margin-bottom:14px}
-  .brand{font-size:20px;font-weight:700;color:#166534;letter-spacing:-0.3px}
-  .brand-sub{font-size:10px;color:#4b7c5e;margin-top:1px}
-  .doc-title{font-size:15px;font-weight:700;color:#111;text-align:right}
-  .doc-ref{font-size:10px;color:#888;text-align:right;margin-top:2px}
-  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:12px}
-  .info-field label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:3px}
-  .info-field .line{border-bottom:1.5px solid #333;height:22px}
-  .wtr-box{background:#fffbeb;border:1px solid #d97706;border-radius:3px;padding:7px 10px;margin-bottom:12px;font-size:10px;color:#78350f;line-height:1.5}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;margin:0;padding:16px 20px;color:#111}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:8px;margin-bottom:10px}
+  .brand{font-size:19px;font-weight:700;color:#166534;letter-spacing:-0.3px}
+  .brand-sub{font-size:9.5px;color:#4b7c5e;margin-top:1px}
+  .doc-title{font-size:14px;font-weight:700;color:#111;text-align:right}
+  .doc-ref{font-size:9.5px;color:#888;text-align:right;margin-top:2px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px 18px;margin-bottom:9px}
+  .info-field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:2px}
+  .info-field .line{border-bottom:1.5px solid #333;height:19px}
+  .wtr-box{background:#fffbeb;border:1px solid #d97706;border-radius:3px;padding:5px 9px;margin-bottom:9px;font-size:9.5px;color:#78350f;line-height:1.45}
   .wtr-box strong{color:#92400e}
-  table{width:100%;border-collapse:collapse;margin-bottom:10px}
-  th{background:#166534;color:#fff;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:6px 7px;border:1px solid #155e2f;text-align:left}
-  td{border:1px solid #ccc;padding:0;height:26px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;margin-bottom:8px}
+  th{background:#166534;color:#fff;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #155e2f;text-align:left}
+  td{border:1px solid #ccc;padding:0;height:23px;vertical-align:middle}
   td:nth-child(5),td:nth-child(6){text-align:right}
-  .totals-row td{border:1px solid #aaa;background:#f0f7f0;font-weight:700;padding:5px 7px;height:auto}
-  .totals-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#555}
-  .section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#166534;margin:12px 0 5px}
-  .task-ref{display:grid;grid-template-columns:repeat(4,1fr);gap:1px 12px;margin-bottom:12px}
-  .task-ref ol{margin:0;padding-left:16px;font-size:10px;color:#444;line-height:1.7}
-  .signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px}
-  .sig-block label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:3px}
-  .sig-block .line{border-bottom:1.5px solid #333;height:30px;margin-bottom:8px}
-  .footer-note{margin-top:14px;border-top:1px solid #ddd;padding-top:8px;font-size:9.5px;color:#666;text-align:center}
-  @media print{body{padding:14px 18px}@page{size:A4;margin:10mm}}
+  .totals-row td{border:1px solid #aaa;background:#f0f7f0;font-weight:700;padding:4px 6px;height:auto}
+  .totals-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#555}
+  .section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#166534;margin:9px 0 4px}
+  .task-ref{display:grid;grid-template-columns:repeat(4,1fr);gap:1px 10px;margin-bottom:9px}
+  .task-ref ol{margin:0;padding-left:15px;font-size:9.5px;color:#444;line-height:1.55}
+  .signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:10px}
+  .sig-block label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:2px}
+  .sig-block .line{border-bottom:1.5px solid #333;height:26px;margin-bottom:6px}
+  .footer-note{margin-top:10px;border-top:1px solid #ddd;padding-top:6px;font-size:9px;color:#666;text-align:center}
+  @media print{body{padding:10px 14px}@page{size:A4 portrait;margin:8mm}}
 </style>
 </head>
 <body>
