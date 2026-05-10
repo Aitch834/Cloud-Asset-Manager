@@ -853,10 +853,14 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/actual-attendance`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then(r => r.json()),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const v = variables as { staffName: string; date: string; actualStatus: string };
       toast({ title: "Attendance logged" });
       qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
       setQuickLog(null); setQlStatus("absent_sick"); setQlNotes("");
+      if (v.actualStatus === "absent_holiday") {
+        setPendingHolidayLog({ staffName: v.staffName, date: v.date });
+      }
     },
   });
 
