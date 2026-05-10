@@ -93,7 +93,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
   const [mapBlock, setMapBlock] = useState<{ id: number; name: string } | null>(null);
 
   const { data: blocks = [], isLoading } = useQuery({ queryKey: ["horti-blocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks`), { credentials: "include" }).then(r => r.json()) });
-  const { data: farmFields = [] } = useQuery({ queryKey: ["farm-fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.ok ? r.json() : []) });
+  const { data: farmFields = [] } = useQuery({ queryKey: ["farm-fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.ok ? r.json().then((d: { records?: unknown[] } | unknown[]) => (Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? [])) : []) });
 
   useEffect(() => {
     if (open && !editing) {

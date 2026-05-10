@@ -5908,9 +5908,8 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                   </Button>
                 )}
               </div>
-              {!(form.testType === "pre-movement" || form.testType === "post-movement") && (
-                <div className="col-span-2">
-                  <Label>Link to Livestock Movement Record <span className="font-normal text-muted-foreground text-xs">(optional)</span></Label>
+              <div className="col-span-2">
+                  <Label>Link to Livestock Movement Record <span className="font-normal text-muted-foreground text-xs">{(form.testType === "pre-movement" || form.testType === "post-movement") ? "(required for pre/post-movement tests)" : "(optional)"}</span></Label>
                   <select
                     value={form.movementId ?? ""}
                     onChange={e => setF("movementId", e.target.value ? Number(e.target.value) : null)}
@@ -5924,7 +5923,6 @@ function TbTestsSection({ farmId }: { farmId: number }) {
                     ))}
                   </select>
                 </div>
-              )}
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
             <DialogFooter className="mt-4">

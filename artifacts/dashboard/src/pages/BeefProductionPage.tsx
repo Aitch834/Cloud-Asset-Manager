@@ -192,7 +192,8 @@ function FinishingTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-finishing", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-finishing-records`), { credentials: "include" }).then(r => r.json()) });
-  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
+  const { data: herdsRaw2 } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
+  const herds: Record<string, unknown>[] = Array.isArray(herdsRaw2) ? herdsRaw2 : [];
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-finishing-records/${editing.id}`) : api(`farms/${farmId}/beef-finishing-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
