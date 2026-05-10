@@ -1133,6 +1133,137 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   const [form, setForm] = useState(emptyForm());
   const sf = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  const { data: absenceFarmData } = useQuery<{ record: { name: string; cphNumber?: string } }>({
+    queryKey: ["farm-record", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const absenceFarmName = absenceFarmData?.record?.name ?? "";
+
+  const printBlankLeaveForm = () => {
+    const printed = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const leaveTypes = ["Annual Leave", "Compassionate Leave", "Maternity / Paternity Leave", "Unpaid Leave", "Training Day", "TOIL (Time Off in Lieu)", "Other (specify below)"];
+    const checkboxes = leaveTypes.map(t => `
+      <div class="cb-row"><span class="cb"></span><span class="cb-label">${t}</span></div>`).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Leave Request Form — BDE Farm Trac</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;margin:0;padding:18px 22px;color:#111}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:9px;margin-bottom:14px}
+  .brand{font-size:20px;font-weight:700;color:#166534;letter-spacing:-0.3px}
+  .brand-sub{font-size:9.5px;color:#4b7c5e;margin-top:1px}
+  .doc-title{font-size:15px;font-weight:700;color:#111;text-align:right}
+  .doc-ref{font-size:9.5px;color:#888;text-align:right;margin-top:2px}
+  .section{margin-bottom:14px}
+  .section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#166534;margin-bottom:7px;padding-bottom:3px;border-bottom:1px solid #bbf7d0}
+  .field-grid{display:grid;gap:9px 18px}
+  .field-grid-2{grid-template-columns:1fr 1fr}
+  .field-grid-3{grid-template-columns:1fr 1fr 1fr}
+  .field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:3px}
+  .field .line{border-bottom:1.5px solid #333;min-height:22px;padding-bottom:3px}
+  .field .box{border:1px solid #333;min-height:56px;border-radius:2px;padding:4px}
+  .cb-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-top:4px}
+  .cb-row{display:flex;align-items:center;gap:8px}
+  .cb{display:inline-block;width:14px;height:14px;border:1.5px solid #333;border-radius:2px;flex-shrink:0}
+  .cb-label{font-size:10.5px;color:#222}
+  .date-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 18px;margin-top:8px}
+  .info-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:3px;padding:7px 10px;font-size:9.5px;color:#14532d;line-height:1.55;margin-bottom:14px}
+  .decision-box{border:2px solid #333;border-radius:3px;padding:10px 12px;margin-bottom:14px}
+  .decision-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#111;margin-bottom:8px}
+  .decision-row{display:flex;gap:32px;margin-bottom:10px}
+  .decision-opt{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700}
+  .decision-cb{display:inline-block;width:18px;height:18px;border:2px solid #333;border-radius:2px;flex-shrink:0}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 18px;margin-top:8px}
+  .footer-note{margin-top:14px;border-top:1px solid #ddd;padding-top:7px;font-size:9px;color:#666;text-align:center}
+  @media print{body{padding:12px 16px}@page{size:A4 portrait;margin:9mm}}
+</style>
+</head><body>
+
+<div class="header">
+  <div>
+    <div class="brand">BDE Farm Trac</div>
+    <div class="brand-sub">Barnett Davies Enterprises Ltd · bdefarmtrac.co.uk</div>
+  </div>
+  <div>
+    <div class="doc-title">Leave / Holiday Request Form</div>
+    <div class="doc-ref">Form FT-LR-01 &nbsp;|&nbsp; Printed: ${printed}</div>
+  </div>
+</div>
+
+<div class="info-box">
+  Complete this form and hand it to your manager. For staff with app access, you can also submit requests digitally via the <strong>BDE Farm Trac mobile app</strong> — your manager will receive an instant notification and you will receive a text message when the request is actioned.
+</div>
+
+<div class="section">
+  <div class="section-title">Employee Details</div>
+  <div class="field-grid field-grid-3">
+    <div class="field"><label>Full Name</label><div class="line"></div></div>
+    <div class="field"><label>Farm / Business</label><div class="line">${absenceFarmName}</div></div>
+    <div class="field"><label>Date of Request</label><div class="line"></div></div>
+    <div class="field"><label>Job Title / Role</label><div class="line"></div></div>
+    <div class="field"><label>Department / Team</label><div class="line"></div></div>
+    <div class="field"><label>Line Manager</label><div class="line"></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Type of Leave Requested <span style="font-weight:400;font-size:9px;text-transform:none;letter-spacing:0">(tick one)</span></div>
+  <div class="cb-grid">${checkboxes}</div>
+  <div style="margin-top:8px" class="field"><label>If "Other" — please specify</label><div class="line"></div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Dates &amp; Duration</div>
+  <div class="date-grid">
+    <div class="field"><label>First Day of Leave</label><div class="line"></div></div>
+    <div class="field"><label>Last Day of Leave</label><div class="line"></div></div>
+    <div class="field"><label>Total Days Requested</label><div class="line"></div></div>
+  </div>
+  <div style="margin-top:10px" class="field"><label>Is any of this leave unpaid? &nbsp; &nbsp;Yes &nbsp;/&nbsp; No (circle)</label><div class="line" style="min-height:18px"></div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Additional Information / Reason <span style="font-weight:400;font-size:9px;text-transform:none;letter-spacing:0">(optional — may be required for compassionate / unpaid leave)</span></div>
+  <div class="field"><div class="box" style="min-height:52px"></div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Employee Declaration</div>
+  <p style="font-size:10px;color:#333;margin:0 0 8px">I confirm that the information above is accurate and that I have sufficient annual leave entitlement remaining to cover this request (or I understand this request may be taken as unpaid leave).</p>
+  <div class="sig-grid">
+    <div class="field"><label>Employee Signature</label><div class="line" style="min-height:32px"></div></div>
+    <div class="field"><label>Print Name</label><div class="line" style="min-height:32px"></div></div>
+    <div class="field"><label>Date Signed</label><div class="line" style="min-height:32px"></div></div>
+  </div>
+</div>
+
+<div class="decision-box">
+  <div class="decision-title">For Manager Use Only</div>
+  <div class="decision-row">
+    <div class="decision-opt"><div class="decision-cb"></div> APPROVED</div>
+    <div class="decision-opt"><div class="decision-cb"></div> DECLINED</div>
+    <div class="decision-opt"><div class="decision-cb"></div> APPROVED (part) — see notes</div>
+  </div>
+  <div class="field-grid field-grid-2" style="margin-bottom:8px">
+    <div class="field"><label>If declined / part-approved — reason</label><div class="box" style="min-height:40px"></div></div>
+    <div class="field"><label>Leave balance remaining after this request</label><div class="line" style="margin-top:28px"></div></div>
+  </div>
+  <div class="sig-grid">
+    <div class="field"><label>Manager Name</label><div class="line" style="min-height:32px"></div></div>
+    <div class="field"><label>Manager Signature</label><div class="line" style="min-height:32px"></div></div>
+    <div class="field"><label>Date</label><div class="line" style="min-height:32px"></div></div>
+  </div>
+  <p style="font-size:9px;color:#555;margin:8px 0 0">Once signed by the manager, please return a copy to the employee and retain the original for payroll / HR records. Log this absence in BDE Farm Trac (Labour → Holiday &amp; Absence) to keep the digital record up to date.</p>
+</div>
+
+<div class="footer-note">BDE Farm Trac — Barnett Davies Enterprises Ltd · Confidential HR Document · Form FT-LR-01 · bdefarmtrac.co.uk</div>
+</body></html>`;
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => { w.addEventListener("afterprint", () => w.close()); w.print(); }, 400);
+  };
+
   const absQ = useQuery<{ absences: Absence[] }>({
     queryKey: ["labour-absences", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/labour/absences`).then(r => r.json()),
@@ -1398,9 +1529,14 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
             {ABSENCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button className="ml-auto" size="sm" onClick={() => { setForm(emptyForm()); setEditItem(null); setAddOpen(true); }}>
-          <Plus size={14} className="mr-1" /> Record Absence
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={printBlankLeaveForm} title="Print a blank paper leave request form for staff without system or mobile access">
+            <Printer size={14} className="mr-1" /> Blank Leave Form
+          </Button>
+          <Button size="sm" onClick={() => { setForm(emptyForm()); setEditItem(null); setAddOpen(true); }}>
+            <Plus size={14} className="mr-1" /> Record Absence
+          </Button>
+        </div>
       </div>
 
       {/* Absence table */}
