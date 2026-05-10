@@ -5785,7 +5785,13 @@ function TbTestsSection({ farmId }: { farmId: number }) {
               {viewItem.aphaCaseRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Case Ref</p><p className="font-medium font-mono">{viewItem.aphaCaseRef}</p></div>}
               {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
               {(viewItem.documentName || viewItem.documentPath) && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Document</p><a href={viewItem.documentPath ? `/api/storage${viewItem.documentPath}` : (viewItem.documentUrl ?? "#")} target="_blank" rel="noreferrer" className="text-primary text-xs underline">{viewItem.documentName || "View Document"}</a></div>}
-          {viewItem.animalEarTags && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Ear Tags ({viewItem.animalEarTags.split("\n").filter(t => t.trim()).length})</p><pre className="text-xs font-mono bg-muted rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">{viewItem.animalEarTags}</pre></div>}
+              {viewItem.animalEarTags && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Ear Tags ({viewItem.animalEarTags.split("\n").filter(t => t.trim()).length})</p><pre className="text-xs font-mono bg-muted rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">{viewItem.animalEarTags}</pre></div>}
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Linked Movement Record</p>
+                {viewItem.movementId
+                  ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-green-100 text-green-800 mt-0.5">✓ Movement #{viewItem.movementId} linked — pre/post-movement audit trail complete</span>
+                  : <span className="text-sm text-muted-foreground">{(viewItem.testType === "pre-movement" || viewItem.testType === "post-movement") ? <span className="text-amber-700 font-medium">Not yet linked — edit this record to link the corresponding off-farm movement</span> : "Not linked (optional for routine tests)"}</span>}
+              </div>
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>

@@ -296,6 +296,14 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
               {viewSale.deliveryDate && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Date</p><p>{fmtDate(viewSale.deliveryDate)}</p></div>}
               {viewSale.deliveryLocation && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Location</p><p>{viewSale.deliveryLocation}</p></div>}
               {viewSale.gradeAchieved && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Grade</p><p>{viewSale.gradeAchieved}</p></div>}
+              {viewSale.linkedContractId != null && (
+                <div style={{ gridColumn: "1/-1" }}>
+                  <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Linked Forward Contract</p>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#dcfce7", color: "#166534" }}>
+                    ✓ Contract #{viewSale.linkedContractId} — {contracts.find((c: any) => c.id === viewSale.linkedContractId) ? `${contracts.find((c: any) => c.id === viewSale.linkedContractId)?.buyer ?? "Unknown"} · ${contracts.find((c: any) => c.id === viewSale.linkedContractId)?.commodity ?? ""}` : "linked"}
+                  </span>
+                </div>
+              )}
             </div>
             {viewSale.notes && <div style={{ marginTop: 8 }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ fontSize: "0.875rem", whiteSpace: "pre-line", color: "#374151" }}>{viewSale.notes}</p></div>}
             <DialogFooter>
@@ -524,6 +532,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [deleteMartId, setDeleteMartId] = useState<number | null>(null);
   const [lsYearFilter, setLsYearFilter] = useState("__all__");
   const [expandedDWId, setExpandedDWId] = useState<number | null>(null);
+  const [viewDW, setViewDW] = useState<any | null>(null);
+  const [viewMart, setViewMart] = useState<any | null>(null);
 
   const emptyDW = {
     killDate: "", processorId: null as number | null, processor: "", species: "", breed: "", headCount: "",
@@ -767,6 +777,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                             {expandedDWId === r.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" onClick={() => setViewDW(r)} title="View"><Eye size={14} /></Button>
                         <Button size="sm" variant="ghost" onClick={() => { setEditingDW(r); setFormDW({ ...r, killDate: r.killDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenDW(true); }}><Pencil size={14} /></Button>
                         <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteDWId(r.id)}><Trash2 size={14} /></Button>
                       </div>
@@ -829,6 +840,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "8px 12px", color: "#6b7280" }}>{r.buyerName ?? "—"}</td>
                   <td style={{ padding: "8px 12px" }}>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="ghost" onClick={() => setViewMart(r)} title="View"><Eye size={14} /></Button>
                       <Button size="sm" variant="ghost" onClick={() => { setEditingMart(r); setFormMart({ ...r, saleDate: r.saleDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenMart(true); }}><Pencil size={14} /></Button>
                       <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteMartId(r.id)}><Trash2 size={14} /></Button>
                     </div>
@@ -1031,6 +1043,78 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Deadweight Kill Sheet View Dialog */}
+      {viewDW && (
+        <Dialog open onOpenChange={() => setViewDW(null)}>
+          <DialogContent style={{ maxWidth: 600 }}>
+            <DialogHeader><DialogTitle>Kill Sheet — {fmtDate(viewDW.killDate)}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: "0.875rem", padding: "4px 0" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Kill Date</p><p>{fmtDate(viewDW.killDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Processor</p><p style={{ fontWeight: 600 }}>{viewDW.processor}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Species</p><p>{viewDW.species}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Head Count</p><p>{viewDW.headCount}</p></div>
+              {viewDW.breed && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Breed</p><p>{viewDW.breed}</p></div>}
+              {viewDW.totalDeadweightKg && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Total DW (kg)</p><p>{parseFloat(viewDW.totalDeadweightKg).toFixed(1)} kg</p></div>}
+              {viewDW.averageDeadweightKg && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Avg DW (kg)</p><p>{parseFloat(viewDW.averageDeadweightKg).toFixed(1)} kg</p></div>}
+              {viewDW.pricePerKgPence && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Price/kg</p><p>{viewDW.pricePerKgPence}p/kg</p></div>}
+              {viewDW.gradeClassification && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Grade</p><p>{viewDW.gradeClassification}</p></div>}
+              {viewDW.fatClass && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Fat Class</p><p>{viewDW.fatClass}</p></div>}
+              {viewDW.killSheetRef && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Kill Sheet Ref</p><p className="font-mono text-xs">{viewDW.killSheetRef}</p></div>}
+              {viewDW.grossValuePence != null && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Gross Value</p><p>{pToGBP(viewDW.grossValuePence)}</p></div>}
+              {viewDW.netPaymentPence != null && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Net Payment</p><p style={{ fontWeight: 600, color: "#15803d" }}>{pToGBP(viewDW.netPaymentPence)}</p></div>}
+              {viewDW.paymentDate && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Payment Date</p><p>{fmtDate(viewDW.paymentDate)}</p></div>}
+              {viewDW.premiumSchemeName && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Premium Scheme</p><p>{viewDW.premiumSchemeName}</p></div>}
+              {viewDW.vendorDeclarationRef && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Vendor Declaration</p><p className="font-mono text-xs">{viewDW.vendorDeclarationRef}</p></div>}
+              <div style={{ gridColumn: "1/-1" }}>
+                <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Linked Off-Farm Movement</p>
+                {viewDW.movementId
+                  ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#dcfce7", color: "#166534" }}>✓ Movement #{viewDW.movementId} linked — BCMS audit trail complete</span>
+                  : <span style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Not linked — edit to link the corresponding off-farm movement record</span>}
+              </div>
+              {viewDW.notes && <div style={{ gridColumn: "1/-1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ fontSize: "0.875rem", whiteSpace: "pre-line", color: "#374151" }}>{viewDW.notes}</p></div>}
+            </div>
+            <DialogFooter style={{ marginTop: 12 }}>
+              <Button variant="outline" onClick={() => { setEditingDW(viewDW); setFormDW({ ...viewDW, killDate: viewDW.killDate?.slice(0, 10) ?? "", paymentDate: viewDW.paymentDate?.slice(0, 10) ?? "" }); setOpenDW(true); setViewDW(null); }}><Pencil size={13} style={{ marginRight: 4 }} />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewDW(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Mart Sale View Dialog */}
+      {viewMart && (
+        <Dialog open onOpenChange={() => setViewMart(null)}>
+          <DialogContent style={{ maxWidth: 600 }}>
+            <DialogHeader><DialogTitle>Mart Sale — {fmtDate(viewMart.saleDate)}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: "0.875rem", padding: "4px 0" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Sale Date</p><p>{fmtDate(viewMart.saleDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Mart</p><p style={{ fontWeight: 600 }}>{viewMart.martName}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Species</p><p>{viewMart.species}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Category</p><p>{viewMart.category}</p></div>
+              {viewMart.lotNumber && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Lot Number</p><p className="font-mono text-xs">{viewMart.lotNumber}</p></div>}
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Head Count</p><p>{viewMart.headCount}</p></div>
+              {viewMart.pricePerUnitPence != null && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Price/Unit</p><p>{pToGBP(viewMart.pricePerUnitPence)}</p></div>}
+              {viewMart.netPaymentPence != null && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Net Payment</p><p style={{ fontWeight: 600, color: "#1d4ed8" }}>{pToGBP(viewMart.netPaymentPence)}</p></div>}
+              {viewMart.buyerName && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Buyer</p><p>{viewMart.buyerName}</p></div>}
+              {viewMart.auctioneerRef && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Auctioneer Ref</p><p className="font-mono text-xs">{viewMart.auctioneerRef}</p></div>}
+              {viewMart.paymentDate && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Payment Date</p><p>{fmtDate(viewMart.paymentDate)}</p></div>}
+              {viewMart.martLocation && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Mart Location</p><p>{viewMart.martLocation}</p></div>}
+              <div style={{ gridColumn: "1/-1" }}>
+                <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Linked Off-Farm Movement</p>
+                {viewMart.movementId
+                  ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#dbeafe", color: "#1e40af" }}>✓ Movement #{viewMart.movementId} linked — LIS/BCMS audit trail complete</span>
+                  : <span style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Not linked — edit to link the corresponding off-farm movement record</span>}
+              </div>
+              {viewMart.notes && <div style={{ gridColumn: "1/-1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ fontSize: "0.875rem", whiteSpace: "pre-line", color: "#374151" }}>{viewMart.notes}</p></div>}
+            </div>
+            <DialogFooter style={{ marginTop: 12 }}>
+              <Button variant="outline" onClick={() => { setEditingMart(viewMart); setFormMart({ ...viewMart, saleDate: viewMart.saleDate?.slice(0, 10) ?? "", paymentDate: viewMart.paymentDate?.slice(0, 10) ?? "" }); setOpenMart(true); setViewMart(null); }}><Pencil size={13} style={{ marginRight: 4 }} />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewMart(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
