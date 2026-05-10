@@ -68,3 +68,15 @@ export const labourHourlyRatesTable = pgTable("labour_hourly_rates", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const labourActualAttendanceTable = pgTable("labour_actual_attendance", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  date: date("date").notNull(),
+  staffName: text("staff_name").notNull(),
+  actualStatus: text("actual_status").notNull(),
+  plannedShift: text("planned_shift"),
+  notes: text("notes"),
+  loggedBy: text("logged_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

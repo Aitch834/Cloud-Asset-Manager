@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
-  CheckCircle2, AlertTriangle, XCircle, Download, Bell,
+  CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -97,6 +97,11 @@ type Entitlement = {
 type HourlyRate = {
   id: number; farmId: number; staffName: string; regularRatePence: number;
   overtimeRatePence: number; effectiveFrom: string; notes: string | null;
+};
+type ActualAttendance = {
+  id: number; farmId: number; date: string; staffName: string;
+  actualStatus: string; plannedShift: string | null; notes: string | null;
+  loggedBy: string | null; createdAt: string;
 };
 
 // ─── Tab Button ──────────────────────────────────────────────────────────────
@@ -808,6 +813,9 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
   const [weekStart, setWeekStart] = useState<Date>(getMondayOfWeek(new Date()));
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [pendingHolidayLog, setPendingHolidayLog] = useState<{ staffName: string; date: string } | null>(null);
+  const [quickLog, setQuickLog] = useState<{ staffName: string; date: string; planned: string | null } | null>(null);
+  const [qlStatus, setQlStatus] = useState("absent_sick");
+  const [qlNotes, setQlNotes] = useState("");
 
   const logAbsenceMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, {
@@ -817,6 +825,17 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
       toast({ title: "Annual leave logged and deducted from entitlement" });
       qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
       setPendingHolidayLog(null);
+    },
+  });
+
+  const logAttMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/actual-attendance`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Attendance logged" });
+      qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
+      setQuickLog(null); setQlStatus("absent_sick"); setQlNotes("");
     },
   });
 
@@ -883,6 +902,9 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
   };
 
   const dayDates = DAYS.map((_, i) => addDays(weekStart, i));
+  const todayStr = isoDate(new Date());
+  const weekContainsToday = dayDates.some(d => isoDate(d) === todayStr);
+  const todayDayIndex = dayDates.findIndex(d => isoDate(d) === todayStr);
 
   return (
     <div className="space-y-4">
@@ -932,7 +954,24 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
                 const row = rotaMap.get(name);
                 return (
                   <tr key={name} className="hover:bg-gray-50/30">
-                    <td className="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white">{name}</td>
+                    <td className="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white">
+                      <div className="flex items-center justify-between gap-1">
+                        <span>{name}</span>
+                        {weekContainsToday && (
+                          <button
+                            title="Log today's actual attendance"
+                            className="text-gray-300 hover:text-amber-500 transition-colors"
+                            onClick={() => {
+                              const planned = todayDayIndex >= 0 ? (row?.[DAY_KEYS[todayDayIndex]] ?? null) : null;
+                              setQuickLog({ staffName: name, date: todayStr, planned });
+                              setQlStatus("absent_sick"); setQlNotes("");
+                            }}
+                          >
+                            <Zap size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     {DAY_KEYS.map(dayKey => {
                       const val = row?.[dayKey] ?? null;
                       const key = `${name}-${dayKey}`;
@@ -986,6 +1025,52 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
                 disabled={logAbsenceMut.isPending}
               >
                 {logAbsenceMut.isPending ? "Saving…" : "Yes — log annual leave"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {quickLog && (
+        <Dialog open onOpenChange={o => { if (!o) setQuickLog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Log today's attendance</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-1">
+              <p className="text-sm text-gray-600">
+                Recording actual attendance for <strong>{quickLog.staffName}</strong> — {fmtDate(quickLog.date)}
+              </p>
+              {quickLog.planned && (
+                <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                  Planned on rota: <strong>{SHIFT_TYPES.find(s => s.value === quickLog.planned)?.label ?? quickLog.planned}</strong>
+                </p>
+              )}
+              <div>
+                <Label className="text-xs">Actual status</Label>
+                <Select value={qlStatus} onValueChange={setQlStatus}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="present">Present ✓</SelectItem>
+                    <SelectItem value="absent_sick">Absent – Sick</SelectItem>
+                    <SelectItem value="absent_holiday">Absent – Holiday</SelectItem>
+                    <SelectItem value="absent_unauthorised">Absent – Unauthorised</SelectItem>
+                    <SelectItem value="late">Late</SelectItem>
+                    <SelectItem value="left_early">Left Early</SelectItem>
+                    <SelectItem value="day_off">Day Off</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Notes (optional)</Label>
+                <Input className="mt-1" value={qlNotes} onChange={e => setQlNotes(e.target.value)} placeholder="e.g. phoned in at 07:30, feeling unwell" />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setQuickLog(null)}>Cancel</Button>
+              <Button
+                onClick={() => logAttMut.mutate({ staffName: quickLog.staffName, date: quickLog.date, actualStatus: qlStatus, plannedShift: quickLog.planned, notes: qlNotes || null })}
+                disabled={logAttMut.isPending}
+              >
+                {logAttMut.isPending ? "Saving…" : "Save"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1558,6 +1643,312 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   );
 }
 
+// ─── Actual Attendance Tab ────────────────────────────────────────────────────
+
+const ACTUAL_OPTS = [
+  { value: "present",              label: "Present",               color: "#16a34a" },
+  { value: "absent_sick",          label: "Absent – Sick",         color: "#dc2626" },
+  { value: "absent_holiday",       label: "Absent – Holiday",      color: "#f59e0b" },
+  { value: "absent_unauthorised",  label: "Absent – Unauthorised", color: "#7c3aed" },
+  { value: "late",                 label: "Late",                  color: "#0891b2" },
+  { value: "left_early",           label: "Left Early",            color: "#ea580c" },
+  { value: "day_off",              label: "Day Off",               color: "#9ca3af" },
+];
+
+function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState(isoDate(new Date()));
+  const [showBradford, setShowBradford] = useState(false);
+  const [localStatus, setLocalStatus] = useState<Record<string, string>>({});
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  const [rowSaving, setRowSaving] = useState<Record<string, boolean>>({});
+
+  const attQ = useQuery<{ records: ActualAttendance[] }>({
+    queryKey: ["labour-actual-attendance", farmId, selectedDate],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/actual-attendance?from=${selectedDate}&to=${selectedDate}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const weekStartStr = useMemo(() => isoDate(getMondayOfWeek(new Date(selectedDate + "T00:00:00"))), [selectedDate]);
+  const rotaQ = useQuery<{ rota: RotaEntry[] }>({
+    queryKey: ["labour-rota", farmId, weekStartStr],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/rota`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const yearFrom = useMemo(() => isoDate(addDays(new Date(), -364)), []);
+  const yearTo = useMemo(() => isoDate(new Date()), []);
+  const yearAttQ = useQuery<{ records: ActualAttendance[] }>({
+    queryKey: ["labour-actual-attendance-year", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/actual-attendance?from=${yearFrom}&to=${yearTo}`).then(r => r.json()),
+    enabled: !!farmId && showBradford,
+  });
+
+  const attMap = useMemo(() => {
+    const m = new Map<string, ActualAttendance>();
+    (attQ.data?.records ?? []).forEach(r => m.set(r.staffName, r));
+    return m;
+  }, [attQ.data]);
+
+  const rotaMap = useMemo(() => {
+    const m = new Map<string, RotaEntry>();
+    (rotaQ.data?.rota ?? []).filter(r => r.weekStartDate === weekStartStr).forEach(r => m.set(r.staffName, r));
+    return m;
+  }, [rotaQ.data, weekStartStr]);
+
+  const dowIndex = useMemo(() => {
+    const d = new Date(selectedDate + "T00:00:00Z");
+    const dow = d.getUTCDay();
+    return dow === 0 ? 6 : dow - 1;
+  }, [selectedDate]);
+
+  const saveMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/actual-attendance`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
+      qc.invalidateQueries({ queryKey: ["labour-actual-attendance-year", farmId] });
+    },
+  });
+
+  const getStatus  = (name: string) => localStatus[name]  ?? attMap.get(name)?.actualStatus ?? "";
+  const getNotes   = (name: string) => localNotes[name]   ?? attMap.get(name)?.notes        ?? "";
+  const getPlanned = (name: string) => { const row = rotaMap.get(name); return row ? (row[DAY_KEYS[dowIndex]] ?? null) : null; };
+
+  const saveRow = async (name: string) => {
+    setRowSaving(p => ({ ...p, [name]: true }));
+    try {
+      const status = getStatus(name) || "present";
+      await saveMut.mutateAsync({ staffName: name, date: selectedDate, actualStatus: status, plannedShift: getPlanned(name), notes: getNotes(name) || null });
+      setLocalStatus(p => { const n = { ...p }; delete n[name]; return n; });
+      setLocalNotes(p => { const n = { ...p }; delete n[name]; return n; });
+      toast({ title: `${name}: attendance saved` });
+    } catch { toast({ title: "Error saving", variant: "destructive" }); }
+    finally { setRowSaving(p => ({ ...p, [name]: false })); }
+  };
+
+  const confirmAllPresent = async () => {
+    const toConfirm = staffNames.filter(name => {
+      const planned = getPlanned(name);
+      return planned && !["day-off", "holiday", "sick"].includes(planned);
+    });
+    await Promise.all(toConfirm.map(name =>
+      saveMut.mutateAsync({ staffName: name, date: selectedDate, actualStatus: "present", plannedShift: getPlanned(name), notes: null }),
+    ));
+    qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
+    toast({ title: `${toConfirm.length} staff confirmed present` });
+  };
+
+  const bradfordData = useMemo(() => {
+    if (!yearAttQ.data) return null;
+    const records = yearAttQ.data.records ?? [];
+    return staffNames.map(name => {
+      const sickDates = records
+        .filter(r => r.staffName === name && r.actualStatus === "absent_sick")
+        .map(r => r.date).sort();
+      let spells = 0; let lastDate: string | null = null;
+      for (const date of sickDates) {
+        if (!lastDate) { spells++; }
+        else {
+          const diffDays = Math.round((new Date(date + "T00:00:00").getTime() - new Date(lastDate + "T00:00:00").getTime()) / 86400000);
+          if (diffDays > 3) spells++;
+        }
+        lastDate = date;
+      }
+      const D = sickDates.length; const B = spells * spells * D;
+      const risk: "low" | "medium" | "high" | "critical" = B >= 150 ? "critical" : B >= 100 ? "high" : B >= 36 ? "medium" : "low";
+      return { name, spells, days: D, bradford: B, risk };
+    }).sort((a, b) => b.bradford - a.bradford);
+  }, [yearAttQ.data, staffNames]);
+
+  const statusOpt  = (s: string) => ACTUAL_OPTS.find(o => o.value === s);
+  const shiftLabel = (v: string | null | undefined) => SHIFT_TYPES.find(t => t.value === v)?.label ?? "—";
+
+  const today   = isoDate(new Date());
+  const isFuture = selectedDate > today;
+
+  const changeDate = (d: string) => { setSelectedDate(d); setLocalStatus({}); setLocalNotes({}); };
+  const prevDay = () => { const d = new Date(selectedDate + "T00:00:00"); d.setDate(d.getDate() - 1); changeDate(isoDate(d)); };
+  const nextDay = () => { const d = new Date(selectedDate + "T00:00:00"); d.setDate(d.getDate() + 1); changeDate(isoDate(d)); };
+
+  return (
+    <div className="space-y-4">
+      {/* Date nav */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <button onClick={prevDay} className="p-1.5 rounded hover:bg-gray-100"><ChevronLeft size={16} /></button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-800 min-w-[130px] text-center">{fmtDate(selectedDate)}</span>
+          {selectedDate === today && <span className="text-xs text-green-600 bg-green-50 rounded-full px-2 py-0.5 font-medium">Today</span>}
+          {isFuture && <span className="text-xs text-amber-600 bg-amber-50 rounded-full px-2 py-0.5 font-medium">Future date</span>}
+        </div>
+        <button onClick={nextDay} className="p-1.5 rounded hover:bg-gray-100"><ChevronRight size={16} /></button>
+        <Button variant="outline" size="sm" onClick={() => changeDate(today)}>Today</Button>
+        <input
+          type="date" value={selectedDate}
+          onChange={e => changeDate(e.target.value)}
+          className="h-8 text-xs border rounded px-2 focus:outline-none focus:ring-1 focus:ring-green-500"
+        />
+        {!isFuture && staffNames.length > 0 && (
+          <Button
+            variant="outline" size="sm" onClick={confirmAllPresent} disabled={saveMut.isPending}
+            className="ml-auto text-green-700 border-green-300 hover:bg-green-50"
+          >
+            <CheckCircle2 size={14} className="mr-1.5" />End-of-day: Confirm all present
+          </Button>
+        )}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-xs text-blue-700 flex items-start gap-2">
+        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-blue-400" />
+        <span>
+          This records <strong>what actually happened</strong> — separate from the planned rota.
+          Log exceptions as they occur (e.g. phone-in sick), then use <em>End-of-day: Confirm all present</em> to confirm everyone else came in as planned.
+          {isFuture && " Actual attendance can only be recorded for today or past dates."}
+        </span>
+      </div>
+
+      {/* Main table */}
+      {staffNames.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 text-sm">No staff found. Add staff members first.</div>
+      ) : (
+        <div className="border rounded-xl overflow-hidden bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-700 min-w-[150px]">Staff Member</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 min-w-[110px]">Planned shift</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 min-w-[200px]">Actual status</th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-500 min-w-[200px]">Notes</th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-500 w-24">Save</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {staffNames.map(name => {
+                const rec     = attMap.get(name);
+                const planned = getPlanned(name);
+                const cur     = getStatus(name);
+                const curNotes = getNotes(name);
+                const isDirty = localStatus[name] !== undefined || localNotes[name] !== undefined;
+                const opt     = statusOpt(cur);
+                const shiftOpt = SHIFT_TYPES.find(s => s.value === planned);
+                const isDisc  = !!rec && !!planned && !["day-off", "holiday", "sick"].includes(planned)
+                  && rec.actualStatus !== "present" && rec.actualStatus !== "late" && rec.actualStatus !== "left_early";
+                return (
+                  <tr key={name} className={`hover:bg-gray-50/30 ${isDisc ? "bg-red-50/40" : ""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">
+                      <div className="flex items-center gap-1.5">
+                        <span>{name}</span>
+                        {isDisc && <AlertTriangle size={12} className="text-red-500 shrink-0" title="Discrepancy: planned shift ≠ actual" />}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {planned ? (
+                        <span className="text-xs rounded-full px-2 py-0.5 font-medium whitespace-nowrap"
+                          style={{ background: (shiftOpt?.color ?? "#9ca3af") + "22", color: shiftOpt?.color ?? "#9ca3af" }}>
+                          {shiftLabel(planned)}
+                        </span>
+                      ) : <span className="text-xs text-gray-400">Not on rota</span>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {isFuture ? (
+                        <span className="text-xs text-gray-400 italic">Future date</span>
+                      ) : (
+                        <Select value={cur || "__none__"} onValueChange={v => setLocalStatus(p => ({ ...p, [name]: v === "__none__" ? "" : v }))}>
+                          <SelectTrigger className="h-8 text-xs w-full" style={opt ? { borderColor: opt.color + "66" } : undefined}>
+                            <SelectValue>
+                              {opt ? <span style={{ color: opt.color, fontWeight: 600 }}>{opt.label}</span>
+                                : <span className="text-gray-400">— Select status —</span>}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Clear —</SelectItem>
+                            {ACTUAL_OPTS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {!isFuture && (
+                        <Input className="h-8 text-xs" value={curNotes}
+                          onChange={e => setLocalNotes(p => ({ ...p, [name]: e.target.value }))}
+                          placeholder="e.g. phoned in 07:30, COVID" />
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {!isFuture && (
+                        <Button size="sm" variant={isDirty ? "default" : "outline"} className="h-7 text-xs px-3"
+                          onClick={() => saveRow(name)}
+                          disabled={rowSaving[name] || (!cur && !isDirty)}>
+                          {rowSaving[name] ? "…" : (rec && !isDirty) ? "✓ Saved" : "Save"}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Bradford Factor */}
+      <div className="border rounded-xl overflow-hidden bg-white">
+        <button
+          className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors text-left"
+          onClick={() => setShowBradford(v => !v)}
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-amber-500" />
+            Bradford Factor — rolling 52-week sickness analysis
+          </span>
+          <span className="text-xs text-gray-400">{showBradford ? "Hide ▲" : "Show ▼"}</span>
+        </button>
+        {showBradford && (
+          <div className="border-t px-4 pb-4 pt-3 space-y-3">
+            <p className="text-xs text-gray-500">
+              <strong>B = S² × D</strong> — S = number of separate sickness spells, D = total sick days in the past 52 weeks.
+              Frequent short spells score higher than one long illness, reflecting disruption to the workplace.
+            </p>
+            {yearAttQ.isLoading ? (
+              <p className="text-xs text-gray-400 italic">Loading attendance data…</p>
+            ) : bradfordData && bradfordData.length > 0 ? (
+              <div className="space-y-1">
+                <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-gray-500 border-b pb-2 px-2">
+                  <span>Staff member</span><span className="text-center">Spells (S)</span>
+                  <span className="text-center">Days sick (D)</span><span className="text-center">Score (B)</span>
+                </div>
+                {bradfordData.map(({ name, spells, days, bradford, risk }) => (
+                  <div key={name} className={`grid grid-cols-4 gap-2 text-sm py-2 rounded-lg px-2 ${
+                    risk === "critical" ? "bg-red-50" : risk === "high" ? "bg-orange-50" : risk === "medium" ? "bg-amber-50/60" : ""}`}>
+                    <span className="font-medium text-gray-800">{name}</span>
+                    <span className="text-center">{spells}</span>
+                    <span className="text-center">{days}</span>
+                    <span className={`text-center font-bold ${
+                      risk === "critical" ? "text-red-600" : risk === "high" ? "text-orange-600" : risk === "medium" ? "text-amber-600" : "text-green-600"}`}>
+                      {bradford}
+                      {risk !== "low" && <span className="ml-1.5 text-xs font-normal opacity-80">
+                        {risk === "critical" ? "⚠ Critical" : risk === "high" ? "High" : "Medium"}
+                      </span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No sickness data recorded yet — use this tab to log actual absences over time.</p>
+            )}
+            <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 space-y-0.5">
+              <p><strong>Guidance thresholds (UK):</strong> 0–35 Normal · 36–99 Informal discussion · 100–149 Formal warning · 150+ Consider dismissal</p>
+              <p>These are guidelines only — always apply your farm's own absence policy and take HR advice for formal actions.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Pay Summary Tab ──────────────────────────────────────────────────────────
 
 function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
@@ -1879,7 +2270,7 @@ function WorkingTimeTab({ farmId, staffNames }: { farmId: number; staffNames: st
 
 // ─── Main Labour Page ─────────────────────────────────────────────────────────
 
-type LabourTab = "timesheets" | "rota" | "absence" | "pay" | "wtr";
+type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr";
 
 export default function LabourPage() {
   const { farmId } = useAppStore();
@@ -1934,6 +2325,7 @@ export default function LabourPage() {
       {/* Tab bar */}
       <div className="border-b flex gap-0 overflow-x-auto mb-6">
         <TabBtn active={tab === "rota"} onClick={() => setTab("rota")} icon={CalendarDays} label="Rota & Shifts" />
+        <TabBtn active={tab === "actual"} onClick={() => setTab("actual")} icon={UserCheck} label="Actual Attendance" />
         <TabBtn active={tab === "timesheets"} onClick={() => setTab("timesheets")} icon={Clock} label="Timesheets" badge={pendingBadge} />
         <TabBtn active={tab === "absence"} onClick={() => setTab("absence")} icon={UmbrellaOff} label="Holiday & Absence" badge={absencePendingBadge} />
         <TabBtn active={tab === "pay"} onClick={() => setTab("pay")} icon={PoundSterling} label="Pay Summary" />
@@ -1942,6 +2334,7 @@ export default function LabourPage() {
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} />}
       {tab === "rota" && <RotaTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "actual" && <ActualAttendanceTab farmId={farmId} staffNames={staffNames} />}
       {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} />}
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} />}
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} />}

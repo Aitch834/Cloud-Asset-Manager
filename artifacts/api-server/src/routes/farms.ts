@@ -320,6 +320,7 @@ import {
   labourAbsencesTable,
   labourLeaveEntitlementTable,
   labourHourlyRatesTable,
+  labourActualAttendanceTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory } from "../lib/alertingJob";
@@ -23566,6 +23567,47 @@ router.put("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, 
 router.delete("/farms/:farmId/grain-conditioning/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string); const id = parseInt(req.params.id as string);
   await db.execute(sql`DELETE FROM grain_conditioning_log WHERE id = ${id} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
+// ─── Labour: Actual Attendance ────────────────────────────────────────────────
+router.get("/farms/:farmId/labour/actual-attendance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const from = req.query.from ? String(req.query.from) : null;
+  const to = req.query.to ? String(req.query.to) : null;
+  let records = db.select().from(labourActualAttendanceTable).where(eq(labourActualAttendanceTable.farmId, farmId));
+  if (from && to) {
+    const rows = await db.select().from(labourActualAttendanceTable).where(and(eq(labourActualAttendanceTable.farmId, farmId), gte(labourActualAttendanceTable.date, from), lte(labourActualAttendanceTable.date, to))).orderBy(desc(labourActualAttendanceTable.date));
+    res.json({ records: rows }); return;
+  }
+  const rows = await records.orderBy(desc(labourActualAttendanceTable.date));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/labour/actual-attendance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  const existing = await db.select().from(labourActualAttendanceTable).where(and(eq(labourActualAttendanceTable.farmId, farmId), eq(labourActualAttendanceTable.date, String(b.date ?? "")), eq(labourActualAttendanceTable.staffName, String(b.staffName ?? "")))).limit(1);
+  if (existing.length > 0) {
+    const [record] = await db.update(labourActualAttendanceTable).set({ actualStatus: String(b.actualStatus ?? "present"), plannedShift: b.plannedShift ? String(b.plannedShift) : null, notes: b.notes ? String(b.notes) : null, loggedBy: b.loggedBy ? String(b.loggedBy) : null }).where(eq(labourActualAttendanceTable.id, existing[0].id)).returning();
+    res.json({ record }); return;
+  }
+  const [record] = await (db.insert(labourActualAttendanceTable) as any).values({ farmId, date: String(b.date ?? ""), staffName: String(b.staffName ?? ""), actualStatus: String(b.actualStatus ?? "present"), plannedShift: b.plannedShift ? String(b.plannedShift) : null, notes: b.notes ? String(b.notes) : null, loggedBy: b.loggedBy ? String(b.loggedBy) : null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/labour/actual-attendance/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const [record] = await db.update(labourActualAttendanceTable).set({ actualStatus: String(b.actualStatus ?? "present"), plannedShift: b.plannedShift ? String(b.plannedShift) : null, notes: b.notes ? String(b.notes) : null, loggedBy: b.loggedBy ? String(b.loggedBy) : null }).where(and(eq(labourActualAttendanceTable.id, id), eq(labourActualAttendanceTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/labour/actual-attendance/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(labourActualAttendanceTable).where(and(eq(labourActualAttendanceTable.id, id), eq(labourActualAttendanceTable.farmId, farmId)));
   res.json({ success: true });
 });
 
