@@ -336,15 +336,15 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
   const addMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/timesheets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Entry saved" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
+    onSuccess: () => { toast({ title: "Entry saved" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
   });
   const editMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Entry updated" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); setEditItem(null); setAddOpen(false); setForm(emptyForm()); },
+    onSuccess: () => { toast({ title: "Entry updated" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setEditItem(null); setAddOpen(false); setForm(emptyForm()); },
   });
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Entry deleted" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); },
+    onSuccess: () => { toast({ title: "Entry deleted" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); },
   });
 
   const openEdit = (e: TimesheetEntry) => {
