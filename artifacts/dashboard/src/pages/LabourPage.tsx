@@ -807,6 +807,18 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
   const { toast } = useToast();
   const [weekStart, setWeekStart] = useState<Date>(getMondayOfWeek(new Date()));
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [pendingHolidayLog, setPendingHolidayLog] = useState<{ staffName: string; date: string } | null>(null);
+
+  const logAbsenceMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Annual leave logged and deducted from entitlement" });
+      qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
+      setPendingHolidayLog(null);
+    },
+  });
 
   const q = useQuery<{ rota: RotaEntry[] }>({
     queryKey: ["labour-rota", farmId, isoDate(weekStart)],
@@ -846,6 +858,11 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
       }
       qc.invalidateQueries({ queryKey: ["labour-rota", farmId, isoDate(weekStart)] });
       qc.invalidateQueries({ queryKey: ["labour-rota", farmId] });
+      if (shiftVal === "holiday") {
+        const dayIndex = DAY_KEYS.indexOf(dayKey as typeof DAY_KEYS[number]);
+        const date = isoDate(addDays(weekStart, dayIndex));
+        setPendingHolidayLog({ staffName, date });
+      }
     } catch { toast({ title: "Error saving shift", variant: "destructive" }); }
     finally { setSaving(p => ({ ...p, [key]: false })); }
   };
@@ -877,6 +894,7 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
         </span>
         <button onClick={nextWeek} className="p-1.5 rounded hover:bg-gray-100"><ChevronRight size={16} /></button>
         <Button variant="outline" size="sm" onClick={goToday}>Today</Button>
+        <span className="text-xs text-green-600 flex items-center gap-1 ml-1"><CheckCircle2 size={12} />Auto-saved</span>
         <div className="ml-auto">
           <Button variant="outline" size="sm" onClick={printRota}><Printer size={14} className="mr-1" /> Print Rota</Button>
         </div>
@@ -942,6 +960,37 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
           </table>
         </div>
       )}
+
+      {pendingHolidayLog && (
+        <Dialog open onOpenChange={o => { if (!o) setPendingHolidayLog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Log against annual leave?</DialogTitle></DialogHeader>
+            <p className="text-sm text-gray-600 mt-1">
+              Count <strong>{fmtDate(pendingHolidayLog.date)}</strong> as 1 day of annual leave for{" "}
+              <strong>{pendingHolidayLog.staffName}</strong>? This will deduct from their leave entitlement balance.
+            </p>
+            <DialogFooter className="mt-4 gap-2 flex-col sm:flex-row">
+              <Button variant="outline" onClick={() => setPendingHolidayLog(null)} className="sm:order-first">
+                Just mark rota
+              </Button>
+              <Button
+                onClick={() => logAbsenceMut.mutate({
+                  staffName: pendingHolidayLog.staffName,
+                  absenceType: "Annual Leave",
+                  startDate: pendingHolidayLog.date,
+                  endDate: pendingHolidayLog.date,
+                  daysCount: "1",
+                  status: "approved",
+                  notes: "Logged from rota grid",
+                })}
+                disabled={logAbsenceMut.isPending}
+              >
+                {logAbsenceMut.isPending ? "Saving…" : "Yes — log annual leave"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -965,6 +1014,10 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   const [entEditCarried, setEntEditCarried] = useState("");
   const [declineTarget, setDeclineTarget] = useState<Absence | null>(null);
   const [declineReason, setDeclineReason] = useState("");
+  const [overrideExceeded, setOverrideExceeded] = useState(false);
+  const [rotaFillTarget, setRotaFillTarget] = useState<Absence | null>(null);
+  const [fillingRota, setFillingRota] = useState(false);
+  const [approvalTarget, setApprovalTarget] = useState<Absence | null>(null);
 
   const emptyForm = () => ({ staffName: "", absenceType: "Annual Leave", startDate: "", endDate: "", daysCount: "", notes: "", approvedBy: "", status: "approved" });
   const [form, setForm] = useState(emptyForm());
@@ -992,6 +1045,17 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); },
+  });
+  const approveMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: object }) =>
+      fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
+      toast({ title: "Leave request approved" });
+      if (approvalTarget?.absenceType === "Annual Leave") setRotaFillTarget(approvalTarget);
+      setApprovalTarget(null);
+      void vars;
+    },
   });
   const addEntMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -1046,6 +1110,65 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
     });
   }, [staffNames, entitlements, absences, yearFilter, yearInt]);
 
+  const entitlementWarn = useMemo(() => {
+    if (form.absenceType !== "Annual Leave" || !form.staffName || !form.daysCount) return null;
+    const year = form.startDate ? parseInt(form.startDate.slice(0, 4)) : yearInt;
+    const ent = entitlements.find(e => e.staffName === form.staffName && e.year === year);
+    const entDays = parseFloat(ent?.entitlementDays ?? "28") + parseFloat(ent?.carriedOverDays ?? "0");
+    const takenSoFar = absences.filter(a =>
+      a.staffName === form.staffName &&
+      a.absenceType === "Annual Leave" &&
+      a.startDate.startsWith(String(year)) &&
+      a.status !== "declined" &&
+      (!editItem || a.id !== editItem.id)
+    ).reduce((s, a) => s + parseFloat(a.daysCount ?? "0"), 0);
+    const requesting = parseFloat(form.daysCount) || 0;
+    const remaining = entDays - takenSoFar - requesting;
+    return { entDays, takenSoFar, requesting, remaining, exceeded: remaining < 0 };
+  }, [form.absenceType, form.staffName, form.daysCount, form.startDate, entitlements, absences, yearInt, editItem]);
+
+  useEffect(() => { setOverrideExceeded(false); }, [form.staffName, form.startDate, form.endDate, form.daysCount, form.absenceType]);
+
+  const fillRota = async (absence: Absence) => {
+    setFillingRota(true);
+    try {
+      const rotaRes: { rota: RotaEntry[] } = await fetch(`/api/farms/${farmId}/labour/rota`).then(r => r.json());
+      const allRota = rotaRes.rota ?? [];
+      const start = new Date(absence.startDate + "T00:00:00");
+      const end = new Date(absence.endDate + "T00:00:00");
+      const byWeek: Record<string, (typeof DAY_KEYS)[number][]> = {};
+      const cur = new Date(start);
+      while (cur <= end) {
+        const mon = getMondayOfWeek(new Date(cur));
+        const weekKey = isoDate(mon);
+        const dow = cur.getDay();
+        const dayIndex = dow === 0 ? 6 : dow - 1;
+        if (!byWeek[weekKey]) byWeek[weekKey] = [];
+        byWeek[weekKey].push(DAY_KEYS[dayIndex]);
+        cur.setDate(cur.getDate() + 1);
+      }
+      for (const [weekStart, dayKeys] of Object.entries(byWeek)) {
+        const existing = allRota.find(r => r.staffName === absence.staffName && r.weekStartDate === weekStart);
+        if (existing) {
+          const update: Record<string, unknown> = { ...existing };
+          for (const dk of dayKeys) update[dk] = "holiday";
+          await fetch(`/api/farms/${farmId}/labour/rota/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update) });
+        } else {
+          const body: Record<string, string | null> = { weekStartDate: weekStart, staffName: absence.staffName };
+          for (const dk of dayKeys) body[dk] = "holiday";
+          await fetch(`/api/farms/${farmId}/labour/rota`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        }
+      }
+      qc.invalidateQueries({ queryKey: ["labour-rota", farmId] });
+      toast({ title: "Rota updated — holiday days marked" });
+      setRotaFillTarget(null);
+    } catch {
+      toast({ title: "Error updating rota", variant: "destructive" });
+    } finally {
+      setFillingRota(false);
+    }
+  };
+
   const statusBadge = (status: string) => {
     if (status === "approved") return <Badge className="text-xs bg-green-50 text-green-700 border-green-200">Approved</Badge>;
     if (status === "pending") return <Badge className="text-xs bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
@@ -1086,8 +1209,11 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
                   <Button
                     size="sm"
                     className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => editMut.mutate({ id: a.id, body: { staffName: a.staffName, absenceType: a.absenceType, startDate: a.startDate, endDate: a.endDate, daysCount: a.daysCount, notes: a.notes, status: "approved", approvedBy: managerName } })}
-                    disabled={editMut.isPending}
+                    onClick={() => {
+                      setApprovalTarget(a);
+                      approveMut.mutate({ id: a.id, body: { staffName: a.staffName, absenceType: a.absenceType, startDate: a.startDate, endDate: a.endDate, daysCount: a.daysCount, notes: a.notes, status: "approved", approvedBy: managerName } });
+                    }}
+                    disabled={approveMut.isPending}
                   >
                     <CheckCircle2 size={12} className="mr-1" /> Approve
                   </Button>
@@ -1263,14 +1389,36 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
                     ? <span>Previously actioned by <strong>{editItem.approvedBy}</strong> — cleared on save as status is now Pending</span>
                     : null}
               </div>
+              {entitlementWarn && (
+                <div className={`col-span-2 rounded-lg border p-3 text-xs space-y-1.5 ${entitlementWarn.exceeded ? "bg-red-50 border-red-200 text-red-800" : "bg-green-50 border-green-200 text-green-800"}`}>
+                  <div className="font-semibold text-sm">{entitlementWarn.exceeded ? "⚠ Entitlement exceeded" : "✓ Entitlement check"}</div>
+                  <div className="flex justify-between"><span>Annual entitlement</span><span className="font-medium">{entitlementWarn.entDays} days</span></div>
+                  <div className="flex justify-between"><span>Already taken / pending</span><span className="font-medium">{entitlementWarn.takenSoFar.toFixed(1)} days</span></div>
+                  <div className="flex justify-between"><span>This request</span><span className="font-medium">{entitlementWarn.requesting} days</span></div>
+                  <div className="flex justify-between font-bold border-t border-current/20 pt-1.5 mt-1">
+                    <span>Remaining after</span>
+                    <span className={entitlementWarn.exceeded ? "text-red-700" : "text-green-700"}>{entitlementWarn.remaining.toFixed(1)} days</span>
+                  </div>
+                  {entitlementWarn.exceeded && (
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={overrideExceeded} onChange={e => setOverrideExceeded(e.target.checked)} className="rounded" />
+                      <span className="text-red-700 font-medium">Approve anyway — override entitlement limit</span>
+                    </label>
+                  )}
+                </div>
+              )}
               <div className="col-span-2">
                 <Label>Notes</Label>
                 <textarea className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[70px] resize-y focus:outline-none focus:ring-2 focus:ring-ring" value={form.notes} onChange={e => sf("notes", e.target.value)} placeholder="Optional details…" />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setForm(emptyForm()); }}>Cancel</Button>
-              <Button onClick={save} disabled={!form.staffName || !form.startDate || !form.endDate || addMut.isPending || editMut.isPending}>
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setForm(emptyForm()); setOverrideExceeded(false); }}>Cancel</Button>
+              <Button
+                onClick={save}
+                disabled={!form.staffName || !form.startDate || !form.endDate || addMut.isPending || editMut.isPending || (!!entitlementWarn?.exceeded && !overrideExceeded)}
+                title={entitlementWarn?.exceeded && !overrideExceeded ? "Entitlement exceeded — tick the override checkbox to proceed" : undefined}
+              >
                 {editItem ? "Update" : "Record Absence"}
               </Button>
             </div>
@@ -1376,6 +1524,32 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
               disabled={editEntMut.isPending || addEntMut.isPending}
             >
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Rota pre-fill dialog ── */}
+      <Dialog open={!!rotaFillTarget} onOpenChange={o => { if (!o) setRotaFillTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Mark days on rota?</DialogTitle></DialogHeader>
+          {rotaFillTarget && (
+            <div className="space-y-3 py-1">
+              <p className="text-sm text-gray-600">
+                Would you like to mark <strong>{rotaFillTarget.daysCount} day{rotaFillTarget.daysCount !== "1" ? "s" : ""}</strong> as Holiday on the weekly rota grid for <strong>{rotaFillTarget.staffName}</strong>?
+              </p>
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                {fmtDate(rotaFillTarget.startDate)}{rotaFillTarget.startDate !== rotaFillTarget.endDate ? ` — ${fmtDate(rotaFillTarget.endDate)}` : ""}
+              </p>
+              <p className="text-xs text-gray-400">
+                Each day in that date range will be set to Holiday on the Rota &amp; Shifts grid, including any future weeks.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setRotaFillTarget(null)}>Skip</Button>
+            <Button onClick={() => rotaFillTarget && fillRota(rotaFillTarget)} disabled={fillingRota}>
+              {fillingRota ? "Updating rota…" : "Yes — mark rota"}
             </Button>
           </DialogFooter>
         </DialogContent>
