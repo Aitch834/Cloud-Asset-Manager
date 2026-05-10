@@ -232,7 +232,7 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-800">
           <AlertTriangle size={14} className="shrink-0 text-amber-500" />
           <span>
-            <strong>{summary.pendingCount} timesheet{summary.pendingCount !== 1 ? "s" : ""} submitted today</strong> and awaiting your approval — open each entry in the table below and add your name to the <em>Approved By</em> field.
+            <strong>{summary.pendingCount} timesheet{summary.pendingCount !== 1 ? "s" : ""} submitted today</strong> and awaiting your approval — click any row in the table below to open it and add your name to the <em>Approved By</em> field.
           </span>
         </div>
       )}
@@ -664,17 +664,17 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
                     <table className="w-full text-sm">
                       <tbody className="divide-y divide-gray-100">
                         {entries.map(e => (
-                          <tr key={e.id} className="hover:bg-gray-50/50">
+                          <tr key={e.id} onClick={() => openEdit(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
                             <td className="px-4 py-2 pl-6 text-gray-700">{e.taskType}</td>
                             <td className="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">{parseFloat(e.hoursRegular || "0").toFixed(1)}h</td>
                             <td className="px-4 py-2 font-mono whitespace-nowrap">
                               {parseFloat(e.hoursOvertime || "0") > 0 ? <span className="text-amber-700">+{parseFloat(e.hoursOvertime).toFixed(1)}h OT</span> : <span className="text-gray-200">—</span>}
                             </td>
                             <td className="px-4 py-2">
-                              {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : null}
+                              {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : <span className="text-xs text-amber-600 font-medium">Needs approval</span>}
                             </td>
                             <td className="px-4 py-2 text-gray-400 text-xs max-w-[200px] truncate">{e.notes || ""}</td>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-2" onClick={ev => ev.stopPropagation()}>
                               <div className="flex gap-1">
                                 <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
                                 <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
@@ -714,19 +714,19 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map(e => (
-                    <tr key={e.id} className="hover:bg-gray-50/50">
+                    <tr key={e.id} onClick={() => openEdit(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
                       <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">{fmtDate(e.date)}</td>
-                      <td className="px-4 py-2.5 font-medium">
+                      <td className="px-4 py-2.5 font-medium" onClick={ev => ev.stopPropagation()}>
                         <button onClick={() => setFilterStaff(e.staffName)} className="text-gray-900 hover:text-green-700 hover:underline">{e.staffName}</button>
                       </td>
                       <td className="px-4 py-2.5 text-gray-700">{e.taskType}</td>
                       <td className="px-4 py-2.5 font-mono text-gray-900">{parseFloat(e.hoursRegular || "0").toFixed(1)}</td>
                       <td className="px-4 py-2.5 font-mono">{parseFloat(e.hoursOvertime || "0") > 0 ? <span className="text-amber-700">{parseFloat(e.hoursOvertime).toFixed(1)}</span> : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-2.5">
-                        {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : <span className="text-gray-300 text-xs">—</span>}
+                        {e.approvedBy ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{e.approvedBy}</Badge> : <span className="text-xs text-amber-600 font-medium">Needs approval</span>}
                       </td>
                       <td className="px-4 py-2.5 text-gray-400 text-xs max-w-[180px] truncate">{e.notes || "—"}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5" onClick={ev => ev.stopPropagation()}>
                         <div className="flex gap-1">
                           <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
                           <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
