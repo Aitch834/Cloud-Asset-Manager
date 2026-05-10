@@ -130,7 +130,7 @@ function TabBtn({ active, onClick, icon: Icon, label, badge }: { active: boolean
 type DayStatus = { day: string; date: string; shift: string | null; status: string; entriesCount: number; totalHours: number };
 type StaffStatus = { name: string; phone: string | null; days: DayStatus[] };
 
-function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStart: string }) {
+function SubmissionStatusPanel({ farmId, weekStart, onSelectStaff }: { farmId: number; weekStart: string; onSelectStaff?: (staffName: string) => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -232,7 +232,7 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-800">
           <AlertTriangle size={14} className="shrink-0 text-amber-500" />
           <span>
-            <strong>{summary.pendingCount} timesheet{summary.pendingCount !== 1 ? "s" : ""} submitted today</strong> and awaiting your approval — click any row in the table below to open it and add your name to the <em>Approved By</em> field.
+            <strong>{summary.pendingCount} timesheet{summary.pendingCount !== 1 ? "s" : ""} submitted today</strong> and awaiting your approval — click a staff member's name in the grid below to view and approve their entries.
           </span>
         </div>
       )}
@@ -276,14 +276,28 @@ function SubmissionStatusPanel({ farmId, weekStart }: { farmId: number; weekStar
             <tbody>
               {data.staff.map(member => (
                 <tr key={member.name} className="border-t hover:bg-gray-50/40">
-                  <td className="px-3 py-1.5 font-medium text-gray-700 truncate max-w-[150px]">{member.name}</td>
+                  <td className="px-3 py-1.5 font-medium truncate max-w-[150px]">
+                    {onSelectStaff ? (
+                      <button
+                        onClick={() => onSelectStaff(member.name)}
+                        className="text-gray-700 hover:text-green-700 hover:underline text-left w-full truncate"
+                        title={`View ${member.name}'s timesheet entries`}
+                      >
+                        {member.name}
+                      </button>
+                    ) : (
+                      <span className="text-gray-700">{member.name}</span>
+                    )}
+                  </td>
                   {member.days.map((day, i) => {
                     const isToday = day.date === today;
+                    const isClickable = onSelectStaff && (day.status === "pending" || day.status === "missing" || day.status === "approved");
                     return (
                       <td key={i} className={`px-1 py-1.5 text-center ${isToday ? "bg-green-50/40" : ""}`}>
                         <span
-                          title={`${day.status}${day.shift ? ` (${day.shift})` : ""}${day.totalHours > 0 ? ` — ${day.totalHours.toFixed(1)}h` : ""}`}
-                          className={`inline-flex items-center justify-center w-8 h-6 rounded border text-[11px] font-semibold cursor-default ${cellCls(day.status)}`}
+                          onClick={isClickable ? () => onSelectStaff!(member.name) : undefined}
+                          title={`${member.name} — ${day.status}${day.shift ? ` (${day.shift})` : ""}${day.totalHours > 0 ? ` — ${day.totalHours.toFixed(1)}h` : ""}${isClickable ? " · click to view entries" : ""}`}
+                          className={`inline-flex items-center justify-center w-8 h-6 rounded border text-[11px] font-semibold ${isClickable ? "cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-green-400 transition-all" : "cursor-default"} ${cellCls(day.status)}`}
                         >
                           {cellGlyph(day.status)}
                         </span>
@@ -557,7 +571,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
       </div>
 
       {/* Submission status grid + SMS reminder settings */}
-      <SubmissionStatusPanel farmId={farmId} weekStart={filterWeekStart} />
+      <SubmissionStatusPanel farmId={farmId} weekStart={filterWeekStart} onSelectStaff={name => { setFilterStaff(name); setFilterMode("week"); }} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
