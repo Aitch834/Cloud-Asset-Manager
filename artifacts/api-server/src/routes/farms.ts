@@ -23269,7 +23269,7 @@ router.get("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async
 router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  const [row] = await (db.insert(labourTimesheetEntriesTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: String(b.hoursRegular ?? "0"), hoursOvertime: String(b.hoursOvertime ?? "0"), notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
+  const [row] = await (db.insert(labourTimesheetEntriesTable) as any).values({ farmId, staffName: String(b.staffName ?? ""), date: String(b.date ?? ""), taskType: String(b.taskType ?? ""), hoursRegular: b.hoursRegular ? String(b.hoursRegular) : "0", hoursOvertime: b.hoursOvertime ? String(b.hoursOvertime) : "0", notes: b.notes ? String(b.notes) : null, approvedBy: b.approvedBy ? String(b.approvedBy) : null }).returning();
   res.json({ entry: row });
   // Fire-and-forget: SMS managers when mobile staff submit without prior approval
   if (!b.approvedBy) {
@@ -23486,9 +23486,9 @@ router.get("/farms/:farmId/labour/submission-status", requireAuth, requireTenant
       const dayEntries = entries.filter(e => e.staffName === fullName && e.date === date);
       const isFuture = date > today;
       let status: string;
-      if (!shift) { status = "not_in_rota"; }
+      if (dayEntries.length > 0) { status = dayEntries.every(e => e.approvedBy) ? "approved" : "pending"; }
+      else if (!shift || shift === "") { status = "not_in_rota"; }
       else if (OFF_SHIFTS.has(shift)) { status = "off"; }
-      else if (dayEntries.length > 0) { status = dayEntries.every(e => e.approvedBy) ? "approved" : "pending"; }
       else if (isFuture) { status = "future"; }
       else { status = "missing"; }
       const totalHours = dayEntries.reduce((s, e) => s + parseFloat(e.hoursRegular ?? "0") + parseFloat(e.hoursOvertime ?? "0"), 0);
