@@ -162,6 +162,43 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   const totalRevenue = filteredRecords.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
   const totalTonnage = filteredRecords.reduce((s: number, r: any) => s + parseFloat(r.tonnage ?? "0"), 0);
 
+  const farmGrainQ = useQuery({ queryKey: ["farm-detail", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.record });
+  const farmGrain = farmGrainQ.data;
+
+  function printGrainRegister() {
+    const printedAt = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const farmName = (farmGrain as any)?.name ?? "Farm";
+    const cph = (farmGrain as any)?.cphNumber ? ` · CPH: ${(farmGrain as any).cphNumber}` : "";
+    const yearLabel = cropYearFilter === "__all__" ? "All Crop Years" : cropYearFilter;
+    const rows = filteredRecords.map((r: any) => `<tr>
+      <td>${fmtDate(r.saleDate)}</td>
+      <td>${r.saleType || "—"}</td>
+      <td>${r.buyer || "—"}</td>
+      <td>${r.commodity || "—"} ${r.variety ? "— " + r.variety : ""}</td>
+      <td style="text-align:right">${r.tonnage ? parseFloat(r.tonnage).toFixed(2) + " t" : "—"}</td>
+      <td style="text-align:right">${r.pricePerTonnePence ? "£" + (r.pricePerTonnePence / 100).toFixed(2) + "/t" : "—"}</td>
+      <td>${r.weighbridgeTicket || "—"}</td>
+      <td>${r.invoiceNumber || "—"}</td>
+      <td style="text-align:right">${r.netValuePence ? "£" + (r.netValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : "—"}</td>
+      <td style="text-align:center;color:${r.linkedContractId ? "#166534" : "#9ca3af"};font-weight:${r.linkedContractId ? "700" : "400"}">${r.linkedContractId ? "✓ Contract #" + r.linkedContractId : "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Grain Sales Register</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:12mm 14mm;color:#111}h1{font-size:14pt;margin:0 0 2px}p{margin:0;font-size:9pt;color:#555}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #16a34a;padding-bottom:10px;margin-bottom:16px}.hdr-r{text-align:right;font-size:9pt;color:#444}table{width:100%;border-collapse:collapse;font-size:8.5pt}th{background:#f0fdf4;border:1px solid #d1fae5;padding:5px 7px;text-align:left;font-weight:700;color:#14532d}td{border:1px solid #e5e7eb;padding:5px 7px}tr:nth-child(even) td{background:#f9fafb}.note{margin-top:10px;font-size:8pt;color:#6b7280}.footer{margin-top:16px;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:8mm 10mm}}</style>
+    </head><body>
+    <div class="hdr"><div><h1>${farmName}${cph}</h1><p>Grain Sales Register — ${yearLabel}</p></div><div class="hdr-r"><strong>Printed:</strong> ${printedAt}<br>${filteredRecords.length} records · ${totalTonnage.toFixed(2)} t total · £${(totalRevenue / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })} net</div></div>
+    <table><thead><tr><th>Sale Date</th><th>Type</th><th>Buyer</th><th>Commodity / Variety</th><th>Tonnage</th><th>Price/t</th><th>Weighbridge Ref</th><th>Invoice No.</th><th>Net Value</th><th>Forward Contract</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="4" style="text-align:right;font-weight:600">Totals</td><td style="text-align:right;font-weight:700;background:#f0fdf4;border-top:2px solid #16a34a">${totalTonnage.toFixed(2)} t</td><td></td><td></td><td></td><td style="text-align:right;font-weight:700;background:#f0fdf4;border-top:2px solid #16a34a">£${(totalRevenue / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}</td><td></td></tr></tfoot>
+    </table>
+    <p class="note">Forward Contract — shows the linked forward contract number if this grain sale was recorded as a call-off against a parent forward contract.</p>
+    <div class="footer"><span>BDE Farm Trac — Barnett Davies Enterprises Ltd · Confidential</span><span>Generated: ${printedAt}</span></div>
+    </body></html>`;
+    const win = window.open("", "_blank", "width=1100,height=700");
+    if (!win) return;
+    win.document.write(html); win.document.close(); win.focus();
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
@@ -192,6 +229,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
             <option value="__all__">All Crop Years</option>
             {availableCropYears.map((y: string) => <option key={y} value={y}>{y}</option>)}
           </select>
+          <Button variant="outline" size="sm" onClick={printGrainRegister} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem" }}><Printer size={14} /> Print Register</Button>
           <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#16a34a", color: "#fff" }}>
             <Plus size={16} style={{ marginRight: 6 }} /> Record Grain Sale
           </Button>
@@ -584,6 +622,74 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   ].filter(Boolean) as string[])].sort().reverse();
   const filteredDW = lsYearFilter === "__all__" ? dwRecords : dwRecords.filter((r: any) => r.killDate && new Date(r.killDate).getFullYear().toString() === lsYearFilter);
   const filteredMart = lsYearFilter === "__all__" ? martRecords : martRecords.filter((r: any) => r.saleDate && new Date(r.saleDate).getFullYear().toString() === lsYearFilter);
+
+  const farmQ = useQuery({ queryKey: ["farm-detail", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.record });
+  const farm = farmQ.data;
+
+  function printDWRegister() {
+    const printedAt = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const farmName = (farm as any)?.name ?? "Farm";
+    const cph = (farm as any)?.cphNumber ? ` · CPH: ${(farm as any).cphNumber}` : "";
+    const yearLabel = lsYearFilter === "__all__" ? "All Years" : lsYearFilter;
+    const rows = filteredDW.map((r: any) => `<tr>
+      <td>${fmtDate(r.killDate)}</td><td>${r.processor || "—"}</td><td>${r.species || "—"}</td>
+      <td style="text-align:right">${r.headCount || "—"}</td>
+      <td>${r.killSheetRef || "—"}</td>
+      <td style="text-align:right">${r.totalDeadweightKg ? parseFloat(r.totalDeadweightKg).toFixed(1) : "—"}</td>
+      <td style="text-align:right">${r.pricePerKgPence ? r.pricePerKgPence + "p" : "—"}</td>
+      <td>${[r.gradeClassification, r.fatClass].filter(Boolean).join(" / ") || "—"}</td>
+      <td style="text-align:right">${r.netPaymentPence ? "£" + (r.netPaymentPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : "—"}</td>
+      <td style="text-align:center;color:${r.movementId ? "#166534" : "#9ca3af"};font-weight:${r.movementId ? "700" : "400"}">${r.movementId ? "✓ Linked" : "—"}</td>
+    </tr>`).join("");
+    const total = filteredDW.reduce((s: number, r: any) => s + (r.netPaymentPence ?? 0), 0) / 100;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Deadweight Kill Sheet Register</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:12mm 14mm;color:#111}h1{font-size:14pt;margin:0 0 2px}p{margin:0;font-size:9pt;color:#555}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #15803d;padding-bottom:10px;margin-bottom:16px}.hdr-r{text-align:right;font-size:9pt;color:#444}table{width:100%;border-collapse:collapse;font-size:8.5pt}th{background:#f0fdf4;border:1px solid #d1fae5;padding:5px 7px;text-align:left;font-weight:700;color:#14532d}td{border:1px solid #e5e7eb;padding:5px 7px}tr:nth-child(even) td{background:#f9fafb}.tfoot td{font-weight:700;background:#f0fdf4;border-top:2px solid #15803d}.note{margin-top:10px;font-size:8pt;color:#6b7280}.footer{margin-top:16px;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:8mm 10mm}}</style>
+    </head><body>
+    <div class="hdr"><div><h1>${farmName}${cph}</h1><p>Deadweight Kill Sheet Register — ${yearLabel}</p></div><div class="hdr-r"><strong>Printed:</strong> ${printedAt}<br>Records shown: <strong>${filteredDW.length}</strong></div></div>
+    <table><thead><tr><th>Kill Date</th><th>Processor</th><th>Species</th><th>Head</th><th>Kill Sheet Ref</th><th>Total DW (kg)</th><th>Price/kg</th><th>Grade / Fat</th><th>Net Payment</th><th>Movement Linked</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="8" style="text-align:right;font-weight:600">Total Net Payment</td><td style="text-align:right;font-weight:700;background:#f0fdf4;border-top:2px solid #15803d">£${total.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</td><td></td></tr></tfoot>
+    </table>
+    <p class="note">Movement Linked — confirms kill sheet is associated with a BCMS / LIS off-farm movement record. Required for Red Tractor and AHDB audit trail compliance.</p>
+    <div class="footer"><span>BDE Farm Trac — Barnett Davies Enterprises Ltd · Confidential</span><span>Generated: ${printedAt}</span></div>
+    </body></html>`;
+    const win = window.open("", "_blank", "width=1050,height=700");
+    if (!win) return;
+    win.document.write(html); win.document.close(); win.focus();
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
+  }
+
+  function printMartRegister() {
+    const printedAt = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    const farmName = (farm as any)?.name ?? "Farm";
+    const cph = (farm as any)?.cphNumber ? ` · CPH: ${(farm as any).cphNumber}` : "";
+    const yearLabel = lsYearFilter === "__all__" ? "All Years" : lsYearFilter;
+    const rows = filteredMart.map((r: any) => `<tr>
+      <td>${fmtDate(r.saleDate)}</td><td>${r.martName || "—"}</td><td>${r.species || "—"}</td>
+      <td>${r.category || "—"}</td><td>${r.lotNumber || "—"}</td>
+      <td style="text-align:right">${r.headCount || "—"}</td>
+      <td style="text-align:right">${r.averageLiveweightKg ? parseFloat(r.averageLiveweightKg).toFixed(1) + " kg" : "—"}</td>
+      <td>${r.auctioneerRef || "—"}</td>
+      <td style="text-align:right">${r.netPaymentPence ? "£" + (r.netPaymentPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : "—"}</td>
+      <td style="text-align:center;color:${r.movementId ? "#1e40af" : "#9ca3af"};font-weight:${r.movementId ? "700" : "400"}">${r.movementId ? "✓ Linked" : "—"}</td>
+    </tr>`).join("");
+    const total = filteredMart.reduce((s: number, r: any) => s + (r.netPaymentPence ?? 0), 0) / 100;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mart / Auction Sales Register</title>
+    <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:12mm 14mm;color:#111}h1{font-size:14pt;margin:0 0 2px}p{margin:0;font-size:9pt;color:#555}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #2563eb;padding-bottom:10px;margin-bottom:16px}.hdr-r{text-align:right;font-size:9pt;color:#444}table{width:100%;border-collapse:collapse;font-size:8.5pt}th{background:#eff6ff;border:1px solid #bfdbfe;padding:5px 7px;text-align:left;font-weight:700;color:#1e3a8a}td{border:1px solid #e5e7eb;padding:5px 7px}tr:nth-child(even) td{background:#f9fafb}.tfoot td{font-weight:700;background:#eff6ff;border-top:2px solid #2563eb}.note{margin-top:10px;font-size:8pt;color:#6b7280}.footer{margin-top:16px;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:8mm 10mm}}</style>
+    </head><body>
+    <div class="hdr"><div><h1>${farmName}${cph}</h1><p>Mart / Auction Sales Register — ${yearLabel}</p></div><div class="hdr-r"><strong>Printed:</strong> ${printedAt}<br>Records shown: <strong>${filteredMart.length}</strong></div></div>
+    <table><thead><tr><th>Sale Date</th><th>Mart</th><th>Species</th><th>Category</th><th>Lot</th><th>Head</th><th>Avg Liveweight</th><th>Auctioneer Ref</th><th>Net Payment</th><th>Movement Linked</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="8" style="text-align:right;font-weight:600">Total Net Payment</td><td style="text-align:right;font-weight:700;background:#eff6ff;border-top:2px solid #2563eb">£${total.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</td><td></td></tr></tfoot>
+    </table>
+    <p class="note">Movement Linked — confirms mart sale is associated with the corresponding LIS / BCMS off-farm movement record. Required for livestock traceability audit trail.</p>
+    <div class="footer"><span>BDE Farm Trac — Barnett Davies Enterprises Ltd · Confidential</span><span>Generated: ${printedAt}</span></div>
+    </body></html>`;
+    const win = window.open("", "_blank", "width=1050,height=700");
+    if (!win) return;
+    win.document.write(html); win.document.close(); win.focus();
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
+  }
   const dwTotal = filteredDW.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
   const martTotal = filteredMart.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
 
@@ -623,7 +729,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
 
       {subTab === "deadweight" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+            <Button variant="outline" size="sm" onClick={printDWRegister} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem" }}><Printer size={14} /> Print Register</Button>
             <Button onClick={() => { setEditingDW(null); setFormDW(emptyDW); setOpenDW(true); }} style={{ background: "#15803d", color: "#fff" }}>
               <Plus size={16} style={{ marginRight: 6 }} /> Add Kill Sheet
             </Button>
@@ -690,7 +797,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
 
       {subTab === "mart" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+            <Button variant="outline" size="sm" onClick={printMartRegister} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem" }}><Printer size={14} /> Print Register</Button>
             <Button onClick={() => { setEditingMart(null); setFormMart(emptyMart); setOpenMart(true); }} style={{ background: "#2563eb", color: "#fff" }}>
               <Plus size={16} style={{ marginRight: 6 }} /> Add Mart Sale
             </Button>

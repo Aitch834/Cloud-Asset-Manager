@@ -12,6 +12,8 @@ export const labourTimesheetEntriesTable = pgTable("labour_timesheet_entries", {
   notes: text("notes"),
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  sourceType: text("source_type"),
+  sourceId: integer("source_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
