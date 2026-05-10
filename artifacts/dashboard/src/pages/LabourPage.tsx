@@ -306,6 +306,13 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
   const qc = useQueryClient();
   const { toast } = useToast();
 
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm-record", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.record?.name ?? "";
+
   const [filterStaff, setFilterStaff] = useState("all");
   const [filterMode, setFilterMode] = useState<"month" | "week">("month");
   const [filterMonth, setFilterMonth] = useState(() => isoDate(new Date()).slice(0, 7));
@@ -426,31 +433,31 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 <html><head><meta charset="utf-8"><title>Blank Daily Timesheet — BDE Farm Trac</title>
 <style>
   *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;margin:0;padding:16px 20px;color:#111}
-  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:8px;margin-bottom:10px}
-  .brand{font-size:19px;font-weight:700;color:#166534;letter-spacing:-0.3px}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;margin:0;padding:18px 22px;color:#111}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #166534;padding-bottom:9px;margin-bottom:12px}
+  .brand{font-size:20px;font-weight:700;color:#166534;letter-spacing:-0.3px}
   .brand-sub{font-size:9.5px;color:#4b7c5e;margin-top:1px}
-  .doc-title{font-size:14px;font-weight:700;color:#111;text-align:right}
+  .doc-title{font-size:15px;font-weight:700;color:#111;text-align:right}
   .doc-ref{font-size:9.5px;color:#888;text-align:right;margin-top:2px}
-  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px 18px;margin-bottom:9px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 20px;margin-bottom:11px}
   .info-field label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:2px}
-  .info-field .line{border-bottom:1.5px solid #333;height:19px}
-  .wtr-box{background:#fffbeb;border:1px solid #d97706;border-radius:3px;padding:5px 9px;margin-bottom:9px;font-size:9.5px;color:#78350f;line-height:1.45}
+  .info-field .line{border-bottom:1.5px solid #333;height:21px;padding-left:4px;font-size:11px;color:#111;display:flex;align-items:flex-end;padding-bottom:2px}
+  .wtr-box{background:#fffbeb;border:1px solid #d97706;border-radius:3px;padding:6px 10px;margin-bottom:11px;font-size:9.5px;color:#78350f;line-height:1.5}
   .wtr-box strong{color:#92400e}
-  table{width:100%;border-collapse:collapse;margin-bottom:8px}
-  th{background:#166534;color:#fff;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #155e2f;text-align:left}
-  td{border:1px solid #ccc;padding:0;height:23px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th{background:#166534;color:#fff;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:6px 7px;border:1px solid #155e2f;text-align:left}
+  td{border:1px solid #ccc;padding:0;height:25px;vertical-align:middle}
   td:nth-child(5),td:nth-child(6){text-align:right}
-  .totals-row td{border:1px solid #aaa;background:#f0f7f0;font-weight:700;padding:4px 6px;height:auto}
+  .totals-row td{border:1px solid #aaa;background:#f0f7f0;font-weight:700;padding:5px 7px;height:auto}
   .totals-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#555}
-  .section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#166534;margin:9px 0 4px}
-  .task-ref{display:grid;grid-template-columns:repeat(4,1fr);gap:1px 10px;margin-bottom:9px}
-  .task-ref ol{margin:0;padding-left:15px;font-size:9.5px;color:#444;line-height:1.55}
-  .signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:10px}
+  .section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#166534;margin:11px 0 5px}
+  .task-ref{display:grid;grid-template-columns:repeat(4,1fr);gap:1px 12px;margin-bottom:11px}
+  .task-ref ol{margin:0;padding-left:16px;font-size:9.5px;color:#444;line-height:1.65}
+  .signoff-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:12px}
   .sig-block label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;display:block;margin-bottom:2px}
-  .sig-block .line{border-bottom:1.5px solid #333;height:26px;margin-bottom:6px}
-  .footer-note{margin-top:10px;border-top:1px solid #ddd;padding-top:6px;font-size:9px;color:#666;text-align:center}
-  @media print{body{padding:10px 14px}@page{size:A4 portrait;margin:8mm}}
+  .sig-block .line{border-bottom:1.5px solid #333;height:28px;margin-bottom:7px}
+  .footer-note{margin-top:12px;border-top:1px solid #ddd;padding-top:7px;font-size:9px;color:#666;text-align:center}
+  @media print{body{padding:12px 16px}@page{size:A4 portrait;margin:9mm}}
 </style>
 </head>
 <body>
@@ -468,7 +475,7 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
 <div class="info-grid">
   <div class="info-field"><label>Employee Name</label><div class="line"></div></div>
-  <div class="info-field"><label>Farm / Business Name</label><div class="line"></div></div>
+  <div class="info-field"><label>Farm / Business Name</label><div class="line">${farmName}</div></div>
   <div class="info-field"><label>Date of Work</label><div class="line"></div></div>
   <div class="info-field"><label>Department / Section</label><div class="line"></div></div>
   <div class="info-field"><label>Line Manager</label><div class="line"></div></div>
