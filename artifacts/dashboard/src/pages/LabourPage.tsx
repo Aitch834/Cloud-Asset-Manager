@@ -1142,6 +1142,12 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   });
   const absenceFarmName = absenceFarmData?.record?.name ?? "";
 
+  const absRotaQ = useQuery<{ rota: RotaEntry[] }>({
+    queryKey: ["labour-rota", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/rota`).then(r => r.json()),
+    enabled: !!farmId && plannerView,
+  });
+
   const printBlankLeaveForm = () => {
     const printed = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
     const leaveTypes = ["Annual Leave", "Compassionate Leave", "Maternity / Paternity Leave", "Unpaid Leave", "Training Day", "TOIL (Time Off in Lieu)", "Other (specify below)"];
@@ -1643,8 +1649,31 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
             }
           }
         }
-        const counts = days.map(d => { let c = 0; for (const n of staffNames) { if (absMap.get(n)?.[d - 1]) c++; } return c; });
-        const cellBg = (a: Absence | null, wknd: boolean) => {
+        // Build rota holiday overlay: rota shifts of type "holiday" with no matching formal absence record
+        const rotaHolidaySet = new Map<string, Set<string>>();
+        for (const name of staffNames) rotaHolidaySet.set(name, new Set());
+        const ROTA_COLS = ["monShift", "tueShift", "wedShift", "thuShift", "friShift", "satShift", "sunShift"] as const;
+        for (const entry of (absRotaQ.data?.rota ?? [])) {
+          const wkStart = new Date(entry.weekStartDate + "T00:00:00");
+          for (let offset = 0; offset < 7; offset++) {
+            const col = ROTA_COLS[offset];
+            if (entry[col] !== "holiday") continue;
+            const cd = new Date(wkStart);
+            cd.setDate(cd.getDate() + offset);
+            if (cd.getFullYear() === year && cd.getMonth() === month) {
+              const ds = dayStr(cd.getDate());
+              const absRow = absMap.get(entry.staffName);
+              if (!absRow?.[cd.getDate() - 1]) rotaHolidaySet.get(entry.staffName)?.add(ds);
+            }
+          }
+        }
+        const counts = days.map(d => {
+          let c = 0;
+          for (const n of staffNames) { if (absMap.get(n)?.[d - 1] || rotaHolidaySet.get(n)?.has(dayStr(d))) c++; }
+          return c;
+        });
+        const cellBg = (a: Absence | null, rotaHol: boolean, wknd: boolean) => {
+          if (rotaHol) return "bg-lime-300";
           if (!a) return wknd ? "bg-gray-100" : "";
           if (a.status === "pending") return "bg-amber-300";
           switch (a.absenceType) {
@@ -1670,6 +1699,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
                 { cls: "bg-teal-400", label: "TOIL" },
                 { cls: "bg-blue-400", label: "Other" },
                 { cls: "bg-amber-300", label: "Pending" },
+                { cls: "bg-lime-300", label: "Rota only (unlogged)" },
                 { cls: "bg-gray-100 border border-gray-300", label: "Weekend" },
               ].map(({ cls, label }) => (
                 <span key={label} className="flex items-center gap-1">
@@ -1707,19 +1737,20 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
                   <tbody>
                     {staffNames.map(name => {
                       const row = absMap.get(name) ?? [];
-                      const total = row.filter(Boolean).length;
+                      const total = row.filter(Boolean).length + (rotaHolidaySet.get(name)?.size ?? 0);
                       return (
                         <tr key={name} className="border-b last:border-0">
                           <td className="sticky left-0 z-10 bg-white border-r px-3 py-0 text-xs font-medium text-gray-800 whitespace-nowrap" style={{ height: 30 }}>{name}</td>
                           {days.map(d => {
                             const a = row[d - 1];
+                            const rotaHol = !a && !!rotaHolidaySet.get(name)?.has(dayStr(d));
                             const wknd = isWeekend(d);
                             const today = isToday(d);
                             return (
                               <td
                                 key={d}
-                                title={a ? `${a.absenceType}${a.status === "pending" ? " (pending)" : ""}${a.notes ? ` · ${a.notes}` : ""}` : undefined}
-                                className={`border-r last:border-r-0 ${cellBg(a, wknd)} ${today ? "outline outline-2 outline-blue-400 outline-offset-[-2px]" : ""}`}
+                                title={a ? `${a.absenceType}${a.status === "pending" ? " (pending)" : ""}${a.notes ? ` · ${a.notes}` : ""}` : rotaHol ? "Holiday (rota only — no formal absence record)" : undefined}
+                                className={`border-r last:border-r-0 ${cellBg(a, rotaHol, wknd)} ${today ? "outline outline-2 outline-blue-400 outline-offset-[-2px]" : ""}`}
                                 style={{ width: 30, height: 30 }}
                               />
                             );
