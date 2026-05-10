@@ -1840,7 +1840,7 @@ function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffName
                     <td className="px-4 py-2.5 font-medium text-gray-800">
                       <div className="flex items-center gap-1.5">
                         <span>{name}</span>
-                        {isDisc && <AlertTriangle size={12} className="text-red-500 shrink-0" title="Discrepancy: planned shift ≠ actual" />}
+                        {isDisc && <span title="Discrepancy: planned shift ≠ actual"><AlertTriangle size={12} className="text-red-500 shrink-0" /></span>}
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
