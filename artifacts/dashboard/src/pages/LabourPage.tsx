@@ -1128,6 +1128,8 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
   const [rotaFillTarget, setRotaFillTarget] = useState<Absence | null>(null);
   const [fillingRota, setFillingRota] = useState(false);
   const [approvalTarget, setApprovalTarget] = useState<Absence | null>(null);
+  const [plannerView, setPlannerView] = useState(false);
+  const [plannerYM, setPlannerYM] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
 
   const emptyForm = () => ({ staffName: "", absenceType: "Annual Leave", startDate: "", endDate: "", daysCount: "", notes: "", approvedBy: "", status: "approved" });
   const [form, setForm] = useState(emptyForm());
@@ -1513,34 +1515,64 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
         </div>
       </div>
 
-      {/* Absence list filters */}
+      {/* ── View toggle + controls bar ── */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={staffFilter} onValueChange={setStaffFilter}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All staff" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All staff</SelectItem>
-            {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All types" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All absence types</SelectItem>
-            {ABSENCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={printBlankLeaveForm} title="Print a blank paper leave request form for staff without system or mobile access">
-            <Printer size={14} className="mr-1" /> Blank Leave Form
-          </Button>
-          <Button size="sm" onClick={() => { setForm(emptyForm()); setEditItem(null); setAddOpen(true); }}>
-            <Plus size={14} className="mr-1" /> Record Absence
-          </Button>
+        <div className="flex rounded-lg border overflow-hidden text-sm font-medium shrink-0">
+          <button
+            className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors ${!plannerView ? "bg-green-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+            onClick={() => setPlannerView(false)}
+          >List</button>
+          <button
+            className={`px-3 py-1.5 flex items-center gap-1.5 border-l transition-colors ${plannerView ? "bg-green-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+            onClick={() => setPlannerView(true)}
+          ><CalendarDays size={13} className="mr-0.5" /> Planner</button>
         </div>
+        {!plannerView && (<>
+          <Select value={staffFilter} onValueChange={setStaffFilter}>
+            <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All staff" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All staff</SelectItem>
+              {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All types" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All absence types</SelectItem>
+              {ABSENCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={printBlankLeaveForm} title="Print a blank paper leave request form for staff without system or mobile access">
+              <Printer size={14} className="mr-1" /> Blank Leave Form
+            </Button>
+            <Button size="sm" onClick={() => { setForm(emptyForm()); setEditItem(null); setAddOpen(true); }}>
+              <Plus size={14} className="mr-1" /> Record Absence
+            </Button>
+          </div>
+        </>)}
+        {plannerView && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 border"
+              onClick={() => setPlannerYM(ym => { const m = ym.month - 1; return m < 0 ? { year: ym.year - 1, month: 11 } : { year: ym.year, month: m }; })}
+            ><ChevronLeft size={15} /></button>
+            <span className="font-semibold text-sm text-gray-800 min-w-[120px] text-center">
+              {new Date(plannerYM.year, plannerYM.month, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+            </span>
+            <button
+              className="p-1.5 rounded hover:bg-gray-100 text-gray-600 border"
+              onClick={() => setPlannerYM(ym => { const m = ym.month + 1; return m > 11 ? { year: ym.year + 1, month: 0 } : { year: ym.year, month: m }; })}
+            ><ChevronRight size={15} /></button>
+            <Button variant="outline" size="sm" className="text-xs h-8 ml-1"
+              onClick={() => { const n = new Date(); setPlannerYM({ year: n.getFullYear(), month: n.getMonth() }); }}
+            >Today</Button>
+          </div>
+        )}
       </div>
 
-      {/* Absence table */}
-      {absQ.isLoading ? (
+      {/* ── Absence list (list view) ── */}
+      {!plannerView && (absQ.isLoading ? (
         <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
@@ -1583,7 +1615,139 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
             </tbody>
           </table>
         </div>
-      )}
+      ))}
+
+      {/* ── Holiday Planner (planner view) ── */}
+      {plannerView && (() => {
+        const { year, month } = plannerYM;
+        const dim = new Date(year, month + 1, 0).getDate();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const threshold = Math.max(2, Math.ceil(staffNames.length * 0.4));
+        const days = Array.from({ length: dim }, (_, i) => i + 1);
+        const getDow = (d: number) => new Date(year, month, d).getDay();
+        const isWeekend = (d: number) => { const dw = getDow(d); return dw === 0 || dw === 6; };
+        const dayStr = (d: number) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const isToday = (d: number) => dayStr(d) === todayStr;
+        const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+        const absMap = new Map<string, (Absence | null)[]>();
+        for (const name of staffNames) absMap.set(name, Array(dim).fill(null));
+        for (const a of absences) {
+          if (!a.startDate || !a.endDate) continue;
+          const s = new Date(a.startDate + "T00:00:00");
+          const e = new Date(a.endDate + "T00:00:00");
+          for (let d = 1; d <= dim; d++) {
+            const cd = new Date(year, month, d);
+            if (cd >= s && cd <= e) {
+              const row = absMap.get(a.staffName);
+              if (row && !row[d - 1]) row[d - 1] = a;
+            }
+          }
+        }
+        const counts = days.map(d => { let c = 0; for (const n of staffNames) { if (absMap.get(n)?.[d - 1]) c++; } return c; });
+        const cellBg = (a: Absence | null, wknd: boolean) => {
+          if (!a) return wknd ? "bg-gray-100" : "";
+          if (a.status === "pending") return "bg-amber-300";
+          switch (a.absenceType) {
+            case "Annual Leave": return "bg-green-500";
+            case "Sickness": return "bg-red-400";
+            case "Compassionate Leave": return "bg-purple-400";
+            case "Maternity / Paternity Leave": return "bg-pink-400";
+            case "TOIL (Time Off in Lieu)": return "bg-teal-400";
+            case "Training Day": return "bg-sky-400";
+            default: return "bg-blue-400";
+          }
+        };
+        return (
+          <div className="border rounded-xl overflow-hidden bg-white">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 bg-gray-50 border-b text-xs text-gray-600">
+              <span className="font-semibold text-gray-700 mr-1">Key:</span>
+              {[
+                { cls: "bg-green-500", label: "Annual Leave" },
+                { cls: "bg-red-400", label: "Sickness" },
+                { cls: "bg-purple-400", label: "Compassionate" },
+                { cls: "bg-pink-400", label: "Mat/Pat" },
+                { cls: "bg-sky-400", label: "Training" },
+                { cls: "bg-teal-400", label: "TOIL" },
+                { cls: "bg-blue-400", label: "Other" },
+                { cls: "bg-amber-300", label: "Pending" },
+                { cls: "bg-gray-100 border border-gray-300", label: "Weekend" },
+              ].map(({ cls, label }) => (
+                <span key={label} className="flex items-center gap-1">
+                  <span className={`inline-block w-3 h-3 rounded-sm ${cls}`} />
+                  {label}
+                </span>
+              ))}
+              <span className="ml-auto flex items-center gap-1 text-red-600 font-medium">
+                <AlertTriangle size={11} /> Red = scheduling conflict
+              </span>
+            </div>
+            {staffNames.length === 0 ? (
+              <div className="text-center py-10 text-gray-400 text-sm">No staff members found. Add staff in the Rota tab first.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="border-collapse" style={{ minWidth: "max-content" }}>
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-gray-50 border-b border-r px-3 py-2 text-left text-xs font-semibold text-gray-600 whitespace-nowrap" style={{ minWidth: 140 }}>
+                        Staff Member
+                      </th>
+                      {days.map(d => (
+                        <th
+                          key={d}
+                          className={`border-b border-r px-0 py-1.5 text-center ${isWeekend(d) ? "bg-gray-100 text-gray-400" : "bg-gray-50 text-gray-600"} ${isToday(d) ? "ring-2 ring-inset ring-blue-400" : ""}`}
+                          style={{ minWidth: 30, width: 30 }}
+                        >
+                          <div className="text-[11px] font-bold leading-none">{d}</div>
+                          <div className="text-[9px] leading-none mt-0.5 font-normal opacity-75">{DOW[getDow(d)]}</div>
+                        </th>
+                      ))}
+                      <th className="border-b bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500 whitespace-nowrap text-center">Off</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffNames.map(name => {
+                      const row = absMap.get(name) ?? [];
+                      const total = row.filter(Boolean).length;
+                      return (
+                        <tr key={name} className="border-b last:border-0">
+                          <td className="sticky left-0 z-10 bg-white border-r px-3 py-0 text-xs font-medium text-gray-800 whitespace-nowrap" style={{ height: 30 }}>{name}</td>
+                          {days.map(d => {
+                            const a = row[d - 1];
+                            const wknd = isWeekend(d);
+                            const today = isToday(d);
+                            return (
+                              <td
+                                key={d}
+                                title={a ? `${a.absenceType}${a.status === "pending" ? " (pending)" : ""}${a.notes ? ` · ${a.notes}` : ""}` : undefined}
+                                className={`border-r last:border-r-0 ${cellBg(a, wknd)} ${today ? "outline outline-2 outline-blue-400 outline-offset-[-2px]" : ""}`}
+                                style={{ width: 30, height: 30 }}
+                              />
+                            );
+                          })}
+                          <td className="px-2 text-center text-xs text-gray-500 font-medium">{total || <span className="text-gray-300">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-gray-50 border-t-2 border-gray-300">
+                      <td className="sticky left-0 z-10 bg-gray-50 border-r px-3 py-1.5 text-xs font-bold text-gray-600 whitespace-nowrap">Staff off</td>
+                      {days.map((d, i) => (
+                        <td
+                          key={d}
+                          className={`border-r last:border-r-0 text-center text-xs font-bold ${counts[i] === 0 ? "text-gray-200" : counts[i] >= threshold ? "bg-red-50 text-red-600" : "text-gray-600"}`}
+                          style={{ height: 28 }}
+                        >
+                          {counts[i] || ""}
+                        </td>
+                      ))}
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Add/Edit dialog */}
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); } }}>
