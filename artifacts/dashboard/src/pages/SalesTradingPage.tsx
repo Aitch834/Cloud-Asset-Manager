@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -15,7 +15,8 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import {
   Plus, Trash2, Pencil, Eye, TrendingUp, Wheat, PiggyBank, Bird, Milk,
   ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle,
-  FileText, Calendar, ChevronDown, ChevronRight, X, Handshake, Droplets, Printer
+  FileText, Calendar, ChevronDown, ChevronRight, X, Handshake, Droplets, Printer,
+  Paperclip, File as FileIcon, Loader2
 } from "lucide-react";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
@@ -42,6 +43,47 @@ const ppToGBP = (pence: number | null | undefined) => {
 const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
 const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be185d"];
+
+function DocCell({ endpoint, queryKey, documentPath, documentName }: {
+  endpoint: string;
+  queryKey: unknown[];
+  documentPath: string | null | undefined;
+  documentName: string | null | undefined;
+}) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }) });
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      const fileName = objectPath.split("/").pop() ?? file.name;
+      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+      qc.invalidateQueries({ queryKey });
+    } finally { setUploading(false); }
+  }
+  async function handleRemove() {
+    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: null, documentName: null }) });
+    qc.invalidateQueries({ queryKey });
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {documentPath ? (
+        <>
+          <a href={`/api/storage${documentPath}`} target="_blank" rel="noopener noreferrer" title={documentName || "View document"} style={{ display: "flex", alignItems: "center", color: "#2563eb", padding: 4 }}><FileIcon size={13} /></a>
+          <button onClick={handleRemove} title="Remove document" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: "0.85rem", padding: 4, lineHeight: 1 }}>×</button>
+        </>
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          {uploading ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite", color: "#9ca3af" }} /> : <button onClick={() => fileRef.current?.click()} title="Attach kill sheet / lot sheet" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Paperclip size={13} /></button>}
+        </>
+      )}
+    </div>
+  );
+}
 
 type Tab = "grain" | "contracts" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports" | "settlement-notes";
 
@@ -748,13 +790,13 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
-                {["Kill Date","Processor","Species","Head","Total DW (kg)","Avg DW (kg)","Price/kg","Net Payment","Grade","Actions"].map(h => (
+                {["Kill Date","Processor","Species","Head","Total DW (kg)","Avg DW (kg)","Price/kg","Net Payment","Grade","Doc","Actions"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#374151", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filteredDW.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{dwRecords.length === 0 ? "No kill sheets yet" : `No kill sheets for ${lsYearFilter}`}</td></tr>}
+              {filteredDW.length === 0 && <tr><td colSpan={11} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{dwRecords.length === 0 ? "No kill sheets yet" : `No kill sheets for ${lsYearFilter}`}</td></tr>}
               {filteredDW.map((r: any) => (
                 <React.Fragment key={r.id}>
                   <tr style={{ borderBottom: expandedDWId === r.id ? "none" : "1px solid #f3f4f6" }}>
@@ -771,6 +813,14 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                     <td style={{ padding: "8px 12px", fontWeight: 600, color: "#15803d" }}>{pToGBP(r.netPaymentPence)}</td>
                     <td style={{ padding: "8px 12px" }}>{r.gradeClassification ?? "—"}</td>
                     <td style={{ padding: "8px 12px" }}>
+                      <DocCell
+                        endpoint={`/api/farms/${farmId}/livestock-deadweight-sales/${r.id}`}
+                        queryKey={["livestock-deadweight-sales", farmId]}
+                        documentPath={r.documentPath}
+                        documentName={r.documentName}
+                      />
+                    </td>
+                    <td style={{ padding: "8px 12px" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         {r.animalIds && (
                           <Button size="sm" variant="ghost" title="View ear tags" onClick={() => setExpandedDWId(expandedDWId === r.id ? null : r.id)}>
@@ -785,7 +835,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                   </tr>
                   {expandedDWId === r.id && r.animalIds && (
                     <tr style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0" }}>
-                      <td colSpan={10} style={{ padding: "8px 16px 12px" }}>
+                      <td colSpan={11} style={{ padding: "8px 16px 12px" }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "#15803d", marginBottom: 6 }}>
                           Animal Ear Tags — {r.animalIds.split(",").length} head
                         </div>
@@ -817,13 +867,13 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
-                {["Sale Date","Mart","Species","Category","Lot","Head","Price/Unit","Net Payment","Buyer","Actions"].map(h => (
+                {["Sale Date","Mart","Species","Category","Lot","Head","Price/Unit","Net Payment","Buyer","Doc","Actions"].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#374151", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filteredMart.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{martRecords.length === 0 ? "No mart sales yet" : `No mart sales for ${lsYearFilter}`}</td></tr>}
+              {filteredMart.length === 0 && <tr><td colSpan={11} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{martRecords.length === 0 ? "No mart sales yet" : `No mart sales for ${lsYearFilter}`}</td></tr>}
               {filteredMart.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "8px 12px" }}>
@@ -838,6 +888,14 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "8px 12px" }}>{r.pricePerUnitPence ? pToGBP(r.pricePerUnitPence) : "—"}</td>
                   <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1d4ed8" }}>{pToGBP(r.netPaymentPence)}</td>
                   <td style={{ padding: "8px 12px", color: "#6b7280" }}>{r.buyerName ?? "—"}</td>
+                  <td style={{ padding: "8px 12px" }}>
+                    <DocCell
+                      endpoint={`/api/farms/${farmId}/livestock-mart-sales/${r.id}`}
+                      queryKey={["livestock-mart-sales", farmId]}
+                      documentPath={r.documentPath}
+                      documentName={r.documentName}
+                    />
+                  </td>
                   <td style={{ padding: "8px 12px" }}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <Button size="sm" variant="ghost" onClick={() => setViewMart(r)} title="View"><Eye size={14} /></Button>

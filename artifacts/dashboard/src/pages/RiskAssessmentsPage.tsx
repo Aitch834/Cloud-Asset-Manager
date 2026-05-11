@@ -796,13 +796,23 @@ function DocCell({ endpoint, queryKey, documentPath, documentName }: {
 
 // ─── PAT Testing tab ───────────────────────────────────────────────────────────
 
-interface PatTest {
-  id: number; farmId: number; itemName: string; location: string | null;
+interface PatEquipment {
+  id: number; farmId: number; itemName: string; description: string | null;
+  make: string | null; model: string | null; serialNumber: string | null;
   buildingId: number | null; subLocation: string | null; buildingName: string | null;
-  testDate: string;
-  testerName: string | null; testerCompany: string | null; certificateNumber: string | null;
-  result: string; nextDueDate: string | null; notes: string | null;
-  documentPath: string | null; documentName: string | null; createdAt: string;
+  location: string | null;
+  lastTestDate: string | null; testerName: string | null; testerCompany: string | null;
+  nextTestDue: string | null; status: string;
+  disposalDate: string | null; disposalReason: string | null; disposalNotes: string | null;
+  notes: string | null; createdAt: string;
+}
+
+interface PatTestRecord {
+  id: number; farmId: number; equipmentId: number;
+  testDate: string; testerName: string | null; testerCompany: string | null;
+  certificateNumber: string | null; result: string;
+  nextDueDate: string | null; documentPath: string | null; documentName: string | null;
+  notes: string | null; createdAt: string;
 }
 
 const PAT_RESULT: Record<string, { label: string; colour: string }> = {
@@ -811,22 +821,46 @@ const PAT_RESULT: Record<string, { label: string; colour: string }> = {
   advisory: { label: "Advisory", colour: "bg-amber-100 text-amber-700" },
 };
 
-const EMPTY_PAT = { buildingId: "" as string, subLocation: "", itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
+const PAT_DISPOSAL_REASONS = [
+  { value: "end_of_life",   label: "End of life / No longer required" },
+  { value: "beyond_repair", label: "Beyond economical repair" },
+  { value: "sold",          label: "Sold / Transferred" },
+  { value: "condemned",     label: "Condemned by tester" },
+  { value: "other",         label: "Other" },
+];
+
+const EMPTY_PAT_EQUIPMENT = {
+  buildingId: "" as string, subLocation: "", location: "",
+  itemName: "", description: "", make: "", model: "", serialNumber: "",
+  status: "active", disposalDate: "", disposalReason: "", disposalNotes: "", notes: "",
+};
+
+const EMPTY_PAT_TEST = {
+  testDate: "", testerName: "", testerCompany: "",
+  certificateNumber: "", result: "pass", nextDueDate: "", notes: "",
+};
 
 function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<PatTest | null>(null);
-  const [form, setForm] = useState(EMPTY_PAT);
+  const [editing, setEditing] = useState<PatEquipment | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_PAT_EQUIPMENT>(EMPTY_PAT_EQUIPMENT);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showTest, setShowTest] = useState(false);
+  const [editingTest, setEditingTest] = useState<PatTestRecord | null>(null);
+  const [testingEqId, setTestingEqId] = useState<number | null>(null);
+  const [testForm, setTestForm] = useState<typeof EMPTY_PAT_TEST>(EMPTY_PAT_TEST);
+  const [deleteTestId, setDeleteTestId] = useState<{ testId: number; eqId: number } | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
-  const { data, isLoading } = useQuery<{ records: PatTest[] }>({
-    queryKey: ["pat-tests", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { credentials: "include" }).then(r => r.json()),
+  const { data, isLoading } = useQuery<{ records: PatEquipment[] }>({
+    queryKey: ["pat-equipment", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-equipment`, { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: locData } = useQuery<FarmLoc[]>({
@@ -835,29 +869,104 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   });
   const farmLocations = (locData ?? []).filter(l => l.isActive);
 
+  const { data: testData } = useQuery<{ records: PatTestRecord[] }>({
+    queryKey: ["pat-test-records", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${expandedId}/tests`, { credentials: "include" }).then(r => r.json()),
+    enabled: expandedId !== null,
+  });
+  const expandedTests: PatTestRecord[] = testData?.records ?? [];
+
   const createMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setForm(EMPTY_PAT); },
+    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setShowForm(false); setForm(EMPTY_PAT_EQUIPMENT); toast({ title: "Appliance added" }); },
+    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT); },
+    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT_EQUIPMENT); toast({ title: "Appliance updated" }); },
+    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setDeleteId(null); },
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setDeleteId(null); },
   });
 
-  function openEdit(r: PatTest) {
+  const createTestMut = useMutation({
+    mutationFn: ({ eqId, body }: { eqId: number; body: typeof EMPTY_PAT_TEST }) =>
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (_, { eqId }) => {
+      qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
+      qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
+      setShowTest(false); setEditingTest(null); setTestForm(EMPTY_PAT_TEST);
+      toast({ title: "Test record saved" });
+    },
+    onError: () => toast({ title: "Error saving test record", variant: "destructive" }),
+  });
+
+  const updateTestMut = useMutation({
+    mutationFn: ({ eqId, testId, body }: { eqId: number; testId: number; body: typeof EMPTY_PAT_TEST }) =>
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (_, { eqId }) => {
+      qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
+      qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
+      setShowTest(false); setEditingTest(null); setTestForm(EMPTY_PAT_TEST);
+      toast({ title: "Test record updated" });
+    },
+    onError: () => toast({ title: "Error saving test record", variant: "destructive" }),
+  });
+
+  const deleteTestMut = useMutation({
+    mutationFn: ({ eqId, testId }: { eqId: number; testId: number }) =>
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: (_, { eqId }) => {
+      qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
+      qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
+      setDeleteTestId(null);
+    },
+  });
+
+  function openEdit(r: PatEquipment) {
     setEditing(r);
-    setForm({ buildingId: r.buildingId ? String(r.buildingId) : "", subLocation: r.subLocation ?? "", itemName: r.itemName, location: r.location ?? "", testDate: r.testDate ? r.testDate.slice(0, 10) : "", testerName: r.testerName ?? "", testerCompany: r.testerCompany ?? "", certificateNumber: r.certificateNumber ?? "", result: r.result, nextDueDate: r.nextDueDate ? r.nextDueDate.slice(0, 10) : "", notes: r.notes ?? "" });
+    setForm({
+      buildingId: r.buildingId ? String(r.buildingId) : "", subLocation: r.subLocation ?? "", location: r.location ?? "",
+      itemName: r.itemName, description: r.description ?? "", make: r.make ?? "", model: r.model ?? "", serialNumber: r.serialNumber ?? "",
+      status: r.status ?? "active",
+      disposalDate: r.disposalDate ? r.disposalDate.slice(0, 10) : "",
+      disposalReason: r.disposalReason ?? "", disposalNotes: r.disposalNotes ?? "",
+      notes: r.notes ?? "",
+    });
     setShowForm(true);
+  }
+
+  function openLogTest(eqId: number, tst?: PatTestRecord) {
+    setTestingEqId(eqId);
+    if (tst) {
+      setEditingTest(tst);
+      setTestForm({ testDate: tst.testDate.slice(0, 10), testerName: tst.testerName ?? "", testerCompany: tst.testerCompany ?? "", certificateNumber: tst.certificateNumber ?? "", result: tst.result, nextDueDate: tst.nextDueDate ? tst.nextDueDate.slice(0, 10) : "", notes: tst.notes ?? "" });
+    } else {
+      setEditingTest(null); setTestForm(EMPTY_PAT_TEST);
+    }
+    setShowTest(true);
+  }
+
+  function handleTestDateChange(v: string) {
+    const updated = { ...testForm, testDate: v };
+    if (v) { const d = new Date(v); d.setFullYear(d.getFullYear() + 1); updated.nextDueDate = d.toISOString().slice(0, 10); }
+    setTestForm(updated);
+  }
+
+  function handleTestSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const eqId = testingEqId!;
+    if (editingTest) { updateTestMut.mutate({ eqId, testId: editingTest.id, body: testForm }); }
+    else { createTestMut.mutate({ eqId, body: testForm }); }
   }
 
   const today = new Date();
   const allRecords = data?.records ?? [];
+  const activeRecords = allRecords.filter(r => (r.status ?? "active") === "active");
 
   const records = buildingFilter === "__all__"
     ? allRecords
@@ -865,7 +974,8 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
       ? allRecords.filter(r => !r.buildingId)
       : allRecords.filter(r => r.buildingId === parseInt(buildingFilter));
 
-  const overdue = allRecords.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
+  const overdue = activeRecords.filter(r => r.nextTestDue && new Date(r.nextTestDue) < today).length;
+  const dueSoon = activeRecords.filter(r => { if (!r.nextTestDue) return false; const d = new Date(r.nextTestDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
 
   useEffect(() => {
     if (!openId || autoOpened.current || allRecords.length === 0) return;
@@ -881,14 +991,17 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-sm text-gray-500">Track Portable Appliance Testing for all electrical equipment on the holding. Required under the Electricity at Work Regulations 1989 and Health & Safety at Work Act 1974.</p>
-          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} item{overdue !== 1 ? "s" : ""} overdue for testing</p>}
+          <p className="text-sm text-gray-500">Register all electrical appliances on the holding that require Portable Appliance Testing. Log annual test records with certificates year-on-year. Required under the Electricity at Work Regulations 1989 and Health & Safety at Work Act 1974.</p>
+          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} item{overdue !== 1 ? "s" : ""} overdue for PAT test</p>}
+          {overdue === 0 && dueSoon > 0 && <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1"><Clock className="h-3 w-3" /> {dueSoon} item{dueSoon !== 1 ? "s" : ""} due for PAT test within 60 days</p>}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT); setShowForm(true); }} className="gap-1 shrink-0"><Plus className="h-4 w-4" />Log PAT Test</Button>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT_EQUIPMENT); setShowForm(true); }} className="gap-1 shrink-0"><Plus className="h-4 w-4" />Add Appliance</Button>
       </div>
 
+      {/* Building filter */}
       {allRecords.length > 0 && farmLocations.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 whitespace-nowrap">Filter by location:</span>
@@ -896,13 +1009,9 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
             <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">All locations ({allRecords.length})</SelectItem>
-              {farmLocations
-                .filter(l => allRecords.some(r => r.buildingId === l.id))
-                .map(l => (
-                  <SelectItem key={l.id} value={String(l.id)}>
-                    {l.name} ({allRecords.filter(r => r.buildingId === l.id).length})
-                  </SelectItem>
-                ))}
+              {farmLocations.filter(l => allRecords.some(r => r.buildingId === l.id)).map(l => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name} ({allRecords.filter(r => r.buildingId === l.id).length})</SelectItem>
+              ))}
               {allRecords.some(r => !r.buildingId) && (
                 <SelectItem value="__none__">No building linked ({allRecords.filter(r => !r.buildingId).length})</SelectItem>
               )}
@@ -911,42 +1020,132 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
         </div>
       )}
 
+      {/* Register table */}
       {allRecords.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No PAT test records yet. Log the first test to start tracking compliance.</CardContent></Card>
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No appliances registered yet. Add each item that requires annual PAT testing to start tracking compliance.</CardContent></Card>
       ) : records.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No PAT records at this location.</CardContent></Card>
+        <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No appliances at this location.</CardContent></Card>
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
-              <tr>{["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Due", "Cert Doc", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+              <tr>{["Item / Appliance", "Location", "Make / Model", "Serial No.", "Status", "Last Test", "Next Test Due", "Test History", ""].map(h => <th key={h} className="px-3 py-3 text-left font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map(r => {
-                const due = r.nextDueDate ? new Date(r.nextDueDate) : null;
+                const due = r.nextTestDue ? new Date(r.nextTestDue) : null;
                 const isOverdue = due && due < today;
+                const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
+                const isSoon = diff !== null && diff >= 0 && diff <= 60;
                 const displayLocation = r.buildingName
                   ? r.subLocation ? `${r.buildingName} — ${r.subLocation}` : r.buildingName
                   : r.location || null;
+                const isDisposed = (r.status ?? "active") === "disposed";
+                const isExpanded = expandedId === r.id;
                 return (
-                  <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
-                    <td className="px-4 py-3 font-medium">{r.itemName}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{displayLocation || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.testDate ? new Date(r.testDate).toLocaleDateString("en-GB") : "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{[r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.certificateNumber || "—"}</td>
-                    <td className="px-4 py-3"><StatusBadge value={r.result} map={PAT_RESULT} /></td>
-                    <td className="px-4 py-3">
-                      {due ? <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : "text-gray-500")}>{isOverdue && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}</span> : "—"}
-                    </td>
-                    <td className="px-2 py-3"><DocCell endpoint={`/api/farms/${farmId}/workshop/pat-tests/${r.id}`} queryKey={["pat-tests", farmId]} documentPath={r.documentPath ?? null} documentName={r.documentName ?? null} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </td>
-                  </tr>
+                  <React.Fragment key={r.id}>
+                    <tr ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={cn("transition-colors", hlId === r.id ? "bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : isDisposed ? "bg-gray-50 opacity-60" : "hover:bg-gray-50")}>
+                      <td className="px-3 py-3 font-medium">{r.itemName}{r.description ? <div className="text-xs text-gray-400 font-normal">{r.description}</div> : null}</td>
+                      <td className="px-3 py-3 text-gray-500 text-xs">{displayLocation || "—"}</td>
+                      <td className="px-3 py-3 text-gray-500 text-xs">{[r.make, r.model].filter(Boolean).join(" ") || "—"}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
+                      <td className="px-3 py-3">
+                        {isDisposed
+                          ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Disposed{r.disposalDate ? ` · ${new Date(r.disposalDate).toLocaleDateString("en-GB")}` : ""}</span>
+                          : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        }
+                      </td>
+                      <td className="px-3 py-3 text-gray-500 text-xs">{r.lastTestDate ? new Date(r.lastTestDate).toLocaleDateString("en-GB") : "—"}</td>
+                      <td className="px-3 py-3">
+                        {isDisposed ? <span className="text-gray-400 text-xs">—</span> : due ? (
+                          <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : isSoon ? "text-amber-600" : "text-gray-600")}>
+                            {(isOverdue || isSoon) && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}
+                          </span>
+                        ) : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button onClick={() => setExpandedId(isExpanded ? null : r.id)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          View
+                        </button>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex gap-1">
+                          {!isDisposed && (
+                            <Button size="sm" variant="outline" className="text-xs h-7 px-2 gap-1" onClick={() => { setExpandedId(r.id); openLogTest(r.id); }}>
+                              <Plus className="h-3 w-3" />Log Test
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expanded test history */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={9} className="bg-blue-50 border-b px-4 py-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                                PAT Test History — {r.itemName}{r.make || r.model ? ` (${[r.make, r.model].filter(Boolean).join(" ")})` : ""}
+                              </p>
+                              {!isDisposed && (
+                                <Button size="sm" className="gap-1 h-7" onClick={() => openLogTest(r.id)}>
+                                  <Plus className="h-3 w-3" />Log Test
+                                </Button>
+                              )}
+                            </div>
+                            {expandedTests.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic">No test records yet. Click Log Test to add the first annual PAT certificate.</p>
+                            ) : (
+                              <div className="overflow-x-auto rounded border bg-white">
+                                <table className="min-w-full text-xs">
+                                  <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+                                    <tr>{["Test Date", "Tester Name", "Tester Company", "Cert No.", "Result", "Next Due", "Certificate", ""].map(h => <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>)}</tr>
+                                  </thead>
+                                  <tbody className="divide-y">
+                                    {expandedTests.map(tst => {
+                                      const tRes = PAT_RESULT[tst.result] ?? { label: tst.result, colour: "bg-gray-100 text-gray-600" };
+                                      const tDue = tst.nextDueDate ? new Date(tst.nextDueDate) : null;
+                                      const tOverdue = tDue && tDue < today;
+                                      return (
+                                        <tr key={tst.id} className="hover:bg-gray-50">
+                                          <td className="px-3 py-2 font-medium whitespace-nowrap">{new Date(tst.testDate).toLocaleDateString("en-GB")}</td>
+                                          <td className="px-3 py-2 text-gray-600">{tst.testerName || "—"}</td>
+                                          <td className="px-3 py-2 text-gray-600">{tst.testerCompany || "—"}</td>
+                                          <td className="px-3 py-2 font-mono text-gray-500">{tst.certificateNumber || "—"}</td>
+                                          <td className="px-3 py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tRes.colour}`}>{tRes.label}</span></td>
+                                          <td className="px-3 py-2 whitespace-nowrap">
+                                            {tDue ? <span className={cn("text-xs font-medium", tOverdue ? "text-red-600" : "text-gray-600")}>{tOverdue && <AlertTriangle className="h-3 w-3 inline mr-1" />}{tDue.toLocaleDateString("en-GB")}</span> : "—"}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <DocCell
+                                              endpoint={`/api/farms/${farmId}/workshop/pat-equipment/${r.id}/tests/${tst.id}/document`}
+                                              queryKey={["pat-test-records", farmId, r.id]}
+                                              documentPath={tst.documentPath}
+                                              documentName={tst.documentName}
+                                            />
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <div className="flex gap-1">
+                                              <Button size="sm" variant="ghost" onClick={() => openLogTest(r.id, tst)}><Pencil className="h-3 w-3" /></Button>
+                                              <Button size="sm" variant="ghost" onClick={() => setDeleteTestId({ testId: tst.id, eqId: r.id })} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -954,13 +1153,18 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
         </div>
       )}
 
+      {/* Add / Edit Appliance Dialog */}
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
-            <DialogHeader><DialogTitle>{editing ? "Edit PAT Test" : "Log PAT Test"}</DialogTitle></DialogHeader>
+          <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit Appliance" : "Add Appliance"}</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2"><Label>Item / Appliance Name *</Label><Input required value={form.itemName} onChange={e => setForm(f => ({ ...f, itemName: e.target.value }))} placeholder="e.g. Angle Grinder, Extension Lead, Welder" /></div>
+                <div className="col-span-2"><Label>Item / Appliance Name *</Label><Input required value={form.itemName} onChange={e => setForm(f => ({ ...f, itemName: e.target.value }))} placeholder="e.g. Angle Grinder, Extension Lead, Welder, Kettle" /></div>
+                <div className="col-span-2"><Label>Description</Label><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. 9-inch angle grinder used for cutting metal" /></div>
+                <div><Label>Make</Label><Input value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))} placeholder="e.g. Bosch, Dewalt, Makita" /></div>
+                <div><Label>Model</Label><Input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Serial Number</Label><Input value={form.serialNumber} onChange={e => setForm(f => ({ ...f, serialNumber: e.target.value }))} className="font-mono" /></div>
 
                 {farmLocations.length > 0 ? (
                   <>
@@ -969,62 +1173,160 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
                       <Select value={form.buildingId || "__none__"} onValueChange={v => setForm(f => ({ ...f, buildingId: v === "__none__" ? "" : v, location: "" }))}>
                         <SelectTrigger><SelectValue placeholder="Select a farm building or area…" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">— Manual entry (no building registered) —</SelectItem>
+                          <SelectItem value="__none__">— Manual entry (no building selected) —</SelectItem>
                           {farmLocations.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-gray-400 mt-1">Select from your Farm Buildings &amp; Areas register.</p>
                     </div>
                     {usingBuildingPicker ? (
                       <div className="col-span-2">
                         <Label>Workstation / Position</Label>
                         <Input value={form.subLocation} onChange={e => setForm(f => ({ ...f, subLocation: e.target.value }))} placeholder="e.g. Left workbench, Tool rack, Under the desk" />
-                        <p className="text-xs text-gray-400 mt-1">Exact position within the building — helps PAT testers locate the item without a floor plan.</p>
+                        <p className="text-xs text-gray-400 mt-1">Exact position — helps PAT testers locate the item without a floor plan.</p>
                       </div>
                     ) : (
                       <div className="col-span-2">
                         <Label>Location</Label>
-                        <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" />
+                        <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Farm office, Grain store" />
                       </div>
                     )}
                   </>
                 ) : (
                   <div className="col-span-2">
                     <Label>Location</Label>
-                    <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" />
+                    <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Farm office, Grain store" />
                     <p className="text-xs text-gray-400 mt-1">Add buildings in Farm Buildings &amp; Areas to enable the structured building picker here.</p>
                   </div>
                 )}
 
-                <div className="col-span-2">
-                  <Label>Result</Label>
-                  <Select value={form.result} onValueChange={v => setForm(f => ({ ...f, result: v }))}>
+                <div className="col-span-2 border-t pt-4">
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="pass">Pass</SelectItem><SelectItem value="fail">Fail</SelectItem><SelectItem value="advisory">Advisory</SelectItem></SelectContent>
+                    <SelectContent>
+                      <SelectItem value="active">Active — requires annual PAT testing</SelectItem>
+                      <SelectItem value="disposed">Disposed / Removed from service</SelectItem>
+                    </SelectContent>
                   </Select>
+                  <p className="text-xs text-gray-400 mt-1">Mark as Disposed when the item is no longer on the holding. The record is retained for audit.</p>
                 </div>
-                <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
-                <div><Label>Next Test Due</Label><Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
-                <div><Label>Tester Name</Label><Input value={form.testerName} onChange={e => setForm(f => ({ ...f, testerName: e.target.value }))} /></div>
-                <div><Label>Tester Company</Label><Input value={form.testerCompany} onChange={e => setForm(f => ({ ...f, testerCompany: e.target.value }))} /></div>
-                <div className="col-span-2"><Label>Certificate Number</Label><Input value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} className="font-mono" /></div>
+                {form.status === "disposed" && (
+                  <>
+                    <div>
+                      <Label>Disposal Date</Label>
+                      <Input type="date" value={form.disposalDate} onChange={e => setForm(f => ({ ...f, disposalDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Disposal Reason</Label>
+                      <Select value={form.disposalReason || "__none__"} onValueChange={v => setForm(f => ({ ...f, disposalReason: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select reason…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select reason —</SelectItem>
+                          {PAT_DISPOSAL_REASONS.map(dr => <SelectItem key={dr.value} value={dr.value}>{dr.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Disposal Notes</Label>
+                      <Textarea value={form.disposalNotes} onChange={e => setForm(f => ({ ...f, disposalNotes: e.target.value }))} rows={2} />
+                    </div>
+                  </>
+                )}
                 <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Record"}</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save Changes" : "Add Appliance"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       )}
 
+      {/* Log Test Dialog */}
+      {showTest && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowTest(false); setEditingTest(null); } }}>
+          <DialogContent style={{ maxWidth: "38rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editingTest ? "Edit Test Record" : "Log PAT Test"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleTestSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Test Date *</Label>
+                  <Input required type="date" value={testForm.testDate} onChange={e => handleTestDateChange(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+                </div>
+                <div>
+                  <Label>Result *</Label>
+                  <Select value={testForm.result} onValueChange={v => setTestForm(f => ({ ...f, result: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pass">Pass — safe to use</SelectItem>
+                      <SelectItem value="advisory">Advisory — minor issues noted</SelectItem>
+                      <SelectItem value="fail">Fail — condemned / do not use</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Tester Name</Label>
+                  <Input value={testForm.testerName} onChange={e => setTestForm(f => ({ ...f, testerName: e.target.value }))} placeholder="e.g. John Smith" />
+                </div>
+                <div>
+                  <Label>Tester Company</Label>
+                  <BuyerCombobox
+                    farmId={farmId}
+                    types={["pat_testing_company"]}
+                    valueId={null}
+                    valueName={testForm.testerCompany}
+                    onChange={(_, name) => setTestForm(f => ({ ...f, testerCompany: name }))}
+                    typeLabel="PAT Testing Company"
+                    placeholder="Search or add company…"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Draws from Trade Contacts. Type a new name to add inline.</p>
+                </div>
+                <div className="col-span-2">
+                  <Label>Certificate Number</Label>
+                  <Input value={testForm.certificateNumber} onChange={e => setTestForm(f => ({ ...f, certificateNumber: e.target.value }))} className="font-mono" placeholder="e.g. PAT-2024-00123" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Next Test Due</Label>
+                  <Input type="date" value={testForm.nextDueDate} onChange={e => setTestForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                  <p className="text-xs text-gray-400 mt-1">Auto-filled to +1 year from the test date. Override if different.</p>
+                </div>
+                <div className="col-span-2">
+                  <Label>Notes</Label>
+                  <Textarea value={testForm.notes} onChange={e => setTestForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. All sockets tested. Earth continuity verified on power tools." />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">After saving, use the paperclip icon on the test row to attach a copy of the PAT certificate.</p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowTest(false)}>Cancel</Button>
+                <Button type="submit" disabled={createTestMut.isPending || updateTestMut.isPending}>{editingTest ? "Save Changes" : "Log Test"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Appliance confirm */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>Delete PAT Record?</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-500">This will permanently remove the PAT test record. This cannot be undone.</p>
+          <DialogHeader><DialogTitle>Remove Appliance?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove this appliance and all its PAT test records. This cannot be undone.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Test Record confirm */}
+      <Dialog open={deleteTestId !== null} onOpenChange={o => { if (!o) setDeleteTestId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Test Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove this PAT test entry. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTestId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteTestId && deleteTestMut.mutate(deleteTestId)} disabled={deleteTestMut.isPending}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1720,7 +2022,7 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
   const farmQ = useQuery({ queryKey: ["farm-record", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()) });
   const raQ  = useQuery({ queryKey: ["risk-assessments", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-assessments`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
   const coshhQ = useQuery({ queryKey: ["risk-coshh", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-coshh`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
-  const patQ = useQuery({ queryKey: ["pat-tests", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+  const patQ = useQuery({ queryKey: ["pat-equipment", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-equipment`, { credentials: "include" }).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
   const fireQ = useQuery({ queryKey: ["fire-extinguishers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { credentials: "include" }).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
 
   const farm = farmQ.data?.record;
@@ -1739,7 +2041,7 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
   });
   const overdueRa   = activeRisks.filter(r => r.reviewDate && new Date(r.reviewDate) < now).length;
   const overdueCoShh = coshh.filter(r => r.reviewDate && new Date(r.reviewDate) < now).length;
-  const overduePat  = pats.filter(r => r.nextDueDate && new Date(r.nextDueDate) < now).length;
+  const overduePat  = pats.filter(r => r.nextTestDue && new Date(r.nextTestDue) < now && r.status !== "disposed").length;
   const overdueFire = fires.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < now).length;
 
   const printReport = () => {
@@ -1851,29 +2153,44 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
             </HsRptSection>
 
             {/* Section 3 – PAT Testing */}
-            <HsRptSection title="3. PAT Testing Log" count={pats.length}>
-              {pats.length === 0 ? (
-                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No PAT test records logged.</p>
-              ) : (
-                <HsRptTable
-                  headers={["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Test Due"]}
-                  rows={pats.map(r => {
-                    const overdue = r.nextDueDate && new Date(r.nextDueDate) < now;
-                    const resultColors: Record<string, { bg: string; color: string }> = { pass: { bg: "#dcfce7", color: "#166534" }, fail: { bg: "#fee2e2", color: "#991b1b" }, advisory: { bg: "#fef3c7", color: "#92400e" } };
-                    const rs = resultColors[r.result] ?? { bg: "#f3f4f6", color: "#374151" };
-                    return [
-                      <strong>{r.itemName}</strong>,
-                      r.location || "—",
-                      hsRptFmt(r.testDate),
-                      [r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—",
-                      <span style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>{r.certificateNumber || "—"}</span>,
-                      <span style={{ padding: "2px 7px", borderRadius: 4, background: rs.bg, color: rs.color, fontSize: "0.7rem", fontWeight: 600, textTransform: "capitalize" }}>{r.result}</span>,
-                      <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextDueDate)}</span>,
-                    ];
-                  })}
-                />
-              )}
-            </HsRptSection>
+            {(() => {
+              const activePats = pats.filter((r: any) => (r.status ?? "active") === "active");
+              const disposedPats = pats.filter((r: any) => r.status === "disposed");
+              return (
+                <HsRptSection title="3. PAT Testing — Appliance Register" count={activePats.length}>
+                  {pats.length === 0 ? (
+                    <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No PAT appliances registered.</p>
+                  ) : (
+                    <>
+                      {activePats.length > 0 && (
+                        <HsRptTable
+                          headers={["Item / Appliance", "Make / Model", "Location", "Last Test Date", "Tester", "Next Test Due"]}
+                          rows={activePats.map((r: any) => {
+                            const overdue = r.nextTestDue && new Date(r.nextTestDue) < now;
+                            const displayLoc = r.buildingName
+                              ? r.subLocation ? `${r.buildingName} — ${r.subLocation}` : r.buildingName
+                              : r.location || "—";
+                            return [
+                              <strong>{r.itemName}</strong>,
+                              [r.make, r.model].filter(Boolean).join(" ") || "—",
+                              displayLoc,
+                              hsRptFmt(r.lastTestDate),
+                              [r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—",
+                              <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextTestDue)}</span>,
+                            ];
+                          })}
+                        />
+                      )}
+                      {disposedPats.length > 0 && (
+                        <p style={{ marginTop: 8, fontSize: "0.78rem", color: "#6b7280" }}>
+                          {disposedPats.length} disposed / removed item{disposedPats.length !== 1 ? "s" : ""} not shown ({disposedPats.map((r: any) => `${r.itemName}${r.disposalDate ? `, removed ${new Date(r.disposalDate).toLocaleDateString("en-GB")}` : ""}`).join("; ")}).
+                        </p>
+                      )}
+                    </>
+                  )}
+                </HsRptSection>
+              );
+            })()}
 
             {/* Section 4 – Fire Safety */}
             {(() => {

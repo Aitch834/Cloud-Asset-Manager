@@ -135,6 +135,45 @@ export const workshopPatTestsTable = pgTable("workshop_pat_tests", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const workshopPatEquipmentTable = pgTable("workshop_pat_equipment", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  itemName: text("item_name").notNull(),
+  description: text("description"),
+  make: text("make"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  buildingId: integer("building_id").references(() => farmLocationsTable.id, { onDelete: "set null" }),
+  subLocation: text("sub_location"),
+  location: text("location"),
+  lastTestDate: timestamp("last_test_date", { withTimezone: true }),
+  testerName: text("tester_name"),
+  testerCompany: text("tester_company"),
+  nextTestDue: timestamp("next_test_due", { withTimezone: true }),
+  status: text("status").notNull().default("active"),
+  disposalDate: timestamp("disposal_date", { withTimezone: true }),
+  disposalReason: text("disposal_reason"),
+  disposalNotes: text("disposal_notes"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopPatTestRecordsTable = pgTable("workshop_pat_test_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  equipmentId: integer("equipment_id").notNull().references(() => workshopPatEquipmentTable.id, { onDelete: "cascade" }),
+  testDate: timestamp("test_date", { withTimezone: true }).notNull(),
+  testerName: text("tester_name"),
+  testerCompany: text("tester_company"),
+  certificateNumber: text("certificate_number"),
+  result: text("result").notNull().default("pass"),
+  nextDueDate: timestamp("next_due_date", { withTimezone: true }),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const workshopFireExtinguishersTable = pgTable("workshop_fire_extinguishers", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

@@ -33,6 +33,8 @@ import {
   equipmentMaintenanceLogsTable,
   workshopJobsTable,
   workshopPatTestsTable,
+  workshopPatEquipmentTable,
+  workshopPatTestRecordsTable,
   workshopFireExtinguishersTable,
   workshopFireExtinguisherServicesTable,
   workshopPartDocumentsTable,
@@ -13541,9 +13543,9 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(vetHealthPlansTable)
       .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart as any), lt(vetHealthPlansTable.reviewDate, rangeEnd as any))),
 
-    db.select({ id: workshopPatTestsTable.id, itemName: workshopPatTestsTable.itemName, location: workshopPatTestsTable.location, nextDueDate: workshopPatTestsTable.nextDueDate })
-      .from(workshopPatTestsTable)
-      .where(and(eq(workshopPatTestsTable.farmId, farmId), isNotNull(workshopPatTestsTable.nextDueDate), gte(workshopPatTestsTable.nextDueDate, overdueStart as any), lt(workshopPatTestsTable.nextDueDate, rangeEnd as any))),
+    db.select({ id: workshopPatEquipmentTable.id, itemName: workshopPatEquipmentTable.itemName, location: workshopPatEquipmentTable.location, nextDueDate: workshopPatEquipmentTable.nextTestDue })
+      .from(workshopPatEquipmentTable)
+      .where(and(eq(workshopPatEquipmentTable.farmId, farmId), eq(workshopPatEquipmentTable.status, "active"), isNotNull(workshopPatEquipmentTable.nextTestDue), gte(workshopPatEquipmentTable.nextTestDue, overdueStart as any), lt(workshopPatEquipmentTable.nextTestDue, rangeEnd as any))),
 
     db.select({ id: workshopFireExtinguishersTable.id, location: workshopFireExtinguishersTable.location, type: workshopFireExtinguishersTable.type, nextServiceDue: workshopFireExtinguishersTable.nextServiceDue })
       .from(workshopFireExtinguishersTable)
@@ -14655,6 +14657,8 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
   workshop: async (farmId) => ({
     jobCards: await db.select({ job: workshopJobsTable, equipmentName: equipmentTable.name }).from(workshopJobsTable).leftJoin(equipmentTable, eq(workshopJobsTable.equipmentId, equipmentTable.id)).where(eq(workshopJobsTable.farmId, farmId)).orderBy(desc(workshopJobsTable.createdAt)).limit(100),
     patTests: await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate)).limit(100),
+    patEquipment: await db.select().from(workshopPatEquipmentTable).where(eq(workshopPatEquipmentTable.farmId, farmId)).orderBy(workshopPatEquipmentTable.itemName).limit(200),
+    patTestRecords: await db.select().from(workshopPatTestRecordsTable).where(eq(workshopPatTestRecordsTable.farmId, farmId)).orderBy(desc(workshopPatTestRecordsTable.testDate)).limit(500),
     fireExtinguishers: await db.select().from(workshopFireExtinguishersTable).where(eq(workshopFireExtinguishersTable.farmId, farmId)).orderBy(workshopFireExtinguishersTable.nextServiceDue).limit(100),
   }),
   "pig-production": async (farmId) => ({
@@ -15135,6 +15139,155 @@ router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenan
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopPatTestsTable).where(and(eq(workshopPatTestsTable.id, id), eq(workshopPatTestsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Workshop PAT Equipment Register ──────────────────────────────────────────
+router.get("/farms/:farmId/workshop/pat-equipment", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: workshopPatEquipmentTable.id, farmId: workshopPatEquipmentTable.farmId,
+      itemName: workshopPatEquipmentTable.itemName, description: workshopPatEquipmentTable.description,
+      make: workshopPatEquipmentTable.make, model: workshopPatEquipmentTable.model,
+      serialNumber: workshopPatEquipmentTable.serialNumber,
+      buildingId: workshopPatEquipmentTable.buildingId, subLocation: workshopPatEquipmentTable.subLocation,
+      location: workshopPatEquipmentTable.location,
+      lastTestDate: workshopPatEquipmentTable.lastTestDate,
+      testerName: workshopPatEquipmentTable.testerName, testerCompany: workshopPatEquipmentTable.testerCompany,
+      nextTestDue: workshopPatEquipmentTable.nextTestDue,
+      status: workshopPatEquipmentTable.status,
+      disposalDate: workshopPatEquipmentTable.disposalDate, disposalReason: workshopPatEquipmentTable.disposalReason, disposalNotes: workshopPatEquipmentTable.disposalNotes,
+      notes: workshopPatEquipmentTable.notes, createdAt: workshopPatEquipmentTable.createdAt,
+      buildingName: farmLocationsTable.name,
+    })
+    .from(workshopPatEquipmentTable)
+    .leftJoin(farmLocationsTable, eq(workshopPatEquipmentTable.buildingId, farmLocationsTable.id))
+    .where(eq(workshopPatEquipmentTable.farmId, farmId))
+    .orderBy(workshopPatEquipmentTable.itemName);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/workshop/pat-equipment", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { buildingId, lastTestDate, nextTestDue, disposalDate, ...rest } = req.body;
+  const [record] = await db.insert(workshopPatEquipmentTable).values({
+    ...rest, farmId,
+    buildingId: buildingId ?? null,
+    lastTestDate: lastTestDate ? new Date(lastTestDate) : null,
+    nextTestDue: nextTestDue ? new Date(nextTestDue) : null,
+    disposalDate: disposalDate ? new Date(disposalDate) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/workshop/pat-equipment/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { buildingId, lastTestDate, nextTestDue, disposalDate, ...rest } = req.body;
+  const [record] = await db.update(workshopPatEquipmentTable).set({
+    ...rest,
+    buildingId: buildingId ?? null,
+    lastTestDate: lastTestDate ? new Date(lastTestDate) : null,
+    nextTestDue: nextTestDue ? new Date(nextTestDue) : null,
+    disposalDate: disposalDate ? new Date(disposalDate) : null,
+  }).where(and(eq(workshopPatEquipmentTable.id, id), eq(workshopPatEquipmentTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/workshop/pat-equipment/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(workshopPatEquipmentTable).where(and(eq(workshopPatEquipmentTable.id, id), eq(workshopPatEquipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.equipmentId as string);
+  if (isNaN(equipmentId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db.select().from(workshopPatTestRecordsTable)
+    .where(and(eq(workshopPatTestRecordsTable.farmId, farmId), eq(workshopPatTestRecordsTable.equipmentId, equipmentId)))
+    .orderBy(desc(workshopPatTestRecordsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.equipmentId as string);
+  if (isNaN(equipmentId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { testDate, nextDueDate, ...rest } = req.body;
+  const [record] = await db.insert(workshopPatTestRecordsTable).values({
+    ...rest, farmId, equipmentId,
+    testDate: new Date(testDate),
+    nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+  }).returning();
+  await db.update(workshopPatEquipmentTable).set({
+    lastTestDate: new Date(testDate),
+    testerName: rest.testerName ?? null,
+    testerCompany: rest.testerCompany ?? null,
+    nextTestDue: nextDueDate ? new Date(nextDueDate) : null,
+  }).where(and(eq(workshopPatEquipmentTable.id, equipmentId), eq(workshopPatEquipmentTable.farmId, farmId)));
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests/:testId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.equipmentId as string);
+  const testId = parseInt(req.params.testId as string);
+  if (isNaN(equipmentId) || isNaN(testId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { testDate, nextDueDate, ...rest } = req.body;
+  const [record] = await db.update(workshopPatTestRecordsTable).set({
+    ...rest,
+    testDate: new Date(testDate),
+    nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+  }).where(and(eq(workshopPatTestRecordsTable.id, testId), eq(workshopPatTestRecordsTable.farmId, farmId))).returning();
+  const [latest] = await db.select().from(workshopPatTestRecordsTable)
+    .where(and(eq(workshopPatTestRecordsTable.equipmentId, equipmentId), eq(workshopPatTestRecordsTable.farmId, farmId)))
+    .orderBy(desc(workshopPatTestRecordsTable.testDate)).limit(1);
+  if (latest) {
+    await db.update(workshopPatEquipmentTable).set({
+      lastTestDate: latest.testDate, testerName: latest.testerName,
+      testerCompany: latest.testerCompany, nextTestDue: latest.nextDueDate,
+    }).where(and(eq(workshopPatEquipmentTable.id, equipmentId), eq(workshopPatEquipmentTable.farmId, farmId)));
+  }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests/:testId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.equipmentId as string);
+  const testId = parseInt(req.params.testId as string);
+  if (isNaN(equipmentId) || isNaN(testId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(workshopPatTestRecordsTable).where(and(eq(workshopPatTestRecordsTable.id, testId), eq(workshopPatTestRecordsTable.farmId, farmId)));
+  const [latest] = await db.select().from(workshopPatTestRecordsTable)
+    .where(and(eq(workshopPatTestRecordsTable.equipmentId, equipmentId), eq(workshopPatTestRecordsTable.farmId, farmId)))
+    .orderBy(desc(workshopPatTestRecordsTable.testDate)).limit(1);
+  await db.update(workshopPatEquipmentTable).set({
+    lastTestDate: latest?.testDate ?? null, testerName: latest?.testerName ?? null,
+    testerCompany: latest?.testerCompany ?? null, nextTestDue: latest?.nextDueDate ?? null,
+  }).where(and(eq(workshopPatEquipmentTable.id, equipmentId), eq(workshopPatEquipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.put("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests/:testId/document", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const testId = parseInt(req.params.testId as string);
+  if (isNaN(testId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath, documentName } = req.body;
+  const [record] = await db.update(workshopPatTestRecordsTable).set({ documentPath, documentName })
+    .where(and(eq(workshopPatTestRecordsTable.id, testId), eq(workshopPatTestRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
 });
 
 // ─── Workshop Fire Extinguishers ───────────────────────────────────────────────

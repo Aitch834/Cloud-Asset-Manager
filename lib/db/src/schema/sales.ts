@@ -82,6 +82,8 @@ export const livestockDeadweightSalesTable = pgTable("livestock_deadweight_sales
   vendorDeclarationRef: text("vendor_declaration_ref"),
   animalIds: text("animal_ids"), // comma-separated ear tags
   movementId: integer("movement_id").references(() => livestockMovementsTable.id), // linked off-farm movement record
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -115,6 +117,8 @@ export const livestockMartSalesTable = pgTable("livestock_mart_sales", {
   vendorDeclarationRef: text("vendor_declaration_ref"),
   animalIds: text("animal_ids"),
   movementId: integer("movement_id").references(() => livestockMovementsTable.id), // linked off-farm movement record
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
