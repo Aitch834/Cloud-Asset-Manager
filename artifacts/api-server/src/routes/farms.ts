@@ -15148,6 +15148,7 @@ router.get("/farms/:farmId/workshop/pat-equipment", requireAuth, requireTenant, 
   const records = await db
     .select({
       id: workshopPatEquipmentTable.id, farmId: workshopPatEquipmentTable.farmId,
+      assetNumber: workshopPatEquipmentTable.assetNumber,
       itemName: workshopPatEquipmentTable.itemName, description: workshopPatEquipmentTable.description,
       make: workshopPatEquipmentTable.make, model: workshopPatEquipmentTable.model,
       serialNumber: workshopPatEquipmentTable.serialNumber,
@@ -15172,13 +15173,16 @@ router.post("/farms/:farmId/workshop/pat-equipment", requireAuth, requireTenant,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { buildingId, lastTestDate, nextTestDue, disposalDate, ...rest } = req.body;
-  const [record] = await db.insert(workshopPatEquipmentTable).values({
+  const [inserted] = await db.insert(workshopPatEquipmentTable).values({
     ...rest, farmId,
     buildingId: buildingId ?? null,
     lastTestDate: lastTestDate ? new Date(lastTestDate) : null,
     nextTestDue: nextTestDue ? new Date(nextTestDue) : null,
     disposalDate: disposalDate ? new Date(disposalDate) : null,
   }).returning();
+  // Auto-assign BDE asset number: BDE-PAT-XXXX based on this record's unique DB id
+  const assetNumber = `BDE-PAT-${String(inserted.id).padStart(4, "0")}`;
+  const [record] = await db.update(workshopPatEquipmentTable).set({ assetNumber }).where(eq(workshopPatEquipmentTable.id, inserted.id)).returning();
   res.json({ record });
 });
 
@@ -15205,6 +15209,57 @@ router.delete("/farms/:farmId/workshop/pat-equipment/:id", requireAuth, requireT
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopPatEquipmentTable).where(and(eq(workshopPatEquipmentTable.id, id), eq(workshopPatEquipmentTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── PAT Equipment — get single record by DB id ────────────────────────────────
+router.get("/farms/:farmId/workshop/pat-equipment/single/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db
+    .select({
+      id: workshopPatEquipmentTable.id, farmId: workshopPatEquipmentTable.farmId,
+      assetNumber: workshopPatEquipmentTable.assetNumber,
+      itemName: workshopPatEquipmentTable.itemName, description: workshopPatEquipmentTable.description,
+      make: workshopPatEquipmentTable.make, model: workshopPatEquipmentTable.model,
+      serialNumber: workshopPatEquipmentTable.serialNumber,
+      location: workshopPatEquipmentTable.location, subLocation: workshopPatEquipmentTable.subLocation,
+      lastTestDate: workshopPatEquipmentTable.lastTestDate, nextTestDue: workshopPatEquipmentTable.nextTestDue,
+      status: workshopPatEquipmentTable.status,
+      buildingName: farmLocationsTable.name,
+    })
+    .from(workshopPatEquipmentTable)
+    .leftJoin(farmLocationsTable, eq(workshopPatEquipmentTable.buildingId, farmLocationsTable.id))
+    .where(and(eq(workshopPatEquipmentTable.farmId, farmId), eq(workshopPatEquipmentTable.id, id)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
+});
+
+// ─── PAT Equipment — look up by asset number (for mobile QR scanner) ──────────
+router.get("/farms/:farmId/workshop/pat-equipment/by-asset/:code", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { code } = req.params as { code: string };
+  const [record] = await db
+    .select({
+      id: workshopPatEquipmentTable.id, farmId: workshopPatEquipmentTable.farmId,
+      assetNumber: workshopPatEquipmentTable.assetNumber,
+      itemName: workshopPatEquipmentTable.itemName, description: workshopPatEquipmentTable.description,
+      make: workshopPatEquipmentTable.make, model: workshopPatEquipmentTable.model,
+      serialNumber: workshopPatEquipmentTable.serialNumber,
+      location: workshopPatEquipmentTable.location, subLocation: workshopPatEquipmentTable.subLocation,
+      lastTestDate: workshopPatEquipmentTable.lastTestDate, nextTestDue: workshopPatEquipmentTable.nextTestDue,
+      status: workshopPatEquipmentTable.status,
+      buildingName: farmLocationsTable.name,
+    })
+    .from(workshopPatEquipmentTable)
+    .leftJoin(farmLocationsTable, eq(workshopPatEquipmentTable.buildingId, farmLocationsTable.id))
+    .where(and(eq(workshopPatEquipmentTable.farmId, farmId), eq(workshopPatEquipmentTable.assetNumber, code)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
 });
 
 router.get("/farms/:farmId/workshop/pat-equipment/:equipmentId/tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {

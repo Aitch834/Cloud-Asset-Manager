@@ -138,6 +138,7 @@ export const workshopPatTestsTable = pgTable("workshop_pat_tests", {
 export const workshopPatEquipmentTable = pgTable("workshop_pat_equipment", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  assetNumber: text("asset_number"),
   itemName: text("item_name").notNull(),
   description: text("description"),
   make: text("make"),

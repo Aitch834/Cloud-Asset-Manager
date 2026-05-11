@@ -48,7 +48,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-type EntityType = "equipment" | "field" | "animal" | "storage" | "tank";
+type EntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "pat";
 
 interface ScanResult {
   type: EntityType;
@@ -62,6 +62,7 @@ const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: key
   animal:    { label: "Animal",            colour: "#b45309", icon: "feather" },
   storage:   { label: "Storage Location", colour: "#1d4ed8", icon: "archive" },
   tank:      { label: "Bulk Milk Tank",   colour: "#0369a1", icon: "droplet" },
+  pat:       { label: "PAT Equipment",    colour: "#7c3aed", icon: "zap" },
 };
 
 const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string; extraParams?: Record<string, string> }[]> = {
@@ -90,6 +91,9 @@ const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyo
     { label: "Log Monitoring Record",      sub: "Temperature check, cleaning or ABR test",       icon: "activity",      colour: "#0369a1", bg: "#DBEAFE", route: "/bulk-tank-record",  paramKey: "tankId",  nameKey: "tankName" },
     { label: "Log Deep Clean",             sub: "Record a full tank clean and sanitisation",     icon: "check-circle",  colour: "#0f766e", bg: "#CCFBF1", route: "/bulk-tank-record",  paramKey: "tankId",  nameKey: "tankName", extraParams: { presetType: "cleaning" } },
   ],
+  pat: [
+    { label: "Record PAT Test",            sub: "Log a test result for this appliance — pass, fail or advisory", icon: "check-circle", colour: "#7c3aed", bg: "#ede9fe", route: "/pat-test-scan", paramKey: "equipmentId", nameKey: "equipmentName" },
+  ],
 };
 
 function normaliseBdeCode(raw: string): string {
@@ -99,11 +103,12 @@ function normaliseBdeCode(raw: string): string {
 
 function detectEntityType(raw: string): EntityType | null {
   const code = normaliseBdeCode(raw);
-  if (code.startsWith("EQ-"))  return "equipment";
-  if (code.startsWith("FLD-")) return "field";
-  if (code.startsWith("ANM-")) return "animal";
-  if (code.startsWith("STG-")) return "storage";
-  if (code.startsWith("TNK-")) return "tank";
+  if (code.startsWith("EQ-"))       return "equipment";
+  if (code.startsWith("FLD-"))      return "field";
+  if (code.startsWith("ANM-"))      return "animal";
+  if (code.startsWith("STG-"))      return "storage";
+  if (code.startsWith("TNK-"))      return "tank";
+  if (code.startsWith("BDE-PAT-"))  return "pat";
   return null;
 }
 
@@ -117,6 +122,7 @@ async function lookupEntity(rawCode: string, type: EntityType, farmId: number, h
     animal:    `${base}/animals/by-code/${code}`,
     storage:   `${base}/storage-locations/by-code/${code}`,
     tank:      `${base}/dairy/tanks/by-code/${code}`,
+    pat:       `${base}/workshop/pat-equipment/by-asset/${code}`,
   };
   const res = await fetch(endpoints[type], { headers });
   if (!res.ok) return null;
@@ -130,6 +136,7 @@ function entityDisplayName(type: EntityType, data: Record<string, unknown>): str
     case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
     case "storage":   return (data.name as string) || `Store #${data.id}`;
     case "tank":      return (data.name as string) || `Tank #${data.id}`;
+    case "pat":       return (data.itemName as string) || `PAT #${data.id}`;
   }
 }
 
@@ -140,6 +147,7 @@ function entitySubtitle(type: EntityType, data: Record<string, unknown>): string
     case "animal":    return [(data.species as string), (data.breed as string)].filter(Boolean).join(" · ") || null;
     case "storage":   return (data.type as string) ? `${data.type}`.replace(/_/g, " ") : null;
     case "tank":      return (data.location as string) || (data.capacityLitres ? `Capacity: ${Number(data.capacityLitres).toLocaleString()} L` : null);
+    case "pat":       return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.location as string) || null;
   }
 }
 
@@ -160,6 +168,12 @@ function entityStatus(type: EntityType, data: Record<string, unknown>): { label:
   if (type === "animal")    return STATUS_ANI[data.status as string] ?? { label: data.status as string, colour: "#6b7280" };
   if (type === "storage")   return data.isActive ? { label: "Active", colour: "#16a34a" } : { label: "Inactive", colour: "#6b7280" };
   if (type === "tank")      return { label: "Registered", colour: "#16a34a" };
+  if (type === "pat") {
+    if (data.status === "disposed") return { label: "Disposed", colour: "#6b7280" };
+    const nextDue = data.nextTestDue ? new Date(data.nextTestDue as string) : null;
+    if (nextDue && nextDue < new Date()) return { label: "Test Overdue", colour: "#dc2626" };
+    return { label: "Active — In Test Register", colour: "#7c3aed" };
+  }
   return null;
 }
 
@@ -309,7 +323,7 @@ export default function ScanQRScreen() {
               <View style={[styles.corner, styles.br]} />
             </View>
             <Text style={styles.scanHint}>Point at a BDE Farm Trac QR label</Text>
-            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · Tanks</Text>
+            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · PAT Appliances</Text>
           </View>
         </View>
       ) : (

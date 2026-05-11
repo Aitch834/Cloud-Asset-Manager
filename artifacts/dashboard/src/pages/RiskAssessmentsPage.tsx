@@ -13,7 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
@@ -797,7 +798,7 @@ function DocCell({ endpoint, queryKey, documentPath, documentName }: {
 // ─── PAT Testing tab ───────────────────────────────────────────────────────────
 
 interface PatEquipment {
-  id: number; farmId: number; itemName: string; description: string | null;
+  id: number; farmId: number; assetNumber: string | null; itemName: string; description: string | null;
   make: string | null; model: string | null; serialNumber: string | null;
   buildingId: number | null; subLocation: string | null; buildingName: string | null;
   location: string | null;
@@ -855,8 +856,20 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [testingEqId, setTestingEqId] = useState<number | null>(null);
   const [testForm, setTestForm] = useState<typeof EMPTY_PAT_TEST>(EMPTY_PAT_TEST);
   const [deleteTestId, setDeleteTestId] = useState<{ testId: number; eqId: number } | null>(null);
+  const [printLabelEq, setPrintLabelEq] = useState<PatEquipment | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
+
+  function handlePrintLabel(eq: PatEquipment) {
+    const el = document.getElementById("pat-label-print-area");
+    if (!el) return;
+    const style = document.createElement("style");
+    style.id = "__pat-print-style";
+    style.textContent = `@media print { body > *:not(#pat-label-print-area) { display: none !important; } #pat-label-print-area { display: flex !important; position: fixed; inset: 0; background: #fff; align-items: center; justify-content: center; z-index: 99999; } }`;
+    document.head.appendChild(style);
+    setPrintLabelEq(eq);
+    setTimeout(() => { window.print(); document.head.removeChild(style); setPrintLabelEq(null); }, 80);
+  }
 
   const { data, isLoading } = useQuery<{ records: PatEquipment[] }>({
     queryKey: ["pat-equipment", farmId],
@@ -1045,7 +1058,19 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
                 return (
                   <React.Fragment key={r.id}>
                     <tr ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={cn("transition-colors", hlId === r.id ? "bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : isDisposed ? "bg-gray-50 opacity-60" : "hover:bg-gray-50")}>
-                      <td className="px-3 py-3 font-medium">{r.itemName}{r.description ? <div className="text-xs text-gray-400 font-normal">{r.description}</div> : null}</td>
+                      <td className="px-3 py-3 font-medium">
+                        <div className="flex items-start gap-2">
+                          <div>
+                            {r.itemName}
+                            {r.description ? <div className="text-xs text-gray-400 font-normal">{r.description}</div> : null}
+                          </div>
+                          {r.assetNumber && (
+                            <span className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded text-xs font-mono font-medium bg-violet-50 text-violet-700 border border-violet-200 mt-0.5">
+                              <QrCode className="h-2.5 w-2.5" />{r.assetNumber}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-gray-500 text-xs">{displayLocation || "—"}</td>
                       <td className="px-3 py-3 text-gray-500 text-xs">{[r.make, r.model].filter(Boolean).join(" ") || "—"}</td>
                       <td className="px-3 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
@@ -1074,6 +1099,11 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
                           {!isDisposed && (
                             <Button size="sm" variant="outline" className="text-xs h-7 px-2 gap-1" onClick={() => { setExpandedId(r.id); openLogTest(r.id); }}>
                               <Plus className="h-3 w-3" />Log Test
+                            </Button>
+                          )}
+                          {r.assetNumber && (
+                            <Button size="sm" variant="ghost" title="Print QR label" onClick={() => handlePrintLabel(r)} className="text-violet-600 hover:text-violet-800">
+                              <QrCode className="h-3 w-3" />
                             </Button>
                           )}
                           <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
@@ -1330,6 +1360,22 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden print-area — shown only during window.print() via injected @media print style */}
+      <div id="pat-label-print-area" style={{ display: "none" }}>
+        {printLabelEq && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, border: "2.5px solid #7c3aed", borderRadius: 14, background: "#fff", minWidth: 210 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: "#7c3aed", textTransform: "uppercase" as const, marginBottom: 10 }}>BDE Farm Trac — PAT Equipment</div>
+            <QRCodeSVG value={`BDE:F${farmId}:${printLabelEq.assetNumber}`} size={160} level="M" includeMargin={true} />
+            <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, marginTop: 10, color: "#1e1e2e" }}>{printLabelEq.assetNumber}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#1e1e2e", marginTop: 5, textAlign: "center" as const }}>{printLabelEq.itemName}</div>
+            {(printLabelEq.make || printLabelEq.model) && (
+              <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>{[printLabelEq.make, printLabelEq.model].filter(Boolean).join(" ")}</div>
+            )}
+            <div style={{ fontSize: 9, color: "#999", marginTop: 8, textAlign: "center" as const }}>Scan with BDE Farm Trac app to log PAT test</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
