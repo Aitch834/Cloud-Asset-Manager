@@ -1721,7 +1721,7 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
   const raQ  = useQuery({ queryKey: ["risk-assessments", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-assessments`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
   const coshhQ = useQuery({ queryKey: ["risk-coshh", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-coshh`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
   const patQ = useQuery({ queryKey: ["pat-tests", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
-  const fireQ = useQuery({ queryKey: ["fire-extinguishers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+  const fireQ = useQuery({ queryKey: ["fire-extinguishers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { credentials: "include" }).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
 
   const farm = farmQ.data?.record;
   const risks: any[]  = raQ.data ?? [];

@@ -15173,13 +15173,23 @@ router.get("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTen
 router.post("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { buildingId, subLocation, location, ...rest } = req.body;
+  const { buildingId, subLocation, location, type, capacityKg, serialNumber, lastServiceDate, engineerName, engineerCompany, nextServiceDue, status, disposalDate, disposalReason, disposalNotes, notes } = req.body;
   let resolvedLocation = location ?? "";
   if (buildingId) {
     const [bld] = await db.select({ name: farmLocationsTable.name }).from(farmLocationsTable).where(eq(farmLocationsTable.id, buildingId));
     if (bld) resolvedLocation = bld.name;
   }
-  const [record] = await db.insert(workshopFireExtinguishersTable).values({ ...rest, farmId, location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).returning();
+  const [record] = await db.insert(workshopFireExtinguishersTable).values({
+    farmId, location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null,
+    type, capacityKg: capacityKg ?? null, serialNumber: serialNumber ?? null,
+    lastServiceDate: lastServiceDate ? new Date(lastServiceDate) : null,
+    engineerName: engineerName ?? null, engineerCompany: engineerCompany ?? null,
+    nextServiceDue: nextServiceDue ? new Date(nextServiceDue) : null,
+    status: status ?? "active",
+    disposalDate: disposalDate ? new Date(disposalDate) : null,
+    disposalReason: disposalReason ?? null, disposalNotes: disposalNotes ?? null,
+    notes: notes ?? null,
+  }).returning();
   res.status(201).json({ record });
 });
 
@@ -15188,13 +15198,23 @@ router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requir
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { buildingId, subLocation, location, ...rest } = req.body;
+  const { buildingId, subLocation, location, type, capacityKg, serialNumber, lastServiceDate, engineerName, engineerCompany, nextServiceDue, status, disposalDate, disposalReason, disposalNotes, notes } = req.body;
   let resolvedLocation = location ?? "";
   if (buildingId) {
     const [bld] = await db.select({ name: farmLocationsTable.name }).from(farmLocationsTable).where(eq(farmLocationsTable.id, buildingId));
     if (bld) resolvedLocation = bld.name;
   }
-  const [record] = await db.update(workshopFireExtinguishersTable).set({ ...rest, location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId))).returning();
+  const [record] = await db.update(workshopFireExtinguishersTable).set({
+    location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null,
+    type, capacityKg: capacityKg ?? null, serialNumber: serialNumber ?? null,
+    lastServiceDate: lastServiceDate ? new Date(lastServiceDate) : null,
+    engineerName: engineerName ?? null, engineerCompany: engineerCompany ?? null,
+    nextServiceDue: nextServiceDue ? new Date(nextServiceDue) : null,
+    status: status ?? "active",
+    disposalDate: disposalDate ? new Date(disposalDate) : null,
+    disposalReason: disposalReason ?? null, disposalNotes: disposalNotes ?? null,
+    notes: notes ?? null,
+  }).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
