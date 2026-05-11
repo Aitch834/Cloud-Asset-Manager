@@ -13,8 +13,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
 type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -1039,7 +1040,19 @@ interface FireExtinguisher {
   type: string;
   capacityKg: string | null; serialNumber: string | null;
   lastServiceDate: string | null; engineerName: string | null;
-  engineerCompany: string | null; nextServiceDue: string | null; notes: string | null; createdAt: string;
+  engineerCompany: string | null; nextServiceDue: string | null;
+  status: string; disposalDate: string | null; disposalReason: string | null; disposalNotes: string | null;
+  notes: string | null; createdAt: string;
+}
+
+interface FireService {
+  id: number; farmId: number; extinguisherId: number;
+  serviceDate: string; serviceType: string;
+  engineerName: string | null; engineerCompany: string | null;
+  certificateNumber: string | null; result: string;
+  nextServiceDue: string | null;
+  documentPath: string | null; documentName: string | null;
+  notes: string | null; createdAt: string;
 }
 
 interface FarmLoc { id: number; name: string; locationType: string; isActive: boolean; }
@@ -1053,16 +1066,60 @@ const FIRE_TYPES: { value: string; label: string }[] = [
 ];
 
 const FIRE_TYPE_LABEL: Record<string, string> = { co2: "CO₂", dry_powder: "Dry Powder", water: "Water", foam: "Foam", wet_chemical: "Wet Chemical" };
-const EMPTY_FIRE = { buildingId: "" as string, subLocation: "", location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
+
+const SERVICE_TYPES: { value: string; label: string }[] = [
+  { value: "annual_check",  label: "Annual Check" },
+  { value: "5yr_discharge", label: "5-Year Discharge Test" },
+  { value: "interim_check", label: "Interim Check" },
+  { value: "extended",      label: "Extended Service" },
+  { value: "commissioning", label: "Commissioning / New Install" },
+];
+const SERVICE_TYPE_LABEL: Record<string, string> = { annual_check: "Annual Check", "5yr_discharge": "5-Yr Discharge", interim_check: "Interim Check", extended: "Extended", commissioning: "Commissioning" };
+
+const DISPOSAL_REASONS: { value: string; label: string }[] = [
+  { value: "end_of_life", label: "End of life / Manufacturer limit reached" },
+  { value: "failed_test", label: "Failed service / Condemned by engineer" },
+  { value: "damaged",     label: "Damaged or discharged" },
+  { value: "replaced",    label: "Replaced with new unit" },
+  { value: "other",       label: "Other" },
+];
+
+const SVC_RESULT: Record<string, { label: string; colour: string }> = {
+  pass:     { label: "Pass",     colour: "bg-green-100 text-green-700" },
+  advisory: { label: "Advisory", colour: "bg-amber-100 text-amber-700" },
+  fail:     { label: "Fail",     colour: "bg-red-100 text-red-700" },
+};
+
+const EMPTY_FIRE = {
+  buildingId: "" as string, subLocation: "", location: "",
+  type: "co2", capacityKg: "", serialNumber: "",
+  lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "",
+  status: "active", disposalDate: "", disposalReason: "", disposalNotes: "",
+  notes: "",
+};
+
+const EMPTY_SERVICE = {
+  serviceDate: "", serviceType: "annual_check",
+  engineerName: "", engineerCompany: "",
+  certificateNumber: "", result: "pass",
+  nextServiceDue: "", notes: "",
+};
 
 function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FireExtinguisher | null>(null);
-  const [form, setForm] = useState(EMPTY_FIRE);
+  const [form, setForm] = useState<typeof EMPTY_FIRE>(EMPTY_FIRE);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showService, setShowService] = useState(false);
+  const [editingService, setEditingService] = useState<FireService | null>(null);
+  const [servicingExtId, setServicingExtId] = useState<number | null>(null);
+  const [serviceForm, setServiceForm] = useState<typeof EMPTY_SERVICE>(EMPTY_SERVICE);
+  const [deleteServiceId, setDeleteServiceId] = useState<{ svcId: number; extId: number } | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
@@ -1077,14 +1134,23 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
   });
   const farmLocations = (locData ?? []).filter(l => l.isActive);
 
+  const { data: svcData } = useQuery<{ records: FireService[] }>({
+    queryKey: ["fire-extinguisher-services", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${expandedId}/services`, { credentials: "include" }).then(r => r.json()),
+    enabled: expandedId !== null,
+  });
+  const expandedServices: FireService[] = svcData?.records ?? [];
+
   const createMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); },
+    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); toast({ title: "Extinguisher added" }); },
+    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); },
+    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); toast({ title: "Extinguisher updated" }); },
+    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -1092,14 +1158,119 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setDeleteId(null); },
   });
 
+  const createServiceMut = useMutation({
+    mutationFn: ({ extId, body }: { extId: number; body: typeof EMPTY_SERVICE }) =>
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (_, { extId }) => {
+      qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
+      qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
+      setShowService(false); setEditingService(null); setServiceForm(EMPTY_SERVICE);
+      toast({ title: "Service record saved" });
+    },
+    onError: () => toast({ title: "Error saving service record", variant: "destructive" }),
+  });
+
+  const updateServiceMut = useMutation({
+    mutationFn: ({ extId, svcId, body }: { extId: number; svcId: number; body: typeof EMPTY_SERVICE }) =>
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (_, { extId }) => {
+      qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
+      qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
+      setShowService(false); setEditingService(null); setServiceForm(EMPTY_SERVICE);
+      toast({ title: "Service record updated" });
+    },
+    onError: () => toast({ title: "Error saving service record", variant: "destructive" }),
+  });
+
+  const deleteServiceMut = useMutation({
+    mutationFn: ({ extId, svcId }: { extId: number; svcId: number }) =>
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: (_, { extId }) => {
+      qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
+      qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
+      setDeleteServiceId(null);
+    },
+  });
+
   function openEdit(r: FireExtinguisher) {
     setEditing(r);
-    setForm({ buildingId: r.buildingId ? String(r.buildingId) : "", subLocation: r.subLocation ?? "", location: r.location, type: r.type, capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "", lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "", engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "", nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "", notes: r.notes ?? "" });
+    setForm({
+      buildingId: r.buildingId ? String(r.buildingId) : "",
+      subLocation: r.subLocation ?? "", location: r.location, type: r.type,
+      capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "",
+      lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "",
+      engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "",
+      nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "",
+      status: r.status ?? "active",
+      disposalDate: r.disposalDate ? r.disposalDate.slice(0, 10) : "",
+      disposalReason: r.disposalReason ?? "", disposalNotes: r.disposalNotes ?? "",
+      notes: r.notes ?? "",
+    });
     setShowForm(true);
+  }
+
+  function openLogService(extId: number, svc?: FireService) {
+    setServicingExtId(extId);
+    if (svc) {
+      setEditingService(svc);
+      setServiceForm({
+        serviceDate: svc.serviceDate.slice(0, 10),
+        serviceType: svc.serviceType,
+        engineerName: svc.engineerName ?? "", engineerCompany: svc.engineerCompany ?? "",
+        certificateNumber: svc.certificateNumber ?? "", result: svc.result,
+        nextServiceDue: svc.nextServiceDue ? svc.nextServiceDue.slice(0, 10) : "",
+        notes: svc.notes ?? "",
+      });
+    } else {
+      setEditingService(null);
+      setServiceForm(EMPTY_SERVICE);
+    }
+    setShowService(true);
+  }
+
+  function handleServiceDateChange(v: string) {
+    const updated = { ...serviceForm, serviceDate: v };
+    if (v) {
+      const d = new Date(v);
+      if (serviceForm.serviceType === "annual_check" || serviceForm.serviceType === "commissioning") {
+        d.setFullYear(d.getFullYear() + 1);
+        updated.nextServiceDue = d.toISOString().slice(0, 10);
+      } else if (serviceForm.serviceType === "5yr_discharge") {
+        d.setFullYear(d.getFullYear() + 5);
+        updated.nextServiceDue = d.toISOString().slice(0, 10);
+      }
+    }
+    setServiceForm(updated);
+  }
+
+  function handleServiceTypeChange(v: string) {
+    const updated = { ...serviceForm, serviceType: v };
+    if (serviceForm.serviceDate) {
+      const d = new Date(serviceForm.serviceDate);
+      if (v === "annual_check" || v === "commissioning") {
+        d.setFullYear(d.getFullYear() + 1);
+        updated.nextServiceDue = d.toISOString().slice(0, 10);
+      } else if (v === "5yr_discharge") {
+        d.setFullYear(d.getFullYear() + 5);
+        updated.nextServiceDue = d.toISOString().slice(0, 10);
+      }
+    }
+    setServiceForm(updated);
+  }
+
+  function handleServiceSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const extId = servicingExtId!;
+    if (editingService) {
+      updateServiceMut.mutate({ extId, svcId: editingService.id, body: serviceForm });
+    } else {
+      createServiceMut.mutate({ extId, body: serviceForm });
+    }
   }
 
   const today = new Date();
   const allRecords = data?.records ?? [];
+  const activeRecords = allRecords.filter(r => (r.status ?? "active") === "active");
 
   const records = buildingFilter === "__all__"
     ? allRecords
@@ -1107,8 +1278,8 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
       ? allRecords.filter(r => !r.buildingId)
       : allRecords.filter(r => r.buildingId === parseInt(buildingFilter));
 
-  const overdue = allRecords.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
-  const dueSoon = allRecords.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
+  const overdue = activeRecords.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+  const dueSoon = activeRecords.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
 
   useEffect(() => {
     if (!openId || autoOpened.current || allRecords.length === 0) return;
@@ -1124,6 +1295,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="text-sm text-gray-500">Register all fire extinguishers on the holding. Required under the Regulatory Reform (Fire Safety) Order 2005. Extinguishers must be serviced annually by a competent person.</p>
@@ -1133,6 +1305,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
         <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_FIRE); setShowForm(true); }} className="gap-1 shrink-0"><Plus className="h-4 w-4" />Add Extinguisher</Button>
       </div>
 
+      {/* Building filter */}
       {allRecords.length > 0 && farmLocations.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 whitespace-nowrap">Filter by location:</span>
@@ -1140,13 +1313,9 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
             <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">All locations ({allRecords.length})</SelectItem>
-              {farmLocations
-                .filter(l => allRecords.some(r => r.buildingId === l.id))
-                .map(l => (
-                  <SelectItem key={l.id} value={String(l.id)}>
-                    {l.name} ({allRecords.filter(r => r.buildingId === l.id).length})
-                  </SelectItem>
-                ))}
+              {farmLocations.filter(l => allRecords.some(r => r.buildingId === l.id)).map(l => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name} ({allRecords.filter(r => r.buildingId === l.id).length})</SelectItem>
+              ))}
               {allRecords.some(r => !r.buildingId) && (
                 <SelectItem value="__none__">No building linked ({allRecords.filter(r => !r.buildingId).length})</SelectItem>
               )}
@@ -1155,6 +1324,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
         </div>
       )}
 
+      {/* Register table */}
       {allRecords.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No extinguishers registered yet. Add each extinguisher on the holding to track annual service dates.</CardContent></Card>
       ) : records.length === 0 ? (
@@ -1163,7 +1333,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
-              <tr>{["Building / Location", "Position", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Next Service Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+              <tr>{["Building / Location", "Position", "Type", "Cap.", "Serial No.", "Status", "Next Service Due", "Service Log", ""].map(h => <th key={h} className="px-3 py-3 text-left font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map(r => {
@@ -1172,25 +1342,109 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
                 const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
                 const isSoon = diff !== null && diff >= 0 && diff <= 60;
                 const displayBuilding = r.buildingName ?? r.location;
+                const isDisposed = (r.status ?? "active") === "disposed";
+                const isExpanded = expandedId === r.id;
                 return (
-                  <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
-                    <td className="px-4 py-3 font-medium">{displayBuilding}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.subLocation || "—"}</td>
-                    <td className="px-4 py-3">{FIRE_TYPE_LABEL[r.type] ?? r.type}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.lastServiceDate ? new Date(r.lastServiceDate).toLocaleDateString("en-GB") : "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{[r.engineerName, r.engineerCompany].filter(Boolean).join(", ") || "—"}</td>
-                    <td className="px-4 py-3">
-                      {due ? <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : isSoon ? "text-amber-600" : "text-gray-500")}>{(isOverdue || isSoon) && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}</span> : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </td>
-                  </tr>
+                  <React.Fragment key={r.id}>
+                    <tr ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={cn("transition-colors", hlId === r.id ? "bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : isDisposed ? "bg-gray-50 opacity-60" : "hover:bg-gray-50")}>
+                      <td className="px-3 py-3 font-medium">{displayBuilding}</td>
+                      <td className="px-3 py-3 text-gray-500 text-xs">{r.subLocation || "—"}</td>
+                      <td className="px-3 py-3">{FIRE_TYPE_LABEL[r.type] ?? r.type}</td>
+                      <td className="px-3 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
+                      <td className="px-3 py-3">
+                        {isDisposed
+                          ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">Disposed{r.disposalDate ? ` · ${new Date(r.disposalDate).toLocaleDateString("en-GB")}` : ""}</span>
+                          : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        }
+                      </td>
+                      <td className="px-3 py-3">
+                        {isDisposed ? <span className="text-gray-400 text-xs">—</span> : due ? (
+                          <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : isSoon ? "text-amber-600" : "text-gray-600")}>
+                            {(isOverdue || isSoon) && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}
+                          </span>
+                        ) : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button onClick={() => setExpandedId(isExpanded ? null : r.id)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          View
+                        </button>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex gap-1">
+                          {!isDisposed && (
+                            <Button size="sm" variant="outline" className="text-xs h-7 px-2 gap-1" onClick={() => { setExpandedId(r.id); openLogService(r.id); }}>
+                              <Plus className="h-3 w-3" />Service
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expanded service history */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={9} className="bg-blue-50 border-b px-4 py-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                                Service History — {displayBuilding}{r.subLocation ? ` · ${r.subLocation}` : ""} ({FIRE_TYPE_LABEL[r.type] ?? r.type}{r.capacityKg ? `, ${r.capacityKg} kg` : ""})
+                              </p>
+                              {!isDisposed && (
+                                <Button size="sm" className="gap-1 h-7" onClick={() => openLogService(r.id)}>
+                                  <Plus className="h-3 w-3" />Log Service
+                                </Button>
+                              )}
+                            </div>
+                            {expandedServices.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic">No service records yet. Click Log Service to add the first entry.</p>
+                            ) : (
+                              <div className="overflow-x-auto rounded border bg-white">
+                                <table className="min-w-full text-xs">
+                                  <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+                                    <tr>{["Date", "Type", "Engineer", "Company", "Cert No.", "Result", "Next Due", "Certificate", ""].map(h => <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>)}</tr>
+                                  </thead>
+                                  <tbody className="divide-y">
+                                    {expandedServices.map(svc => {
+                                      const svcRes = SVC_RESULT[svc.result] ?? { label: svc.result, colour: "bg-gray-100 text-gray-600" };
+                                      return (
+                                        <tr key={svc.id} className="hover:bg-gray-50">
+                                          <td className="px-3 py-2 font-medium whitespace-nowrap">{new Date(svc.serviceDate).toLocaleDateString("en-GB")}</td>
+                                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{SERVICE_TYPE_LABEL[svc.serviceType] ?? svc.serviceType}</td>
+                                          <td className="px-3 py-2 text-gray-600">{svc.engineerName || "—"}</td>
+                                          <td className="px-3 py-2 text-gray-600">{svc.engineerCompany || "—"}</td>
+                                          <td className="px-3 py-2 font-mono text-gray-500">{svc.certificateNumber || "—"}</td>
+                                          <td className="px-3 py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${svcRes.colour}`}>{svcRes.label}</span></td>
+                                          <td className="px-3 py-2 whitespace-nowrap text-gray-600">{svc.nextServiceDue ? new Date(svc.nextServiceDue).toLocaleDateString("en-GB") : "—"}</td>
+                                          <td className="px-3 py-2">
+                                            <DocCell
+                                              endpoint={`/api/farms/${farmId}/workshop/fire-extinguishers/${r.id}/services/${svc.id}/document`}
+                                              queryKey={["fire-extinguisher-services", farmId, r.id]}
+                                              documentPath={svc.documentPath}
+                                              documentName={svc.documentName}
+                                            />
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <div className="flex gap-1">
+                                              <Button size="sm" variant="ghost" onClick={() => openLogService(r.id, svc)}><Pencil className="h-3 w-3" /></Button>
+                                              <Button size="sm" variant="ghost" onClick={() => setDeleteServiceId({ svcId: svc.id, extId: r.id })} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -1198,13 +1452,13 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
         </div>
       )}
 
+      {/* Add / Edit Extinguisher Dialog */}
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
+          <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editing ? "Edit Extinguisher" : "Add Fire Extinguisher"}</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
-
                 {farmLocations.length > 0 ? (
                   <>
                     <div className="col-span-2">
@@ -1251,25 +1505,155 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
                 <div><Label>Last Service Date</Label><Input type="date" value={form.lastServiceDate} onChange={e => setForm(f => ({ ...f, lastServiceDate: e.target.value }))} /></div>
                 <div><Label>Next Service Due</Label><Input type="date" value={form.nextServiceDue} onChange={e => setForm(f => ({ ...f, nextServiceDue: e.target.value }))} /></div>
                 <div><Label>Engineer Name</Label><Input value={form.engineerName} onChange={e => setForm(f => ({ ...f, engineerName: e.target.value }))} /></div>
-                <div><Label>Engineer Company</Label><Input value={form.engineerCompany} onChange={e => setForm(f => ({ ...f, engineerCompany: e.target.value }))} /></div>
+                <div>
+                  <Label>Engineer Company</Label>
+                  <BuyerCombobox
+                    farmId={farmId}
+                    types={["fire_safety_company"]}
+                    valueId={null}
+                    valueName={form.engineerCompany}
+                    onChange={(_, name) => setForm(f => ({ ...f, engineerCompany: name }))}
+                    typeLabel="Fire Safety Company"
+                    placeholder="Search or add company…"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Draws from Trade Contacts (type: Fire Safety Company). Type a new name to add it inline.</p>
+                </div>
+
+                {/* Status / Disposal */}
+                <div className="col-span-2 border-t pt-4">
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active — in service</SelectItem>
+                      <SelectItem value="disposed">Disposed / Decommissioned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400 mt-1">Mark as Disposed when the extinguisher is removed from service. The record is retained for audit purposes.</p>
+                </div>
+                {form.status === "disposed" && (
+                  <>
+                    <div>
+                      <Label>Disposal Date</Label>
+                      <Input type="date" value={form.disposalDate} onChange={e => setForm(f => ({ ...f, disposalDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Disposal Reason</Label>
+                      <Select value={form.disposalReason || "__none__"} onValueChange={v => setForm(f => ({ ...f, disposalReason: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select reason…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select reason —</SelectItem>
+                          {DISPOSAL_REASONS.map(dr => <SelectItem key={dr.value} value={dr.value}>{dr.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Disposal Notes</Label>
+                      <Textarea value={form.disposalNotes} onChange={e => setForm(f => ({ ...f, disposalNotes: e.target.value }))} rows={2} placeholder="e.g. Replaced with new 6 kg CO₂ unit, serial ABC123" />
+                    </div>
+                  </>
+                )}
+
                 <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Extinguisher"}</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save Changes" : "Add Extinguisher"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       )}
 
+      {/* Log Service Dialog */}
+      {showService && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowService(false); setEditingService(null); } }}>
+          <DialogContent style={{ maxWidth: "38rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editingService ? "Edit Service Record" : "Log Service"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleServiceSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Service Date *</Label>
+                  <Input required type="date" value={serviceForm.serviceDate} onChange={e => handleServiceDateChange(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+                </div>
+                <div>
+                  <Label>Service Type *</Label>
+                  <Select value={serviceForm.serviceType} onValueChange={handleServiceTypeChange}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{SERVICE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Engineer Name</Label>
+                  <Input value={serviceForm.engineerName} onChange={e => setServiceForm(f => ({ ...f, engineerName: e.target.value }))} placeholder="e.g. John Smith" />
+                </div>
+                <div>
+                  <Label>Engineer Company</Label>
+                  <BuyerCombobox
+                    farmId={farmId}
+                    types={["fire_safety_company"]}
+                    valueId={null}
+                    valueName={serviceForm.engineerCompany}
+                    onChange={(_, name) => setServiceForm(f => ({ ...f, engineerCompany: name }))}
+                    typeLabel="Fire Safety Company"
+                    placeholder="Search or add company…"
+                  />
+                </div>
+                <div>
+                  <Label>Certificate Number</Label>
+                  <Input value={serviceForm.certificateNumber} onChange={e => setServiceForm(f => ({ ...f, certificateNumber: e.target.value }))} className="font-mono" placeholder="e.g. FS-2024-00123" />
+                </div>
+                <div>
+                  <Label>Result *</Label>
+                  <Select value={serviceForm.result} onValueChange={v => setServiceForm(f => ({ ...f, result: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pass">Pass — serviceable</SelectItem>
+                      <SelectItem value="advisory">Advisory — minor issues noted</SelectItem>
+                      <SelectItem value="fail">Fail — condemned / requires replacement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label>Next Service Due</Label>
+                  <Input type="date" value={serviceForm.nextServiceDue} onChange={e => setServiceForm(f => ({ ...f, nextServiceDue: e.target.value }))} />
+                  <p className="text-xs text-gray-400 mt-1">Auto-filled: +1 year for Annual Check / Commissioning, +5 years for Discharge Test. Override if different.</p>
+                </div>
+                <div className="col-span-2">
+                  <Label>Notes</Label>
+                  <Textarea value={serviceForm.notes} onChange={e => setServiceForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. Pressure checked and recharged. Minor corrosion on bracket noted." />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">After saving, use the paperclip icon on the service row to attach a copy of the service certificate.</p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowService(false)}>Cancel</Button>
+                <Button type="submit" disabled={createServiceMut.isPending || updateServiceMut.isPending}>{editingService ? "Save Changes" : "Log Service"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Extinguisher confirm */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Remove Extinguisher?</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-500">This will permanently remove this extinguisher record. This cannot be undone.</p>
+          <p className="text-sm text-gray-500">This will permanently remove this extinguisher and all its service records. This cannot be undone.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Service confirm */}
+      <Dialog open={deleteServiceId !== null} onOpenChange={o => { if (!o) setDeleteServiceId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Service Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove this service entry. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteServiceId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteServiceId && deleteServiceMut.mutate(deleteServiceId)} disabled={deleteServiceMut.isPending}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1492,28 +1876,46 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
             </HsRptSection>
 
             {/* Section 4 – Fire Safety */}
-            <HsRptSection title="4. Fire Safety — Extinguisher Service Register" count={fires.length}>
-              {fires.length === 0 ? (
-                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No fire extinguisher records logged.</p>
-              ) : (
-                <HsRptTable
-                  headers={["Location", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Company", "Next Service Due"]}
-                  rows={fires.map(r => {
-                    const overdue = r.nextServiceDue && new Date(r.nextServiceDue) < now;
-                    return [
-                      <strong>{r.location}</strong>,
-                      FIRE_TYPE_LABEL[r.type] ?? r.type,
-                      r.capacityKg ? `${r.capacityKg} kg` : "—",
-                      <span style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>{r.serialNumber || "—"}</span>,
-                      hsRptFmt(r.lastServiceDate),
-                      r.engineerName || "—",
-                      r.engineerCompany || "—",
-                      <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextServiceDue)}</span>,
-                    ];
-                  })}
-                />
-              )}
-            </HsRptSection>
+            {(() => {
+              const activeFires = fires.filter((r: any) => (r.status ?? "active") === "active");
+              const disposedFires = fires.filter((r: any) => r.status === "disposed");
+              return (
+                <HsRptSection title="4. Fire Safety — Extinguisher Service Register" count={activeFires.length}>
+                  {fires.length === 0 ? (
+                    <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No fire extinguisher records logged.</p>
+                  ) : (
+                    <>
+                      {activeFires.length === 0 ? (
+                        <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>All extinguishers have been marked as disposed. Add new units to restart compliance tracking.</p>
+                      ) : (
+                        <HsRptTable
+                          headers={["Location", "Position", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Company", "Next Service Due"]}
+                          rows={activeFires.map((r: any) => {
+                            const overdue = r.nextServiceDue && new Date(r.nextServiceDue) < now;
+                            return [
+                              <strong>{r.buildingName ?? r.location}</strong>,
+                              r.subLocation || "—",
+                              FIRE_TYPE_LABEL[r.type] ?? r.type,
+                              r.capacityKg ? `${r.capacityKg} kg` : "—",
+                              <span style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>{r.serialNumber || "—"}</span>,
+                              hsRptFmt(r.lastServiceDate),
+                              r.engineerName || "—",
+                              r.engineerCompany || "—",
+                              <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextServiceDue)}</span>,
+                            ];
+                          })}
+                        />
+                      )}
+                      {disposedFires.length > 0 && (
+                        <p style={{ marginTop: 8, fontSize: "0.78rem", color: "#6b7280" }}>
+                          {disposedFires.length} disposed / decommissioned unit{disposedFires.length !== 1 ? "s" : ""} not shown above ({disposedFires.map((r: any) => `${FIRE_TYPE_LABEL[r.type] ?? r.type}${r.serialNumber ? ` S/N ${r.serialNumber}` : ""}${r.disposalDate ? `, disposed ${new Date(r.disposalDate).toLocaleDateString("en-GB")}` : ""}`).join("; ")}).
+                        </p>
+                      )}
+                    </>
+                  )}
+                </HsRptSection>
+              );
+            })()}
 
             {/* Footer */}
             <div style={{ marginTop: 36, paddingTop: 12, borderTop: "1px solid #e5e7eb", fontSize: "0.7rem", color: "#9ca3af", display: "flex", justifyContent: "space-between" }}>

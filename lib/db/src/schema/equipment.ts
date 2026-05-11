@@ -149,6 +149,27 @@ export const workshopFireExtinguishersTable = pgTable("workshop_fire_extinguishe
   engineerCompany: text("engineer_company"),
   nextServiceDue: timestamp("next_service_due", { withTimezone: true }),
   notes: text("notes"),
+  status: text("status").notNull().default("active"),
+  disposalDate: timestamp("disposal_date", { withTimezone: true }),
+  disposalReason: text("disposal_reason"),
+  disposalNotes: text("disposal_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopFireExtinguisherServicesTable = pgTable("workshop_fire_extinguisher_services", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  extinguisherId: integer("extinguisher_id").notNull().references(() => workshopFireExtinguishersTable.id, { onDelete: "cascade" }),
+  serviceDate: timestamp("service_date", { withTimezone: true }).notNull(),
+  serviceType: text("service_type").notNull().default("annual_check"),
+  engineerName: text("engineer_name"),
+  engineerCompany: text("engineer_company"),
+  certificateNumber: text("certificate_number"),
+  result: text("result").notNull().default("pass"),
+  nextServiceDue: timestamp("next_service_due", { withTimezone: true }),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

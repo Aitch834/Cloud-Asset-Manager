@@ -34,6 +34,7 @@ import {
   workshopJobsTable,
   workshopPatTestsTable,
   workshopFireExtinguishersTable,
+  workshopFireExtinguisherServicesTable,
   workshopPartDocumentsTable,
   workshopJobDocumentsTable,
   workshopGoodsReturnsTable,
@@ -15155,6 +15156,10 @@ router.get("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTen
       engineerName: workshopFireExtinguishersTable.engineerName,
       engineerCompany: workshopFireExtinguishersTable.engineerCompany,
       nextServiceDue: workshopFireExtinguishersTable.nextServiceDue,
+      status: workshopFireExtinguishersTable.status,
+      disposalDate: workshopFireExtinguishersTable.disposalDate,
+      disposalReason: workshopFireExtinguishersTable.disposalReason,
+      disposalNotes: workshopFireExtinguishersTable.disposalNotes,
       notes: workshopFireExtinguishersTable.notes,
       createdAt: workshopFireExtinguishersTable.createdAt,
     })
@@ -15199,6 +15204,104 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, req
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopFireExtinguishersTable).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Fire extinguisher service records
+router.get("/farms/:farmId/workshop/fire-extinguishers/:id/services", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const extId = parseInt(req.params.id as string);
+  if (isNaN(extId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db
+    .select()
+    .from(workshopFireExtinguisherServicesTable)
+    .where(and(eq(workshopFireExtinguisherServicesTable.farmId, farmId), eq(workshopFireExtinguisherServicesTable.extinguisherId, extId)))
+    .orderBy(desc(workshopFireExtinguisherServicesTable.serviceDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/workshop/fire-extinguishers/:id/services", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const extId = parseInt(req.params.id as string);
+  if (isNaN(extId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { serviceDate, serviceType, engineerName, engineerCompany, certificateNumber, result, nextServiceDue, notes } = req.body;
+  if (!serviceDate) { res.status(400).json({ error: "serviceDate is required" }); return; }
+  const [record] = await db.insert(workshopFireExtinguisherServicesTable).values({
+    farmId, extinguisherId: extId,
+    serviceDate: new Date(serviceDate),
+    serviceType: serviceType ?? "annual_check",
+    engineerName: engineerName ?? null,
+    engineerCompany: engineerCompany ?? null,
+    certificateNumber: certificateNumber ?? null,
+    result: result ?? "pass",
+    nextServiceDue: nextServiceDue ? new Date(nextServiceDue) : null,
+    notes: notes ?? null,
+  }).returning();
+  // Auto-update parent extinguisher's last service / next due
+  await db.update(workshopFireExtinguishersTable).set({
+    lastServiceDate: new Date(serviceDate),
+    engineerName: engineerName ?? null,
+    engineerCompany: engineerCompany ?? null,
+    nextServiceDue: nextServiceDue ? new Date(nextServiceDue) : undefined,
+  }).where(and(eq(workshopFireExtinguishersTable.id, extId), eq(workshopFireExtinguishersTable.farmId, farmId)));
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const extId = parseInt(req.params.id as string);
+  const serviceId = parseInt(req.params.serviceId as string);
+  if (isNaN(extId) || isNaN(serviceId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { serviceDate, serviceType, engineerName, engineerCompany, certificateNumber, result, nextServiceDue, notes } = req.body;
+  const [record] = await db.update(workshopFireExtinguisherServicesTable).set({
+    ...(serviceDate ? { serviceDate: new Date(serviceDate) } : {}),
+    ...(serviceType ? { serviceType } : {}),
+    engineerName: engineerName ?? null,
+    engineerCompany: engineerCompany ?? null,
+    certificateNumber: certificateNumber ?? null,
+    ...(result ? { result } : {}),
+    nextServiceDue: nextServiceDue ? new Date(nextServiceDue) : null,
+    notes: notes ?? null,
+  }).where(and(eq(workshopFireExtinguisherServicesTable.id, serviceId), eq(workshopFireExtinguisherServicesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Service record not found" }); return; }
+  // Re-sync parent extinguisher from most recent service
+  const [latest] = await db.select().from(workshopFireExtinguisherServicesTable).where(and(eq(workshopFireExtinguisherServicesTable.farmId, farmId), eq(workshopFireExtinguisherServicesTable.extinguisherId, extId))).orderBy(desc(workshopFireExtinguisherServicesTable.serviceDate)).limit(1);
+  if (latest) {
+    await db.update(workshopFireExtinguishersTable).set({
+      lastServiceDate: latest.serviceDate,
+      engineerName: latest.engineerName ?? null,
+      engineerCompany: latest.engineerCompany ?? null,
+      nextServiceDue: latest.nextServiceDue ?? null,
+    }).where(and(eq(workshopFireExtinguishersTable.id, extId), eq(workshopFireExtinguishersTable.farmId, farmId)));
+  }
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceId/document", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const serviceId = parseInt(req.params.serviceId as string);
+  if (isNaN(serviceId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath, documentName } = req.body;
+  const [record] = await db.update(workshopFireExtinguisherServicesTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(workshopFireExtinguisherServicesTable.id, serviceId), eq(workshopFireExtinguisherServicesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const extId = parseInt(req.params.id as string);
+  const serviceId = parseInt(req.params.serviceId as string);
+  if (isNaN(extId) || isNaN(serviceId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(workshopFireExtinguisherServicesTable).where(and(eq(workshopFireExtinguisherServicesTable.id, serviceId), eq(workshopFireExtinguisherServicesTable.farmId, farmId)));
+  // Re-sync parent from remaining latest service
+  const [latest] = await db.select().from(workshopFireExtinguisherServicesTable).where(and(eq(workshopFireExtinguisherServicesTable.farmId, farmId), eq(workshopFireExtinguisherServicesTable.extinguisherId, extId))).orderBy(desc(workshopFireExtinguisherServicesTable.serviceDate)).limit(1);
+  if (latest) {
+    await db.update(workshopFireExtinguishersTable).set({ lastServiceDate: latest.serviceDate, engineerName: latest.engineerName ?? null, engineerCompany: latest.engineerCompany ?? null, nextServiceDue: latest.nextServiceDue ?? null }).where(and(eq(workshopFireExtinguishersTable.id, extId), eq(workshopFireExtinguishersTable.farmId, farmId)));
+  }
   res.json({ success: true });
 });
 
