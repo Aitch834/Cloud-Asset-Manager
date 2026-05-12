@@ -316,7 +316,7 @@ function SubmissionStatusPanel({ farmId, weekStart, onSelectStaff }: { farmId: n
 
 // ─── Timesheets Tab ──────────────────────────────────────────────────────────
 
-function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -558,6 +558,8 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
     if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
   };
 
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
+
   return (
     <div className="space-y-5">
       {/* WTR guidance */}
@@ -637,14 +639,31 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
       {/* All-staff summary cards — click a card to drill into that staff member */}
       {filterStaff === "all" && Object.keys(byStaff).length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {Object.entries(byStaff).map(([name, hrs]) => (
-            <button key={name} onClick={() => setFilterStaff(name)} className="border rounded-xl p-3 bg-white text-left hover:border-green-500 hover:shadow-sm transition-all group">
-              <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{hrs.reg.toFixed(1)} <span className="text-xs font-normal text-gray-400">reg hrs</span></p>
-              {hrs.ot > 0 && <p className="text-xs text-amber-600 mt-0.5">+ {hrs.ot.toFixed(1)} OT hrs</p>}
-              <p className="text-xs text-green-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View daily breakdown →</p>
-            </button>
-          ))}
+          {(() => {
+            const renderCard = (name: string, hrs: { reg: number; ot: number }) => (
+              <button key={name} onClick={() => setFilterStaff(name)} className="border rounded-xl p-3 bg-white text-left hover:border-green-500 hover:shadow-sm transition-all group">
+                <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5">{hrs.reg.toFixed(1)} <span className="text-xs font-normal text-gray-400">reg hrs</span></p>
+                {hrs.ot > 0 && <p className="text-xs text-amber-600 mt-0.5">+ {hrs.ot.toFixed(1)} OT hrs</p>}
+                <p className="text-xs text-green-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View daily breakdown →</p>
+              </button>
+            );
+            if (!hasDepartments) return Object.entries(byStaff).map(([n, h]) => renderCard(n, h));
+            return deptGroups.map(({ dept, colour, names }) => {
+              const group = names.filter(n => byStaff[n]);
+              if (!group.length) return null;
+              return (
+                <React.Fragment key={dept ?? "__none__"}>
+                  <div className="col-span-full pt-1">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest" style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}>
+                      {dept ?? "No department"}
+                    </span>
+                  </div>
+                  {group.map(n => renderCard(n, byStaff[n]))}
+                </React.Fragment>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -830,6 +849,17 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
 type StaffMember = { name: string; department: string | null; colour: string | null };
 
+function computeDeptGroups(sm: StaffMember[]) {
+  const map = new Map<string, { colour: string | null; names: string[] }>();
+  for (const m of sm) {
+    const key = m.department ?? "";
+    if (!map.has(key)) map.set(key, { colour: m.colour, names: [] });
+    map.get(key)!.names.push(m.name);
+  }
+  const sorted = [...map.entries()].sort(([a], [b]) => !a ? 1 : !b ? -1 : a.localeCompare(b));
+  return { groups: sorted.map(([dept, { colour, names }]) => ({ dept: dept || null, colour, names })), hasDepartments: sm.some(m => m.department !== null) };
+}
+
 function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -917,21 +947,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
   const nextWeek = () => setWeekStart(d => addDays(d, 7));
   const goToday = () => setWeekStart(getMondayOfWeek(new Date()));
 
-  const deptGroups: { dept: string | null; colour: string | null; names: string[] }[] = (() => {
-    const map = new Map<string, { colour: string | null; names: string[] }>();
-    for (const m of staffMembers) {
-      const key = m.department ?? "";
-      if (!map.has(key)) map.set(key, { colour: m.colour, names: [] });
-      map.get(key)!.names.push(m.name);
-    }
-    const entries = [...map.entries()].sort(([a], [b]) => {
-      if (!a) return 1;
-      if (!b) return -1;
-      return a.localeCompare(b);
-    });
-    return entries.map(([dept, { colour, names }]) => ({ dept: dept || null, colour, names }));
-  })();
-  const hasDepartments = staffMembers.some(m => m.department !== null);
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
 
   const printRota = () => {
     const colCount = DAYS.length + 1;
@@ -1156,7 +1172,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
 
 // ─── Holiday & Absence Tab ───────────────────────────────────────────────────
 
-function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; staffNames: string[]; onPendingCount?: (n: number) => void }) {
+function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farmId: number; staffNames: string[]; onPendingCount?: (n: number) => void; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useUser();
@@ -1475,6 +1491,8 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
 
   const years = [thisYear + 1, thisYear, thisYear - 1, thisYear - 2];
 
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
+
   return (
     <div className="space-y-5">
 
@@ -1540,33 +1558,50 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
           </Select>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {leaveSummary.map(({ name, entDays, taken, remaining, ent }) => (
-            <div key={name} className="border rounded-xl p-3 bg-white space-y-1">
-              <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Entitlement</span><span className="font-medium text-gray-800">{entDays} days</span>
+          {(() => {
+            const renderCard = ({ name, entDays, taken, remaining, ent }: typeof leaveSummary[0]) => (
+              <div key={name} className="border rounded-xl p-3 bg-white space-y-1">
+                <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>Entitlement</span><span className="font-medium text-gray-800">{entDays} days</span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>Taken</span><span className="font-medium text-gray-800">{taken.toFixed(1)} days</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Remaining</span>
+                  <span className={`font-bold ${remaining < 0 ? "text-red-600" : remaining <= 5 ? "text-amber-600" : "text-green-700"}`}>{remaining.toFixed(1)} days</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full mt-1">
+                  <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${Math.min(100, (taken / entDays) * 100)}%`, background: taken > entDays ? "#dc2626" : "#16a34a" }} />
+                </div>
+                <button
+                  className="text-xs text-blue-600 underline mt-0.5"
+                  onClick={() => {
+                    setEntEditTarget({ name, year: yearInt, ent });
+                    setEntEditDays(String(parseFloat(ent?.entitlementDays ?? "28")));
+                    setEntEditCarried(String(parseFloat(ent?.carriedOverDays ?? "0")));
+                    setEntEditOpen(true);
+                  }}
+                >Edit entitlement</button>
               </div>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Taken</span><span className="font-medium text-gray-800">{taken.toFixed(1)} days</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Remaining</span>
-                <span className={`font-bold ${remaining < 0 ? "text-red-600" : remaining <= 5 ? "text-amber-600" : "text-green-700"}`}>{remaining.toFixed(1)} days</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full mt-1">
-                <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${Math.min(100, (taken / entDays) * 100)}%`, background: taken > entDays ? "#dc2626" : "#16a34a" }} />
-              </div>
-              <button
-                className="text-xs text-blue-600 underline mt-0.5"
-                onClick={() => {
-                  setEntEditTarget({ name, year: yearInt, ent });
-                  setEntEditDays(String(parseFloat(ent?.entitlementDays ?? "28")));
-                  setEntEditCarried(String(parseFloat(ent?.carriedOverDays ?? "0")));
-                  setEntEditOpen(true);
-                }}
-              >Edit entitlement</button>
-            </div>
-          ))}
+            );
+            if (!hasDepartments) return leaveSummary.map(renderCard);
+            return deptGroups.map(({ dept, colour, names }) => {
+              const group = leaveSummary.filter(s => names.includes(s.name));
+              if (!group.length) return null;
+              return (
+                <React.Fragment key={dept ?? "__none__"}>
+                  <div className="col-span-full pt-1">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest" style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}>
+                      {dept ?? "No department"}
+                    </span>
+                  </div>
+                  {group.map(renderCard)}
+                </React.Fragment>
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -2065,7 +2100,7 @@ const ACTUAL_OPTS = [
   { value: "day_off",              label: "Day Off",               color: "#9ca3af" },
 ];
 
-function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+function ActualAttendanceTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(isoDate(new Date()));
@@ -2183,6 +2218,8 @@ function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffName
   const prevDay = () => { const d = new Date(selectedDate + "T00:00:00"); d.setDate(d.getDate() - 1); changeDate(isoDate(d)); };
   const nextDay = () => { const d = new Date(selectedDate + "T00:00:00"); d.setDate(d.getDate() + 1); changeDate(isoDate(d)); };
 
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
+
   return (
     <div className="space-y-4">
       {/* Date nav */}
@@ -2235,69 +2272,84 @@ function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffName
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {staffNames.map(name => {
-                const rec     = attMap.get(name);
-                const planned = getPlanned(name);
-                const cur     = getStatus(name);
-                const curNotes = getNotes(name);
-                const isDirty = localStatus[name] !== undefined || localNotes[name] !== undefined;
-                const opt     = statusOpt(cur);
-                const shiftOpt = SHIFT_TYPES.find(s => s.value === planned);
-                const isDisc  = !!rec && !!planned && !["day-off", "holiday", "sick"].includes(planned)
-                  && rec.actualStatus !== "present" && rec.actualStatus !== "late" && rec.actualStatus !== "left_early";
-                return (
-                  <tr key={name} className={`hover:bg-gray-50/30 ${isDisc ? "bg-red-50/40" : ""}`}>
-                    <td className="px-4 py-2.5 font-medium text-gray-800">
-                      <div className="flex items-center gap-1.5">
-                        <span>{name}</span>
-                        {isDisc && <span title="Discrepancy: planned shift ≠ actual"><AlertTriangle size={12} className="text-red-500 shrink-0" /></span>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {planned ? (
-                        <span className="text-xs rounded-full px-2 py-0.5 font-medium whitespace-nowrap"
-                          style={{ background: (shiftOpt?.color ?? "#9ca3af") + "22", color: shiftOpt?.color ?? "#9ca3af" }}>
-                          {shiftLabel(planned)}
+              {(() => {
+                const renderRow = (name: string) => {
+                  const rec      = attMap.get(name);
+                  const planned  = getPlanned(name);
+                  const cur      = getStatus(name);
+                  const curNotes = getNotes(name);
+                  const isDirty  = localStatus[name] !== undefined || localNotes[name] !== undefined;
+                  const opt      = statusOpt(cur);
+                  const shiftOpt = SHIFT_TYPES.find(s => s.value === planned);
+                  const isDisc   = !!rec && !!planned && !["day-off", "holiday", "sick"].includes(planned)
+                    && rec.actualStatus !== "present" && rec.actualStatus !== "late" && rec.actualStatus !== "left_early";
+                  return (
+                    <tr key={name} className={`hover:bg-gray-50/30 ${isDisc ? "bg-red-50/40" : ""}`}>
+                      <td className="px-4 py-2.5 font-medium text-gray-800">
+                        <div className="flex items-center gap-1.5">
+                          <span>{name}</span>
+                          {isDisc && <span title="Discrepancy: planned shift ≠ actual"><AlertTriangle size={12} className="text-red-500 shrink-0" /></span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {planned ? (
+                          <span className="text-xs rounded-full px-2 py-0.5 font-medium whitespace-nowrap"
+                            style={{ background: (shiftOpt?.color ?? "#9ca3af") + "22", color: shiftOpt?.color ?? "#9ca3af" }}>
+                            {shiftLabel(planned)}
+                          </span>
+                        ) : <span className="text-xs text-gray-400">Not on rota</span>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {isFuture ? (
+                          <span className="text-xs text-gray-400 italic">Future date</span>
+                        ) : (
+                          <Select value={cur || "__none__"} onValueChange={v => setLocalStatus(p => ({ ...p, [name]: v === "__none__" ? "" : v }))}>
+                            <SelectTrigger className="h-8 text-xs w-full" style={opt ? { borderColor: opt.color + "66" } : undefined}>
+                              <SelectValue>
+                                {opt ? <span style={{ color: opt.color, fontWeight: 600 }}>{opt.label}</span>
+                                  : <span className="text-gray-400">— Select status —</span>}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Clear —</SelectItem>
+                              {ACTUAL_OPTS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {!isFuture && (
+                          <Input className="h-8 text-xs" value={curNotes}
+                            onChange={e => setLocalNotes(p => ({ ...p, [name]: e.target.value }))}
+                            placeholder="e.g. phoned in 07:30, COVID" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {!isFuture && (
+                          <Button size="sm" variant={isDirty ? "default" : "outline"} className="h-7 text-xs px-3"
+                            onClick={() => saveRow(name)}
+                            disabled={rowSaving[name] || (!cur && !isDirty)}>
+                            {rowSaving[name] ? "…" : (rec && !isDirty) ? "✓ Saved" : "Save"}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                };
+                if (!hasDepartments) return staffNames.map(renderRow);
+                return deptGroups.map(({ dept, colour, names }) => (
+                  <React.Fragment key={dept ?? "__none__"}>
+                    <tr>
+                      <td colSpan={5} className="px-4 py-1.5 bg-gray-50 border-t-2 border-gray-200">
+                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest" style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}>
+                          {dept ?? "No department"}
                         </span>
-                      ) : <span className="text-xs text-gray-400">Not on rota</span>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {isFuture ? (
-                        <span className="text-xs text-gray-400 italic">Future date</span>
-                      ) : (
-                        <Select value={cur || "__none__"} onValueChange={v => setLocalStatus(p => ({ ...p, [name]: v === "__none__" ? "" : v }))}>
-                          <SelectTrigger className="h-8 text-xs w-full" style={opt ? { borderColor: opt.color + "66" } : undefined}>
-                            <SelectValue>
-                              {opt ? <span style={{ color: opt.color, fontWeight: 600 }}>{opt.label}</span>
-                                : <span className="text-gray-400">— Select status —</span>}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— Clear —</SelectItem>
-                            {ACTUAL_OPTS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {!isFuture && (
-                        <Input className="h-8 text-xs" value={curNotes}
-                          onChange={e => setLocalNotes(p => ({ ...p, [name]: e.target.value }))}
-                          placeholder="e.g. phoned in 07:30, COVID" />
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      {!isFuture && (
-                        <Button size="sm" variant={isDirty ? "default" : "outline"} className="h-7 text-xs px-3"
-                          onClick={() => saveRow(name)}
-                          disabled={rowSaving[name] || (!cur && !isDirty)}>
-                          {rowSaving[name] ? "…" : (rec && !isDirty) ? "✓ Saved" : "Save"}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                    </tr>
+                    {names.map(renderRow)}
+                  </React.Fragment>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
@@ -2361,7 +2413,7 @@ function ActualAttendanceTab({ farmId, staffNames }: { farmId: number; staffName
 
 // ─── Pay Summary Tab ──────────────────────────────────────────────────────────
 
-function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [filterMonth, setFilterMonth] = useState(() => isoDate(new Date()).slice(0, 7));
@@ -2435,6 +2487,8 @@ function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: str
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
@@ -2500,16 +2554,35 @@ function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: str
           <table className="w-full text-sm">
             <thead><tr className="border-b text-xs text-gray-500 uppercase tracking-wide"><th className="text-left px-4 py-2.5 font-semibold">Staff Member</th><th className="text-right px-4 py-2.5 font-semibold">Reg Hrs</th><th className="text-right px-4 py-2.5 font-semibold">OT Hrs</th><th className="text-right px-4 py-2.5 font-semibold">Reg Pay</th><th className="text-right px-4 py-2.5 font-semibold">OT Pay</th><th className="text-right px-4 py-2.5 font-semibold">Total</th></tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {summary.map(r => (
-                <tr key={r.name} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-2.5 font-medium">{r.name}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{r.reg.toFixed(1)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{r.ot > 0 ? <span className="text-amber-700">{r.ot.toFixed(1)}</span> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{r.regPay !== null ? fmtGBP(r.regPay * 100) : <span className="text-gray-300 text-xs">No rate set</span>}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{r.otPay !== null && r.ot > 0 ? fmtGBP((r.otPay ?? 0) * 100) : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-2.5 text-right font-bold">{r.total !== null ? fmtGBP((r.total ?? 0) * 100) : <span className="text-gray-300 text-xs">—</span>}</td>
-                </tr>
-              ))}
+              {(() => {
+                const renderRow = (r: typeof summary[0]) => (
+                  <tr key={r.name} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-2.5 font-medium">{r.name}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{r.reg.toFixed(1)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{r.ot > 0 ? <span className="text-amber-700">{r.ot.toFixed(1)}</span> : <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{r.regPay !== null ? fmtGBP(r.regPay * 100) : <span className="text-gray-300 text-xs">No rate set</span>}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{r.otPay !== null && r.ot > 0 ? fmtGBP((r.otPay ?? 0) * 100) : <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-2.5 text-right font-bold">{r.total !== null ? fmtGBP((r.total ?? 0) * 100) : <span className="text-gray-300 text-xs">—</span>}</td>
+                  </tr>
+                );
+                if (!hasDepartments) return summary.map(renderRow);
+                return deptGroups.map(({ dept, colour, names }) => {
+                  const group = summary.filter(r => names.includes(r.name));
+                  if (!group.length) return null;
+                  return (
+                    <React.Fragment key={dept ?? "__none__"}>
+                      <tr>
+                        <td colSpan={6} className="px-4 py-1.5 bg-gray-50 border-t-2 border-gray-200">
+                          <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest" style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}>
+                            {dept ?? "No department"}
+                          </span>
+                        </td>
+                      </tr>
+                      {group.map(renderRow)}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
@@ -2561,7 +2634,7 @@ function PaySummaryTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
 // ─── Working Time Tab ─────────────────────────────────────────────────────────
 
-function WorkingTimeTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+function WorkingTimeTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -2616,6 +2689,8 @@ function WorkingTimeTab({ farmId, staffNames }: { farmId: number; staffNames: st
     toast({ title: `WTR opt-out ${!current ? "recorded" : "removed"} for ${name}` });
   };
 
+  const { groups: deptGroups, hasDepartments } = computeDeptGroups(staffMembers);
+
   if (staffNames.length === 0) {
     return <div className="text-center py-12 text-gray-400 text-sm">No staff found. Add staff members first.</div>;
   }
@@ -2627,43 +2702,60 @@ function WorkingTimeTab({ farmId, staffNames }: { farmId: number; staffNames: st
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {wtrStatus.map(({ name, avgHrs, wtrOptOut, status, weekCount }) => (
-          <div key={name} className={`border rounded-xl p-4 bg-white ${status === "breach" ? "border-red-300" : status === "warning" ? "border-amber-300" : "border-gray-200"}`}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="font-semibold text-gray-800">{name}</p>
-              {status === "breach" ? (
-                <XCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
-              ) : status === "warning" ? (
-                <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              ) : (
-                <CheckCircle2 size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+        {(() => {
+          const renderCard = ({ name, avgHrs, wtrOptOut, status, weekCount }: typeof wtrStatus[0]) => (
+            <div key={name} className={`border rounded-xl p-4 bg-white ${status === "breach" ? "border-red-300" : status === "warning" ? "border-amber-300" : "border-gray-200"}`}>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <p className="font-semibold text-gray-800">{name}</p>
+                {status === "breach" ? (
+                  <XCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                ) : status === "warning" ? (
+                  <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle2 size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+                )}
+              </div>
+              <p className={`text-2xl font-bold ${status === "breach" ? "text-red-600" : status === "warning" ? "text-amber-600" : "text-green-700"}`}>
+                {avgHrs.toFixed(1)} <span className="text-sm font-normal text-gray-500">avg hrs/wk</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">Based on {weekCount} week{weekCount !== 1 ? "s" : ""} of data (17-week window)</p>
+
+              <div className="mt-3 h-1.5 bg-gray-100 rounded-full">
+                <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (avgHrs / 60) * 100)}%`, background: status === "breach" ? "#dc2626" : status === "warning" ? "#f59e0b" : "#16a34a" }} />
+              </div>
+              <div className="flex justify-between text-[10px] text-gray-400 mt-0.5"><span>0</span><span>48 hrs</span><span>60 hrs</span></div>
+
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-gray-500">WTR Opt-out</span>
+                <button
+                  onClick={() => toggleOptOut(name, wtrOptOut)}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium border transition-colors ${wtrOptOut ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}
+                >
+                  {wtrOptOut ? "Opt-out recorded" : "No opt-out"}
+                </button>
+              </div>
+
+              {status === "breach" && !wtrOptOut && (
+                <p className="text-xs text-red-600 mt-2 font-medium">⚠ Exceeds 48-hr WTR limit — ensure opt-out is in place or reduce hours.</p>
               )}
             </div>
-            <p className={`text-2xl font-bold ${status === "breach" ? "text-red-600" : status === "warning" ? "text-amber-600" : "text-green-700"}`}>
-              {avgHrs.toFixed(1)} <span className="text-sm font-normal text-gray-500">avg hrs/wk</span>
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">Based on {weekCount} week{weekCount !== 1 ? "s" : ""} of data (17-week window)</p>
-
-            <div className="mt-3 h-1.5 bg-gray-100 rounded-full">
-              <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, (avgHrs / 60) * 100)}%`, background: status === "breach" ? "#dc2626" : status === "warning" ? "#f59e0b" : "#16a34a" }} />
-            </div>
-            <div className="flex justify-between text-[10px] text-gray-400 mt-0.5"><span>0</span><span>48 hrs</span><span>60 hrs</span></div>
-
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-gray-500">WTR Opt-out</span>
-              <button
-                onClick={() => toggleOptOut(name, wtrOptOut)}
-                className={`text-xs px-2 py-0.5 rounded-full font-medium border transition-colors ${wtrOptOut ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}
-              >
-                {wtrOptOut ? "Opt-out recorded" : "No opt-out"}
-              </button>
-            </div>
-
-            {status === "breach" && !wtrOptOut && (
-              <p className="text-xs text-red-600 mt-2 font-medium">⚠ Exceeds 48-hr WTR limit — ensure opt-out is in place or reduce hours.</p>
-            )}
-          </div>
-        ))}
+          );
+          if (!hasDepartments) return wtrStatus.map(renderCard);
+          return deptGroups.map(({ dept, colour, names }) => {
+            const group = wtrStatus.filter(s => names.includes(s.name));
+            if (!group.length) return null;
+            return (
+              <React.Fragment key={dept ?? "__none__"}>
+                <div className="col-span-full pt-1">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest" style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}>
+                    {dept ?? "No department"}
+                  </span>
+                </div>
+                {group.map(renderCard)}
+              </React.Fragment>
+            );
+          });
+        })()}
       </div>
 
       <div className="border rounded-xl p-4 bg-gray-50 text-xs text-gray-500 space-y-1">
@@ -2744,12 +2836,12 @@ export default function LabourPage() {
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />
       </div>
 
-      {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "rota" && <RotaTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
-      {tab === "actual" && <ActualAttendanceTab farmId={farmId} staffNames={staffNames} />}
-      {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} />}
-      {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} />}
-      {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "actual" && <ActualAttendanceTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
+      {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} staffMembers={staffMembers} />}
+      {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
+      {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
     </AppLayout>
   );
 }
