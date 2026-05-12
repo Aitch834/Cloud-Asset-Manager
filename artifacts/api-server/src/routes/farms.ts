@@ -8506,7 +8506,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 
 <h3>Unrecognised Codes</h3>
-<p>If the app cannot match a code, it shows an error message explaining the issue. This can happen if you scan a QR code from a different system, or if the label was generated for a different farm. Make sure you are scanning a BDE Farm Trac label starting with one of the four recognised prefixes.</p>
+<p>If the app cannot match a code, it shows an error message explaining the issue. This can happen if you scan a QR code from a different system, or if the label was generated for a different farm. Make sure you are scanning a BDE Farm Trac label starting with one of the five recognised prefixes: <strong>FLD-</strong> (fields), <strong>ANM-</strong> (animals), <strong>STG-</strong> (storage locations), <strong>EQ-</strong> (workshop equipment), or <strong>BDE-PAT-</strong> (PAT appliances).</p>
 
 <h3>Tips for Getting the Best Results</h3>
 <ul>
@@ -8523,7 +8523,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       summary: "Step-by-step guide to creating and printing QR code labels for fields, individual animals, and storage locations from the dashboard.",
       content: `<img src="/api/help-images/field-register.png" alt="QR Label Generation" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>BDE Farm Trac uses a consistent <strong>QR code labelling system</strong> across four entity types: fields, individual animals, storage locations, and workshop equipment. Once a label is generated and printed, any mobile device running BDE Farm Trac can scan it to instantly retrieve the record and log activity — no typing required.</p>
+<p>BDE Farm Trac uses a consistent <strong>QR code labelling system</strong> across five entity types: fields, individual animals, storage locations, workshop equipment, and PAT appliances. Once a label is generated and printed, any mobile device running BDE Farm Trac can scan it to instantly retrieve the record and log activity — no typing required.</p>
 
 <h3>Generating a QR Label for a Field</h3>
 <ol>
@@ -8557,6 +8557,17 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li>Click <strong>Print Label</strong> and affix the label to the machine — ideally in a prominent, weather-protected spot such as the inside of a cab door or instrument panel.</li>
 </ol>
 
+<h3>Generating a QR Label for a PAT Appliance</h3>
+<p>Every appliance in the PAT Testing register is automatically assigned a unique <strong>BDE-PAT-XXXX</strong> asset code the moment the record is first saved — no separate generation step is required.</p>
+<ol>
+<li>Go to <strong>Health, Safety &amp; Risk</strong> in the sidebar and click the <strong>PAT Testing</strong> tab.</li>
+<li>Each appliance row displays its <strong>BDE-PAT-XXXX</strong> code in a violet badge next to the appliance name.</li>
+<li>Click the <strong>QR (printer) icon</strong> in the actions column of that row.</li>
+<li>Your browser's print dialog opens with a clean label card containing: the scannable QR code, the BDE-PAT-XXXX asset number, the appliance name and make/model, and the message <em>"Scan with BDE Farm Trac app to log PAT test"</em>.</li>
+<li>Print the label and affix it to the appliance — a good position is near the plug or on the power lead where it is easy to scan.</li>
+</ol>
+<p>Once labelled, any farm staff or visiting PAT tester can open the BDE Farm Trac mobile app, tap <strong>Scan QR</strong>, and point the camera at the label. The app recognises the <code>BDE-PAT-</code> prefix, looks up the appliance, and immediately offers a <strong>Record PAT Test</strong> quick action. The test form pre-fills with today's date and a next-due date 12 months ahead — the tester simply enters their name, company, certificate number, and result (Pass, Advisory, or Fail) and saves.</p>
+
 <h3>Why Use QR Labels?</h3>
 <ul>
 <li><strong>Speed:</strong> Field workers can log spray applications, defect reports, or medicine treatments without walking back to an office or searching through a dropdown.</li>
@@ -8588,13 +8599,31 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <ol>
 <li>Go to <strong>Health, Safety &amp; Risk</strong> in the sidebar and click the <strong>PAT Testing</strong> tab.</li>
 <li>Click <strong>Log PAT Test</strong>.</li>
-<li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN").</li>
+<li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN") and optionally the make and model.</li>
 <li>If your farm buildings are registered in <strong>Farm Buildings &amp; Areas</strong>, select the <strong>Building / Area</strong> where the appliance is kept. Then enter the <strong>Workstation / Position</strong> — a short description such as "left workbench", "tool rack", or "under the desk" — so a PAT tester can find the item without a floor plan. If no buildings are registered yet, a free-text location field is displayed instead.</li>
 <li>Set the result: <em>Pass</em>, <em>Fail</em>, or <em>Advisory</em>. A <em>Fail</em> means the appliance must be taken out of service immediately. An <em>Advisory</em> means it can continue in use but remedial action is recommended.</li>
 <li>Enter the tester's name, company, and certificate number.</li>
 <li>Set the <em>Next Test Due</em> date. The system will mark this record as overdue once that date passes.</li>
 </ol>
+<p>When the record is saved, BDE Farm Trac automatically assigns a unique <strong>BDE-PAT-XXXX</strong> asset code to the appliance. This code is shown as a violet badge on the appliance row in the PAT Testing tab and is used by the QR label system to uniquely identify the appliance on the mobile app.</p>
 <p>Failed appliances should be labelled "DO NOT USE" and either repaired or disposed of before being returned to service. Record any remedial action in the Notes field.</p>
+
+<h4>QR Labels &amp; Mobile Scan-to-Test</h4>
+<p>Each PAT appliance row in the register has a <strong>QR (printer) icon</strong> in its actions column. Clicking it opens your browser's print dialog with a clean label card showing:</p>
+<ul>
+<li>A scannable QR code encoding the appliance's unique farm and asset identifier</li>
+<li>The <strong>BDE-PAT-XXXX</strong> asset code in large monospaced text</li>
+<li>The appliance name and make/model</li>
+<li>The prompt: <em>"Scan with BDE Farm Trac app to log PAT test"</em></li>
+</ul>
+<p>Print and affix the label to the appliance — near the plug or on the power lead is ideal. Once labelled:</p>
+<ol>
+<li>Open the BDE Farm Trac mobile app and tap <strong>Scan QR</strong> (or use the inline camera button on any form).</li>
+<li>Point the camera at the label. The app identifies the appliance and displays its name, make/model, location, and asset code.</li>
+<li>Tap <strong>Record PAT Test</strong>. A test form opens pre-filled with today as the test date and 12 months ahead as the next-due date.</li>
+<li>Enter the tester's name, company, and certificate number, select the result (Pass, Advisory, or Fail), add any notes, and save.</li>
+</ol>
+<p>The result is posted immediately to the dashboard register — no manual re-entry required.</p>
 
 <h4>Filtering by Location</h4>
 <p>Once at least one record is linked to a building, a <strong>Filter by location</strong> dropdown appears above the register. Select a building to show only the appliances kept there — exactly the list to hand a PAT tester before their visit so they can work through each area systematically rather than hunting around the whole site.</p>
