@@ -828,7 +828,9 @@ function TimesheetsTab({ farmId, staffNames }: { farmId: number; staffNames: str
 
 // ─── Rota Tab ─────────────────────────────────────────────────────────────────
 
-function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+type StaffMember = { name: string; department: string | null; colour: string | null };
+
+function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNames: string[]; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [weekStart, setWeekStart] = useState<Date>(getMondayOfWeek(new Date()));
@@ -915,12 +917,38 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
   const nextWeek = () => setWeekStart(d => addDays(d, 7));
   const goToday = () => setWeekStart(getMondayOfWeek(new Date()));
 
+  const deptGroups: { dept: string | null; colour: string | null; names: string[] }[] = (() => {
+    const map = new Map<string, { colour: string | null; names: string[] }>();
+    for (const m of staffMembers) {
+      const key = m.department ?? "";
+      if (!map.has(key)) map.set(key, { colour: m.colour, names: [] });
+      map.get(key)!.names.push(m.name);
+    }
+    const entries = [...map.entries()].sort(([a], [b]) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b);
+    });
+    return entries.map(([dept, { colour, names }]) => ({ dept: dept || null, colour, names }));
+  })();
+  const hasDepartments = staffMembers.some(m => m.department !== null);
+
   const printRota = () => {
+    const colCount = DAYS.length + 1;
     const header = `<tr><th>Staff Member</th>${DAYS.map((d, i) => `<th>${d} ${fmtDate(isoDate(addDays(weekStart, i))).slice(0, 6)}</th>`).join("")}</tr>`;
-    const rows = staffNames.map(name => {
-      const row = rotaMap.get(name);
-      return `<tr><td><strong>${name}</strong></td>${DAY_KEYS.map(k => `<td>${row ? (shiftLabel(row[k]) ?? "—") : "—"}</td>`).join("")}</tr>`;
-    }).join("");
+    const rows = hasDepartments
+      ? deptGroups.map(({ dept, names }) => {
+          const deptRow = `<tr><td colspan="${colCount}" style="background:#f9fafb;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280;padding:5px 10px;text-align:left">${dept ?? "No Department"}</td></tr>`;
+          const memberRows = names.map(name => {
+            const row = rotaMap.get(name);
+            return `<tr><td style="padding-left:18px"><strong>${name}</strong></td>${DAY_KEYS.map(k => `<td>${row ? (shiftLabel(row[k]) ?? "—") : "—"}</td>`).join("")}</tr>`;
+          }).join("");
+          return deptRow + memberRows;
+        }).join("")
+      : staffNames.map(name => {
+          const row = rotaMap.get(name);
+          return `<tr><td><strong>${name}</strong></td>${DAY_KEYS.map(k => `<td>${row ? (shiftLabel(row[k]) ?? "—") : "—"}</td>`).join("")}</tr>`;
+        }).join("");
     const html = `<!DOCTYPE html><html><head><title>Weekly Rota</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px}h1{font-size:16px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:center}th{background:#f5f5f5;font-weight:600}td:first-child{text-align:left}</style></head><body><h1>Weekly Rota — w/c ${fmtDate(isoDate(weekStart))}</h1><table><thead>${header}</thead><tbody>${rows}</tbody></table></body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
@@ -975,51 +1003,72 @@ function RotaTab({ farmId, staffNames }: { farmId: number; staffNames: string[] 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {staffNames.map(name => {
-                const row = rotaMap.get(name);
-                return (
-                  <tr key={name} className="hover:bg-gray-50/30">
-                    <td className="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white">
-                      <div className="flex items-center justify-between gap-1">
-                        <span>{name}</span>
-                        {weekContainsToday && (
-                          <button
-                            title="Log today's actual attendance"
-                            className="text-gray-300 hover:text-amber-500 transition-colors"
-                            onClick={() => {
-                              const planned = todayDayIndex >= 0 ? (row?.[DAY_KEYS[todayDayIndex]] ?? null) : null;
-                              setQuickLog({ staffName: name, date: todayStr, planned });
-                              setQlStatus("absent_sick"); setQlNotes("");
-                            }}
-                          >
-                            <Zap size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    {DAY_KEYS.map(dayKey => {
-                      const val = row?.[dayKey] ?? null;
-                      const key = `${name}-${dayKey}`;
-                      return (
-                        <td key={dayKey} className="px-2 py-1.5 text-center">
-                          <Select value={val ?? "none"} onValueChange={v => setShift(name, dayKey, v)}>
-                            <SelectTrigger
-                              className="h-8 text-xs justify-center border-0 shadow-none focus:ring-0"
-                              style={{ background: val ? shiftColor(val) + "22" : "#f9fafb", color: val ? shiftColor(val) : "#9ca3af", fontWeight: val ? 600 : 400 }}
+              {(() => {
+                const renderStaffRow = (name: string) => {
+                  const row = rotaMap.get(name);
+                  return (
+                    <tr key={name} className="hover:bg-gray-50/30">
+                      <td className="px-4 py-2 font-medium text-gray-800 sticky left-0 bg-white">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{name}</span>
+                          {weekContainsToday && (
+                            <button
+                              title="Log today's actual attendance"
+                              className="text-gray-300 hover:text-amber-500 transition-colors"
+                              onClick={() => {
+                                const planned = todayDayIndex >= 0 ? (row?.[DAY_KEYS[todayDayIndex]] ?? null) : null;
+                                setQuickLog({ staffName: name, date: todayStr, planned });
+                                setQlStatus("absent_sick"); setQlNotes("");
+                              }}
                             >
-                              <SelectValue>{saving[key] ? "…" : shiftLabel(val)}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">— Clear —</SelectItem>
-                              {SHIFT_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
+                              <Zap size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      {DAY_KEYS.map(dayKey => {
+                        const val = row?.[dayKey] ?? null;
+                        const key = `${name}-${dayKey}`;
+                        return (
+                          <td key={dayKey} className="px-2 py-1.5 text-center">
+                            <Select value={val ?? "none"} onValueChange={v => setShift(name, dayKey, v)}>
+                              <SelectTrigger
+                                className="h-8 text-xs justify-center border-0 shadow-none focus:ring-0"
+                                style={{ background: val ? shiftColor(val) + "22" : "#f9fafb", color: val ? shiftColor(val) : "#9ca3af", fontWeight: val ? 600 : 400 }}
+                              >
+                                <SelectValue>{saving[key] ? "…" : shiftLabel(val)}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— Clear —</SelectItem>
+                                {SHIFT_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                };
+                if (!hasDepartments) return staffNames.map(renderStaffRow);
+                return deptGroups.map(({ dept, colour, names }) => (
+                  <React.Fragment key={dept ?? "__none__"}>
+                    <tr>
+                      <td
+                        colSpan={DAYS.length + 1}
+                        className="px-4 py-1.5 bg-gray-50 border-t-2 border-gray-200 sticky left-0"
+                      >
+                        <span
+                          className="text-xs font-semibold text-gray-500 uppercase tracking-widest"
+                          style={{ borderLeft: `3px solid ${colour ?? "#9ca3af"}`, paddingLeft: 8 }}
+                        >
+                          {dept ?? "No department"}
+                        </span>
+                      </td>
+                    </tr>
+                    {names.map(renderStaffRow)}
+                  </React.Fragment>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
@@ -2638,20 +2687,22 @@ export default function LabourPage() {
   const [tab, setTab] = useState<LabourTab>("rota");
   const [absencePendingBadge, setAbsencePendingBadge] = useState(0);
 
-  const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean }> }>({
+  const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean; departmentName: string | null; departmentColour: string | null }> }>({
     queryKey: ["staff-members", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
     enabled: !!farmId,
   });
 
-  const staffNames = useMemo(
+  const staffMembers = useMemo(
     () => (staffQ.data?.members ?? [])
       .filter(m => m.isActive !== false)
-      .map(m => `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim())
-      .filter(Boolean)
-      .sort(),
+      .map(m => ({ name: `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim(), department: m.departmentName ?? null, colour: m.departmentColour ?? null }))
+      .filter(m => m.name)
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [staffQ.data],
   );
+
+  const staffNames = useMemo(() => staffMembers.map(m => m.name), [staffMembers]);
 
   // Pending timesheets badge for the Timesheets tab
   const todayWeekStart = useMemo(() => isoDate(getMondayOfWeek(new Date())), []);
@@ -2694,7 +2745,7 @@ export default function LabourPage() {
       </div>
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} />}
-      {tab === "rota" && <RotaTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "rota" && <RotaTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "actual" && <ActualAttendanceTab farmId={farmId} staffNames={staffNames} />}
       {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} />}
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} />}
