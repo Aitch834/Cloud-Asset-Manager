@@ -1749,9 +1749,14 @@ function AbsenceTab({ farmId, staffNames, onPendingCount }: { farmId: number; st
                             return (
                               <td
                                 key={d}
-                                title={a ? `${a.absenceType}${a.status === "pending" ? " (pending)" : ""}${a.notes ? ` · ${a.notes}` : ""}` : rotaHol ? "Holiday (rota only — no formal absence record)" : undefined}
-                                className={`border-r last:border-r-0 ${cellBg(a, rotaHol, wknd)} ${today ? "outline outline-2 outline-blue-400 outline-offset-[-2px]" : ""}`}
+                                title={a ? `${a.absenceType}${a.status === "pending" ? " (pending)" : ""}${a.notes ? ` · ${a.notes}` : ""}` : rotaHol ? "Holiday on rota — no absence record logged. Click to log now." : undefined}
+                                className={`border-r last:border-r-0 ${cellBg(a, rotaHol, wknd)} ${today ? "outline outline-2 outline-blue-400 outline-offset-[-2px]" : ""} ${rotaHol ? "cursor-pointer hover:brightness-90 active:brightness-75" : ""}`}
                                 style={{ width: 30, height: 30 }}
+                                onClick={rotaHol ? () => {
+                                  setForm({ ...emptyForm(), staffName: name, startDate: dayStr(d), endDate: dayStr(d), daysCount: "1", absenceType: "Annual Leave" });
+                                  setEditItem(null);
+                                  setAddOpen(true);
+                                } : undefined}
                               />
                             );
                           })}
