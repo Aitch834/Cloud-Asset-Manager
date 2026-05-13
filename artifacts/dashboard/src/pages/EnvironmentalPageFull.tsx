@@ -215,6 +215,297 @@ ${schemeRows ? `<h2>Active Agri-Environment Schemes</h2>
   setTimeout(() => w.print(), 500);
 }
 
+// ─── Report print functions ───────────────────────────────────────────────────
+
+const CSS_BASE = `
+  body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; margin: 20mm; }
+  h1 { font-size: 15pt; color: #166534; margin-bottom: 4px; }
+  h2 { font-size: 11pt; color: #166534; margin-top: 22px; margin-bottom: 7px; border-bottom: 1px solid #bbf7d0; padding-bottom: 3px; }
+  h3 { font-size: 10pt; color: #374151; margin: 14px 0 5px; }
+  .meta { font-size: 9pt; color: #555; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 10px; }
+  th { background: #f0fdf4; border: 1px solid #d1fae5; padding: 5px 7px; text-align: left; font-weight: 600; }
+  td { border: 1px solid #e5e7eb; padding: 5px 7px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .badge-pass { background:#dcfce7; color:#166534; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .badge-advisory { background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .badge-fail { background:#fee2e2; color:#991b1b; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .badge-active { background:#dcfce7; color:#166534; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .badge-expired { background:#fee2e2; color:#991b1b; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .badge-pending { background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; font-size:8.5pt; font-weight:600; }
+  .sig-block { margin-top: 36px; }
+  .sig-row { display: flex; gap: 32px; margin-top: 20px; }
+  .sig-field { flex: 1; }
+  .sig-line { border-bottom: 1px solid #333; height: 30px; margin-bottom: 3px; }
+  .sig-label { font-size: 8.5pt; color: #555; }
+  .notice { background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:7px 10px; font-size:8.5pt; color:#92400e; margin-bottom:12px; }
+  .footer { margin-top: 28px; font-size: 8pt; color: #888; border-top: 1px solid #e5e7eb; padding-top: 7px; }
+  .store-block { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; }
+  .store-header { font-size: 10.5pt; font-weight: 700; color: #166534; margin-bottom: 6px; }
+  @page { margin: 14mm; }
+  @media print { body { margin: 0; } }
+`;
+
+function openPrintWindow(title: string, html: string) {
+  const w = window.open("", "_blank", "width=920,height=700");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>${CSS_BASE}</style></head><body>${html}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 500);
+}
+
+function printAssessmentHistory(records: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const sorted = [...records].sort((a, b) => new Date(b.assessmentDate).getTime() - new Date(a.assessmentDate).getTime());
+  const rows = sorted.map(r => {
+    const badge = r.outcome === "pass" ? "pass" : r.outcome === "advisory" ? "advisory" : "fail";
+    const label = r.outcome === "pass" ? "Pass" : r.outcome === "advisory" ? "Pass with Advisories" : "Fail";
+    return `<tr>
+      <td style="white-space:nowrap">${new Date(r.assessmentDate).toLocaleDateString("en-GB")}</td>
+      <td>${r.assessorName || "—"}</td>
+      <td>${r.assessorOrganisation || "—"}</td>
+      <td><span class="badge-${badge}">${label}</span></td>
+      <td>${r.conditions || "—"}</td>
+      <td style="white-space:nowrap">${r.nextAssessmentDue ? new Date(r.nextAssessmentDue).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${r.notes || "—"}</td>
+    </tr>`;
+  }).join("");
+  const last = sorted[0];
+  openPrintWindow("Assessment History Report", `
+    <h1>Assessment History Report</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac &nbsp;|&nbsp; ${records.length} record${records.length !== 1 ? "s" : ""}</div>
+    <div class="notice"><strong>Red Tractor requirement:</strong> Assessment records must be retained and made available during farm inspections. This report provides a full history of assessor visits, outcomes, and remedial conditions.</div>
+    ${last ? `<p style="font-size:9pt"><strong>Most recent assessment:</strong> ${new Date(last.assessmentDate).toLocaleDateString("en-GB")} — ${last.assessorOrganisation || last.assessorName || "unknown"}${last.nextAssessmentDue ? ` &nbsp;|&nbsp; Next due: ${new Date(last.nextAssessmentDue).toLocaleDateString("en-GB")}` : ""}</p>` : ""}
+    <h2>Assessment Records (${records.length})</h2>
+    ${records.length === 0 ? "<p>No assessment records.</p>" : `
+    <table><thead><tr>
+      <th>Date</th><th>Assessor</th><th>Organisation</th><th>Outcome</th>
+      <th>Conditions / Remedial Actions</th><th>Next Due</th><th>Notes</th>
+    </tr></thead><tbody>${rows}</tbody></table>`}
+    <div class="sig-block">
+      <h2>Inspector Sign-off</h2>
+      <div class="sig-row">
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Inspector signature</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Inspector name (print)</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Organisation</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Date</div></div>
+      </div>
+    </div>
+    <div class="footer">Generated by BDE Farm Trac. Retain a signed copy for Red Tractor and assurance body inspection purposes.</div>
+  `);
+}
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  hedge_trimming: "Hedge Trimming", hedge_laying: "Hedge Laying", hedge_coppicing: "Hedge Coppicing",
+  ditch_clearance: "Ditch Clearance", pond_management: "Pond Management", tree_planting: "Tree Planting",
+  grass_cutting: "Grass Cutting", grazing_management: "Grazing Management", spraying: "Spraying",
+  weed_control: "Weed Control", soil_sampling: "Soil Sampling", water_management: "Water Management",
+  wildflower_seeding: "Wildflower Seeding", other: "Other",
+};
+
+function printManagementEventLog(records: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const sorted = [...records].sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+  const rows = sorted.map(r => `<tr>
+    <td style="white-space:nowrap">${new Date(r.eventDate).toLocaleDateString("en-GB")}</td>
+    <td>${EVENT_TYPE_LABELS[r.eventType] ?? r.eventType ?? "—"}</td>
+    <td>${r.featureName || r.featureType || "—"}</td>
+    <td>${r.description || "—"}</td>
+    <td>${r.contractorUsed ? (r.contractorName || "Contractor") : (r.operator || "—")}</td>
+    <td>${r.fulfilsSchemeObligation ? `Yes${r.schemeName ? ` (${r.schemeName})` : ""}` : "No"}</td>
+    <td>${r.followUpActionsNeeded || "—"}</td>
+  </tr>`).join("");
+  openPrintWindow("Environmental Management Event Log", `
+    <h1>Environmental Management Event Log</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac &nbsp;|&nbsp; ${records.length} event${records.length !== 1 ? "s" : ""} recorded</div>
+    <div class="notice"><strong>Agri-environment scheme evidence:</strong> Natural England, NatureScot and scheme monitors may request a dated management event log during spot checks. This document provides a dated evidence trail that scheme management obligations are being actively fulfilled.</div>
+    <h2>Management Events (${records.length})</h2>
+    ${records.length === 0 ? "<p>No management events recorded.</p>" : `
+    <table><thead><tr>
+      <th>Date</th><th>Event Type</th><th>Feature / Area</th><th>Description of Work</th>
+      <th>Operator / Contractor</th><th>Fulfils Scheme Obligation</th><th>Follow-up Actions</th>
+    </tr></thead><tbody>${rows}</tbody></table>`}
+    <div class="footer">Generated by BDE Farm Trac. This log should be retained for the duration of any agri-environment scheme agreement and for five years after its end.</div>
+  `);
+}
+
+function printSchemeSummary(records: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const active = records.filter(r => r.status === "active");
+  const totalPence = active.reduce((s, r) => s + (r.annualPaymentPence ?? 0), 0);
+  const rows = records.map(r => {
+    const badgeCls = r.status === "active" ? "active" : r.status === "expired" ? "expired" : "pending";
+    const label = (r.status || "active").charAt(0).toUpperCase() + (r.status || "active").slice(1);
+    return `<tr>
+      <td><strong>${r.schemeName}</strong></td>
+      <td>${r.agreementNumber || "—"}</td>
+      <td style="white-space:nowrap">${r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td style="white-space:nowrap">${r.endDate ? new Date(r.endDate).toLocaleDateString("en-GB") : "Ongoing"}</td>
+      <td><span class="badge-${badgeCls}">${label}</span></td>
+      <td>${r.annualPaymentPence != null ? `£${(r.annualPaymentPence / 100).toFixed(2)}` : "—"}</td>
+      <td>${r.obligations || "—"}</td>
+    </tr>`;
+  }).join("");
+  openPrintWindow("Agri-Environment Scheme Summary", `
+    <h1>Agri-Environment Scheme Summary</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac</div>
+    <div style="display:flex;gap:24px;margin-bottom:14px">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 14px;font-size:9pt">
+        <div style="color:#6b7280;margin-bottom:2px">Active Schemes</div>
+        <div style="font-size:14pt;font-weight:700;color:#1e40af">${active.length}</div>
+      </div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 14px;font-size:9pt">
+        <div style="color:#6b7280;margin-bottom:2px">Total Annual Payment</div>
+        <div style="font-size:14pt;font-weight:700;color:#1e40af">£${(totalPence / 100).toFixed(2)}</div>
+      </div>
+    </div>
+    <h2>Scheme Records (${records.length})</h2>
+    ${records.length === 0 ? "<p>No scheme records.</p>" : `
+    <table><thead><tr>
+      <th>Scheme Name</th><th>Agreement No.</th><th>Start Date</th><th>End Date</th>
+      <th>Status</th><th>Annual Payment</th><th>Obligations</th>
+    </tr></thead><tbody>${rows}</tbody></table>`}
+    <div class="footer">Generated by BDE Farm Trac. Keep alongside scheme agreement documents for scheme monitor visits.</div>
+  `);
+}
+
+function printSFISummary(agreements: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const active = agreements.filter(r => (r.status as string) === "Active");
+  const total = active.reduce((s, r) => s + (Number(r.totalAnnualPayment) || 0), 0);
+  const rows = agreements.map(r => {
+    const isActive = (r.status as string) === "Active";
+    return `<tr>
+      <td style="font-family:monospace">${String(r.agreementNumber ?? "—")}</td>
+      <td style="font-family:monospace">${String(r.applicationReference ?? "—")}</td>
+      <td style="white-space:nowrap">${r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td style="white-space:nowrap">${r.endDate ? new Date(r.endDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td><span class="${isActive ? "badge-active" : "badge-pending"}">${String(r.status ?? "—")}</span></td>
+      <td>${r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toFixed(2)}` : "—"}</td>
+    </tr>`;
+  }).join("");
+  openPrintWindow("SFI / ELMs Agreements Summary", `
+    <h1>SFI / ELMs Actions &amp; Agreements</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac &nbsp;|&nbsp; ${agreements.length} agreement${agreements.length !== 1 ? "s" : ""}</div>
+    ${active.length > 0 ? `<p style="font-size:9pt"><strong>${active.length} active agreement${active.length !== 1 ? "s" : ""}</strong> &nbsp;|&nbsp; Total annual payment: <strong>£${total.toFixed(2)}</strong></p>` : ""}
+    <h2>Agreements (${agreements.length})</h2>
+    ${agreements.length === 0 ? "<p>No SFI/ELMs agreements recorded.</p>" : `
+    <table><thead><tr>
+      <th>Agreement No.</th><th>Application Ref</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Annual Payment</th>
+    </tr></thead><tbody>${rows}</tbody></table>`}
+    <div class="footer">Generated by BDE Farm Trac. Retain alongside RPA agreement documentation.</div>
+  `);
+}
+
+function printSSAFORegister(stores: any[], inspections: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const storeRows = stores.map(s => {
+    const statusBadge = (s.status as string) === "Compliant" ? "pass" : "fail";
+    return `<tr>
+      <td><strong>${s.storeName}</strong></td>
+      <td>${s.storeType || "—"}</td>
+      <td>${s.capacityM3 != null ? `${s.capacityM3} m³` : "—"}</td>
+      <td>${s.material || "—"}</td>
+      <td>${s.designStandard || "—"}</td>
+      <td>${s.agencyRegistrationNumber || "—"}</td>
+      <td style="white-space:nowrap">${s.lastInspectionDate ? new Date(s.lastInspectionDate).toLocaleDateString("en-GB") : "Not inspected"}</td>
+      <td style="white-space:nowrap">${s.nextInspectionDue ? new Date(s.nextInspectionDue).toLocaleDateString("en-GB") : "—"}</td>
+      <td><span class="badge-${statusBadge}">${s.status || "—"}</span></td>
+    </tr>`;
+  }).join("");
+
+  const inspRows = [...inspections]
+    .sort((a, b) => new Date(b.inspectionDate).getTime() - new Date(a.inspectionDate).getTime())
+    .map(r => {
+      const badge = r.outcome === "Pass" ? "pass" : r.outcome === "Advisory" ? "advisory" : "fail";
+      return `<tr>
+        <td style="white-space:nowrap">${new Date(r.inspectionDate).toLocaleDateString("en-GB")}</td>
+        <td><strong>${r.storeName || "—"}</strong></td>
+        <td>${[r.inspectorName, r.inspectorOrganisation].filter(Boolean).join(", ") || "—"}</td>
+        <td><span class="badge-${badge}">${r.outcome}</span></td>
+        <td>${r.freeboardOk ? "Yes" : `No${r.freeboardMm ? ` (${r.freeboardMm} mm)` : ""}`}</td>
+        <td>${r.leaksOrDamageFound ? "<strong style='color:#991b1b'>Yes</strong>" : "No"}</td>
+        <td>${r.deficiencies || "—"}</td>
+        <td>${r.actionsRequired || "—"}</td>
+        <td style="white-space:nowrap">${r.nextInspectionDue ? new Date(r.nextInspectionDue).toLocaleDateString("en-GB") : "—"}</td>
+      </tr>`;
+    }).join("");
+
+  openPrintWindow("SSAFO Compliance Register", `
+    <h1>SSAFO Compliance Register — Slurry &amp; Manure Stores</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac &nbsp;|&nbsp; ${stores.length} store${stores.length !== 1 ? "s" : ""} | ${inspections.length} inspection record${inspections.length !== 1 ? "s" : ""}</div>
+    <div class="notice"><strong>SSAFO requirement (England):</strong> The Silage, Slurry and Agricultural Fuel Oil Regulations 2010 require that slurry storage structures are maintained in good condition, regularly inspected, and that records are available on request by the Environment Agency. The Farming Rules for Water 2018 also require adequate storage capacity to prevent pollution.</div>
+    <h2>Slurry &amp; Manure Store Inventory (${stores.length})</h2>
+    ${stores.length === 0 ? "<p>No stores recorded.</p>" : `
+    <table><thead><tr>
+      <th>Store Name</th><th>Type</th><th>Capacity</th><th>Material</th><th>Design Standard</th>
+      <th>EA Ref / Permit</th><th>Last Inspection</th><th>Next Due</th><th>Status</th>
+    </tr></thead><tbody>${storeRows}</tbody></table>`}
+    <h2>Inspection History (${inspections.length})</h2>
+    ${inspections.length === 0 ? "<p>No inspection records.</p>" : `
+    <table><thead><tr>
+      <th>Date</th><th>Store</th><th>Inspector</th><th>Outcome</th>
+      <th>Freeboard OK</th><th>Leaks/Damage</th><th>Deficiencies</th><th>Actions Required</th><th>Next Due</th>
+    </tr></thead><tbody>${inspRows}</tbody></table>`}
+    <div class="sig-block">
+      <h2>Environment Agency Inspector Sign-off</h2>
+      <p style="font-size:9pt;color:#555">For use during EA farm inspections or NVZ compliance checks.</p>
+      <div class="sig-row">
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">EA Officer signature</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Name (print)</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Officer ID / Reference</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Date of visit</div></div>
+      </div>
+      <div class="sig-row">
+        <div class="sig-field" style="flex:2"><div class="sig-line"></div><div class="sig-label">Farmer / farm manager signature</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Name (print)</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Date</div></div>
+      </div>
+    </div>
+    <div class="footer">Generated by BDE Farm Trac. Silage, Slurry and Agricultural Fuel Oil Regulations 2010 (SI 2010/639). Retain this register and make available for inspection by the Environment Agency on request.</div>
+  `);
+}
+
+function printSpreadingLog(spreadings: any[], farmId: number) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const sorted = [...spreadings].sort((a, b) => new Date(b.spreadingDate ?? 0).getTime() - new Date(a.spreadingDate ?? 0).getTime());
+  const rows = sorted.map(r => `<tr>
+    <td style="white-space:nowrap">${r.spreadingDate ? new Date(r.spreadingDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td>${r.fieldName || "—"}</td>
+    <td>${r.fieldAreaHa != null ? `${r.fieldAreaHa} ha` : "—"}</td>
+    <td>${r.materialType || "—"}</td>
+    <td>${r.volumeOrTonnesApplied != null ? r.volumeOrTonnesApplied : "—"}</td>
+    <td>${r.applicationMethod || "—"}</td>
+    <td>${r.operatorName || "—"}</td>
+    <td>${r.weatherConditions || "—"}</td>
+    <td>${r.notes || "—"}</td>
+  </tr>`).join("");
+
+  const years = [...new Set(sorted.map(r => r.spreadingDate ? new Date(r.spreadingDate).getFullYear() : null).filter(Boolean))].sort((a, b) => (b as number) - (a as number));
+
+  openPrintWindow("Organic Material Spreading Records", `
+    <h1>Organic Material Spreading Records</h1>
+    <div class="meta">Farm ID: ${farmId} &nbsp;|&nbsp; Generated: ${now} &nbsp;|&nbsp; BDE Farm Trac &nbsp;|&nbsp; ${spreadings.length} record${spreadings.length !== 1 ? "s" : ""} &nbsp;|&nbsp; Years: ${years.join(", ") || "—"}</div>
+    <div class="notice"><strong>Farming Rules for Water (2018) &amp; NVZ requirements:</strong> Records of organic material applications must be retained for at least five years and made available for inspection by the Environment Agency, Natural England, or the Rural Payments Agency on request. Records must show the field, date, material type, quantity applied, and method.</div>
+    <h2>Spreading Records (${spreadings.length})</h2>
+    ${spreadings.length === 0 ? "<p>No spreading records.</p>" : `
+    <table><thead><tr>
+      <th>Date</th><th>Field</th><th>Area (ha)</th><th>Material Type</th>
+      <th>Volume / Tonnes</th><th>Method</th><th>Operator</th><th>Weather</th><th>Notes</th>
+    </tr></thead><tbody>${rows}</tbody></table>`}
+    <div class="sig-block">
+      <h2>Sign-off</h2>
+      <div class="sig-row">
+        <div class="sig-field" style="flex:2"><div class="sig-line"></div><div class="sig-label">Farm manager signature</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Name (print)</div></div>
+        <div class="sig-field"><div class="sig-line"></div><div class="sig-label">Date</div></div>
+      </div>
+    </div>
+    <div class="footer">Generated by BDE Farm Trac. Farming Rules for Water (SI 2018/151). Retain for a minimum of five years. Records must be available on-farm during inspection visits.</div>
+  `);
+}
+
 function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes: any[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -505,7 +796,12 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+        {records.length > 0 && (
+          <Button size="sm" variant="outline" onClick={() => printSchemeSummary(records, farmId)}>
+            <Printer size={14} className="mr-1" />Print Summary
+          </Button>
+        )}
         <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Scheme</Button>
       </div>
 
@@ -742,7 +1038,12 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
         );
       })()}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+        {records.length > 0 && (
+          <Button size="sm" variant="outline" onClick={() => printAssessmentHistory(records, farmId)}>
+            <Printer size={14} className="mr-1" />Print History
+          </Button>
+        )}
         <Button size="sm" onClick={() => { setForm(emptyForm()); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Assessment Visit
         </Button>
@@ -1175,7 +1476,12 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
             {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {allRecords.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => printManagementEventLog(allRecords, farmId)}>
+              <Printer size={14} className="mr-1" />Print Event Log
+            </Button>
+          )}
           <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Log Event</Button>
         </div>
       </div>
@@ -1563,9 +1869,16 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
           <h3 className="font-semibold">SFI / ELMs Actions & Agreements</h3>
           <p className="text-sm text-muted-foreground">Record Sustainable Farming Incentive agreements, action codes, areas applied, and annual payments.</p>
         </div>
-        <Button onClick={() => { setEditing(null); setForm({ status: "Active" }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Add Agreement
-        </Button>
+        <div className="flex gap-2">
+          {rows.length > 0 && (
+            <Button variant="outline" onClick={() => printSFISummary(rows, farmId)}>
+              <Printer className="w-4 h-4 mr-2" /> Print Summary
+            </Button>
+          )}
+          <Button onClick={() => { setEditing(null); setForm({ status: "Active" }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Add Agreement
+          </Button>
+        </div>
       </div>
       {isLoading ? <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div> : (
         <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
@@ -1768,9 +2081,16 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Slurry & Manure Stores</h3>
-          <Button size="sm" onClick={() => { setEditingStore(null); setStoreForm({ status: "Compliant" }); setStoreOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Add Store
-          </Button>
+          <div className="flex gap-2">
+            {stores.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => printSSAFORegister(stores, inspQ.data ?? [], farmId)}>
+                <Printer className="w-4 h-4 mr-1" /> SSAFO Register
+              </Button>
+            )}
+            <Button size="sm" onClick={() => { setEditingStore(null); setStoreForm({ status: "Compliant" }); setStoreOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" /> Add Store
+            </Button>
+          </div>
         </div>
         {storesQ.isLoading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
           <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
@@ -1806,9 +2126,16 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Spreading Records</h3>
-          <Button size="sm" onClick={() => { setSpreadForm({}); setSpreadOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Log Spreading
-          </Button>
+          <div className="flex gap-2">
+            {spreadings.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => printSpreadingLog(spreadings, farmId)}>
+                <Printer className="w-4 h-4 mr-1" /> Print Log
+              </Button>
+            )}
+            <Button size="sm" onClick={() => { setSpreadForm({}); setSpreadOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" /> Log Spreading
+            </Button>
+          </div>
         </div>
         {spreadQ.isLoading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
           <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
