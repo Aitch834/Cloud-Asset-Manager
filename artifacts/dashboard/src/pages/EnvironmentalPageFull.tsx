@@ -612,6 +612,12 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
+  const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(null);
+  const [taskAssigneeId, setTaskAssigneeId] = useState<string>("");
+  const [taskDueDate, setTaskDueDate] = useState<string>("");
+  const { data: membersData } = useFarmMembers(farmId);
+  const activeMembers = membersData?.members.filter(m => m.isActive) ?? [];
   const emptyForm = () => ({
     assessorName: "", assessorOrganisation: "", assessmentDate: new Date().toISOString().slice(0, 10),
     outcome: "pass", conditions: "", nextAssessmentDue: "", notes: "",
@@ -633,8 +639,42 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-    onSuccess: () => { toast({ title: "Assessment record saved" }); invalidate(); setAddOpen(false); setForm(emptyForm()); },
+    onSuccess: (_data: unknown, variables: any) => {
+      toast({ title: "Assessment record saved" });
+      invalidate();
+      setAddOpen(false);
+      setForm(emptyForm());
+      if ((variables.outcome === "advisory" || variables.outcome === "fail") && variables.conditions?.trim()) {
+        const outcomeLabel = variables.outcome === "fail" ? "Fail" : "Pass with Advisories";
+        const dateStr = variables.assessmentDate
+          ? new Date(variables.assessmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+          : "";
+        const orgPart = variables.assessorOrganisation ? ` — ${variables.assessorOrganisation}` : "";
+        setPendingTask({
+          title: `Remedial actions required: ${outcomeLabel}${orgPart} (${dateStr})`,
+          description: variables.conditions.trim(),
+        });
+        setTaskAssigneeId("");
+        setTaskDueDate("");
+        setRaiseTaskOpen(true);
+      }
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const raiseMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/task-assignments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Task raised — assignee will be notified by SMS" });
+      setRaiseTaskOpen(false);
+      setPendingTask(null);
+    },
+    onError: () => toast({ title: "Failed to raise task", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -817,6 +857,60 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader>
+            <DialogTitle>Raise a Task for Remedial Actions?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 6, padding: "0.625rem 0.875rem" }}>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>Actions recorded:</p>
+              <p style={{ fontSize: "0.8rem", color: "#78350f", margin: 0 }}>{pendingTask?.description}</p>
+            </div>
+            <div>
+              <Label>Assign to <span style={{ color: "#ef4444" }}>*</span></Label>
+              <Select value={taskAssigneeId} onValueChange={setTaskAssigneeId}>
+                <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                <SelectContent>
+                  {activeMembers.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Due Date</Label>
+              <Input type="date" min={new Date().toISOString().slice(0, 10)} value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
+            </div>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+              The assignee will receive an SMS notification. The task will appear on the Task Board and stay open until marked complete.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRaiseTaskOpen(false); setPendingTask(null); }}>Skip for now</Button>
+            <Button
+              disabled={!taskAssigneeId || raiseMut.isPending}
+              onClick={() => {
+                if (!pendingTask || !taskAssigneeId) return;
+                raiseMut.mutate({
+                  assignedToMemberId: Number(taskAssigneeId),
+                  title: pendingTask.title,
+                  description: pendingTask.description,
+                  module: "Environmental",
+                  taskType: "compliance",
+                  href: "/environmental-management?tab=assessments",
+                  ...(taskDueDate ? { dueDate: taskDueDate } : {}),
+                });
+              }}
+            >
+              Raise Task &amp; Notify
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
