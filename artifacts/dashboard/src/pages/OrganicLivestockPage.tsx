@@ -660,6 +660,13 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   });
   const suppliers: FarmSupplier[] = suppliersData?.records ?? [];
 
+  const { data: herdsData } = useQuery<{ records: CoreHerd[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const coreHerds: CoreHerd[] = herdsData?.records ?? [];
+
   const save = useMutation({
     mutationFn: () => {
       const url = editing
@@ -681,7 +688,7 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setSupplierId(null); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicApproved: true, recordDate: new Date().toISOString().slice(0, 10) }); setSupplierId(null); setOpen(true); }
   function openEdit(r: FeedRecord) {
     setEditing(r);
     setForm({ ...r });
@@ -807,7 +814,34 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </div>
             <div className="space-y-1">
               <Label>Herd / Flock</Label>
-              <Input value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} />
+              {(() => {
+                const firstWord = (form.species ?? "").toLowerCase().split(/[\s(]/)[0];
+                const filteredHerds = form.species
+                  ? coreHerds.filter(h => { const t = h.type.toLowerCase().trim(); return t === firstWord || t.startsWith(firstWord) || firstWord.startsWith(t); })
+                  : coreHerds;
+                const isLinked = filteredHerds.length > 0 && filteredHerds.some(h => h.name === form.herdFlockName);
+                return filteredHerds.length > 0 ? (
+                  <>
+                    <Select
+                      value={isLinked ? (form.herdFlockName ?? "") : "__manual__"}
+                      onValueChange={v => setForm(p => ({ ...p, herdFlockName: v === "__manual__" ? "" : v }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select herd / flock…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__manual__">— Enter manually —</SelectItem>
+                        {filteredHerds.map(h => (
+                          <SelectItem key={h.id} value={h.name}>{h.name}{h.isOrganicHerd ? " 🌿" : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!isLinked && (
+                      <Input className="mt-1" value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} placeholder="Herd / flock name" />
+                    )}
+                  </>
+                ) : (
+                  <Input value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} />
+                );
+              })()}
             </div>
             <div className="space-y-1">
               <Label>Feed Type *</Label>
@@ -931,6 +965,13 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
   });
   const records = data?.records ?? [];
 
+  const { data: herdsData } = useQuery<{ records: CoreHerd[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const coreHerds: CoreHerd[] = herdsData?.records ?? [];
+
   const save = useMutation({
     mutationFn: () => {
       const url = editing
@@ -952,7 +993,7 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ complianceStatus: "compliant" }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ complianceStatus: "compliant", recordDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
   function openEdit(r: OutdoorAccessRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof OutdoorAccessRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -1065,7 +1106,34 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
             </div>
             <div className="space-y-1">
               <Label>Herd / Flock</Label>
-              <Input value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} />
+              {(() => {
+                const firstWord = (form.species ?? "").toLowerCase().split(/[\s(]/)[0];
+                const filteredHerds = form.species
+                  ? coreHerds.filter(h => { const t = h.type.toLowerCase().trim(); return t === firstWord || t.startsWith(firstWord) || firstWord.startsWith(t); })
+                  : coreHerds;
+                const isLinked = filteredHerds.length > 0 && filteredHerds.some(h => h.name === form.herdFlockName);
+                return filteredHerds.length > 0 ? (
+                  <>
+                    <Select
+                      value={isLinked ? (form.herdFlockName ?? "") : "__manual__"}
+                      onValueChange={v => setForm(p => ({ ...p, herdFlockName: v === "__manual__" ? "" : v }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select herd / flock…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__manual__">— Enter manually —</SelectItem>
+                        {filteredHerds.map(h => (
+                          <SelectItem key={h.id} value={h.name}>{h.name}{h.isOrganicHerd ? " 🌿" : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!isLinked && (
+                      <Input className="mt-1" value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} placeholder="Herd / flock name" />
+                    )}
+                  </>
+                ) : (
+                  <Input value={form.herdFlockName ?? ""} onChange={f("herdFlockName")} />
+                );
+              })()}
             </div>
             <div className="space-y-1">
               <Label>Number of Animals</Label>
@@ -1169,7 +1237,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ certifierNotified: false, treatmentNumber: 1 }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ certifierNotified: false, treatmentNumber: 1, treatmentDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
   function openEdit(r: TreatmentRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof TreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>

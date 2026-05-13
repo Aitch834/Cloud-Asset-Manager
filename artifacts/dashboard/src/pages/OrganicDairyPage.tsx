@@ -654,7 +654,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicCertified: true }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicCertified: true, collectionDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
   function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof CollectionRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -881,7 +881,7 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicApproved: true }); setSupplierId(""); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicApproved: true, recordDate: new Date().toISOString().slice(0, 10) }); setSupplierId(""); setOpen(true); }
   function openEdit(r: DairyFeedRecord) {
     setEditing(r);
     setForm({ ...r });
@@ -1135,7 +1135,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ certifierNotified: false, treatmentNumber: 1 }); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ certifierNotified: false, treatmentNumber: 1, treatmentDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
   function openEdit(r: DairyTreatmentRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof DairyTreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
