@@ -135,7 +135,7 @@ export default function LivestockPurchaseScreen() {
   const [photo, setPhoto] = useState<string | null>(null);
 
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [arrivalDate, setArrivalDate] = useState("");
+  const [arrivalDate, setArrivalDate] = useState(new Date().toISOString().slice(0, 10));
   const [species, setSpecies] = useState("Cattle");
   const [supplierName, setSupplierName] = useState("");
   const [supplierCph, setSupplierCph] = useState("");

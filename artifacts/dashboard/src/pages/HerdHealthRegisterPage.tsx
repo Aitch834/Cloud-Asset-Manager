@@ -202,7 +202,7 @@ function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: an
 }
 
 // ─── Clinical Event Form Dialog ────────────────────────────────────────────────
-const emptyForm = { eventType: "", title: "", eventDate: "", herdId: "", description: "", vetName: "", actionTaken: "", followUpRequired: false, followUpDate: "", followUpCompleted: false, recordedBy: "" };
+const emptyForm = { eventType: "", title: "", eventDate: new Date().toISOString().slice(0, 10), herdId: "", description: "", vetName: "", actionTaken: "", followUpRequired: false, followUpDate: "", followUpCompleted: false, recordedBy: "" };
 
 function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved }: {
   open: boolean; onClose: () => void; farmId: number; herds: any[]; editRecord: any | null; onSaved: () => void;

@@ -228,7 +228,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const emptyForm = {
     fieldCropAssignmentId: "",
-    harvestDate: "",
+    harvestDate: new Date().toISOString().slice(0, 10),
     startTime: "",
     endTime: "",
     equipmentId: "",

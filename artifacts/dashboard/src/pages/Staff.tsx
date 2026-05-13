@@ -257,7 +257,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const [issueSearch, setIssueSearch] = useState("");
 
   // ── Issue form
-  const EMPTY_ISSUE = { staffName: "", ppeType: "safety-boots", description: "", size: "", supplier: "", stockItemId: "" as string, dateIssued: "", conditionCheckDate: "", conditionAtCheck: "", replacedDate: "", replacedReason: "", notes: "", isActive: true };
+  const EMPTY_ISSUE = { staffName: "", ppeType: "safety-boots", description: "", size: "", supplier: "", stockItemId: "" as string, dateIssued: new Date().toISOString().slice(0, 10), conditionCheckDate: "", conditionAtCheck: "", replacedDate: "", replacedReason: "", notes: "", isActive: true };
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [editIssue, setEditIssue] = useState<PpeRecord | null>(null);
   const [issueForm, setIssueForm] = useState({ ...EMPTY_ISSUE });
@@ -265,7 +265,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const [viewIssue, setViewIssue] = useState<PpeRecord | null>(null);
 
   // ── Stock form
-  const EMPTY_STOCK = { ppeType: "safety-boots", description: "", size: "", quantityReceived: "1", unitCostPence: "", supplierId: "", supplierName: "", invoiceRef: "", deliveryNoteRef: "", receivedDate: "", batchNumber: "", notes: "", isActive: true };
+  const EMPTY_STOCK = { ppeType: "safety-boots", description: "", size: "", quantityReceived: "1", unitCostPence: "", supplierId: "", supplierName: "", invoiceRef: "", deliveryNoteRef: "", receivedDate: new Date().toISOString().slice(0, 10), batchNumber: "", notes: "", isActive: true };
   const [showStockForm, setShowStockForm] = useState(false);
   const [editStock, setEditStock] = useState<PpeStockItem | null>(null);
   const [stockForm, setStockForm] = useState({ ...EMPTY_STOCK });
@@ -302,7 +302,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   });
 
   // ── Risk Assessment form
-  const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", fitConfirmed: false, fitConfirmedBy: "", fitConfirmedDate: "", compatibilityChecked: false, compatibilityNotes: "", trainingProvided: false, trainingNotes: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" };
+  const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", fitConfirmed: false, fitConfirmedBy: "", fitConfirmedDate: "", compatibilityChecked: false, compatibilityNotes: "", trainingProvided: false, trainingNotes: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
   const [showRiskForm, setShowRiskForm] = useState(false);
   const [editRisk, setEditRisk] = useState<PpeRiskAssessment | null>(null);
   const [riskForm, setRiskForm] = useState({ ...EMPTY_RISK });

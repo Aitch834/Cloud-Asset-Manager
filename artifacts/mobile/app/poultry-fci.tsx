@@ -36,7 +36,7 @@ export default function PoultryFciScreen() {
   const [flockId, setFlockId] = useState<number>(0);
   const [flockNumber, setFlockNumber] = useState("");
   const [documentDate, setDocumentDate] = useState(new Date().toISOString().split("T")[0]);
-  const [catchingDate, setCatchingDate] = useState("");
+  const [catchingDate, setCatchingDate] = useState(new Date().toISOString().split("T")[0]);
   const [destinationAbattoir, setDestinationAbattoir] = useState("");
   const [numberOfBirds, setNumberOfBirds] = useState("");
   const [catchingContractor, setCatchingContractor] = useState("");

@@ -601,7 +601,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = () => ({
-    assessorName: "", assessorOrganisation: "", assessmentDate: "",
+    assessorName: "", assessorOrganisation: "", assessmentDate: new Date().toISOString().slice(0, 10),
     outcome: "pass", conditions: "", nextAssessmentDue: "", notes: "",
   });
   const [form, setForm] = useState<any>(emptyForm());

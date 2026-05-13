@@ -425,7 +425,7 @@ const FINANCIAL_CATEGORIES = [
 function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loading, farmId, onRefresh, toast, onGoToProducts }: any) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const emptyForm = { stockItemId: "", supplierId: "", poId: "", deliveryDate: "", quantity: "", batchNumber: "", lotNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" };
+  const emptyForm = { stockItemId: "", supplierId: "", poId: "", deliveryDate: new Date().toISOString().slice(0, 10), quantity: "", batchNumber: "", lotNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [invoiceDelivery, setInvoiceDelivery] = useState<any>(null);
   const [invoiceForm, setInvoiceForm] = useState<any>({});
@@ -1031,7 +1031,7 @@ function poStatusBadge(status: string) {
 
 function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
   const { isAtLeast, displayName } = useUserRole();
-  const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
+  const emptyForm = { supplierId: "", orderDate: new Date().toISOString().slice(0, 10), expectedDeliveryDate: "", status: "draft", notes: "" };
   const emptyLine = { lineType: "item", stockItemId: "", description: "", category: "", quantityOrdered: "", unit: "", unitPricePence: "", notes: "" };
   const [open, setOpen] = useState(!!prefilledPo);
   const [viewPo, setViewPo] = useState<any>(null);
