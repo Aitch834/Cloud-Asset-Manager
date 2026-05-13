@@ -185,6 +185,8 @@ const TITLES: [string, string][] = [
   ["Labour Management — Mobile Leave Requests, Pending Approval Panel & SMS Notifications", "Staff & Training"],
   ["Labour Management — Holiday Planner, Conflict Detection and Month-by-Month Calendar View", "Staff & Training"],
   ["Labour Management — Printable Blank Leave Request Form (FT-LR-01) and Paper Submission Workflow", "Staff & Training"],
+  ["Labour Management — Actual Attendance Recording, Discrepancy Flags and Bradford Factor Sickness Analysis", "Staff & Training"],
+  ["Labour Management — Department Grouping and Colour-Coded Section Headers Across All Six Tabs", "Staff & Training"],
   ["Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)", "Sales & Trading"],
   ["Livestock Mart / Auction Sales — Linking Sale Records to Off-Farm Movement Records (LIS Audit Trail)", "Sales & Trading"],
   ["TB Test to Movement Record Linkage — APHA Pre-Movement Testing Evidence and Cross-Compliance", "Livestock & Feed Management"],
