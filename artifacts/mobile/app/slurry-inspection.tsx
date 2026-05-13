@@ -320,7 +320,7 @@ export default function SlurryInspectionScreen() {
 
       <RaiseTaskSheet
         visible={raiseTaskVisible}
-        farmId={currentFarm?.id}
+        farmId={currentFarm?.id ?? 0}
         defaultTitle={`Slurry Store Inspection Follow-up — ${selectedStore?.storeName ?? "store"} (${inspectionDate})`}
         defaultDescription={actionsRequired.trim()}
         module="Environmental"
