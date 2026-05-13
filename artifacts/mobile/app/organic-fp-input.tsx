@@ -63,6 +63,7 @@ export default function OrganicFpInputScreen() {
   const [quantityUnit, setQuantityUnit] = useState("kg");
   const [cropYear, setCropYear] = useState(currentYear());
   const [certifierApprovalRef, setCertifierApprovalRef] = useState("");
+  const [appliedBy, setAppliedBy] = useState("");
   const [notes, setNotes] = useState("");
 
   const needsApprovalRef = approvalStatus === "restricted" || approvalStatus === "derogation";
@@ -97,6 +98,7 @@ export default function OrganicFpInputScreen() {
       quantityUnit: quantityUnit.trim(),
       cropYear: cropYear.trim(),
       certifierApprovalRef: certifierApprovalRef.trim(),
+      appliedBy: appliedBy.trim(),
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       synced: false,
@@ -220,6 +222,11 @@ export default function OrganicFpInputScreen() {
             <View style={styles.field}>
               <Text style={styles.label}>Supplier</Text>
               <Input placeholder="e.g. Agrichoice Ltd" value={supplier} onChangeText={setSupplier} />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Applied By</Text>
+              <Input placeholder="Operator / staff name" value={appliedBy} onChangeText={setAppliedBy} />
             </View>
           </View>
 

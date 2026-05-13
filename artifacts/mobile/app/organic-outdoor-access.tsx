@@ -21,6 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicOutdoorAccess } from "@/lib/types";
 
@@ -48,19 +49,40 @@ const RESTRICTION_REASONS = [
   "Other",
 ];
 
+const COMPLIANCE_OPTIONS = [
+  { key: "compliant", label: "Compliant", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+  { key: "derogation", label: "Derogation", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+  { key: "non-compliant", label: "Non-Compliant", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+];
+
+function matchesAnimalGroup(herdType: string, group: string): boolean {
+  const t = herdType.toLowerCase().trim();
+  const g = group.toLowerCase().split(/[\s/—-]/)[0].trim();
+  return t === g || t.startsWith(g) || g.startsWith(t);
+}
+
 export default function OrganicOutdoorAccessScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { herds } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [animalGroup, setAnimalGroup] = useState("");
+  const [herdFlockName, setHerdFlockName] = useState("");
   const [date, setDate] = useState(todayDate());
   const [accessProvided, setAccessProvided] = useState<boolean | null>(null);
   const [durationHours, setDurationHours] = useState("");
+  const [numberOfAnimals, setNumberOfAnimals] = useState("");
+  const [pastureArea, setPastureArea] = useState("");
+  const [complianceStatus, setComplianceStatus] = useState("compliant");
   const [restrictionReason, setRestrictionReason] = useState("");
   const [paddockArea, setPaddockArea] = useState("");
   const [notes, setNotes] = useState("");
+
+  const filteredHerds = animalGroup
+    ? herds.filter(h => matchesAnimalGroup(h.type, animalGroup))
+    : herds;
 
   const handleSave = async () => {
     if (!animalGroup.trim()) {
@@ -87,9 +109,13 @@ export default function OrganicOutdoorAccessScreen() {
       id: generateId(),
       farmId: currentFarm?.id ?? "",
       animalGroup: animalGroup.trim(),
+      herdFlockName: herdFlockName.trim(),
       date: date.trim(),
       accessProvided: accessProvided ?? true,
       durationHours: durationHours.trim(),
+      numberOfAnimals: numberOfAnimals.trim(),
+      pastureArea: pastureArea.trim(),
+      complianceStatus,
       restrictionReason: restrictionReason.trim(),
       paddockArea: paddockArea.trim(),
       notes: notes.trim(),
@@ -142,7 +168,7 @@ export default function OrganicOutdoorAccessScreen() {
                   <Pressable
                     key={g}
                     style={[styles.chip, animalGroup === g && styles.chipActive]}
-                    onPress={() => { Haptics.selectionAsync(); setAnimalGroup(g); }}
+                    onPress={() => { Haptics.selectionAsync(); setAnimalGroup(g); setHerdFlockName(""); }}
                   >
                     <Text style={[styles.chipText, animalGroup === g && styles.chipTextActive]}>{g}</Text>
                   </Pressable>
@@ -151,10 +177,44 @@ export default function OrganicOutdoorAccessScreen() {
               <Input
                 placeholder="Or type custom group name..."
                 value={ANIMAL_GROUPS.includes(animalGroup) ? "" : animalGroup}
-                onChangeText={setAnimalGroup}
+                onChangeText={v => { setAnimalGroup(v); setHerdFlockName(""); }}
                 style={{ marginTop: spacing.sm }}
               />
             </View>
+
+            {filteredHerds.length > 0 ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>Herd / Flock (from Livestock Register)</Text>
+                <View style={styles.chipWrap}>
+                  {filteredHerds.map((h) => (
+                    <Pressable
+                      key={h.id}
+                      style={[styles.chip, herdFlockName === h.name && styles.chipActive]}
+                      onPress={() => { Haptics.selectionAsync(); setHerdFlockName(herdFlockName === h.name ? "" : h.name); }}
+                    >
+                      <Text style={[styles.chipText, herdFlockName === h.name && styles.chipTextActive]}>
+                        {h.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Input
+                  placeholder="Or type herd / flock name..."
+                  value={filteredHerds.some(h => h.name === herdFlockName) ? "" : herdFlockName}
+                  onChangeText={setHerdFlockName}
+                  style={{ marginTop: spacing.sm }}
+                />
+              </View>
+            ) : (
+              <View style={styles.field}>
+                <Text style={styles.label}>Herd / Flock Name</Text>
+                <Input
+                  placeholder="e.g. Main Dairy Herd, North Flock"
+                  value={herdFlockName}
+                  onChangeText={setHerdFlockName}
+                />
+              </View>
+            )}
 
             <View style={styles.field}>
               <Text style={styles.label}>Date *</Text>
@@ -194,26 +254,47 @@ export default function OrganicOutdoorAccessScreen() {
             </View>
 
             {accessProvided === true && (
-              <View style={[styles.field, { marginTop: spacing.md }]}>
-                <Text style={styles.label}>Duration (hours, optional)</Text>
-                <Input
-                  placeholder="e.g. 8"
-                  value={durationHours}
-                  onChangeText={setDurationHours}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            )}
+              <>
+                <View style={[styles.field, { marginTop: spacing.md }]}>
+                  <Text style={styles.label}>Duration (hours, optional)</Text>
+                  <Input
+                    placeholder="e.g. 8"
+                    value={durationHours}
+                    onChangeText={setDurationHours}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
 
-            {accessProvided === true && (
-              <View style={styles.field}>
-                <Text style={styles.label}>Paddock / Area Used (optional)</Text>
-                <Input
-                  placeholder="e.g. North paddock, 3.2 ha"
-                  value={paddockArea}
-                  onChangeText={setPaddockArea}
-                />
-              </View>
+                <View style={styles.row}>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <Text style={styles.label}>Number of Animals</Text>
+                    <Input
+                      placeholder="e.g. 120"
+                      value={numberOfAnimals}
+                      onChangeText={setNumberOfAnimals}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <Text style={styles.label}>Pasture Area (ha)</Text>
+                    <Input
+                      placeholder="e.g. 4.5"
+                      value={pastureArea}
+                      onChangeText={setPastureArea}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Paddock / Area Used (optional)</Text>
+                  <Input
+                    placeholder="e.g. North paddock, 3.2 ha"
+                    value={paddockArea}
+                    onChangeText={setPaddockArea}
+                  />
+                </View>
+              </>
             )}
 
             {accessProvided === false && (
@@ -247,6 +328,30 @@ export default function OrganicOutdoorAccessScreen() {
                 </View>
               </>
             )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Compliance Status</Text>
+            <View style={styles.complianceRow}>
+              {COMPLIANCE_OPTIONS.map((o) => (
+                <Pressable
+                  key={o.key}
+                  style={[
+                    styles.complianceChip,
+                    {
+                      borderColor: complianceStatus === o.key ? o.color : colors.border,
+                      backgroundColor: complianceStatus === o.key ? o.bg : colors.surface,
+                    },
+                  ]}
+                  onPress={() => { Haptics.selectionAsync(); setComplianceStatus(o.key); }}
+                >
+                  <View style={[styles.complianceDot, { backgroundColor: o.color }]} />
+                  <Text style={[styles.complianceLabel, { color: complianceStatus === o.key ? o.color : colors.textSecondary }]}>
+                    {o.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -322,6 +427,7 @@ const styles = StyleSheet.create({
   },
   field: { marginBottom: spacing.md },
   label: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text, marginBottom: spacing.xs },
+  row: { flexDirection: "row", gap: spacing.md },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,
@@ -358,5 +464,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   restrictionText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", flex: 1 },
+  complianceRow: { gap: spacing.sm },
+  complianceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    gap: spacing.sm,
+  },
+  complianceDot: { width: 8, height: 8, borderRadius: 4 },
+  complianceLabel: { fontFamily: fonts.medium, fontSize: fontSize.sm },
   textarea: { minHeight: 90, textAlignVertical: "top" },
 });

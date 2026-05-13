@@ -206,6 +206,11 @@ const TITLES: [string, string][] = [
   ["Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag", "Viticulture"],
   ["Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags", "Viticulture"],
   ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest", "Viticulture"],
+  ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
+  ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
+  ["Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults", "Organic Dairy"],
+  ["Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults", "Organic"],
+  ["Mobile App — Organic Farming Quick Capture: Herd Lookup, Outdoor Access & Treatment Recording", "Mobile App"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({

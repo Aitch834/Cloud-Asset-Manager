@@ -21,6 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicTreatment } from "@/lib/types";
 
@@ -39,6 +40,17 @@ const ANIMAL_GROUPS = [
   "Other",
 ];
 
+const PRODUCT_CATEGORIES = [
+  "Allopathic",
+  "Homeopathic",
+  "Phytotherapy",
+  "Vaccination",
+  "Antibiotic",
+  "NSAID / Analgesic",
+  "Anthelmintic",
+  "Other",
+];
+
 const ROUTES_OF_ADMIN = [
   "Oral",
   "Injection — IM",
@@ -50,22 +62,39 @@ const ROUTES_OF_ADMIN = [
   "Other",
 ];
 
+function matchesAnimalGroup(herdType: string, group: string): boolean {
+  const t = herdType.toLowerCase().trim();
+  const g = group.toLowerCase().split(/[\s/—-]/)[0].trim();
+  return t === g || t.startsWith(g) || g.startsWith(t);
+}
+
 export default function OrganicTreatmentScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { herds } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [animalGroup, setAnimalGroup] = useState("");
+  const [herdFlockName, setHerdFlockName] = useState("");
   const [animalIdentifiers, setAnimalIdentifiers] = useState("");
   const [dateOfTreatment, setDateOfTreatment] = useState(todayDate());
   const [medicineProduct, setMedicineProduct] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [activeIngredient, setActiveIngredient] = useState("");
   const [dosage, setDosage] = useState("");
   const [routeOfAdmin, setRouteOfAdmin] = useState("");
   const [withdrawalPeriodDays, setWithdrawalPeriodDays] = useState("");
+  const [doubledWithdrawalDays, setDoubledWithdrawalDays] = useState("");
+  const [vetName, setVetName] = useState("");
+  const [prescriptionRef, setPrescriptionRef] = useState("");
   const [certifierNotified, setCertifierNotified] = useState<boolean | null>(null);
   const [batchNumber, setBatchNumber] = useState("");
   const [notes, setNotes] = useState("");
+
+  const filteredHerds = animalGroup
+    ? herds.filter(h => matchesAnimalGroup(h.type, animalGroup))
+    : herds;
 
   const handleSave = async () => {
     if (!animalGroup.trim()) {
@@ -92,12 +121,18 @@ export default function OrganicTreatmentScreen() {
       id: generateId(),
       farmId: currentFarm?.id ?? "",
       animalGroup: animalGroup.trim(),
+      herdFlockName: herdFlockName.trim(),
       animalIdentifiers: animalIdentifiers.trim(),
       dateOfTreatment: dateOfTreatment.trim(),
       medicineProduct: medicineProduct.trim(),
+      productCategory: productCategory.trim(),
+      activeIngredient: activeIngredient.trim(),
       dosage: dosage.trim(),
       routeOfAdmin: routeOfAdmin.trim(),
       withdrawalPeriodDays: withdrawalPeriodDays.trim(),
+      doubledWithdrawalDays: doubledWithdrawalDays.trim(),
+      vetName: vetName.trim(),
+      prescriptionRef: prescriptionRef.trim(),
       certifierNotified: certifierNotified ?? false,
       batchNumber: batchNumber.trim(),
       notes: notes.trim(),
@@ -150,7 +185,7 @@ export default function OrganicTreatmentScreen() {
                   <Pressable
                     key={g}
                     style={[styles.chip, animalGroup === g && styles.chipActive]}
-                    onPress={() => { Haptics.selectionAsync(); setAnimalGroup(g); }}
+                    onPress={() => { Haptics.selectionAsync(); setAnimalGroup(g); setHerdFlockName(""); }}
                   >
                     <Text style={[styles.chipText, animalGroup === g && styles.chipTextActive]}>{g}</Text>
                   </Pressable>
@@ -159,10 +194,44 @@ export default function OrganicTreatmentScreen() {
               <Input
                 placeholder="Or type custom group / enterprise..."
                 value={ANIMAL_GROUPS.includes(animalGroup) ? "" : animalGroup}
-                onChangeText={setAnimalGroup}
+                onChangeText={v => { setAnimalGroup(v); setHerdFlockName(""); }}
                 style={{ marginTop: spacing.sm }}
               />
             </View>
+
+            {filteredHerds.length > 0 ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>Herd / Flock (from Livestock Register)</Text>
+                <View style={styles.chipWrap}>
+                  {filteredHerds.map((h) => (
+                    <Pressable
+                      key={h.id}
+                      style={[styles.chip, herdFlockName === h.name && styles.chipActive]}
+                      onPress={() => { Haptics.selectionAsync(); setHerdFlockName(herdFlockName === h.name ? "" : h.name); }}
+                    >
+                      <Text style={[styles.chipText, herdFlockName === h.name && styles.chipTextActive]}>
+                        {h.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Input
+                  placeholder="Or type herd / flock name..."
+                  value={filteredHerds.some(h => h.name === herdFlockName) ? "" : herdFlockName}
+                  onChangeText={setHerdFlockName}
+                  style={{ marginTop: spacing.sm }}
+                />
+              </View>
+            ) : (
+              <View style={styles.field}>
+                <Text style={styles.label}>Herd / Flock Name</Text>
+                <Input
+                  placeholder="e.g. Main Dairy Herd, North Flock"
+                  value={herdFlockName}
+                  onChangeText={setHerdFlockName}
+                />
+              </View>
+            )}
 
             <View style={styles.field}>
               <Text style={styles.label}>Animal Identifiers (ear tags, batch IDs)</Text>
@@ -195,6 +264,30 @@ export default function OrganicTreatmentScreen() {
             </View>
 
             <View style={styles.field}>
+              <Text style={styles.label}>Product Category</Text>
+              <View style={styles.chipWrap}>
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <Pressable
+                    key={c}
+                    style={[styles.chip, productCategory === c && styles.chipActive]}
+                    onPress={() => { Haptics.selectionAsync(); setProductCategory(productCategory === c ? "" : c); }}
+                  >
+                    <Text style={[styles.chipText, productCategory === c && styles.chipTextActive]}>{c}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Active Ingredient</Text>
+              <Input
+                placeholder="e.g. Meloxicam, Penicillin, Ivermectin"
+                value={activeIngredient}
+                onChangeText={setActiveIngredient}
+              />
+            </View>
+
+            <View style={styles.field}>
               <Text style={styles.label}>Batch / Lot Number</Text>
               <Input placeholder="e.g. LT2045B" value={batchNumber} onChangeText={setBatchNumber} />
             </View>
@@ -205,14 +298,34 @@ export default function OrganicTreatmentScreen() {
                 <Input placeholder="e.g. 10 mL" value={dosage} onChangeText={setDosage} />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Withdrawal (days)</Text>
+                <Text style={styles.label}>Std Withdrawal (days)</Text>
                 <Input
                   placeholder="e.g. 14"
                   value={withdrawalPeriodDays}
-                  onChangeText={setWithdrawalPeriodDays}
+                  onChangeText={v => {
+                    setWithdrawalPeriodDays(v);
+                    const n = parseFloat(v);
+                    if (!isNaN(n)) setDoubledWithdrawalDays(String(Math.ceil(n * 2)));
+                    else setDoubledWithdrawalDays("");
+                  }}
                   keyboardType="number-pad"
                 />
               </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Organic Doubled Withdrawal (days)</Text>
+              <Input
+                placeholder="Auto-calculated (2× standard) or enter manually"
+                value={doubledWithdrawalDays}
+                onChangeText={setDoubledWithdrawalDays}
+                keyboardType="number-pad"
+              />
+              {!!withdrawalPeriodDays && !!doubledWithdrawalDays && (
+                <Text style={styles.calcHint}>
+                  Standard {withdrawalPeriodDays} days × 2 = {doubledWithdrawalDays} days organic withdrawal
+                </Text>
+              )}
             </View>
 
             <View style={styles.field}>
@@ -227,6 +340,21 @@ export default function OrganicTreatmentScreen() {
                     <Text style={[styles.chipText, routeOfAdmin === r && styles.chipTextActive]}>{r}</Text>
                   </Pressable>
                 ))}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Prescribing Vet</Text>
+
+            <View style={styles.row}>
+              <View style={[styles.field, { flex: 1 }]}>
+                <Text style={styles.label}>Vet Name</Text>
+                <Input placeholder="e.g. J. Smith MRCVS" value={vetName} onChangeText={setVetName} />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <Text style={styles.label}>Prescription Ref</Text>
+                <Input placeholder="e.g. Rx-2024-001" value={prescriptionRef} onChangeText={setPrescriptionRef} />
               </View>
             </View>
           </View>
@@ -271,7 +399,7 @@ export default function OrganicTreatmentScreen() {
             <Text style={styles.sectionTitle}>Additional Notes</Text>
             <View style={styles.field}>
               <Input
-                placeholder="Prescribing vet, diagnosis, withdrawal date calculated to, operator name..."
+                placeholder="Diagnosis, withdrawal date calculated to, operator name..."
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -344,6 +472,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.md,
     lineHeight: 20,
+  },
+  calcHint: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    fontStyle: "italic",
   },
   field: { marginBottom: spacing.md },
   label: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text, marginBottom: spacing.xs },
