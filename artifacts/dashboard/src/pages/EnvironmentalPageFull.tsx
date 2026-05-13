@@ -966,6 +966,18 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [filterFeature, setFilterFeature] = useState("__all__");
   const [filterType, setFilterType] = useState("__all__");
+  const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
+  const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(null);
+  const [taskAssigneeId, setTaskAssigneeId] = useState<string>("");
+  const [taskDueDate, setTaskDueDate] = useState<string>("");
+
+  const { data: contractorsData } = useQuery({
+    queryKey: ["contractors-hs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/contractors`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => (d.records ?? []).filter((c: any) => c.isActive),
+  });
+  const contractors: { id: number; companyName: string }[] = contractorsData ?? [];
+  const activeMembers = membersData?.members.filter((m: any) => m.isActive) ?? [];
 
   const emptyForm = () => ({
     featureId: "", featureName: "", featureType: "",
@@ -973,6 +985,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
     eventType: "", description: "", operator: "",
     contractorUsed: false, contractorName: "",
     fulfilsSchemeObligation: false, schemeId: "", schemeName: "", notes: "",
+    followUpActionsNeeded: "",
   });
   const [form, setForm] = useState<any>(emptyForm());
 
@@ -988,7 +1001,13 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/environmental-management-events`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Event logged" }); invalidate(); setAddOpen(false); setForm(emptyForm()); },
+    onSuccess: (_data: unknown, variables: any) => {
+      toast({ title: "Event logged" });
+      invalidate();
+      setAddOpen(false);
+      maybeRaiseTask(variables);
+      setForm(emptyForm());
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -996,9 +1015,45 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/environmental-management-events/${id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Event updated" }); invalidate(); setEditRecord(null); setForm(emptyForm()); },
+    onSuccess: (_data: unknown, variables: any) => {
+      toast({ title: "Event updated" });
+      invalidate();
+      setEditRecord(null);
+      maybeRaiseTask(variables.body);
+      setForm(emptyForm());
+    },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
+
+  const raiseMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/task-assignments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Task raised — assignee will be notified by SMS" });
+      setRaiseTaskOpen(false);
+      setPendingTask(null);
+    },
+    onError: () => toast({ title: "Failed to raise task", variant: "destructive" }),
+  });
+
+  function maybeRaiseTask(payload: any) {
+    if (!payload?.followUpActionsNeeded?.trim()) return;
+    const eventLabel = payload.eventType ? ` — ${eventTypeLabel(payload.eventType)}` : "";
+    const dateStr = payload.eventDate
+      ? new Date(payload.eventDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : "";
+    setPendingTask({
+      title: `Follow-up required: Management Event${eventLabel} (${dateStr})`,
+      description: payload.followUpActionsNeeded.trim(),
+    });
+    setTaskAssigneeId("");
+    setTaskDueDate("");
+    setRaiseTaskOpen(true);
+  }
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/environmental-management-events/${id}`, { method: "DELETE" }),
@@ -1021,6 +1076,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
       schemeId: r.schemeId?.toString() ?? "",
       schemeName: r.schemeName ?? "",
       notes: r.notes ?? "",
+      followUpActionsNeeded: r.followUpActionsNeeded ?? "",
     });
     setEditRecord(r);
   }
@@ -1303,9 +1359,39 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
                   Carried out by contractor
                 </label>
                 {form.contractorUsed && (
-                  <input value={form.contractorName} onChange={e => setForm((f: any) => ({ ...f, contractorName: e.target.value }))}
-                    placeholder="Contractor name / company"
-                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+                  contractors.length > 0 ? (
+                    (() => {
+                      const knownNames = contractors.map((c: any) => c.companyName);
+                      const selectVal = knownNames.includes(form.contractorName)
+                        ? form.contractorName
+                        : form.contractorName ? "Other" : "";
+                      return (
+                        <>
+                          <Select value={selectVal} onValueChange={v => {
+                            if (v === "Other") setForm((f: any) => ({ ...f, contractorName: "" }));
+                            else setForm((f: any) => ({ ...f, contractorName: v }));
+                          }}>
+                            <SelectTrigger><SelectValue placeholder="Select contractor…" /></SelectTrigger>
+                            <SelectContent>
+                              {contractors.map((c: any) => (
+                                <SelectItem key={c.id} value={c.companyName}>{c.companyName}</SelectItem>
+                              ))}
+                              <SelectItem value="Other">Other (not in register)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {selectVal === "Other" && (
+                            <input value={form.contractorName} onChange={e => setForm((f: any) => ({ ...f, contractorName: e.target.value }))}
+                              placeholder="Contractor name / company"
+                              style={{ marginTop: 6, width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <input value={form.contractorName} onChange={e => setForm((f: any) => ({ ...f, contractorName: e.target.value }))}
+                      placeholder="Contractor name / company"
+                      style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+                  )
                 )}
               </div>
             </div>
@@ -1332,9 +1418,21 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <Label>Notes</Label>
+              <Label>Notes / Observations</Label>
               <Textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f: any) => ({ ...f, notes: e.target.value }))}
-                placeholder="Soil / weather conditions, observations, follow-up actions needed…" rows={2} />
+                placeholder="Soil / weather conditions, observations…" rows={2} />
+            </div>
+
+            {/* Follow-up actions */}
+            <div className="space-y-1.5">
+              <Label>Follow-up Actions Required</Label>
+              <Textarea value={form.followUpActionsNeeded} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f: any) => ({ ...f, followUpActionsNeeded: e.target.value }))}
+                placeholder="Describe any actions that need to be completed as a result of this event…" rows={2} />
+              {form.followUpActionsNeeded?.trim() && (
+                <p style={{ fontSize: "0.75rem", color: "#92400e" }}>
+                  A task will be raised on the Task Board when you save — you can assign it to the relevant person.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1355,6 +1453,60 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader>
+            <DialogTitle>Raise a Task for Follow-up Actions?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 6, padding: "0.625rem 0.875rem" }}>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>Actions required:</p>
+              <p style={{ fontSize: "0.8rem", color: "#78350f", margin: 0 }}>{pendingTask?.description}</p>
+            </div>
+            <div>
+              <Label>Assign to <span style={{ color: "#ef4444" }}>*</span></Label>
+              <Select value={taskAssigneeId} onValueChange={setTaskAssigneeId}>
+                <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                <SelectContent>
+                  {activeMembers.map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Due Date</Label>
+              <Input type="date" min={new Date().toISOString().slice(0, 10)} value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
+            </div>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+              The assignee will receive an SMS notification. The task will appear on the Task Board and stay open until marked complete.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRaiseTaskOpen(false); setPendingTask(null); }}>Skip for now</Button>
+            <Button
+              disabled={!taskAssigneeId || raiseMut.isPending}
+              onClick={() => {
+                if (!pendingTask || !taskAssigneeId) return;
+                raiseMut.mutate({
+                  assignedToMemberId: Number(taskAssigneeId),
+                  title: pendingTask.title,
+                  description: pendingTask.description,
+                  module: "Environmental",
+                  taskType: "compliance",
+                  href: "/environmental-management?tab=events",
+                  ...(taskDueDate ? { dueDate: taskDueDate } : {}),
+                });
+              }}
+            >
+              Raise Task &amp; Notify
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

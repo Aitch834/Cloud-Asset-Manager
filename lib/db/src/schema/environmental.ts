@@ -59,6 +59,7 @@ export const environmentalManagementEventsTable = pgTable("environmental_managem
   operator: text("operator"),
   contractorUsed: boolean("contractor_used").default(false),
   contractorName: text("contractor_name"),
+  followUpActionsNeeded: text("follow_up_actions_needed"),
   schemeId: integer("scheme_id").references(() => agriEnvironmentSchemeRecordsTable.id, { onDelete: "set null" }),
   schemeName: text("scheme_name"),
   fulfilsSchemeObligation: boolean("fulfils_scheme_obligation").default(false),
