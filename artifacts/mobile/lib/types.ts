@@ -1940,6 +1940,26 @@ export interface TbTestRecord {
   synced: boolean;
 }
 
+export interface SlurryStoreInspection {
+  id: string;
+  farmId: string;
+  storeId: string;
+  storeName: string;
+  inspectionDate: string;
+  inspectorName: string;
+  inspectorOrganisation: string;
+  outcome: "Pass" | "Advisory" | "Fail";
+  freeboardOk: boolean;
+  freeboardMm: string;
+  leaksOrDamageFound: boolean;
+  deficiencies: string;
+  actionsRequired: string;
+  nextInspectionDue: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface WelfareOutcomeRecord {
   id: string;
   farmId: string;

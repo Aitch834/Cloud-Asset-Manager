@@ -156,6 +156,7 @@ import {
   sfiAgreementsTable,
   sfiActionsTable,
   slurryStoresTable,
+  slurryStoreInspectionsTable,
   slurrySpreadingRecordsTable,
   pigFlocksTable,
   pigMovementsTable,
@@ -18351,6 +18352,81 @@ router.delete("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, re
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurryStoresTable).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Slurry Store Inspections ────────────────────────────────────────────────
+router.get("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: slurryStoreInspectionsTable.id,
+      farmId: slurryStoreInspectionsTable.farmId,
+      storeId: slurryStoreInspectionsTable.storeId,
+      storeName: slurryStoresTable.storeName,
+      inspectionDate: slurryStoreInspectionsTable.inspectionDate,
+      inspectorName: slurryStoreInspectionsTable.inspectorName,
+      inspectorOrganisation: slurryStoreInspectionsTable.inspectorOrganisation,
+      outcome: slurryStoreInspectionsTable.outcome,
+      freeboardOk: slurryStoreInspectionsTable.freeboardOk,
+      freeboardMm: slurryStoreInspectionsTable.freeboardMm,
+      leaksOrDamageFound: slurryStoreInspectionsTable.leaksOrDamageFound,
+      deficiencies: slurryStoreInspectionsTable.deficiencies,
+      actionsRequired: slurryStoreInspectionsTable.actionsRequired,
+      nextInspectionDue: slurryStoreInspectionsTable.nextInspectionDue,
+      notes: slurryStoreInspectionsTable.notes,
+      createdAt: slurryStoreInspectionsTable.createdAt,
+    })
+    .from(slurryStoreInspectionsTable)
+    .leftJoin(slurryStoresTable, eq(slurryStoreInspectionsTable.storeId, slurryStoresTable.id))
+    .where(eq(slurryStoreInspectionsTable.farmId, farmId))
+    .orderBy(desc(slurryStoreInspectionsTable.inspectionDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, notes } = req.body;
+  const [row] = await db.insert(slurryStoreInspectionsTable).values({
+    farmId, storeId: Number(storeId), inspectionDate, inspectorName, inspectorOrganisation, outcome,
+    freeboardOk: freeboardOk === true || freeboardOk === "true",
+    freeboardMm: freeboardMm || null,
+    leaksOrDamageFound: leaksOrDamageFound === true || leaksOrDamageFound === "true",
+    deficiencies, actionsRequired, nextInspectionDue: nextInspectionDue || null, notes,
+  }).returning();
+  // Update parent store's lastInspectionDate and nextInspectionDue
+  await db.update(slurryStoresTable).set({
+    lastInspectionDate: inspectionDate,
+    ...(nextInspectionDue ? { nextInspectionDue } : {}),
+  }).where(and(eq(slurryStoresTable.id, Number(storeId)), eq(slurryStoresTable.farmId, farmId)));
+  res.json(row);
+});
+
+router.put("/farms/:farmId/slurry-store-inspections/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, notes } = req.body;
+  const [row] = await db.update(slurryStoreInspectionsTable).set({
+    storeId: storeId ? Number(storeId) : undefined,
+    inspectionDate, inspectorName, inspectorOrganisation, outcome,
+    freeboardOk: freeboardOk === true || freeboardOk === "true",
+    freeboardMm: freeboardMm || null,
+    leaksOrDamageFound: leaksOrDamageFound === true || leaksOrDamageFound === "true",
+    deficiencies, actionsRequired, nextInspectionDue: nextInspectionDue || null, notes,
+  }).where(and(eq(slurryStoreInspectionsTable.id, id), eq(slurryStoreInspectionsTable.farmId, farmId))).returning();
+  if (row && inspectionDate) {
+    await db.update(slurryStoresTable).set({
+      lastInspectionDate: inspectionDate,
+      ...(nextInspectionDue ? { nextInspectionDue } : {}),
+    }).where(and(eq(slurryStoresTable.id, Number(row.storeId)), eq(slurryStoresTable.farmId, farmId)));
+  }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/slurry-store-inspections/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(slurryStoreInspectionsTable).where(and(eq(slurryStoreInspectionsTable.id, id), eq(slurryStoreInspectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -1647,6 +1647,16 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const storeRowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
+  const activeMembers = (slurryMembersData?.members ?? []).filter((m: any) => m.isActive);
+  const [inspOpen, setInspOpen] = useState(false);
+  const [editingInsp, setEditingInsp] = useState<Record<string, unknown> | null>(null);
+  const [deleteInspId, setDeleteInspId] = useState<number | null>(null);
+  const [inspForm, setInspForm] = useState<Record<string, string>>({});
+  const [inspStoreId, setInspStoreId] = useState<string>("");
+  const [inspRaiseTaskOpen, setInspRaiseTaskOpen] = useState(false);
+  const [inspPendingTask, setInspPendingTask] = useState<{ title: string; description: string } | null>(null);
+  const [inspTaskAssigneeId, setInspTaskAssigneeId] = useState<string>("");
+  const [inspTaskDueDate, setInspTaskDueDate] = useState<string>("");
 
   const slurryFieldsQ = useQuery({
     queryKey: ["fields", farmId],
@@ -1665,6 +1675,12 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
     select: (d: any) => d.records ?? [],
   });
 
+  const inspQ = useQuery({
+    queryKey: ["slurry-inspections", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/slurry-store-inspections`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
+  });
+
   const saveStore = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = editingStore ? `/api/farms/${farmId}/slurry-stores/${editingStore.id}` : `/api/farms/${farmId}/slurry-stores`;
@@ -1679,6 +1695,61 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["slurry-spreading", farmId] }); setSpreadOpen(false); setSpreadForm({}); toast({ title: "Spreading record saved" }); },
     onError: () => toast({ title: "Failed", variant: "destructive" }),
   });
+
+  const saveInsp = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editingInsp
+        ? `/api/farms/${farmId}/slurry-store-inspections/${editingInsp.id}`
+        : `/api/farms/${farmId}/slurry-store-inspections`;
+      return fetch(url, { method: editingInsp ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: (_data: unknown, variables: any) => {
+      qc.invalidateQueries({ queryKey: ["slurry-inspections", farmId] });
+      qc.invalidateQueries({ queryKey: ["slurry-stores", farmId] });
+      setInspOpen(false);
+      setInspForm({});
+      setEditingInsp(null);
+      toast({ title: editingInsp ? "Inspection updated" : "Inspection recorded" });
+      maybeRaiseInspTask(variables);
+    },
+    onError: () => toast({ title: "Failed to save inspection", variant: "destructive" }),
+  });
+
+  const deleteInspMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/slurry-store-inspections/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["slurry-inspections", farmId] }); setDeleteInspId(null); toast({ title: "Inspection deleted" }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const inspRaiseMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/task-assignments`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Task raised — assignee will be notified by SMS" }); setInspRaiseTaskOpen(false); setInspPendingTask(null); },
+    onError: () => toast({ title: "Failed to raise task", variant: "destructive" }),
+  });
+
+  function maybeRaiseInspTask(payload: any) {
+    if (!payload?.actionsRequired?.trim()) return;
+    const storeName = stores.find(s => String(s.id) === String(payload.storeId))?.storeName ?? "store";
+    const dateStr = payload.inspectionDate
+      ? new Date(payload.inspectionDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : "";
+    setInspPendingTask({
+      title: `Slurry Store Inspection Follow-up — ${storeName} (${dateStr})`,
+      description: payload.actionsRequired.trim(),
+    });
+    setInspTaskAssigneeId("");
+    setInspTaskDueDate("");
+    setInspRaiseTaskOpen(true);
+  }
+
+  function openInspDialog(store: Record<string, unknown> | null) {
+    setEditingInsp(null);
+    setInspForm({ inspectionDate: new Date().toISOString().slice(0, 10), outcome: "Pass", storeId: store ? String(store.id) : "" });
+    setInspStoreId(store ? String(store.id) : "");
+    setInspOpen(true);
+  }
 
   const stores = (storesQ.data ?? []) as Record<string, unknown>[];
   const spreadings = (spreadQ.data ?? []) as Record<string, unknown>[];
@@ -1706,7 +1777,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             {stores.length === 0 ? <p className="text-sm text-muted-foreground italic py-6 text-center">No slurry stores recorded.</p> : (
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
-                  <tr>{["Store Name", "Type", "Capacity (m³)", "Material", "Next Inspection", "Status", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                  <tr>{["Store Name", "Type", "Capacity (m³)", "Material", "Last Inspection", "Next Due", "Status", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y">{stores.map((r) => (
                   <tr key={Number(r.id)} ref={(el) => { if (el) storeRowRefs.current.set(Number(r.id), el as HTMLElement); }} className={`transition-colors${hlId === Number(r.id) ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-black/5"}`}>
@@ -1714,11 +1785,13 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                     <td className="px-4 py-3">{String(r.storeType ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.capacityM3 ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.material ?? "—")}</td>
-                    <td className="px-4 py-3">{r.nextInspectionDate ? new Date(r.nextInspectionDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">{r.lastInspectionDate ? new Date(r.lastInspectionDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">{r.nextInspectionDue ? new Date(r.nextInspectionDue as string).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${(r.status as string) === "Compliant" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{String(r.status ?? "—")}</span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
+                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, padding: "0 10px" }} onClick={() => openInspDialog(r)}>Inspect</Button>
                       <Button size="icon" variant="ghost" onClick={() => { setEditingStore(r); setStoreForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setStoreOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                     </td>
                   </tr>
@@ -1761,6 +1834,58 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
         )}
       </div>
 
+      {/* Inspections */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Store Inspection Records</h3>
+          <Button size="sm" onClick={() => openInspDialog(null)}>
+            <Plus className="w-4 h-4 mr-2" /> Log Inspection
+          </Button>
+        </div>
+        {inspQ.isLoading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
+          <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+            {(inspQ.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">No inspections recorded. Use the "Inspect" button on a store row to log one.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-black/5 border-b">
+                  <tr>{["Date", "Store", "Inspector", "Outcome", "Leaks / Damage", "Next Due", "Actions", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(inspQ.data ?? []).map((r: any) => {
+                    const outcomeColour = r.outcome === "Pass" ? "bg-green-100 text-green-700" : r.outcome === "Advisory" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+                    return (
+                      <tr key={r.id} className="hover:bg-black/5">
+                        <td className="px-4 py-3">{r.inspectionDate ? new Date(r.inspectionDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-4 py-3 font-medium">{r.storeName ?? "—"}</td>
+                        <td className="px-4 py-3">{[r.inspectorName, r.inspectorOrganisation].filter(Boolean).join(", ") || "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${outcomeColour}`}>{r.outcome}</span>
+                        </td>
+                        <td className="px-4 py-3">{r.leaksOrDamageFound ? <span className="text-red-600 font-medium">Yes</span> : "No"}</td>
+                        <td className="px-4 py-3">{r.nextInspectionDue ? new Date(r.nextInspectionDue).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs" style={{ maxWidth: 200 }}>{r.actionsRequired || "—"}</td>
+                        <td className="px-4 py-3 text-right">
+                          <Button size="icon" variant="ghost" onClick={() => {
+                            setEditingInsp(r);
+                            setInspForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")])));
+                            setInspStoreId(String(r.storeId));
+                            setInspOpen(true);
+                          }}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteInspId(Number(r.id))}>
+                            <span style={{ fontSize: "0.75rem" }}>✕</span>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Store dialog */}
       <Dialog open={storeOpen} onOpenChange={setStoreOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
@@ -1782,14 +1907,14 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             </div>
             <div><Label>Design Standard</Label><Input value={storeForm.designStandard ?? ""} onChange={e => setStoreForm(f => ({ ...f, designStandard: e.target.value }))} placeholder="e.g. CIRIA 126" /></div>
             <div><Label>Required Storage (months)</Label><Input type="number" value={storeForm.requiredStorage ?? ""} onChange={e => setStoreForm(f => ({ ...f, requiredStorage: e.target.value }))} /></div>
-            <div><Label>Next Inspection Date</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={storeForm.nextInspectionDate ?? ""} onChange={e => setStoreForm(f => ({ ...f, nextInspectionDate: e.target.value }))} /></div>
             <div><Label>Status</Label>
               <Select value={storeForm.status ?? "Compliant"} onValueChange={v => setStoreForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{["Compliant", "Non-Compliant", "Under Repair", "Decommissioned"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="col-span-2"><Label>Deficiencies / Notes</Label><Textarea value={storeForm.deficiencies ?? ""} onChange={e => setStoreForm(f => ({ ...f, deficiencies: e.target.value }))} rows={2} /></div>
+            <div><Label>Agency Ref / Permit No.</Label><Input value={storeForm.agencyRegistrationNumber ?? ""} onChange={e => setStoreForm(f => ({ ...f, agencyRegistrationNumber: e.target.value }))} placeholder="EA permit or RPID ref" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={storeForm.notes ?? ""} onChange={e => setStoreForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="General notes about this store…" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStoreOpen(false)}>Cancel</Button>
@@ -1859,6 +1984,134 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
           <DialogFooter>
             <Button variant="outline" onClick={() => setSpreadOpen(false)}>Cancel</Button>
             <Button onClick={() => saveSpread.mutate(spreadForm)} disabled={saveSpread.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inspection dialog */}
+      <Dialog open={inspOpen} onOpenChange={o => { if (!o) { setInspOpen(false); setEditingInsp(null); setInspForm({}); } }}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>{editingInsp ? "Edit Inspection Record" : "Log Store Inspection"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Store *</Label>
+              <Select value={inspForm.storeId ?? inspStoreId} onValueChange={v => { setInspForm(f => ({ ...f, storeId: v })); setInspStoreId(v); }}>
+                <SelectTrigger><SelectValue placeholder="Select store…" /></SelectTrigger>
+                <SelectContent>{stores.map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.storeName)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Inspection Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={inspForm.inspectionDate ?? ""} onChange={e => setInspForm(f => ({ ...f, inspectionDate: e.target.value }))} /></div>
+            <div><Label>Inspector Name</Label><Input value={inspForm.inspectorName ?? ""} onChange={e => setInspForm(f => ({ ...f, inspectorName: e.target.value }))} /></div>
+            <div><Label>Inspector Organisation</Label><Input value={inspForm.inspectorOrganisation ?? ""} onChange={e => setInspForm(f => ({ ...f, inspectorOrganisation: e.target.value }))} placeholder="e.g. Internal, AHDB, EA" /></div>
+            <div><Label>Outcome *</Label>
+              <Select value={inspForm.outcome ?? "Pass"} onValueChange={v => setInspForm(f => ({ ...f, outcome: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pass">Pass — No deficiencies</SelectItem>
+                  <SelectItem value="Advisory">Advisory — Minor issues noted</SelectItem>
+                  <SelectItem value="Fail">Fail — Deficiencies requiring action</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Next Inspection Due</Label><Input type="date" value={inspForm.nextInspectionDue ?? ""} onChange={e => setInspForm(f => ({ ...f, nextInspectionDue: e.target.value }))} /></div>
+            <div className="col-span-2 grid grid-cols-2 gap-3">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={inspForm.freeboardOk === "true"} onChange={e => setInspForm(f => ({ ...f, freeboardOk: e.target.checked ? "true" : "false" }))} style={{ width: 16, height: 16 }} />
+                Freeboard adequate
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={inspForm.leaksOrDamageFound === "true"} onChange={e => setInspForm(f => ({ ...f, leaksOrDamageFound: e.target.checked ? "true" : "false" }))} style={{ width: 16, height: 16 }} />
+                <span style={{ color: inspForm.leaksOrDamageFound === "true" ? "#dc2626" : "inherit" }}>Leaks or structural damage found</span>
+              </label>
+            </div>
+            {inspForm.freeboardOk !== "true" && (
+              <div><Label>Freeboard (mm)</Label><Input type="number" value={inspForm.freeboardMm ?? ""} onChange={e => setInspForm(f => ({ ...f, freeboardMm: e.target.value }))} /></div>
+            )}
+            <div className="col-span-2"><Label>Deficiencies Found</Label>
+              <Textarea value={inspForm.deficiencies ?? ""} onChange={e => setInspForm(f => ({ ...f, deficiencies: e.target.value }))} rows={2} placeholder="Describe any deficiencies observed…" />
+            </div>
+            <div className="col-span-2"><Label>Actions Required</Label>
+              <Textarea value={inspForm.actionsRequired ?? ""} onChange={e => setInspForm(f => ({ ...f, actionsRequired: e.target.value }))} rows={2} placeholder="Describe actions needed to remedy deficiencies…" />
+              {inspForm.actionsRequired?.trim() && (
+                <p style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 4 }}>
+                  A task will be raised on the Task Board when you save — you can assign it to the responsible person.
+                </p>
+              )}
+            </div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={inspForm.notes ?? ""} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any other observations…" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setInspOpen(false); setEditingInsp(null); setInspForm({}); }}>Cancel</Button>
+            <Button
+              disabled={!inspForm.storeId || !inspForm.inspectionDate || !inspForm.outcome || saveInsp.isPending}
+              onClick={() => saveInsp.mutate({ ...inspForm, storeId: inspForm.storeId ?? inspStoreId })}
+            >
+              {editingInsp ? "Save Changes" : "Save Inspection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Raise Task dialog for inspections */}
+      <Dialog open={inspRaiseTaskOpen} onOpenChange={o => { if (!o) { setInspRaiseTaskOpen(false); setInspPendingTask(null); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Raise a Task for Inspection Actions?</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 6, padding: "0.625rem 0.875rem" }}>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>Actions required:</p>
+              <p style={{ fontSize: "0.8rem", color: "#78350f", margin: 0 }}>{inspPendingTask?.description}</p>
+            </div>
+            <div>
+              <Label>Assign to <span style={{ color: "#ef4444" }}>*</span></Label>
+              <Select value={inspTaskAssigneeId} onValueChange={setInspTaskAssigneeId}>
+                <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                <SelectContent>
+                  {activeMembers.map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Due Date</Label>
+              <Input type="date" min={new Date().toISOString().slice(0, 10)} value={inspTaskDueDate} onChange={e => setInspTaskDueDate(e.target.value)} />
+            </div>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+              The assignee will receive an SMS notification. The task will appear on the Task Board and stay open until marked complete.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setInspRaiseTaskOpen(false); setInspPendingTask(null); }}>Skip for now</Button>
+            <Button
+              disabled={!inspTaskAssigneeId || inspRaiseMut.isPending}
+              onClick={() => {
+                if (!inspPendingTask || !inspTaskAssigneeId) return;
+                inspRaiseMut.mutate({
+                  assignedToMemberId: Number(inspTaskAssigneeId),
+                  title: inspPendingTask.title,
+                  description: inspPendingTask.description,
+                  module: "Environmental",
+                  taskType: "compliance",
+                  href: "/environmental-management?tab=slurry",
+                  ...(inspTaskDueDate ? { dueDate: inspTaskDueDate } : {}),
+                });
+              }}
+            >
+              Raise Task &amp; Notify
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete inspection confirm */}
+      <Dialog open={deleteInspId !== null} onOpenChange={o => { if (!o) setDeleteInspId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Inspection Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this inspection record? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteInspId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteInspId !== null && deleteInspMut.mutate(deleteInspId)} disabled={deleteInspMut.isPending}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -118,6 +118,24 @@ export const slurryStoresTable = pgTable("slurry_stores", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const slurryStoreInspectionsTable = pgTable("slurry_store_inspections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storeId: integer("store_id").notNull().references(() => slurryStoresTable.id, { onDelete: "cascade" }),
+  inspectionDate: date("inspection_date").notNull(),
+  inspectorName: text("inspector_name"),
+  inspectorOrganisation: text("inspector_organisation"),
+  outcome: text("outcome").notNull(),
+  freeboardOk: boolean("freeboard_ok"),
+  freeboardMm: numeric("freeboard_mm", { precision: 6, scale: 0 }),
+  leaksOrDamageFound: boolean("leaks_or_damage_found").default(false),
+  deficiencies: text("deficiencies"),
+  actionsRequired: text("actions_required"),
+  nextInspectionDue: date("next_inspection_due"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const slurrySpreadingRecordsTable = pgTable("slurry_spreading_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

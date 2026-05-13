@@ -169,6 +169,7 @@ export const STORAGE_KEYS = {
   GRAIN_TEMPERATURE_READINGS: "bde_grain_temperature_readings",
   EGG_PRODUCTION_RECORDS: "bde_egg_production_records",
   SLURRY_EVENTS: "bde_slurry_events",
+  SLURRY_STORE_INSPECTIONS: "bde_slurry_store_inspections",
   SFI_ACTIONS: "bde_sfi_actions",
   SPRAYER_CALIBRATIONS: "bde_sprayer_calibrations",
   MAINTENANCE_LOGS: "bde_maintenance_logs",
