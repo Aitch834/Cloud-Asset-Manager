@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye } from "lucide-react";
+import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 
 type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry";
@@ -595,6 +595,18 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
   );
 }
 
+const KNOWN_ASSESSOR_ORGS = [
+  "Red Tractor",
+  "Natural England",
+  "AHDB",
+  "Environment Agency",
+  "RSPCA Assured",
+  "Linking Environment and Farming (LEAF)",
+  "Organic Farmers & Growers (OF&G)",
+  "Soil Association",
+  "Pasture for Life",
+];
+
 function AssessmentsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -658,6 +670,38 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
         </p>
       </div>
 
+      {(() => {
+        const outstanding = records.filter((r: any) =>
+          (r.outcome === "advisory" || r.outcome === "fail") && r.conditions
+        );
+        if (!outstanding.length) return null;
+        return (
+          <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: "0.875rem 1rem", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <AlertTriangle size={16} color="#92400e" />
+              <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", margin: 0 }}>
+                {outstanding.length === 1 ? "1 assessment has outstanding remedial actions" : `${outstanding.length} assessments have outstanding remedial actions`}
+              </p>
+            </div>
+            <div className="space-y-2">
+              {outstanding.map((r: any) => (
+                <div key={r.id} style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "0.5rem 0.75rem" }}>
+                  <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 2 }}>
+                    {fmt(r.assessmentDate)}
+                    {r.outcome === "fail" ? " — Fail" : " — Pass with Advisories"}
+                    {r.assessorOrganisation ? ` · ${r.assessorOrganisation}` : ""}
+                  </p>
+                  <p style={{ fontSize: "0.8rem", color: "#92400e", margin: 0 }}>{r.conditions}</p>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: "0.75rem", color: "#78350f", marginTop: 8, marginBottom: 0 }}>
+              Ensure all relevant personnel on the holding are made aware of these requirements. Once complete, note the action taken in the record.
+            </p>
+          </div>
+        );
+      })()}
+
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
         <Button size="sm" onClick={() => { setForm(emptyForm()); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Assessment Visit
@@ -713,7 +757,29 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div><Label>Assessor Organisation</Label>
-              <Input placeholder="e.g. Red Tractor, AHDB, Natural England" value={form.assessorOrganisation} onChange={e => setForm((f: any) => ({ ...f, assessorOrganisation: e.target.value }))} />
+              {(() => {
+                const selectVal = KNOWN_ASSESSOR_ORGS.includes(form.assessorOrganisation)
+                  ? form.assessorOrganisation
+                  : form.assessorOrganisation ? "Other" : "";
+                return (
+                  <>
+                    <Select value={selectVal} onValueChange={v => {
+                      if (v === "Other") setForm((f: any) => ({ ...f, assessorOrganisation: "" }));
+                      else setForm((f: any) => ({ ...f, assessorOrganisation: v }));
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select organisation…" /></SelectTrigger>
+                      <SelectContent>
+                        {KNOWN_ASSESSOR_ORGS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        <SelectItem value="Other">Other (please specify)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {selectVal === "Other" && (
+                      <Input className="mt-1.5" placeholder="Organisation name" value={form.assessorOrganisation}
+                        onChange={e => setForm((f: any) => ({ ...f, assessorOrganisation: e.target.value }))} />
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div><Label>Outcome <span style={{ color: "#ef4444" }}>*</span></Label>
               <Select value={form.outcome} onValueChange={v => setForm((f: any) => ({ ...f, outcome: v }))}>
