@@ -113,6 +113,20 @@ export const organicLivestockConversionTable = pgTable("organic_livestock_conver
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const organicLivestockParallelNotificationTable = pgTable("organic_livestock_parallel_notification", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  conversionId: integer("conversion_id").notNull().references(() => organicLivestockConversionTable.id, { onDelete: "cascade" }),
+  notificationYear: integer("notification_year").notNull(),
+  notifiedDate: date("notified_date").notNull(),
+  certifierRef: text("certifier_ref"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const organicLivestockFeedTable = pgTable("organic_livestock_feed", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

@@ -271,6 +271,7 @@ import {
   organicRestrictedInputTable,
   organicInputsTable,
   organicLivestockConversionTable,
+  organicLivestockParallelNotificationTable,
   organicLivestockFeedTable,
   organicLivestockOutdoorAccessTable,
   organicLivestockTreatmentTable,
@@ -14648,21 +14649,41 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  // ── Organic Livestock: parallel production without certifier approval reference ──
-  const parallelProdRows = await db.select({ id: organicLivestockConversionTable.id, herdFlockName: organicLivestockConversionTable.herdFlockName, species: organicLivestockConversionTable.species, certificationRef: organicLivestockConversionTable.certificationRef })
+  // ── Organic Livestock: parallel production annual notification check ──────────
+  const parallelConvRows = await db.select({ id: organicLivestockConversionTable.id, herdFlockName: organicLivestockConversionTable.herdFlockName, species: organicLivestockConversionTable.species })
     .from(organicLivestockConversionTable)
-    .where(and(eq(organicLivestockConversionTable.farmId, farmId), eq(organicLivestockConversionTable.parallelProduction, true), isNull(organicLivestockConversionTable.certificationRef)));
-  for (const r of parallelProdRows) {
-    tasks.push({
-      id: `org-livestock-parallel-${r.id}`,
-      type: "organic_parallel_production",
-      title: `Parallel Production — Certifier Approval Missing: ${r.herdFlockName || r.species}`,
-      description: `The herd/flock '${r.herdFlockName || r.species}' is marked as parallel production (running organic and non-organic animals of the same species on the same holding). UK Organic Regulations 2020 require explicit written approval from your certification body. No certification reference is currently on file — obtain and record approval in Organic Livestock → Conversion.`,
-      dueDate: new Date().toISOString(),
-      module: "Organic Livestock",
-      href: "/organic-livestock?tab=conversion",
-      colour: "amber",
-    });
+    .where(and(eq(organicLivestockConversionTable.farmId, farmId), eq(organicLivestockConversionTable.parallelProduction, true)));
+  if (parallelConvRows.length > 0) {
+    const allParallelNotifs = await db.select({ conversionId: organicLivestockParallelNotificationTable.conversionId, notifiedDate: organicLivestockParallelNotificationTable.notifiedDate })
+      .from(organicLivestockParallelNotificationTable)
+      .where(inArray(organicLivestockParallelNotificationTable.conversionId, parallelConvRows.map(r => r.id)))
+      .orderBy(desc(organicLivestockParallelNotificationTable.notifiedDate));
+    const latestNotifByConversion = new Map<number, string>();
+    for (const n of allParallelNotifs) {
+      if (!latestNotifByConversion.has(n.conversionId)) latestNotifByConversion.set(n.conversionId, n.notifiedDate);
+    }
+    for (const r of parallelConvRows) {
+      const latestDate = latestNotifByConversion.get(r.id) ?? null;
+      const msAgo = latestDate ? now.getTime() - new Date(latestDate + "T00:00:00Z").getTime() : Infinity;
+      const monthsAgo = msAgo / (30.44 * 24 * 60 * 60 * 1000);
+      if (monthsAgo < 10) continue;
+      const isOverdue = !latestDate || monthsAgo >= 12;
+      const nextDue = latestDate ? new Date(new Date(latestDate + "T00:00:00Z").getTime() + 365 * 24 * 60 * 60 * 1000) : now;
+      tasks.push({
+        id: `org-livestock-parallel-annual-${r.id}`,
+        type: "organic_parallel_production_annual",
+        title: isOverdue
+          ? `Parallel Production Annual Notice Overdue — ${r.herdFlockName || r.species}`
+          : `Parallel Production Annual Notice Due Soon — ${r.herdFlockName || r.species}`,
+        description: isOverdue
+          ? `The annual parallel production notification for '${r.herdFlockName || r.species}' to your certification body is overdue (last notified: ${latestDate ?? "never"}). UK Organic Regulations 2020 require annual notification of all parallel production arrangements. Go to Organic Livestock → Conversion to record this year's notification.`
+          : `The annual parallel production notification for '${r.herdFlockName || r.species}' is due within the next two months (last notified: ${latestDate}). Go to Organic Livestock → Conversion to record this year's notification before it becomes overdue.`,
+        dueDate: nextDue.toISOString(),
+        module: "Organic Livestock",
+        href: "/organic-livestock?tab=conversion",
+        colour: isOverdue ? "red" : "amber",
+      });
+    }
   }
 
   res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });
@@ -20794,6 +20815,41 @@ router.patch("/farms/:farmId/organic-livestock/conversion/:id/document", require
   const id = parseInt(req.params.id as string);
   const { documentPath, documentName } = req.body;
   await db.update(organicLivestockConversionTable).set({ certDocumentPath: documentPath ?? null, certDocumentName: documentName ?? null }).where(eq(organicLivestockConversionTable.id, id));
+  res.json({ ok: true });
+});
+
+// ─── Organic Livestock — Parallel Production Annual Notifications ─────────────
+router.get("/farms/:farmId/organic-livestock/parallel-notifications/:conversionId", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const conversionId = parseInt(req.params.conversionId as string);
+  const notifications = await db.select().from(organicLivestockParallelNotificationTable).where(eq(organicLivestockParallelNotificationTable.conversionId, conversionId)).orderBy(desc(organicLivestockParallelNotificationTable.notificationYear));
+  res.json({ notifications });
+});
+
+router.post("/farms/:farmId/organic-livestock/parallel-notifications", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const { conversionId, notificationYear, notifiedDate, certifierRef, notes } = req.body;
+  const [record] = await db.insert(organicLivestockParallelNotificationTable).values({ farmId, conversionId, notificationYear, notifiedDate, certifierRef: certifierRef ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/parallel-notifications/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { notificationYear, notifiedDate, certifierRef, notes } = req.body;
+  await db.update(organicLivestockParallelNotificationTable).set({ notificationYear, notifiedDate, certifierRef: certifierRef ?? null, notes: notes ?? null }).where(eq(organicLivestockParallelNotificationTable.id, id));
+  const [record] = await db.select().from(organicLivestockParallelNotificationTable).where(eq(organicLivestockParallelNotificationTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/parallel-notifications/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicLivestockParallelNotificationTable).where(eq(organicLivestockParallelNotificationTable.id, id));
+  res.json({ ok: true });
+});
+
+router.patch("/farms/:farmId/organic-livestock/parallel-notifications/:id/document", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { documentPath, documentName } = req.body;
+  await db.update(organicLivestockParallelNotificationTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(eq(organicLivestockParallelNotificationTable.id, id));
   res.json({ ok: true });
 });
 

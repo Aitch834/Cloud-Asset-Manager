@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -273,6 +273,17 @@ type ConversionRecord = {
   notes: string | null;
 };
 
+type ParallelNotification = {
+  id: number;
+  conversionId: number;
+  notificationYear: number;
+  notifiedDate: string;
+  certifierRef: string | null;
+  documentPath: string | null;
+  documentName: string | null;
+  notes: string | null;
+};
+
 type FeedRecord = {
   id: number;
   recordDate: string;
@@ -330,6 +341,86 @@ type TreatmentRecord = {
 };
 
 type CoreHerd = { id: number; name: string; type: string; herdNumber: string | null; isOrganicHerd?: boolean };
+
+// ─── Parallel Production Notification Letter Template ─────────────────────────
+
+function printParallelNotificationLetter(conversion: ConversionRecord, notification: ParallelNotification, farmName: string) {
+  const fmtD = (d: string | null | undefined) =>
+    d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—";
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Parallel Production Annual Notification ${notification.notificationYear} — ${conversion.herdFlockName}</title>
+  <style>
+    body{font-family:Georgia,'Times New Roman',serif;font-size:11pt;line-height:1.6;margin:2.5cm;color:#111}
+    h1{font-size:13pt;font-weight:bold;border-bottom:2px solid #333;padding-bottom:.3em;margin-bottom:.5em}
+    h2{font-size:11pt;font-weight:bold;margin-top:1.4em;margin-bottom:.25em}
+    table{border-collapse:collapse;width:100%;margin:.6em 0}
+    th,td{border:1px solid #aaa;padding:5px 10px;text-align:left;vertical-align:top}
+    th{background:#f4f4f4;font-weight:bold;width:40%}
+    ul{margin:.4em 0;padding-left:1.5em}li{margin-bottom:.2em}
+    .sig-line{border-bottom:1px solid #555;display:inline-block;min-width:220px}
+    @media print{body{margin:1.5cm}}
+  </style>
+</head>
+<body>
+  <div style="display:flex;justify-content:space-between;margin-bottom:2em">
+    <div><strong>${farmName}</strong></div>
+    <div><strong>Date:</strong> ${today}</div>
+  </div>
+  <div style="margin-bottom:1.5em"><strong>To:</strong> ${conversion.certifier ?? "[Certifying Body Name and Address]"}</div>
+  <h1>ANNUAL NOTIFICATION OF PARALLEL PRODUCTION ARRANGEMENTS</h1>
+  <p><strong>Certification Year:</strong> ${notification.notificationYear} &nbsp;&nbsp; <strong>Date of Notification:</strong> ${fmtD(notification.notifiedDate)}</p>
+  <p>In accordance with UK Organic Regulations 2020 and our organic certification agreement, we hereby provide our annual notification of parallel production arrangements maintained on our holding during the certification year <strong>${notification.notificationYear}</strong>.</p>
+  <h2>1. Operator Details</h2>
+  <table>
+    <tr><th>Farm / Holding Name</th><td>${farmName}</td></tr>
+    <tr><th>Organic Certificate Number</th><td>${conversion.certificationRef ?? "—"}</td></tr>
+    <tr><th>Certification Body</th><td>${conversion.certifier ?? "—"}</td></tr>
+  </table>
+  <h2>2. Parallel Production Unit</h2>
+  <table>
+    <tr><th>Species</th><td>${conversion.species}</td></tr>
+    <tr><th>Herd / Flock Name</th><td>${conversion.herdFlockName}</td></tr>
+    <tr><th>Number of Animals (Organic Unit)</th><td>${conversion.numberOfAnimals ?? "See attached records"}</td></tr>
+    <tr><th>Organic Conversion Start Date</th><td>${fmtD(conversion.conversionStartDate)}</td></tr>
+    <tr><th>Non-organic unit of same species maintained on holding</th><td>Yes</td></tr>
+  </table>
+  <h2>3. Segregation Measures in Place</h2>
+  <table>
+    <tr><th>Measure</th><th style="width:12%;text-align:center">Confirmed</th></tr>
+    <tr><td>Organic and non-organic production units are kept fully separate at all times</td><td style="text-align:center">&#10003;</td></tr>
+    <tr><td>Organic animals are clearly and permanently identifiable</td><td style="text-align:center">&#10003;</td></tr>
+    <tr><td>Separate housing, grazing areas and handling facilities maintained</td><td style="text-align:center">&#10003;</td></tr>
+    <tr><td>Separate records maintained for organic and non-organic units</td><td style="text-align:center">&#10003;</td></tr>
+    <tr><td>No mixing of organic and non-organic animals at any stage</td><td style="text-align:center">&#10003;</td></tr>
+  </table>
+  <h2>4. Compliance Declaration</h2>
+  <p>We confirm that:</p>
+  <ul>
+    <li>Our organic management practices continue to comply with UK Organic Regulations 2020.</li>
+    <li>Full production records for both organic and non-organic units are maintained and available for inspection at any time.</li>
+    <li>Our certification body's prior written approval for parallel production is held on file.</li>
+    ${notification.certifierRef ? `<li>Certifier approval / acknowledgement reference: <strong>${notification.certifierRef}</strong></li>` : ""}
+  </ul>
+  ${notification.notes ? `<h2>5. Additional Notes</h2><p>${notification.notes}</p>` : ""}
+  <div style="margin-top:3em">
+    <p>We request that you acknowledge receipt of this annual notification. Please contact us if any further information is required.</p>
+    <br/><p>Yours faithfully,</p><br/><br/>
+    <p><span class="sig-line"></span></p>
+    <p><strong>${farmName}</strong></p>
+    <p>Date:&nbsp;<span class="sig-line" style="min-width:160px"></span></p>
+  </div>
+  <script>window.onload=function(){window.print();}</script>
+</body>
+</html>`;
+  const w = window.open("", "_blank");
+  if (!w) { alert("Please allow pop-ups to generate the notification letter."); return; }
+  w.document.write(html);
+  w.document.close();
+}
 
 // ─── ConversionTab ────────────────────────────────────────────────────────────
 
@@ -396,6 +487,37 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
       toast({ title: "Record deleted" });
     },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  // ── Parallel production annual notifications ──────────────────────────────
+  const [notifConversion, setNotifConversion] = useState<ConversionRecord | null>(null);
+  const [notifForm, setNotifForm] = useState({ notificationYear: new Date().getFullYear(), notifiedDate: "", certifierRef: "", notes: "" });
+
+  const { data: notifData } = useQuery<{ notifications: ParallelNotification[] }>({
+    queryKey: ["parallel-notifications", notifConversion?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/parallel-notifications/${notifConversion!.id}`).then(r => r.json()),
+    enabled: !!notifConversion,
+  });
+  const notifications = notifData?.notifications ?? [];
+
+  const saveNotif = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/organic-livestock/parallel-notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversionId: notifConversion?.id, ...notifForm }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parallel-notifications", notifConversion?.id] });
+      setNotifForm({ notificationYear: new Date().getFullYear(), notifiedDate: "", certifierRef: "", notes: "" });
+      toast({ title: "Notification recorded" });
+    },
+    onError: () => toast({ title: "Failed to save notification", variant: "destructive" }),
+  });
+
+  const deleteNotif = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/parallel-notifications/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["parallel-notifications", notifConversion?.id] }),
+    onError: () => toast({ title: "Failed to delete notification", variant: "destructive" }),
   });
 
   function openNew() {
@@ -495,6 +617,11 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
                   <Button variant="ghost" size="icon" onClick={() => remove.mutate(r.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
+                  {r.parallelProduction && (
+                    <Button variant="ghost" size="icon" title="Annual Parallel Production Notifications" onClick={() => { setNotifConversion(r); setNotifForm({ notificationYear: new Date().getFullYear(), notifiedDate: "", certifierRef: "", notes: "" }); }}>
+                      <Bell className="h-4 w-4 text-amber-500" />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
@@ -530,6 +657,94 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {notifConversion && (
+        <Dialog open onOpenChange={() => setNotifConversion(null)}>
+          <DialogContent style={{ maxWidth: "58rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Annual Parallel Production Notifications — {notifConversion.herdFlockName}</DialogTitle>
+              <DialogDescription>
+                Record each year's annual notification sent to your certifying body. UK Organic Regulations 2020 require annual notification of all parallel production arrangements. Generate a pre-filled letter for each year to send or email to your certifier.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+              <p className="text-sm font-semibold">Record a New Annual Notification</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>Notification Year</Label>
+                  <Input type="number" min={2000} max={2099} value={notifForm.notificationYear} onChange={e => setNotifForm(p => ({ ...p, notificationYear: parseInt(e.target.value) || new Date().getFullYear() }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Date Notified</Label>
+                  <Input type="date" value={notifForm.notifiedDate} onChange={e => setNotifForm(p => ({ ...p, notifiedDate: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Certifier Ref / Acknowledgement</Label>
+                  <Input value={notifForm.certifierRef} onChange={e => setNotifForm(p => ({ ...p, certifierRef: e.target.value }))} placeholder="e.g. ACK-2024-001" />
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label>Notes</Label>
+                  <Textarea value={notifForm.notes} onChange={e => setNotifForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Any additional details about this year's notification…" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => saveNotif.mutate()} disabled={saveNotif.isPending || !notifForm.notifiedDate}>
+                  {saveNotif.isPending ? "Saving…" : "Save Notification"}
+                </Button>
+              </div>
+            </div>
+
+            {notifications.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No annual notifications recorded yet for this herd/flock.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Date Notified</TableHead>
+                    <TableHead>Certifier Ref</TableHead>
+                    <TableHead>Document</TableHead>
+                    <TableHead className="w-24" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {notifications.map(n => (
+                    <TableRow key={n.id}>
+                      <TableCell className="font-medium">{n.notificationYear}</TableCell>
+                      <TableCell>{fmt(n.notifiedDate)}</TableCell>
+                      <TableCell>{n.certifierRef ?? "—"}</TableCell>
+                      <TableCell>
+                        <DocAttach
+                          farmId={farmId}
+                          endpoint="organic-livestock/parallel-notifications"
+                          recordId={n.id}
+                          documentPath={n.documentPath}
+                          documentName={n.documentName}
+                          queryKey={["parallel-notifications", String(notifConversion.id)]}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" title="Generate Notification Letter" onClick={() => printParallelNotificationLetter(notifConversion, n, farmName)}>
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => deleteNotif.mutate(n.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotifConversion(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
