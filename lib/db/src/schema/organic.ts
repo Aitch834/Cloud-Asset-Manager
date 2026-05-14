@@ -147,6 +147,45 @@ export const organicLivestockFeedTable = pgTable("organic_livestock_feed", {
   grnReference: text("grn_reference"),
   certifierApprovalRef: text("certifier_approval_ref"),
   derogationReference: text("derogation_reference"),
+  derogationCaseId: integer("derogation_case_id"), // links to organicFeedDerogationTable
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Organic Feed Derogation Tables ───────────────────────────────────────────
+// One derogation case per non-organic ingredient — covers all deliveries of
+// that ingredient for the approved period. Correspondence and documents are
+// stored as child records here, forming the complete audit trail.
+
+export const organicFeedDerogationTable = pgTable("organic_feed_derogation", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  ingredientName: text("ingredient_name").notNull(),          // e.g. "Soya bean meal"
+  feedProductName: text("feed_product_name"),                 // optional — specific branded product
+  species: text("species"),                                   // optional — which species this covers
+  certifier: text("certifier"),                               // e.g. "Soil Association", "OF&G"
+  status: text("status").notNull().default("pending"),        // pending | approved | rejected | expired | withdrawn
+  certifierRef: text("certifier_ref"),                        // reference issued by certifier when approving
+  regulatoryCategory: text("regulatory_category"),            // e.g. "Art. 22(2)(b) UK Org Regs 2020"
+  appliedDate: date("applied_date"),                          // date application submitted to certifier
+  decisionDate: date("decision_date"),                        // date certifier issued decision
+  expiryDate: date("expiry_date"),                            // when approval expires (typically end of cert year)
+  availabilitySearchDone: boolean("availability_search_done").notNull().default(false),
+  justification: text("justification"),                       // why no organic equivalent was available
+  conditions: text("conditions"),                             // any conditions attached to the approval
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicFeedDerogationCorrespondenceTable = pgTable("organic_feed_derogation_correspondence", {
+  id: serial("id").primaryKey(),
+  derogationId: integer("derogation_id").notNull().references(() => organicFeedDerogationTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  correspondenceDate: date("correspondence_date").notNull(),
+  direction: text("direction").notNull().default("to-certifier"), // to-certifier | from-certifier | internal
+  subject: text("subject").notNull(),
+  body: text("body"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

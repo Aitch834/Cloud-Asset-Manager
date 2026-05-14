@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle, Upload, ChevronDown, ChevronRight, Mail, ArrowDownToLine, ArrowUpFromLine, Paperclip, ExternalLink } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -307,7 +307,49 @@ type FeedRecord = {
   grnReference: string | null;
   certifierApprovalRef: string | null;
   derogationReference: string | null;
+  derogationCaseId: number | null;
   notes: string | null;
+};
+
+type DerogationCase = {
+  id: number;
+  ingredientName: string;
+  feedProductName: string | null;
+  species: string | null;
+  certifier: string | null;
+  status: string;
+  certifierRef: string | null;
+  regulatoryCategory: string | null;
+  appliedDate: string | null;
+  decisionDate: string | null;
+  expiryDate: string | null;
+  availabilitySearchDone: boolean;
+  justification: string | null;
+  conditions: string | null;
+  notes: string | null;
+};
+
+type DerogationCorrespondence = {
+  id: number;
+  derogationId: number;
+  correspondenceDate: string;
+  direction: string;
+  subject: string;
+  body: string | null;
+  notes: string | null;
+};
+
+type DerogationDocument = {
+  id: number;
+  recordType: string;
+  recordId: number;
+  fileName: string;
+  fileKey: string;
+  fileUrl: string;
+  mimeType: string | null;
+  fileSize: number | null;
+  notes: string | null;
+  uploadedAt: string;
 };
 
 type OutdoorAccessRecord = {
@@ -912,6 +954,13 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   });
   const suppliers: FarmSupplier[] = suppliersData?.records ?? [];
 
+  const { data: derogationsData } = useQuery<{ cases: DerogationCase[] }>({
+    queryKey: ["feed-derogations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const activeDerogations = (derogationsData?.cases ?? []).filter(c => c.status === "approved");
+
   const yearOptions = Array.from(new Set(records.map(r => r.recordDate?.slice(0, 4)).filter(Boolean))).sort().reverse() as string[];
   const speciesOptions = Array.from(new Set(records.map(r => r.species).filter(Boolean))).sort() as string[];
   const multipleSpecies = speciesOptions.length > 1;
@@ -1021,9 +1070,9 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </TableRow>
           )}
           {Object.entries(groupedRecords).sort(([a], [b]) => a === "__all__" ? 0 : a.localeCompare(b)).map(([species, rows]) => (
-            <>
+            <React.Fragment key={species}>
               {species !== "__all__" && (
-                <TableRow key={`hdr-${species}`}>
+                <TableRow>
                   <TableCell colSpan={8} className="bg-muted/40 font-semibold text-sm py-1.5 px-3 border-t">{species}</TableCell>
                 </TableRow>
               )}
@@ -1049,7 +1098,7 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
                   </TableCell>
                 </TableRow>
               ))}
-            </>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -1254,9 +1303,39 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Non-approved feed — certifier derogation required</p>
-                    <p className="text-xs text-amber-700 mt-1">Under UK Organic Regulations 2020, non-organically-approved feed ingredients may only be used with prior written approval from your certification body. Record the certifier's reference below and document your justification in the Notes field. Retain the written approval on file.</p>
+                    <p className="text-xs text-amber-700 mt-1">Under UK Organic Regulations 2020, non-organically-approved feed ingredients may only be used with prior written approval from your certification body. Link this record to an approved derogation case from the Feed Derogations tab, or enter the reference manually.</p>
                   </div>
                 </div>
+                {activeDerogations.length > 0 && (
+                  <div className="space-y-1">
+                    <Label>Link to Approved Derogation Case</Label>
+                    <Select
+                      value={form.derogationCaseId ? String(form.derogationCaseId) : "__manual__"}
+                      onValueChange={(v) => {
+                        if (v === "__manual__") {
+                          setForm(p => ({ ...p, derogationCaseId: null }));
+                        } else {
+                          const dc = activeDerogations.find(d => String(d.id) === v);
+                          setForm(p => ({ ...p, derogationCaseId: dc?.id ?? null, certifierApprovalRef: dc?.certifierRef ?? p.certifierApprovalRef, derogationReference: dc?.regulatoryCategory ?? p.derogationReference }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select derogation case…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__manual__">— Enter manually —</SelectItem>
+                        {activeDerogations.map(dc => (
+                          <SelectItem key={dc.id} value={String(dc.id)}>
+                            {dc.ingredientName}{dc.species ? ` (${dc.species})` : ""}{dc.certifierRef ? ` · ${dc.certifierRef}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Selecting a case auto-fills the certifier ref and regulatory category below. Manage derogation cases in the Feed Derogations tab.</p>
+                  </div>
+                )}
+                {activeDerogations.length === 0 && (
+                  <p className="text-xs text-amber-700">No active approved derogation cases found. Go to the <strong>Feed Derogations</strong> tab to create and manage derogation cases before linking records here.</p>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Certifier Derogation Approval Ref *</Label>
@@ -1845,6 +1924,489 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   );
 }
 
+// ─── FeedDerogationTab ────────────────────────────────────────────────────────
+
+const DEROG_STATUS_CFG: Record<string, { label: string; className: string }> = {
+  pending: { label: "Pending", className: "bg-blue-100 text-blue-800" },
+  approved: { label: "Approved", className: "bg-green-100 text-green-800" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-800" },
+  expired: { label: "Expired", className: "bg-red-100 text-red-800" },
+  withdrawn: { label: "Withdrawn", className: "bg-gray-100 text-gray-700" },
+};
+
+const DOCUMENT_TYPES = [
+  "Approval Letter",
+  "Availability Search Evidence",
+  "Application / Justification Letter",
+  "Supporting Evidence",
+  "Conditions Letter",
+  "Correspondence",
+  "Other",
+];
+
+function daysUntil(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function FeedDerogationTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  // ─── Case dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editCase, setEditCase] = useState<DerogationCase | null>(null);
+  const blankCase = { ingredientName: "", feedProductName: "", species: "", certifier: "", status: "pending", certifierRef: "", regulatoryCategory: "", appliedDate: "", decisionDate: "", expiryDate: "", availabilitySearchDone: false, justification: "", conditions: "", notes: "" };
+  const [form, setForm] = useState<typeof blankCase>(blankCase);
+
+  // ─── Expand / collapse per case
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // ─── Correspondence dialog state
+  const [corrDialogOpen, setCorrDialogOpen] = useState(false);
+  const [editCorr, setEditCorr] = useState<DerogationCorrespondence | null>(null);
+  const [corrDerogId, setCorrDerogId] = useState<number | null>(null);
+  const blankCorr = { correspondenceDate: new Date().toISOString().slice(0, 10), direction: "to-certifier", subject: "", body: "", notes: "" };
+  const [corrForm, setCorrForm] = useState<typeof blankCorr>(blankCorr);
+
+  // ─── Upload state
+  const [uploading, setUploading] = useState(false);
+  const [uploadDerogId, setUploadDerogId] = useState<number | null>(null);
+  const [uploadType, setUploadType] = useState("Approval Letter");
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+
+  // ─── Queries
+  const { data: casesData, isLoading } = useQuery<{ cases: DerogationCase[] }>({
+    queryKey: ["feed-derogations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const cases = casesData?.cases ?? [];
+
+  const { data: corrData } = useQuery<{ correspondence: DerogationCorrespondence[] }>({
+    queryKey: ["feed-derogation-corr", expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${expandedId}/correspondence`).then(r => r.json()),
+    enabled: !!expandedId,
+  });
+  const correspondence = corrData?.correspondence ?? [];
+
+  const { data: docsData, refetch: refetchDocs } = useQuery<{ documents: DerogationDocument[] }>({
+    queryKey: ["feed-derogation-docs", expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${expandedId}/documents`).then(r => r.json()),
+    enabled: !!expandedId,
+  });
+  const documents = docsData?.documents ?? [];
+
+  // ─── Mutations
+  const saveCase = useMutation({
+    mutationFn: (body: typeof form & { id?: number }) => {
+      const url = body.id
+        ? `/api/farms/${farmId}/organic-livestock/feed-derogations/${body.id}`
+        : `/api/farms/${farmId}/organic-livestock/feed-derogations`;
+      return fetch(url, { method: body.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogations", farmId] }); setDialogOpen(false); toast({ title: "Derogation case saved" }); },
+  });
+
+  const deleteCase = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogations", farmId] }); if (expandedId === deleteCase.variables) setExpandedId(null); toast({ title: "Case deleted" }); },
+  });
+
+  const saveCorr = useMutation({
+    mutationFn: (body: typeof corrForm & { id?: number; derogationId: number }) => {
+      const url = body.id
+        ? `/api/farms/${farmId}/organic-livestock/feed-derogations/${body.derogationId}/correspondence/${body.id}`
+        : `/api/farms/${farmId}/organic-livestock/feed-derogations/${body.derogationId}/correspondence`;
+      return fetch(url, { method: body.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogation-corr", expandedId] }); setCorrDialogOpen(false); setEditCorr(null); toast({ title: "Correspondence saved" }); },
+  });
+
+  const deleteCorr = useMutation({
+    mutationFn: ({ derogationId, corrId }: { derogationId: number; corrId: number }) =>
+      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/correspondence/${corrId}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-corr", expandedId] }),
+  });
+
+  const deleteDoc = useMutation({
+    mutationFn: ({ derogationId, docId }: { derogationId: number; docId: number }) =>
+      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/documents/${docId}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-docs", expandedId] }),
+  });
+
+  // ─── Helpers
+  function openNewCase() { setForm(blankCase); setEditCase(null); setDialogOpen(true); }
+  function openEditCase(c: DerogationCase) {
+    setForm({ ingredientName: c.ingredientName, feedProductName: c.feedProductName ?? "", species: c.species ?? "", certifier: c.certifier ?? "", status: c.status, certifierRef: c.certifierRef ?? "", regulatoryCategory: c.regulatoryCategory ?? "", appliedDate: c.appliedDate ?? "", decisionDate: c.decisionDate ?? "", expiryDate: c.expiryDate ?? "", availabilitySearchDone: c.availabilitySearchDone, justification: c.justification ?? "", conditions: c.conditions ?? "", notes: c.notes ?? "" });
+    setEditCase(c); setDialogOpen(true);
+  }
+  function f(k: keyof typeof form) { return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value })); }
+  function openNewCorr(derogationId: number) { setCorrForm(blankCorr); setEditCorr(null); setCorrDerogId(derogationId); setCorrDialogOpen(true); }
+  function openEditCorr(c: DerogationCorrespondence) { setCorrForm({ correspondenceDate: c.correspondenceDate, direction: c.direction, subject: c.subject, body: c.body ?? "", notes: c.notes ?? "" }); setEditCorr(c); setCorrDerogId(c.derogationId); setCorrDialogOpen(true); }
+  function fc(k: keyof typeof corrForm) { return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setCorrForm(p => ({ ...p, [k]: e.target.value })); }
+
+  async function handleFileUpload(derogationId: number, file: File, docType: string) {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json() as { uploadURL: string; objectPath: string };
+      const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!putRes.ok) throw new Error("Upload failed");
+      await fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey: objectPath, documentName: file.name, documentType: docType, fileSize: file.size, mimeType: file.type }),
+      });
+      qc.invalidateQueries({ queryKey: ["feed-derogation-docs", derogationId] });
+      toast({ title: "Document uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const statusCounts = cases.reduce((acc: Record<string, number>, c) => { acc[c.status] = (acc[c.status] || 0) + 1; return acc; }, {});
+
+  return (
+    <div className="space-y-4">
+      {/* ── Status summary ── */}
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(DEROG_STATUS_CFG).map(([status, cfg]) =>
+            statusCounts[status] ? (
+              <Badge key={status} className={cfg.className}>{cfg.label}: {statusCounts[status]}</Badge>
+            ) : null
+          )}
+          {cases.length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground">No derogation cases yet.</p>
+          )}
+        </div>
+        <Button size="sm" onClick={openNewCase}>
+          <Plus className="h-4 w-4 mr-1" /> New Derogation Case
+        </Button>
+      </div>
+
+      {/* ── Regulatory note ── */}
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <p className="font-semibold mb-1">UK Organic Regulations 2020 — Article 22</p>
+        <p>Non-organically-approved feed ingredients may only be used with <strong>prior written approval</strong> from your certification body. Each approval is ingredient-specific and time-limited. Keep the certifier's written approval, your availability search evidence, and all correspondence on file — inspectors will ask to see these.</p>
+      </div>
+
+      {/* ── Cases list ── */}
+      <div className="space-y-2">
+        {cases.map(c => {
+          const cfg = DEROG_STATUS_CFG[c.status] ?? DEROG_STATUS_CFG.pending;
+          const days = daysUntil(c.expiryDate);
+          const isExpanded = expandedId === c.id;
+          return (
+            <div key={c.id} className="border rounded-md overflow-hidden">
+              {/* Case header row */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 cursor-pointer"
+                onClick={() => setExpandedId(isExpanded ? null : c.id)}
+              >
+                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{c.ingredientName}</span>
+                    {c.species && <span className="text-xs text-muted-foreground">({c.species})</span>}
+                    <Badge className={cfg.className + " text-xs"}>{cfg.label}</Badge>
+                    {c.status === "approved" && days !== null && (
+                      <Badge className={days < 14 ? "bg-red-100 text-red-800 text-xs" : days < 60 ? "bg-amber-100 text-amber-800 text-xs" : "bg-gray-100 text-gray-700 text-xs"}>
+                        {days < 0 ? `Expired ${Math.abs(days)}d ago` : `${days}d remaining`}
+                      </Badge>
+                    )}
+                    {c.availabilitySearchDone && <Badge className="bg-green-50 text-green-700 text-xs border border-green-200">Availability search ✓</Badge>}
+                  </div>
+                  <div className="flex gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
+                    {c.certifier && <span>Certifier: {c.certifier}</span>}
+                    {c.certifierRef && <span>Ref: {c.certifierRef}</span>}
+                    {c.appliedDate && <span>Applied: {fmt(c.appliedDate)}</span>}
+                    {c.expiryDate && <span>Expires: {fmt(c.expiryDate)}</span>}
+                    {c.regulatoryCategory && <span>{c.regulatoryCategory}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" onClick={() => openEditCase(c)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteCase.mutate(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              </div>
+
+              {/* Expanded panel */}
+              {isExpanded && (
+                <div className="border-t bg-muted/10 p-4 space-y-5">
+                  {/* Case details */}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    {c.feedProductName && <div><span className="text-muted-foreground">Feed product: </span>{c.feedProductName}</div>}
+                    {c.decisionDate && <div><span className="text-muted-foreground">Decision date: </span>{fmt(c.decisionDate)}</div>}
+                    {c.conditions && <div className="col-span-2"><span className="text-muted-foreground">Conditions: </span>{c.conditions}</div>}
+                    {c.justification && <div className="col-span-2"><span className="text-muted-foreground">Justification: </span>{c.justification}</div>}
+                    {c.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes: </span>{c.notes}</div>}
+                  </div>
+
+                  {/* Correspondence */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold flex items-center gap-1.5"><Mail className="h-4 w-4" /> Correspondence Log</h4>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openNewCorr(c.id)}>
+                        <Plus className="h-3 w-3 mr-1" /> Add Entry
+                      </Button>
+                    </div>
+                    {correspondence.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No correspondence logged yet. Add entries to record communications with your certifier.</p>
+                    ) : (
+                      <div className="border rounded-md overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Date</TableHead>
+                              <TableHead className="text-xs">Direction</TableHead>
+                              <TableHead className="text-xs">Subject</TableHead>
+                              <TableHead className="text-xs">Notes</TableHead>
+                              <TableHead className="w-16" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {correspondence.map(cr => (
+                              <TableRow key={cr.id}>
+                                <TableCell className="text-xs">{fmt(cr.correspondenceDate)}</TableCell>
+                                <TableCell className="text-xs">
+                                  <div className="flex items-center gap-1">
+                                    {cr.direction === "to-certifier" ? <ArrowUpFromLine className="h-3 w-3 text-blue-600" /> : cr.direction === "from-certifier" ? <ArrowDownToLine className="h-3 w-3 text-green-600" /> : <Mail className="h-3 w-3 text-gray-500" />}
+                                    <span>{cr.direction === "to-certifier" ? "To certifier" : cr.direction === "from-certifier" ? "From certifier" : "Internal"}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-xs font-medium">{cr.subject}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{fmtRaw(cr.notes)}</TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditCorr(cr)}><Pencil className="h-3 w-3" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteCorr.mutate({ derogationId: c.id, corrId: cr.id })}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Documents */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold flex items-center gap-1.5"><Paperclip className="h-4 w-4" /> Documents</h4>
+                      <div className="flex items-center gap-2">
+                        <Select value={uploadType} onValueChange={setUploadType}>
+                          <SelectTrigger className="h-7 w-48 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{DOCUMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Button
+                          size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={uploading}
+                          onClick={() => {
+                            const inp = document.createElement("input");
+                            inp.type = "file";
+                            inp.accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp";
+                            inp.onchange = async () => {
+                              const file = inp.files?.[0];
+                              if (file) await handleFileUpload(c.id, file, uploadType);
+                            };
+                            inp.click();
+                          }}
+                        >
+                          <Upload className="h-3 w-3" />{uploading ? "Uploading…" : "Upload"}
+                        </Button>
+                      </div>
+                    </div>
+                    {documents.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No documents uploaded yet. Upload the certifier's approval letter, your availability search evidence, and any supporting correspondence.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {documents.map(doc => (
+                          <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{doc.fileName}</p>
+                              <p className="text-xs text-muted-foreground">{doc.notes} · {new Date(doc.uploadedAt).toLocaleDateString("en-GB")}</p>
+                            </div>
+                            <a href={`/api${doc.fileKey}`} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="icon" className="h-7 w-7"><ExternalLink className="h-3 w-3" /></Button>
+                            </a>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteDoc.mutate({ derogationId: c.id, docId: doc.id })}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Add/Edit Case Dialog ── */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editCase ? "Edit Derogation Case" : "New Derogation Case"}</DialogTitle>
+            <DialogDescription>
+              Record a certifier-approved derogation for a specific non-organic feed ingredient. One case covers all deliveries of this ingredient for the approved period.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2 space-y-1">
+              <Label>Non-Organic Ingredient Name *</Label>
+              <Input value={form.ingredientName} onChange={f("ingredientName")} placeholder="e.g. Soya bean meal, Fish meal, Linseed" />
+              <p className="text-xs text-muted-foreground">The specific ingredient — not the feed product name. Be precise; the certifier's approval is ingredient-specific.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Feed Product Name (if applicable)</Label>
+              <Input value={form.feedProductName} onChange={f("feedProductName")} placeholder="e.g. Blend X 18% Protein" />
+            </div>
+            <div className="space-y-1">
+              <Label>Species</Label>
+              <Select value={form.species || "__all__"} onValueChange={v => setForm(p => ({ ...p, species: v === "__all__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="All species" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All / Not species-specific</SelectItem>
+                  {LIVESTOCK_SPECIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Certification Body</Label>
+              <Select value={CERTIFIERS.includes(form.certifier) ? form.certifier : (form.certifier ? "Other" : "")} onValueChange={v => setForm(p => ({ ...p, certifier: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select certifier…" /></SelectTrigger>
+                <SelectContent>{CERTIFIERS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+              {(form.certifier === "Other" || (!!form.certifier && !CERTIFIERS.slice(0, -1).includes(form.certifier))) && (
+                <Input className="mt-1" value={form.certifier === "Other" ? "" : form.certifier} onChange={e => setForm(p => ({ ...p, certifier: e.target.value || "Other" }))} placeholder="Please specify…" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending — awaiting certifier decision</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Certifier Approval Reference</Label>
+              <Input value={form.certifierRef} onChange={f("certifierRef")} placeholder="e.g. SA/DER/2025/042" />
+              <p className="text-xs text-muted-foreground">The reference issued by the certifier in their approval letter.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Regulatory Derogation Category</Label>
+              <Input value={form.regulatoryCategory} onChange={f("regulatoryCategory")} placeholder="e.g. Art. 22(2)(b) UK Org Regs 2020" />
+            </div>
+            <div className="space-y-1">
+              <Label>Date Applied to Certifier</Label>
+              <Input type="date" value={form.appliedDate} onChange={f("appliedDate")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Certifier Decision Date</Label>
+              <Input type="date" value={form.decisionDate} onChange={f("decisionDate")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Approval Expiry Date</Label>
+              <Input type="date" value={form.expiryDate} onChange={f("expiryDate")} />
+              <p className="text-xs text-muted-foreground">Typically the end of the certification year. Derogations must be renewed annually.</p>
+            </div>
+            <div className="flex items-start gap-2 pt-5">
+              <Checkbox id="avail-search" checked={form.availabilitySearchDone} onCheckedChange={v => setForm(p => ({ ...p, availabilitySearchDone: !!v }))} />
+              <div>
+                <Label htmlFor="avail-search">Availability search completed</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Tick when you have documented evidence that no organic equivalent was available from any supplier.</p>
+              </div>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Justification</Label>
+              <Textarea value={form.justification} onChange={f("justification")} rows={3} placeholder="State why no organically approved equivalent was available — species/category, suppliers contacted, and outcome. This should match what you submitted to the certifier." />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Conditions Attached to Approval</Label>
+              <Textarea value={form.conditions} onChange={f("conditions")} rows={2} placeholder="Any conditions stated by the certifier in their approval letter, e.g. maximum inclusion rate, review date, re-application requirements." />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={f("notes")} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveCase.mutate({ ...form, id: editCase?.id })} disabled={saveCase.isPending || !form.ingredientName.trim()}>
+              {saveCase.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add/Edit Correspondence Dialog ── */}
+      <Dialog open={corrDialogOpen} onOpenChange={setCorrDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editCorr ? "Edit Correspondence Entry" : "Add Correspondence Entry"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Date *</Label>
+                <Input type="date" value={corrForm.correspondenceDate} onChange={fc("correspondenceDate")} />
+              </div>
+              <div className="space-y-1">
+                <Label>Direction</Label>
+                <Select value={corrForm.direction} onValueChange={v => setCorrForm(p => ({ ...p, direction: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="to-certifier">To certifier</SelectItem>
+                    <SelectItem value="from-certifier">From certifier</SelectItem>
+                    <SelectItem value="internal">Internal note</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Subject *</Label>
+              <Input value={corrForm.subject} onChange={fc("subject")} placeholder="e.g. Derogation application for soya bean meal — 2025" />
+            </div>
+            <div className="space-y-1">
+              <Label>Body / Summary</Label>
+              <Textarea value={corrForm.body} onChange={fc("body")} rows={4} placeholder="Summary of the communication — key points, any decisions or commitments made." />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Input value={corrForm.notes} onChange={fc("notes")} placeholder="e.g. Sent by email, ref: ticket #12345" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCorrDialogOpen(false); setEditCorr(null); }}>Cancel</Button>
+            <Button
+              onClick={() => saveCorr.mutate({ ...corrForm, id: editCorr?.id, derogationId: corrDerogId! })}
+              disabled={saveCorr.isPending || !corrForm.subject.trim() || !corrDerogId}
+            >
+              {saveCorr.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OrganicLivestockPage() {
@@ -1863,6 +2425,7 @@ export default function OrganicLivestockPage() {
           <TabsList>
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
             <TabsTrigger value="feed">Feed Records</TabsTrigger>
+            <TabsTrigger value="feed-derogations">Feed Derogations</TabsTrigger>
             <TabsTrigger value="outdoor-access">Outdoor Access / Stocking</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
           </TabsList>
@@ -1871,6 +2434,9 @@ export default function OrganicLivestockPage() {
           </TabsContent>
           <TabsContent value="feed" className="mt-4">
             <FeedTab farmId={farmId} farmName={name} />
+          </TabsContent>
+          <TabsContent value="feed-derogations" className="mt-4">
+            <FeedDerogationTab farmId={farmId} />
           </TabsContent>
           <TabsContent value="outdoor-access" className="mt-4">
             <OutdoorAccessTab farmId={farmId} farmName={name} />
