@@ -430,6 +430,14 @@ export default function OrganicOverviewScreen() {
                 <Text style={[styles.actionLabel, { color: "#7c3aed" }]}>Record Treatment</Text>
                 <Text style={styles.actionSub}>Medicines &amp; therapies</Text>
               </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#fff7ed", borderColor: "#fed7aa" }]}
+                onPress={() => router.push("/organic-feed-derogations")}
+              >
+                <Feather name="file-text" size={22} color="#ea580c" />
+                <Text style={[styles.actionLabel, { color: "#ea580c" }]}>Feed Derogations</Text>
+                <Text style={styles.actionSub}>Art. 22 case register</Text>
+              </Pressable>
             </View>
 
             {inspections.length > 0 && (

@@ -207,6 +207,7 @@ const TITLES: [string, string][] = [
   ["Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags", "Viticulture"],
   ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest", "Viticulture"],
   ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
+  ["Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage", "Organic"],
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
   ["Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults", "Organic Dairy"],
   ["Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults", "Organic"],

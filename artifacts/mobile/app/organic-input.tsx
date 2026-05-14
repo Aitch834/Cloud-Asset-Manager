@@ -234,7 +234,7 @@ export default function OrganicInputScreen() {
                 <Feather name="alert-triangle" size={13} color="#92400e" />
                 <Text style={styles.warningText}>
                   {approvalStatus === "derogation"
-                    ? "A derogation must be obtained from your certifier before use. Record the reference below."
+                    ? "A derogation must be obtained from your certifier before use. Record the certifier reference below. For livestock feed ingredients, manage the full derogation case — including correspondence log and approval documents — in the Feed Derogations section of the Organic Livestock module in the dashboard."
                     : "Notify your certifier before applying restricted inputs. Record their reference below."}
                 </Text>
               </View>
@@ -242,6 +242,16 @@ export default function OrganicInputScreen() {
                 <Text style={styles.label}>Certifier Approval / Reference</Text>
                 <Input placeholder="e.g. SA-DER-2024-001" value={certifierApprovalRef} onChangeText={setCertifierApprovalRef} />
               </View>
+              {approvalStatus === "derogation" && inputType === "Feed Supplement / Additive" && (
+                <Pressable
+                  style={styles.derogationLink}
+                  onPress={() => router.push("/organic-feed-derogations")}
+                >
+                  <Feather name="file-text" size={13} color="#ea580c" />
+                  <Text style={styles.derogationLinkText}>View Feed Derogation Cases</Text>
+                  <Feather name="chevron-right" size={13} color="#ea580c" />
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -352,4 +362,22 @@ const styles = StyleSheet.create({
   },
   warningText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", flex: 1 },
   textarea: { minHeight: 90, textAlignVertical: "top" },
+  derogationLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: "#fff7ed",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+  },
+  derogationLinkText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#ea580c",
+    flex: 1,
+  },
 });

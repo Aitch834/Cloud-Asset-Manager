@@ -11321,6 +11321,93 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Click <strong>Print AMRM Report</strong> to generate a formatted annual summary suitable for your assurance body or vet. The report includes your farm name, CPH, SBI, reporting year, usage by antibiotic class, and the document reference for any attached vet sign-off.</p>`,
     },
     {
+      id: 10070,
+      title: "Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage",
+      category: "Organic Livestock",
+      content: `<h2>Organic Livestock — Feed Derogations</h2>
+<p>Under the <strong>UK Organic Regulations 2020, Article 22</strong>, you must obtain <strong>prior written approval from your certification body</strong> before feeding any non-organic ingredient to organic livestock. The Feed Derogations tab in the Organic Livestock module provides a dedicated case register to manage each approval — from initial application through to the certifier's decision, any conditions attached, renewal before expiry, and the full documentary record of every communication.</p>
+<p>The tab sits between Feed Records and Outdoor Access in the Organic Livestock module navigation. Access it from <strong>Dashboard → Organic Livestock → Feed Derogations</strong>.</p>
+
+<h3>When Do You Need a Derogation?</h3>
+<p>A feed derogation is required whenever you need to use a non-organic ingredient in your organic livestock ration. Common scenarios include:</p>
+<ul>
+<li>A certified organic source of a required ingredient is genuinely unavailable — you have conducted an availability search and cannot source an equivalent organic product at a commercially reasonable price or in sufficient quantity</li>
+<li>Certain mineral supplements, trace element compounds, or feed additives that have no organic equivalent</li>
+<li>Emergency situations where organic feed supply has been disrupted</li>
+</ul>
+<p>You must demonstrate that no organic source was available (<em>availability search</em>) and obtain written approval from your certifier <strong>before</strong> the non-organic ingredient enters your ration. Retrospective derogations are generally not accepted.</p>
+
+<h3>Status Summary Chips</h3>
+<p>The top of the Feed Derogations tab shows live counts across all five statuses:</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Status</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Meaning</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Pending</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Application submitted to certifier — awaiting their decision</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Approved</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Certifier has granted written approval; the ingredient may be used within the stated conditions and until the expiry date</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Rejected</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Certifier declined the application; the ingredient must not be used</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Expired</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Approval period has ended; a renewal application is needed before continued use</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Withdrawn</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">You have withdrawn the application or the certifier has revoked the approval</td></tr>
+</tbody>
+</table>
+
+<h3>Creating a Derogation Case</h3>
+<p>Click <strong>Add Derogation Case</strong>. Each case represents one non-organic ingredient requiring a derogation. Complete the form:</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Field</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Notes</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Non-Organic Ingredient Name</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The specific ingredient requiring approval — e.g. "Fishmeal", "Dl-Methionine", "Conventional Soya"</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Feed Product / Ration</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The feed or compound in which the ingredient appears</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Species</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The livestock species this approval covers — the case is species-specific</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certifier</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Your certification body — Soil Association, OF&amp;G, Organic Farmers &amp; Growers, BDOCA, etc.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Pending / Approved / Rejected / Expired / Withdrawn</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certifier Approval Reference</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The reference number on the certifier's approval letter — e.g. "SA-DER-2024-001"; used to cross-reference from feed delivery records</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Regulatory Derogation Category</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">The specific Article 22 sub-provision under which the derogation is granted — e.g. "Art. 22(2)(b) — Insufficient supply of organic feed"</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Applied Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Date you submitted the derogation application to the certifier</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Decision Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Date the certifier communicated their decision (approve / reject)</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Expiry Date</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Date the approved derogation expires — the days-remaining badge turns amber at 60 days, red at 14 days</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Availability Search Done</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Tick once you have documented a search proving no organic equivalent was available at the time of application</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Justification</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Written justification for why no organic alternative was available — this is what the certifier evaluates</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Conditions Attached</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Any conditions the certifier placed on the approval — e.g. maximum inclusion rate, maximum duration of use, or requirement to notify before each batch</td></tr>
+</tbody>
+</table>
+
+<h3>Expiry Warnings</h3>
+<p>Each approved case card shows a days-remaining badge calculated from the Expiry Date. The badge is colour-coded:</p>
+<ul>
+<li><strong>Amber</strong> — 15–60 days remaining; renew your application</li>
+<li><strong>Red</strong> — 14 days or fewer remaining; immediate action required</li>
+<li><strong>Red (Expired)</strong> — expiry date has passed; the ingredient must not be used until a renewed approval is in place</li>
+</ul>
+
+<h3>Certifier Correspondence Log</h3>
+<p>Expand any case card and go to the <strong>Correspondence</strong> section. Click <strong>Add Correspondence</strong> to record a new communication entry. Each entry captures:</p>
+<ul>
+<li><strong>Date</strong> — date of the communication</li>
+<li><strong>Direction</strong> — <em>To Certifier</em> (you wrote to them), <em>From Certifier</em> (they responded to you), or <em>Internal</em> (internal note or decision)</li>
+<li><strong>Subject</strong> — brief subject line</li>
+<li><strong>Body</strong> — full text of the correspondence or a summary</li>
+<li><strong>Notes</strong> — any follow-up actions required</li>
+</ul>
+<p>The correspondence log gives you a complete, date-ordered paper trail of every communication relating to the derogation — from your initial application letter through to the certifier's decision letter, any queries they raise, and your responses. This is the primary evidence that the derogation was properly managed and not used without approval.</p>
+
+<h3>Document Upload</h3>
+<p>Expand any case card and go to the <strong>Documents</strong> section. Click <strong>Attach Document</strong> to upload a file against the case. Select the document type before uploading:</p>
+<ul>
+<li><strong>Approval Letter</strong> — the certifier's written approval; the most important document for audit purposes</li>
+<li><strong>Application Letter</strong> — your original application to the certifier</li>
+<li><strong>Availability Search Evidence</strong> — your documented search showing no organic equivalent was available (supplier quotes, distributor communications, OFAS search screenshots)</li>
+<li><strong>Conditions Letter</strong> — any letter from the certifier setting out conditions of approval</li>
+<li><strong>Supporting Document</strong> — any other relevant paperwork</li>
+</ul>
+<p>The upload flow uses a secure presigned URL: the document is uploaded directly to BDE Farm Trac's cloud storage and linked permanently to the derogation case. Documents can be viewed at any time via the <strong>View</strong> link that appears against each uploaded file — click it during an inspection to display the document on screen without needing to locate the physical file.</p>
+
+<h3>Linking a Feed Delivery Record to a Derogation Case</h3>
+<p>In the <strong>Feed Records</strong> tab, when you record a delivery and untick <strong>Organic Approved</strong>, a <em>Link to Approved Derogation Case</em> dropdown appears automatically if you have any active approved derogation cases for the same farm. Select the relevant case — the system auto-fills the <strong>Certifier Approval Reference</strong> and <strong>Regulatory Derogation Category</strong> fields on the feed record from the case file. This creates a direct, auditable link between every non-approved feed delivery and the written certifier approval that authorises its use. If no approved case exists, a prompt directs you to create one in the Feed Derogations tab before logging the delivery.</p>
+
+<h3>Mobile App</h3>
+<p>The mobile app includes a <strong>Feed Derogations</strong> quick-action button on the Organic Compliance hub screen. Tapping it opens a read-only list of your current derogation cases, showing status badges, certifier references, expiry dates, and days-remaining indicators for each case. Full case management — adding new cases, logging correspondence, uploading documents, and editing case details — is handled from the dashboard. The mobile view is designed for quick on-farm reference during a certifier visit when you need to show the current position of your derogation register without opening a computer.</p>`,
+    },
+    {
       id: 10066,
       title: "Welfare Outcome Assessments (WOA) — Recording Farm Animal Welfare",
       category: "Livestock",
