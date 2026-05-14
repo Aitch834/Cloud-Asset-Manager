@@ -1465,11 +1465,517 @@ function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: 
   );
 }
 
+// ─── Input Derogations Tab ───────────────────────────────────────────────────
+
+type FpDerogCase = {
+  id: number;
+  inputName: string;
+  inputType: string;
+  regulatoryBasis: string | null;
+  certifier: string | null;
+  certifierRef: string | null;
+  availabilitySearchDate: string | null;
+  availabilitySearchRef: string | null;
+  applicationDate: string | null;
+  decisionDate: string | null;
+  status: string;
+  approvalConditions: string | null;
+  expiryDate: string | null;
+  cropYear: number | null;
+  justification: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+type FpDerogCorrespondence = {
+  id: number;
+  derogationId: number;
+  correspondenceDate: string;
+  direction: string;
+  correspondenceType: string;
+  summary: string;
+  reference: string | null;
+  notes: string | null;
+};
+
+type FpDerogDocument = {
+  id: number;
+  fileName: string;
+  fileSize: number | null;
+  fileKey: string;
+  fileUrl: string;
+  notes: string | null;
+  uploadedAt: string;
+};
+
+const FP_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  expired: "Expired",
+  withdrawn: "Withdrawn",
+};
+
+const FP_STATUS_COLOURS: Record<string, string> = {
+  pending: "bg-yellow-50 text-yellow-800 border-yellow-300",
+  approved: "bg-green-50 text-green-800 border-green-300",
+  rejected: "bg-red-50 text-red-800 border-red-300",
+  expired: "bg-gray-100 text-gray-600 border-gray-300",
+  withdrawn: "bg-slate-50 text-slate-600 border-slate-300",
+};
+
+const FP_INPUT_TYPES = ["Seed", "Pesticide / Crop Protection", "Fertiliser / Soil Amendment", "Cleaning Product", "Other"];
+const FP_CERTIFIERS = ["Soil Association", "OF&G (Organic Farmers & Growers)", "Organic Food Federation", "Biodynamic Association", "Other"];
+const FP_CORRESPONDENCE_TYPES = ["Application to Certifier", "Availability Search Evidence", "Supporting Evidence", "Certifier Query", "Approval Letter", "Rejection Notice", "Conditions Letter", "Renewal Request", "Other"];
+const FP_DOCUMENT_TYPES = ["Availability Search Evidence", "Application Letter", "Supporting Evidence", "Approval / Decision Letter", "Conditions Letter", "Rejection Notice", "Photographs", "Other"];
+
+const EMPTY_FP_CASE_FORM = {
+  inputName: "", inputType: "Seed", regulatoryBasis: "UK Organic Regulations 2020 — Schedule 1 / Annex II",
+  certifier: "", certifierRef: "", availabilitySearchDate: "", availabilitySearchRef: "",
+  applicationDate: "", decisionDate: "", status: "pending", approvalConditions: "",
+  expiryDate: "", cropYear: new Date().getFullYear(), justification: "", notes: "",
+};
+
+const EMPTY_FP_CORRESP_FORM = {
+  correspondenceDate: new Date().toISOString().slice(0, 10), direction: "outbound",
+  correspondenceType: "Application to Certifier", summary: "", reference: "", notes: "",
+};
+
+function FpDerogStatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${FP_STATUS_COLOURS[status] ?? "bg-gray-100 text-gray-600 border-gray-300"}`}>
+      {FP_STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function FpDaysRemaining({ dateStr }: { dateStr: string | null | undefined }) {
+  const d = daysUntil(dateStr);
+  if (d === null) return null;
+  if (d < 0) return <span className="text-xs font-medium text-red-700">Expired {Math.abs(d)}d ago</span>;
+  if (d <= 14) return <span className="text-xs font-medium text-red-700">Expires in {d}d</span>;
+  if (d <= 60) return <span className="text-xs font-medium text-amber-700">Expires in {d}d</span>;
+  return <span className="text-xs text-muted-foreground">Expires {fmt(dateStr)}</span>;
+}
+
+function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; farmName: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [expandedId, setExpandedId] = React.useState<number | null>(null);
+  const [caseOpen, setCaseOpen] = React.useState(false);
+  const [editingCase, setEditingCase] = React.useState<FpDerogCase | null>(null);
+  const [caseForm, setCaseForm] = React.useState({ ...EMPTY_FP_CASE_FORM });
+  const [correspOpen, setCorrespOpen] = React.useState(false);
+  const [correspCaseId, setCorrespCaseId] = React.useState<number | null>(null);
+  const [editingCorresp, setEditingCorresp] = React.useState<FpDerogCorrespondence | null>(null);
+  const [correspForm, setCorrespForm] = React.useState({ ...EMPTY_FP_CORRESP_FORM });
+  const [uploadingCaseId, setUploadingCaseId] = React.useState<number | null>(null);
+  const [uploadDocType, setUploadDocType] = React.useState("Availability Search Evidence");
+  const [uploading, setUploading] = React.useState(false);
+  const [correspondences, setCorrespondences] = React.useState<Record<number, FpDerogCorrespondence[]>>({});
+  const [documents, setDocuments] = React.useState<Record<number, FpDerogDocument[]>>({});
+
+  const { data: casesData, isLoading } = useQuery<{ cases: FpDerogCase[] }>({
+    queryKey: ["ofp-input-derogations", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/organic-fp/input-derogations`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const cases = casesData?.cases ?? [];
+
+  async function loadCorrespDocs(caseId: number) {
+    const [cr, dr] = await Promise.all([
+      fetch(api(`farms/${farmId}/organic-fp/input-derogations/${caseId}/correspondence`), { credentials: "include" }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/organic-fp/input-derogations/${caseId}/documents`), { credentials: "include" }).then(r => r.json()),
+    ]);
+    setCorrespondences(p => ({ ...p, [caseId]: cr.items ?? [] }));
+    setDocuments(p => ({ ...p, [caseId]: dr.items ?? [] }));
+  }
+
+  function toggleExpand(id: number) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    loadCorrespDocs(id);
+  }
+
+  const saveCase = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editingCase ? api(`farms/${farmId}/organic-fp/input-derogations/${editingCase.id}`) : api(`farms/${farmId}/organic-fp/input-derogations`),
+      { method: editingCase ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ofp-input-derogations", farmId] });
+      setCaseOpen(false); setEditingCase(null); setCaseForm({ ...EMPTY_FP_CASE_FORM });
+      toast({ title: editingCase ? "Case updated" : "Derogation case created" });
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteCase = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp/input-derogations/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-derogations", farmId] }); toast({ title: "Case deleted" }); },
+  });
+
+  const saveCorresp = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editingCorresp
+        ? api(`farms/${farmId}/organic-fp/input-derogation-correspondence/${editingCorresp.id}`)
+        : api(`farms/${farmId}/organic-fp/input-derogations/${correspCaseId}/correspondence`),
+      { method: editingCorresp ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => {
+      if (correspCaseId) loadCorrespDocs(correspCaseId);
+      setCorrespOpen(false); setEditingCorresp(null); setCorrespForm({ ...EMPTY_FP_CORRESP_FORM });
+      toast({ title: "Correspondence saved" });
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteCorresp = useMutation({
+    mutationFn: ({ id, caseId }: { id: number; caseId: number }) =>
+      fetch(api(`farms/${farmId}/organic-fp/input-derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" })
+        .then(() => { loadCorrespDocs(caseId); }),
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const deleteDoc = useMutation({
+    mutationFn: ({ id, caseId }: { id: number; caseId: number }) =>
+      fetch(api(`farms/${farmId}/organic-fp/input-derogation-documents/${id}`), { method: "DELETE", credentials: "include" })
+        .then(() => { loadCorrespDocs(caseId); }),
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  async function handleUpload(caseId: number, file: File) {
+    setUploading(true);
+    try {
+      const presign = await fetch("/api/storage/uploads/request-url", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, recordType: "organic_fp_derogation" }),
+      }).then(r => r.json());
+      await fetch(presign.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      await fetch(api(`farms/${farmId}/organic-fp/input-derogations/${caseId}/documents`), {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ fileKey: presign.storageKey ?? presign.fileKey, fileName: file.name, fileSize: file.size, documentType: uploadDocType, mimeType: file.type }),
+      });
+      loadCorrespDocs(caseId);
+      setUploadingCaseId(null);
+      toast({ title: "Document uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const pending = cases.filter(c => c.status === "pending").length;
+  const approved = cases.filter(c => c.status === "approved").length;
+  const rejected = cases.filter(c => c.status === "rejected").length;
+  const expired = cases.filter(c => c.status === "expired").length;
+  const withdrawn = cases.filter(c => c.status === "withdrawn").length;
+
+  function openNewCase() { setEditingCase(null); setCaseForm({ ...EMPTY_FP_CASE_FORM, cropYear: new Date().getFullYear() }); setCaseOpen(true); }
+  function openEditCase(c: FpDerogCase) {
+    setEditingCase(c);
+    setCaseForm({
+      inputName: c.inputName, inputType: c.inputType, regulatoryBasis: c.regulatoryBasis ?? "",
+      certifier: c.certifier ?? "", certifierRef: c.certifierRef ?? "",
+      availabilitySearchDate: c.availabilitySearchDate?.slice(0, 10) ?? "",
+      availabilitySearchRef: c.availabilitySearchRef ?? "",
+      applicationDate: c.applicationDate?.slice(0, 10) ?? "",
+      decisionDate: c.decisionDate?.slice(0, 10) ?? "",
+      status: c.status, approvalConditions: c.approvalConditions ?? "",
+      expiryDate: c.expiryDate?.slice(0, 10) ?? "",
+      cropYear: c.cropYear ?? new Date().getFullYear(),
+      justification: c.justification ?? "", notes: c.notes ?? "",
+    });
+    setCaseOpen(true);
+  }
+  function openAddCorresp(caseId: number) {
+    setCorrespCaseId(caseId); setEditingCorresp(null);
+    setCorrespForm({ ...EMPTY_FP_CORRESP_FORM }); setCorrespOpen(true);
+  }
+  function openEditCorresp(c: FpDerogCorrespondence, caseId: number) {
+    setCorrespCaseId(caseId); setEditingCorresp(c);
+    setCorrespForm({
+      correspondenceDate: c.correspondenceDate?.slice(0, 10) ?? "",
+      direction: c.direction, correspondenceType: c.correspondenceType,
+      summary: c.summary, reference: c.reference ?? "", notes: c.notes ?? "",
+    });
+    setCorrespOpen(true);
+  }
+
+  const cf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setCaseForm(p => ({ ...p, [k]: e.target.value }));
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border bg-amber-50 border-amber-200 px-4 py-3 text-sm text-amber-800 flex gap-2">
+        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+        <span>
+          Under the <strong>UK Organic Regulations 2020</strong>, certain inputs — including conventional seed where a certified organic equivalent is unavailable, and restricted crop protection substances — require <strong>prior written approval from your certification body</strong> before use. This register tracks each derogation application from submission through to the certifier's decision, correspondence log, and supporting documents.
+        </span>
+      </div>
+
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 text-sm">
+          {pending > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800"><Clock className="w-3 h-3" />{pending} Pending</span>}
+          {approved > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 border border-green-200 text-green-800"><CheckCircle2 className="w-3 h-3" />{approved} Approved</span>}
+          {rejected > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 border border-red-200 text-red-800">{rejected} Rejected</span>}
+          {expired > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 border border-gray-200 text-gray-600">{expired} Expired</span>}
+          {withdrawn > 0 && <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600">{withdrawn} Withdrawn</span>}
+          {cases.length === 0 && !isLoading && <span className="text-muted-foreground">No derogation cases yet</span>}
+        </div>
+        <Button size="sm" onClick={openNewCase}><Plus className="h-4 w-4 mr-1" />Add Derogation Case</Button>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+
+      <div className="space-y-3">
+        {cases.map(c => {
+          const isExp = expandedId === c.id;
+          const corresp = correspondences[c.id] ?? [];
+          const docs = documents[c.id] ?? [];
+          return (
+            <div key={c.id} className="rounded-md border bg-white">
+              <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => toggleExpand(c.id)}
+              >
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <FpDerogStatusBadge status={c.status} />
+                  <span className="font-medium truncate">{c.inputName}</span>
+                  <span className="text-xs text-muted-foreground">{c.inputType}</span>
+                  {c.cropYear && <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{c.cropYear}</span>}
+                  {c.certifier && <span className="text-xs text-muted-foreground hidden sm:inline">{c.certifier}</span>}
+                  {c.expiryDate && c.status === "approved" && <FpDaysRemaining dateStr={c.expiryDate} />}
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <Button variant="ghost" size="icon" title="Edit" onClick={e => { e.stopPropagation(); openEditCase(c); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Delete" onClick={e => { e.stopPropagation(); if (confirm("Delete this derogation case and all its correspondence?")) deleteCase.mutate(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Eye className={`h-4 w-4 text-muted-foreground transition-transform ${isExp ? "opacity-70" : ""}`} />
+                </div>
+              </div>
+              {isExp && (
+                <div className="border-t px-4 pb-4 pt-3 space-y-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Input Type</p><p className="font-medium">{fmtRaw(c.inputType)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Year</p><p className="font-medium">{fmtRaw(c.cropYear)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier</p><p className="font-medium">{fmtRaw(c.certifier)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Reference</p><p className="font-medium">{fmtRaw(c.certifierRef)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Application Date</p><p className="font-medium">{fmt(c.applicationDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Decision Date</p><p className="font-medium">{fmt(c.decisionDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expiry Date</p><p className="font-medium">{fmt(c.expiryDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Availability Search Date</p><p className="font-medium">{fmt(c.availabilitySearchDate)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Availability Search Ref</p><p className="font-medium">{fmtRaw(c.availabilitySearchRef)}</p></div>
+                    <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Regulatory Basis</p><p className="font-medium">{fmtRaw(c.regulatoryBasis)}</p></div>
+                    {c.approvalConditions && <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Conditions</p><p className="font-medium">{c.approvalConditions}</p></div>}
+                    {c.justification && <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{c.justification}</p></div>}
+                    {c.notes && <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{c.notes}</p></div>}
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-semibold">Correspondence Log ({corresp.length})</p>
+                      <Button size="sm" variant="outline" onClick={() => openAddCorresp(c.id)}><Plus className="h-3 w-3 mr-1" />Add</Button>
+                    </div>
+                    {corresp.length === 0 && <p className="text-xs text-muted-foreground py-2">No correspondence recorded yet.</p>}
+                    <div className="space-y-2">
+                      {corresp.map(cr => (
+                        <div key={cr.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm flex gap-3 items-start">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">{cr.correspondenceType}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded border ${cr.direction === "inbound" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>{cr.direction === "inbound" ? "Received" : "Sent"}</span>
+                              <span className="text-xs text-muted-foreground">{fmt(cr.correspondenceDate)}</span>
+                              {cr.reference && <span className="text-xs text-muted-foreground">Ref: {cr.reference}</span>}
+                            </div>
+                            <p className="text-muted-foreground mt-1">{cr.summary}</p>
+                            {cr.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">{cr.notes}</p>}
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button variant="ghost" size="icon" onClick={() => openEditCorresp(cr, c.id)}><Pencil className="h-3 w-3" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this correspondence entry?")) deleteCorresp.mutate({ id: cr.id, caseId: c.id }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-semibold">Documents ({docs.length})</p>
+                      <Button size="sm" variant="outline" onClick={() => setUploadingCaseId(uploadingCaseId === c.id ? null : c.id)}><Plus className="h-3 w-3 mr-1" />Upload</Button>
+                    </div>
+                    {uploadingCaseId === c.id && (
+                      <div className="mb-3 rounded-md border bg-muted/20 p-3 space-y-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Document Type</Label>
+                          <select className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm" value={uploadDocType} onChange={e => setUploadDocType(e.target.value)}>
+                            {FP_DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <input type="file" className="text-sm" disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(c.id, f); }} />
+                        {uploading && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Uploading…</p>}
+                      </div>
+                    )}
+                    {docs.length === 0 && uploadingCaseId !== c.id && <p className="text-xs text-muted-foreground py-1">No documents uploaded yet.</p>}
+                    <div className="space-y-1.5">
+                      {docs.map(d => (
+                        <div key={d.id} className="flex items-center gap-2 text-sm rounded border bg-muted/20 px-3 py-2">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1 truncate">{d.fileName}</span>
+                          {d.notes && <span className="text-xs text-muted-foreground shrink-0">{d.notes}</span>}
+                          {d.fileUrl && <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">View</a>}
+                          <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this document?")) deleteDoc.mutate({ id: d.id, caseId: c.id }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <Dialog open={caseOpen} onOpenChange={v => { if (!v) { setCaseOpen(false); setEditingCase(null); } }}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader>
+            <DialogTitle>{editingCase ? "Edit Derogation Case" : "Add Derogation Case"}</DialogTitle>
+            <DialogDescription>Record a substance requiring prior certifier approval under the UK Organic Regulations.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto pr-1">
+            <div className="col-span-2 space-y-1">
+              <Label>Input / Substance Name <span className="text-destructive">*</span></Label>
+              <Input value={caseForm.inputName} onChange={cf("inputName")} placeholder="e.g. Conventional Spring Wheat Seed — Variety Skyfall" />
+            </div>
+            <div className="space-y-1">
+              <Label>Input Type</Label>
+              <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={caseForm.inputType} onChange={e => setCaseForm(p => ({ ...p, inputType: e.target.value }))}>
+                {FP_INPUT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label>Crop Year</Label>
+              <Input type="number" value={caseForm.cropYear} onChange={cf("cropYear")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Certifier</Label>
+              <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={caseForm.certifier} onChange={e => setCaseForm(p => ({ ...p, certifier: e.target.value }))}>
+                <option value="">— Select —</option>
+                {FP_CERTIFIERS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label>Certifier Reference</Label>
+              <Input value={caseForm.certifierRef} onChange={cf("certifierRef")} placeholder="Certifier's reference for this approval" />
+            </div>
+            <div className="space-y-1">
+              <Label>Availability Search Date</Label>
+              <Input type="date" value={caseForm.availabilitySearchDate} onChange={cf("availabilitySearchDate")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Availability Search Ref (OFAS / UKOAS)</Label>
+              <Input value={caseForm.availabilitySearchRef} onChange={cf("availabilitySearchRef")} placeholder="Search reference number" />
+            </div>
+            <div className="space-y-1">
+              <Label>Application Date</Label>
+              <Input type="date" value={caseForm.applicationDate} onChange={cf("applicationDate")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Decision Date</Label>
+              <Input type="date" value={caseForm.decisionDate} onChange={cf("decisionDate")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={caseForm.status} onChange={e => setCaseForm(p => ({ ...p, status: e.target.value }))}>
+                {Object.entries(FP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label>Expiry Date</Label>
+              <Input type="date" value={caseForm.expiryDate} onChange={cf("expiryDate")} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Regulatory Basis</Label>
+              <Input value={caseForm.regulatoryBasis} onChange={cf("regulatoryBasis")} placeholder="e.g. UK Organic Regulations 2020 — Schedule 1 / Annex II" />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Justification (why organic alternative unavailable)</Label>
+              <Textarea value={caseForm.justification} onChange={cf("justification")} rows={3} placeholder="Explain why no certified organic equivalent was available at the time of sourcing" />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Approval Conditions</Label>
+              <Textarea value={caseForm.approvalConditions} onChange={cf("approvalConditions")} rows={2} placeholder="Any conditions placed on the approval by the certifier" />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Notes</Label>
+              <Textarea value={caseForm.notes} onChange={cf("notes")} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCaseOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveCase.mutate(caseForm as unknown as Record<string, unknown>)} disabled={!caseForm.inputName || saveCase.isPending}>
+              {saveCase.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={correspOpen} onOpenChange={v => { if (!v) { setCorrespOpen(false); setEditingCorresp(null); } }}>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader>
+            <DialogTitle>{editingCorresp ? "Edit Correspondence" : "Add Correspondence"}</DialogTitle>
+            <DialogDescription>Log a communication with your certifier regarding this derogation application.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <Label>Date <span className="text-destructive">*</span></Label>
+              <Input type="date" value={correspForm.correspondenceDate} onChange={e => setCorrespForm(p => ({ ...p, correspondenceDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Direction</Label>
+              <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={correspForm.direction} onChange={e => setCorrespForm(p => ({ ...p, direction: e.target.value }))}>
+                <option value="outbound">Outbound (sent to certifier)</option>
+                <option value="inbound">Inbound (received from certifier)</option>
+              </select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Type <span className="text-destructive">*</span></Label>
+              <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={correspForm.correspondenceType} onChange={e => setCorrespForm(p => ({ ...p, correspondenceType: e.target.value }))}>
+                {FP_CORRESPONDENCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Summary <span className="text-destructive">*</span></Label>
+              <Textarea value={correspForm.summary} onChange={e => setCorrespForm(p => ({ ...p, summary: e.target.value }))} rows={3} placeholder="Brief description of the content" />
+            </div>
+            <div className="space-y-1">
+              <Label>Reference</Label>
+              <Input value={correspForm.reference} onChange={e => setCorrespForm(p => ({ ...p, reference: e.target.value }))} placeholder="Certifier ref or ticket no." />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Input value={correspForm.notes} onChange={e => setCorrespForm(p => ({ ...p, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrespOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveCorresp.mutate(correspForm as unknown as Record<string, unknown>)} disabled={!correspForm.summary || !correspForm.correspondenceDate || saveCorresp.isPending}>
+              {saveCorresp.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 const TABS = [
   { key: "block-status", label: "Block Status", icon: <Leaf className="w-4 h-4" /> },
   { key: "input-log", label: "Input Log", icon: <FlaskConical className="w-4 h-4" /> },
+  { key: "input-derogations", label: "Input Derogations", icon: <AlertTriangle className="w-4 h-4" /> },
   { key: "certificates", label: "Certificates", icon: <ShieldCheck className="w-4 h-4" /> },
   { key: "buyer-declarations", label: "Buyer Declarations", icon: <FileText className="w-4 h-4" /> },
 ] as const;
@@ -1495,7 +2001,7 @@ export default function OrganicFreshProducePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Organic Fresh Produce</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Block conversion status, approved input log, organic certification records, and buyer declarations.
+            Block conversion status, approved input log, input derogation register, organic certification records, and buyer declarations.
           </p>
         </div>
 
@@ -1511,6 +2017,7 @@ export default function OrganicFreshProducePage() {
         <Card className="p-5">
           {tab === "block-status" && <BlockStatusTab farmId={farmId} farmName={farmName} />}
           {tab === "input-log" && <InputLogTab farmId={farmId} farmName={farmName} />}
+          {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} farmName={farmName} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} farmName={farmName} />}
           {tab === "buyer-declarations" && <BuyerDeclarationsTab farmId={farmId} farmName={farmName} />}
         </Card>

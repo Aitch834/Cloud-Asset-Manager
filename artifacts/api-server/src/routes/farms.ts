@@ -275,6 +275,8 @@ import {
   organicLivestockFeedTable,
   organicFeedDerogationTable,
   organicFeedDerogationCorrespondenceTable,
+  organicFpDerogationTable,
+  organicFpDerogationCorrespondenceTable,
   organicLivestockOutdoorAccessTable,
   organicLivestockTreatmentTable,
   organicDairyHerdConversionTable,
@@ -17131,6 +17133,92 @@ router.delete("/farms/:farmId/organic-fp-buyer-declarations/:id", requireAuth, r
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(organicFreshProduceBuyerDeclarationsTable).where(and(eq(organicFreshProduceBuyerDeclarationsTable.id, id), eq(organicFreshProduceBuyerDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Fresh Produce — Input Derogations ────────────────────────────────
+
+router.get("/farms/:farmId/organic-fp/input-derogations", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const cases = await db.select().from(organicFpDerogationTable).where(eq(organicFpDerogationTable.farmId, farmId)).orderBy(desc(organicFpDerogationTable.createdAt));
+  res.json({ cases });
+});
+
+router.post("/farms/:farmId/organic-fp/input-derogations", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, notes } = req.body;
+  const [record] = await db.insert(organicFpDerogationTable).values({ farmId, inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-fp/input-derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, notes } = req.body;
+  await db.update(organicFpDerogationTable).set({ inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, notes: notes ?? null }).where(and(eq(organicFpDerogationTable.id, id), eq(organicFpDerogationTable.farmId, farmId)));
+  const [record] = await db.select().from(organicFpDerogationTable).where(eq(organicFpDerogationTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-fp/input-derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFpDerogationCorrespondenceTable).where(and(eq(organicFpDerogationCorrespondenceTable.derogationId, id), eq(organicFpDerogationCorrespondenceTable.farmId, farmId)));
+  await db.delete(organicFpDerogationTable).where(and(eq(organicFpDerogationTable.id, id), eq(organicFpDerogationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp/input-derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const items = await db.select().from(organicFpDerogationCorrespondenceTable).where(and(eq(organicFpDerogationCorrespondenceTable.derogationId, id), eq(organicFpDerogationCorrespondenceTable.farmId, farmId))).orderBy(desc(organicFpDerogationCorrespondenceTable.correspondenceDate));
+  res.json({ items });
+});
+
+router.post("/farms/:farmId/organic-fp/input-derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const derogationId = parseInt(req.params.id as string);
+  const { correspondenceDate, direction, correspondenceType, summary, reference, notes } = req.body;
+  const [item] = await db.insert(organicFpDerogationCorrespondenceTable).values({ farmId, derogationId, correspondenceDate, direction: direction ?? "outbound", correspondenceType, summary, reference: reference ?? null, notes: notes ?? null }).returning();
+  res.status(201).json({ item });
+});
+
+router.put("/farms/:farmId/organic-fp/input-derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { correspondenceDate, direction, correspondenceType, summary, reference, notes } = req.body;
+  await db.update(organicFpDerogationCorrespondenceTable).set({ correspondenceDate, direction: direction ?? "outbound", correspondenceType, summary, reference: reference ?? null, notes: notes ?? null }).where(and(eq(organicFpDerogationCorrespondenceTable.id, id), eq(organicFpDerogationCorrespondenceTable.farmId, farmId)));
+  const [item] = await db.select().from(organicFpDerogationCorrespondenceTable).where(eq(organicFpDerogationCorrespondenceTable.id, id));
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/organic-fp/input-derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(organicFpDerogationCorrespondenceTable).where(and(eq(organicFpDerogationCorrespondenceTable.id, id), eq(organicFpDerogationCorrespondenceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-fp/input-derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const items = await db.select().from(farmRecordAttachmentsTable).where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, "organic_fp_derogation"), eq(farmRecordAttachmentsTable.recordId, id), isNull(farmRecordAttachmentsTable.deletedAt))).orderBy(farmRecordAttachmentsTable.uploadedAt);
+  res.json({ items });
+});
+
+router.post("/farms/:farmId/organic-fp/input-derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { fileKey, fileName, fileSize, documentType, mimeType } = req.body;
+  const fileUrl = fileKey;
+  const [item] = await db.insert(farmRecordAttachmentsTable).values({ farmId, recordType: "organic_fp_derogation", recordId: id, fileUrl, fileKey, fileName, fileSize: fileSize ?? null, mimeType: mimeType ?? null, notes: documentType ?? null }).returning();
+  res.status(201).json({ item });
+});
+
+router.delete("/farms/:farmId/organic-fp/input-derogation-documents/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(farmRecordAttachmentsTable).set({ deletedAt: new Date() }).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

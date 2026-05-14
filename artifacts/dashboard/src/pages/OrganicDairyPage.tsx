@@ -845,6 +845,14 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [viewRecord, setViewRecord] = useState<DairyFeedRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyFeedRecord>>({});
   const [supplierId, setSupplierId] = useState<string>("");
+  const [derogCaseId, setDerogCaseId] = useState<string>("");
+
+  const { data: derogCasesData } = useQuery<{ cases: Array<{ id: number; ingredientName: string; certifierRef: string | null; status: string; expiryDate: string | null; species: string | null }> }>({
+    queryKey: ["feed-derogations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const derogCases = (derogCasesData?.cases ?? []).filter(c => c.status === "approved");
 
   const { data } = useQuery<{ records: DairyFeedRecord[] }>({
     queryKey: ["organic-dairy-feed", farmId],
@@ -881,12 +889,13 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicApproved: true, recordDate: new Date().toISOString().slice(0, 10) }); setSupplierId(""); setOpen(true); }
+  function openNew() { setEditing(null); setForm({ isOrganicApproved: true, recordDate: new Date().toISOString().slice(0, 10) }); setSupplierId(""); setDerogCaseId(""); setOpen(true); }
   function openEdit(r: DairyFeedRecord) {
     setEditing(r);
     setForm({ ...r });
     const matched = suppliers.find(s => s.name === r.supplier);
     setSupplierId(matched ? String(matched.id) : "");
+    setDerogCaseId("");
     setOpen(true);
   }
 
@@ -1055,14 +1064,6 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
               <Label>GRN Reference</Label>
               <Input value={form.grnReference ?? ""} onChange={f("grnReference")} />
             </div>
-            <div className="space-y-1">
-              <Label>Certifier Approval Ref</Label>
-              <Input value={form.certifierApprovalRef ?? ""} onChange={f("certifierApprovalRef")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Derogation Reference</Label>
-              <Input value={form.derogationReference ?? ""} onChange={f("derogationReference")} />
-            </div>
             <div className="flex items-center gap-2 pt-5">
               <Checkbox
                 checked={form.isOrganicApproved ?? true}
@@ -1070,6 +1071,44 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
                 id="organic-approved"
               />
               <Label htmlFor="organic-approved">Organic Approved</Label>
+            </div>
+            {!form.isOrganicApproved && derogCases.length > 0 && (
+              <div className="col-span-2 space-y-1">
+                <Label>Link to Approved Feed Derogation Case (Article 22)</Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={derogCaseId}
+                  onChange={e => {
+                    const cid = e.target.value;
+                    setDerogCaseId(cid);
+                    if (cid) {
+                      const c = derogCases.find(dc => String(dc.id) === cid);
+                      if (c) setForm(p => ({ ...p, certifierApprovalRef: c.certifierRef ?? p.certifierApprovalRef ?? "", derogationReference: c.certifierRef ?? p.derogationReference ?? "" }));
+                    }
+                  }}
+                >
+                  <option value="">— Select an approved case to auto-fill references —</option>
+                  {derogCases.map(c => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.ingredientName}{c.species ? ` (${c.species})` : ""} — Ref: {c.certifierRef ?? "no ref"}{c.expiryDate ? ` · expires ${new Date(c.expiryDate).toLocaleDateString("en-GB")}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">Selecting an approved derogation case auto-fills the references below.</p>
+              </div>
+            )}
+            {!form.isOrganicApproved && derogCases.length === 0 && (
+              <div className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                No approved feed derogation cases found for this farm. Create and approve a case in Organic Livestock → Feed Derogations before linking it here.
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label>Certifier Approval Ref</Label>
+              <Input value={form.certifierApprovalRef ?? ""} onChange={f("certifierApprovalRef")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Derogation Reference</Label>
+              <Input value={form.derogationReference ?? ""} onChange={f("derogationReference")} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Notes</Label>

@@ -333,3 +333,38 @@ export const organicDairyTreatmentTable = pgTable("organic_dairy_treatment", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const organicFpDerogationTable = pgTable("organic_fp_derogation", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  inputName: text("input_name").notNull(),
+  inputType: text("input_type").notNull(),
+  regulatoryBasis: text("regulatory_basis"),
+  certifier: text("certifier"),
+  certifierRef: text("certifier_ref"),
+  availabilitySearchDate: date("availability_search_date"),
+  availabilitySearchRef: text("availability_search_ref"),
+  applicationDate: date("application_date"),
+  decisionDate: date("decision_date"),
+  status: text("status").notNull().default("pending"),
+  approvalConditions: text("approval_conditions"),
+  expiryDate: date("expiry_date"),
+  cropYear: integer("crop_year"),
+  justification: text("justification"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicFpDerogationCorrespondenceTable = pgTable("organic_fp_derogation_correspondence", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  derogationId: integer("derogation_id").notNull().references(() => organicFpDerogationTable.id),
+  correspondenceDate: date("correspondence_date").notNull(),
+  direction: text("direction").notNull().default("outbound"),
+  correspondenceType: text("correspondence_type").notNull(),
+  summary: text("summary").notNull(),
+  reference: text("reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
