@@ -270,6 +270,15 @@ export default function OrganicFpInputScreen() {
                     : "Notify your certifier before applying restricted inputs. Record their reference below."}
                 </Text>
               </View>
+              {approvalStatus === "derogation" && (
+                <Pressable
+                  style={styles.derogLink}
+                  onPress={() => router.push("/organic-fp-derogations")}
+                >
+                  <Feather name="file-text" size={14} color="#ea580c" />
+                  <Text style={styles.derogLinkText}>View FP Input Derogation Cases →</Text>
+                </Pressable>
+              )}
               <View style={styles.field}>
                 <Text style={styles.label}>Certifier Approval / Reference</Text>
                 <Input
@@ -387,5 +396,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   warningText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", flex: 1 },
+  derogLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: "#fff7ed",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    marginBottom: spacing.md,
+  },
+  derogLinkText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: "#ea580c" },
   textarea: { minHeight: 90, textAlignVertical: "top" },
 });

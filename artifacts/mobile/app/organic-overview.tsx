@@ -438,6 +438,14 @@ export default function OrganicOverviewScreen() {
                 <Text style={[styles.actionLabel, { color: "#ea580c" }]}>Feed Derogations</Text>
                 <Text style={styles.actionSub}>Art. 22 case register</Text>
               </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#fefce8", borderColor: "#fef08a" }]}
+                onPress={() => router.push("/organic-fp-derogations")}
+              >
+                <Feather name="alert-triangle" size={22} color="#ca8a04" />
+                <Text style={[styles.actionLabel, { color: "#ca8a04" }]}>FP Input Derogations</Text>
+                <Text style={styles.actionSub}>Sched. 1 / Annex II</Text>
+              </Pressable>
             </View>
 
             {inspections.length > 0 && (

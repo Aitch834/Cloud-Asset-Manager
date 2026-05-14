@@ -211,6 +211,9 @@ const TITLES: [string, string][] = [
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
   ["Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults", "Organic Dairy"],
   ["Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults", "Organic"],
+  ["Organic Fresh Produce — Input Derogations: Case Register, Correspondence Log & Document Storage", "Organic"],
+  ["Organic Dairy — Feed Derogation Case Linking in Feed & Nutrition Records", "Organic Dairy"],
+  ["Mobile App — FP Input Derogation Register: Viewing Cases and Logging Derogation-Required Inputs", "Mobile App"],
   ["Mobile App — Organic Farming Quick Capture: Herd Lookup, Outdoor Access & Treatment Recording", "Mobile App"],
 ];
 
