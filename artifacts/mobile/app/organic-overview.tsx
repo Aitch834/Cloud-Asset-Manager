@@ -85,6 +85,19 @@ interface FpBlock {
   certifyingBody: string | null;
 }
 
+interface LivestockConversion {
+  id: number;
+  herdName: string | null;
+  species: string | null;
+  status: string | null;
+  parallelProduction: boolean | null;
+  conversionStartDate: string | null;
+  expectedCertificationDate: string | null;
+  certifier: string | null;
+  certificationRef: string | null;
+  lastNotificationDate: string | null;
+}
+
 const OUTCOME_COLORS: Record<string, string> = {
   Pass: colors.success,
   "Conditional Pass": "#d97706",
@@ -107,6 +120,7 @@ export default function OrganicOverviewScreen() {
   const [certification, setCertification] = useState<Certification | null>(null);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [fpBlocks, setFpBlocks] = useState<FpBlock[]>([]);
+  const [livestockConversions, setLivestockConversions] = useState<LivestockConversion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -116,10 +130,11 @@ export default function OrganicOverviewScreen() {
     if (!farmId || !apiBase) { setLoading(false); return; }
     try {
       const headers = await getAuthHeaders();
-      const [certRes, inspRes, blockRes] = await Promise.all([
+      const [certRes, inspRes, blockRes, convRes] = await Promise.all([
         fetch(`${apiBase}/api/farms/${farmId}/organic/certification`, { headers }),
         fetch(`${apiBase}/api/farms/${farmId}/organic/inspections`, { headers }),
         fetch(`${apiBase}/api/farms/${farmId}/organic-fp-block-status`, { headers }),
+        fetch(`${apiBase}/api/farms/${farmId}/organic-livestock/conversion`, { headers }),
       ]);
       if (certRes.ok) {
         const data = await certRes.json();
@@ -132,6 +147,10 @@ export default function OrganicOverviewScreen() {
       if (blockRes.ok) {
         const data = await blockRes.json();
         setFpBlocks(data.records ?? []);
+      }
+      if (convRes.ok) {
+        const data = await convRes.json();
+        setLivestockConversions(data.records ?? []);
       }
     } catch {}
     setLoading(false);
@@ -279,6 +298,91 @@ export default function OrganicOverviewScreen() {
                   })}
                   {fpBlocks.length > 6 && (
                     <Text style={styles.blockMore}>+{fpBlocks.length - 6} more blocks — view in dashboard</Text>
+                  )}
+                </View>
+              </>
+            )}
+
+            {livestockConversions.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Livestock in Conversion</Text>
+                <View style={styles.card}>
+                  <View style={styles.blockSummaryRow}>
+                    <View style={[styles.blockSummaryChip, { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
+                      <Text style={[styles.blockSummaryCount, { color: colors.success }]}>
+                        {livestockConversions.filter(c => c.status === "certified").length}
+                      </Text>
+                      <Text style={styles.blockSummaryLabel}>Certified</Text>
+                    </View>
+                    <View style={[styles.blockSummaryChip, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
+                      <Text style={[styles.blockSummaryCount, { color: "#d97706" }]}>
+                        {livestockConversions.filter(c => c.status === "in-conversion").length}
+                      </Text>
+                      <Text style={styles.blockSummaryLabel}>In Conversion</Text>
+                    </View>
+                    {livestockConversions.filter(c => c.parallelProduction).length > 0 && (
+                      <View style={[styles.blockSummaryChip, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
+                        <Text style={[styles.blockSummaryCount, { color: "#92400e" }]}>
+                          {livestockConversions.filter(c => c.parallelProduction).length}
+                        </Text>
+                        <Text style={styles.blockSummaryLabel}>Parallel Prod.</Text>
+                      </View>
+                    )}
+                  </View>
+                  {livestockConversions.slice(0, 6).map((conv, i) => {
+                    const statusColor = STATUS_COLORS[conv.status ?? ""] ?? colors.textSecondary;
+                    const certDays = daysUntil(conv.expectedCertificationDate);
+                    const needsNotification = conv.parallelProduction && (() => {
+                      if (!conv.lastNotificationDate) return true;
+                      const monthsSince = (Date.now() - new Date(conv.lastNotificationDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+                      return monthsSince >= 10;
+                    })();
+                    return (
+                      <View key={conv.id}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <View style={styles.convRow}>
+                          <View style={[styles.blockDot, { backgroundColor: statusColor }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.blockName}>{conv.herdName ?? "—"}{conv.species ? ` (${conv.species})` : ""}</Text>
+                            <Text style={styles.blockDate}>
+                              {conv.certifier ?? ""}
+                              {conv.certificationRef ? ` · ${conv.certificationRef}` : ""}
+                              {conv.expectedCertificationDate && conv.status === "in-conversion"
+                                ? ` · Cert. due ${fmtDate(conv.expectedCertificationDate)}`
+                                : ""}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end", gap: 2 }}>
+                            <Text style={[styles.blockStatus, { color: statusColor }]}>
+                              {conv.status === "in-conversion" ? "In Conv." : (conv.status ?? "").charAt(0).toUpperCase() + (conv.status ?? "").slice(1)}
+                            </Text>
+                            {conv.status === "in-conversion" && certDays !== null && certDays <= 30 && certDays >= 0 && (
+                              <Text style={styles.warningBadge}>{certDays}d</Text>
+                            )}
+                            {conv.status === "in-conversion" && certDays !== null && certDays < 0 && (
+                              <Text style={styles.errorBadge}>Overdue</Text>
+                            )}
+                          </View>
+                        </View>
+                        {needsNotification && (
+                          <View style={styles.ppWarning}>
+                            <Feather name="bell" size={12} color="#92400e" />
+                            <Text style={styles.ppWarningText}>
+                              Parallel production — annual notification {conv.lastNotificationDate ? "due" : "not yet recorded"}. Manage in dashboard.
+                            </Text>
+                          </View>
+                        )}
+                        {conv.parallelProduction && !needsNotification && (
+                          <View style={styles.ppOk}>
+                            <Feather name="check-circle" size={12} color="#16a34a" />
+                            <Text style={styles.ppOkText}>Parallel production — notification current.</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                  {livestockConversions.length > 6 && (
+                    <Text style={styles.blockMore}>+{livestockConversions.length - 6} more records — view in dashboard</Text>
                   )}
                 </View>
               </>
@@ -450,4 +554,12 @@ const styles = StyleSheet.create({
   blockDate: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
   blockStatus: { fontFamily: fonts.semiBold, fontSize: fontSize.xs },
   blockMore: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, textAlign: "center", marginTop: spacing.sm },
+  convRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: spacing.xs },
+  ppWarning: {
+    flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 4, marginBottom: 2,
+    backgroundColor: "#fef3c7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5,
+  },
+  ppWarningText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", flex: 1, flexWrap: "wrap" },
+  ppOk: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, marginBottom: 2 },
+  ppOkText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#16a34a" },
 });

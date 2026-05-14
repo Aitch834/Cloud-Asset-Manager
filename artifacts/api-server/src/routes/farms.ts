@@ -11104,20 +11104,36 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certification Ref</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Certificate number — propagated back to the Livestock Register on save</td></tr>
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Parallel Production</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Flag if organic and non-organic herds of the same species coexist on the holding</td></tr>
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">In Conversion / Certified / Suspended / Withdrawn</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Certification Document</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Attach the issued organic certificate or certifier acknowledgement letter directly to the conversion record</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Annual Notifications</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">For parallel production herds — one notification record per certification year, each with its own document slot and letter-generation button</td></tr>
 </tbody>
 </table>
+
+<h3>Attaching the Organic Certificate</h3>
+<p>Each conversion record has an <strong>Attach Document</strong> button in the actions column. Use this to upload the PDF or image of the issued organic certificate or certifier acknowledgement. The document is stored permanently with the record and is retrievable instantly during a certifier audit or routine inspection. Accepted formats are PDF, JPG, PNG, and WEBP.</p>
+
+<h3>Parallel Production — Compliance Notice &amp; Annual Notification Requirement</h3>
+<p>When you tick <strong>Parallel Production</strong> on a conversion record, an amber compliance panel appears inside the Add / Edit dialog. This panel cites the relevant requirement under the <strong>UK Organic Regulations 2020</strong>: parallel production of the same livestock species on the same holding requires prior written approval from the certification body, and the operator must notify the certification body <strong>annually</strong> that the arrangements remain in place.</p>
+<p>To record and manage these annual notifications, click the <strong>bell icon</strong> (amber) that appears in the actions column for any parallel production record. The <strong>Notification Manager</strong> dialog opens and shows:</p>
+<ul>
+<li>An <strong>Add Notification</strong> form — record the certification year, date the notification was sent, the certifier's acknowledgement reference, and any notes</li>
+<li>A <strong>historical table</strong> of all previous notifications for that herd, each with its own document slot (use the Attach button to store the certifier's written acknowledgement for that year)</li>
+<li>A <strong>Generate Letter</strong> button per row — produces a print-ready formal <em>Annual Notification of Parallel Production Arrangements</em> letter, pre-filled with your operator details, holding details, herd name and species, number of animals, conversion start date, a segregation measures checklist, a compliance declaration, and a signature block; print or save as PDF directly from your browser</li>
+</ul>
 
 <h3>Status Indicators</h3>
 <p>Each conversion record in the table carries a colour-coded status badge: amber <em>In Conversion</em>, green <em>Certified</em>, red <em>Suspended</em>, or grey <em>Withdrawn</em>. Records linked to the Livestock Register show a green <strong>● Linked</strong> indicator confirming the organic flag is active across the platform.</p>
 
-<h3>Week Ahead Planner — Certification Deadline Alerts</h3>
-<p>The <strong>Expected Certification Date</strong> on every <em>In Conversion</em> herd surfaces automatically in the <strong>Farm Planner → Week Ahead</strong> view. The event card shows the herd name and species, colour-coded by urgency:</p>
+<h3>Week Ahead Planner — Annual Notification &amp; Certification Alerts</h3>
+<p>The Week Ahead Planner surfaces two organic livestock alert types:</p>
+<p><strong>Expected Certification Date</strong> — for every <em>In Conversion</em> herd, an event card appears colour-coded by urgency: emerald (more than 14 days away), amber (within 14 days), red (overdue). Clicking navigates to Organic Livestock → Conversion to update the status to <em>Certified</em>.</p>
+<p><strong>Parallel Production Annual Notification</strong> — for every parallel production herd, a date-anchored alert tracks when the next annual notification is due, based on the most recent notification date recorded in the Notification Manager:</p>
 <ul>
-<li><strong>Emerald</strong> — certification date is more than 14 days away</li>
-<li><strong>Amber</strong> — within 14 days</li>
-<li><strong>Red</strong> — overdue (past the expected date with status still In Conversion)</li>
+<li><strong>Quiet</strong> — less than 10 months since the last notification; no alert shown</li>
+<li><strong>Amber</strong> — 10–12 months since the last notification; "due soon" prompt</li>
+<li><strong>Red</strong> — more than 12 months since the last notification, or no notification has ever been recorded; "overdue" alert</li>
 </ul>
-<p>Clicking the card navigates directly to Organic Livestock → Conversion so you can confirm the actual certification date with your certification body and update the status to <em>Certified</em>. No setup is required — the planner picks up the date as soon as the conversion record is saved.</p>`,
+<p>No setup is required — both alert types are picked up automatically from the data already saved in your conversion records and notification manager.</p>`,
     },
     {
       id: 10061,
