@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -90,7 +90,14 @@ const ROUTES_OF_ADMINISTRATION = [
   "Other",
 ];
 
-interface FarmSupplier { id: number; name: string; }
+interface FarmSupplier {
+  id: number;
+  name: string;
+  supplierType?: string | null;
+  ufasNumber?: string | null;
+  femasNumber?: string | null;
+  certificationBody?: string | null;
+}
 
 function fmt(date: string | null | undefined) {
   if (!date) return "—";
@@ -888,6 +895,8 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const [viewRecord, setViewRecord] = useState<FeedRecord | null>(null);
   const [form, setForm] = useState<Partial<FeedRecord>>({});
   const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [filterYear, setFilterYear] = useState<string>("all");
+  const [filterSpecies, setFilterSpecies] = useState<string>("all");
 
   const { data } = useQuery<{ records: FeedRecord[] }>({
     queryKey: ["organic-livestock-feed", farmId],
@@ -902,6 +911,25 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
     enabled: !!farmId,
   });
   const suppliers: FarmSupplier[] = suppliersData?.records ?? [];
+
+  const yearOptions = Array.from(new Set(records.map(r => r.recordDate?.slice(0, 4)).filter(Boolean))).sort().reverse() as string[];
+  const speciesOptions = Array.from(new Set(records.map(r => r.species).filter(Boolean))).sort() as string[];
+  const multipleSpecies = speciesOptions.length > 1;
+  const filteredRecords = records.filter(r => {
+    if (filterYear !== "all" && r.recordDate?.slice(0, 4) !== filterYear) return false;
+    if (filterSpecies !== "all" && r.species !== filterSpecies) return false;
+    return true;
+  });
+  const groupedRecords: Record<string, FeedRecord[]> = {};
+  if (multipleSpecies && filterSpecies === "all") {
+    filteredRecords.forEach(r => {
+      const sp = r.species ?? "Unknown";
+      if (!groupedRecords[sp]) groupedRecords[sp] = [];
+      groupedRecords[sp].push(r);
+    });
+  } else {
+    groupedRecords["__all__"] = filteredRecords;
+  }
 
   const { data: herdsData } = useQuery<{ records: CoreHerd[] }>({
     queryKey: ["herds", farmId],
@@ -945,10 +973,28 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Button variant="outline" size="sm" onClick={() => printFeedLog(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-          <Printer className="h-4 w-4" />Print Feed Log
-        </Button>
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearOptions.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {speciesOptions.length > 1 && (
+            <Select value={filterSpecies} onValueChange={setFilterSpecies}>
+              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="All species" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All species</SelectItem>
+                {speciesOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" size="sm" onClick={() => printFeedLog(records, farmName)} disabled={records.length === 0} className="gap-1.5 h-8">
+            <Printer className="h-4 w-4" />Print Feed Log
+          </Button>
+        </div>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Feed Record
         </Button>
@@ -957,7 +1003,7 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         <TableHeader>
           <TableRow>
             <TableHead>Date</TableHead>
-            <TableHead>Species</TableHead>
+            <TableHead>{multipleSpecies && filterSpecies === "all" ? "Herd / Flock" : "Species / Herd"}</TableHead>
             <TableHead>Feed Product</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Qty (kg)</TableHead>
@@ -967,38 +1013,43 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.length === 0 && (
+          {filteredRecords.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No feed records yet</TableCell>
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                {records.length === 0 ? "No feed records yet" : "No records match the selected filters"}
+              </TableCell>
             </TableRow>
           )}
-          {records.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell>{fmt(r.recordDate)}</TableCell>
-              <TableCell>{r.species}</TableCell>
-              <TableCell>{r.feedProductName}</TableCell>
-              <TableCell>{r.feedType}</TableCell>
-              <TableCell>{r.quantityKg ?? "—"}</TableCell>
-              <TableCell>{r.organicPercentage ? `${r.organicPercentage}%` : "—"}</TableCell>
-              <TableCell>
-                <Badge className={r.isOrganicApproved ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                  {r.isOrganicApproved ? "Yes" : "No"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => remove.mutate(r.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
+          {Object.entries(groupedRecords).sort(([a], [b]) => a === "__all__" ? 0 : a.localeCompare(b)).map(([species, rows]) => (
+            <>
+              {species !== "__all__" && (
+                <TableRow key={`hdr-${species}`}>
+                  <TableCell colSpan={8} className="bg-muted/40 font-semibold text-sm py-1.5 px-3 border-t">{species}</TableCell>
+                </TableRow>
+              )}
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{fmt(r.recordDate)}</TableCell>
+                  <TableCell className="text-sm">{r.herdFlockName ?? r.species ?? "—"}</TableCell>
+                  <TableCell>{r.feedProductName}</TableCell>
+                  <TableCell>{r.feedType}</TableCell>
+                  <TableCell>{r.quantityKg ?? "—"}</TableCell>
+                  <TableCell>{r.organicPercentage ? `${r.organicPercentage}%` : "—"}</TableCell>
+                  <TableCell>
+                    <Badge className={r.isOrganicApproved ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
+                      {r.isOrganicApproved ? "Approved" : "Derogation"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => remove.mutate(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </>
           ))}
         </TableBody>
       </Table>
@@ -1019,10 +1070,21 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organic %</p><p className="font-medium">{viewRecord.organicPercentage ? `${viewRecord.organicPercentage}%` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PO Reference</p><p className="font-medium">{fmtRaw(viewRecord.poReference)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN Reference</p><p className="font-medium">{fmtRaw(viewRecord.grnReference)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Reference</p><p className="font-medium">{fmtRaw(viewRecord.derogationReference)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Approved</p><p className="font-medium">{viewRecord.isOrganicApproved ? "Yes" : "No"}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Feed Status</p>
+                <Badge className={viewRecord.isOrganicApproved ? "bg-green-100 text-green-800 mt-1" : "bg-amber-100 text-amber-800 mt-1"}>
+                  {viewRecord.isOrganicApproved ? "Organic Approved" : "Non-approved — Derogation"}
+                </Badge>
+              </div>
+              {viewRecord.isOrganicApproved ? (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
+              ) : (
+                <>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Derogation Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Regulatory Derogation Category</p><p className="font-medium">{fmtRaw(viewRecord.derogationReference)}</p></div>
+                </>
+              )}
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">{viewRecord.isOrganicApproved ? "Notes" : "Derogation Justification / Notes"}</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -1111,18 +1173,22 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
                     onValueChange={(v) => {
                       if (v === "__manual__") {
                         setSupplierId(null);
-                        setForm((p) => ({ ...p, supplier: "" }));
+                        setForm((p) => ({ ...p, supplier: "", supplierApprovalNumber: "" }));
                       } else {
                         const s = suppliers.find((s) => String(s.id) === v);
                         setSupplierId(s?.id ?? null);
-                        setForm((p) => ({ ...p, supplier: s?.name ?? "" }));
+                        const autoApprovalNo = s?.ufasNumber || s?.femasNumber || "";
+                        setForm((p) => ({ ...p, supplier: s?.name ?? "", supplierApprovalNumber: autoApprovalNo }));
                       }
                     }}
                   >
                     <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__manual__">— Enter manually —</SelectItem>
-                      {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                      {suppliers.map((s) => {
+                        const badge = s.ufasNumber ? ` · UFAS: ${s.ufasNumber}` : s.femasNumber ? ` · FEMAS: ${s.femasNumber}` : s.certificationBody ? ` · ${s.certificationBody}` : "";
+                        return <SelectItem key={s.id} value={String(s.id)}>{s.name}{badge}</SelectItem>;
+                      })}
                     </SelectContent>
                   </Select>
                   {supplierId === null && (
@@ -1140,7 +1206,13 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </div>
             <div className="space-y-1">
               <Label>Supplier Approval No.</Label>
-              <Input value={form.supplierApprovalNumber ?? ""} onChange={f("supplierApprovalNumber")} />
+              <Input value={form.supplierApprovalNumber ?? ""} onChange={f("supplierApprovalNumber")} placeholder="UFAS or FEMAS registration number" />
+              {supplierId && form.supplierApprovalNumber && (
+                <p className="text-xs text-muted-foreground">Auto-populated from supplier record (UFAS/FEMAS). Edit to override.</p>
+              )}
+              {supplierId && !form.supplierApprovalNumber && (
+                <p className="text-xs text-amber-600">No UFAS/FEMAS number on this supplier record — enter manually or update the supplier register.</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Quantity (kg)</Label>
@@ -1158,25 +1230,55 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <Label>GRN Reference</Label>
               <Input value={form.grnReference ?? ""} onChange={f("grnReference")} />
             </div>
-            <div className="space-y-1">
-              <Label>Certifier Approval Ref</Label>
-              <Input value={form.certifierApprovalRef ?? ""} onChange={f("certifierApprovalRef")} />
+            <div className="col-span-2 space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={form.isOrganicApproved ?? true}
+                  onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicApproved: !!v }))}
+                  id="organic-approved"
+                />
+                <Label htmlFor="organic-approved">Organic Approved</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tick if this feed comes from a UFAS/FEMAS-registered supplier and meets organic standards. Untick if you are using a non-approved ingredient under certifier derogation.
+              </p>
             </div>
-            <div className="space-y-1">
-              <Label>Derogation Reference</Label>
-              <Input value={form.derogationReference ?? ""} onChange={f("derogationReference")} />
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <Checkbox
-                checked={form.isOrganicApproved ?? true}
-                onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicApproved: !!v }))}
-                id="organic-approved"
-              />
-              <Label htmlFor="organic-approved">Organic Approved</Label>
-            </div>
+            {(form.isOrganicApproved ?? true) ? (
+              <div className="space-y-1">
+                <Label>Certifier Approval Ref</Label>
+                <Input value={form.certifierApprovalRef ?? ""} onChange={f("certifierApprovalRef")} placeholder="Optional — batch approval reference" />
+              </div>
+            ) : (
+              <div className="col-span-2 rounded-md border border-amber-300 bg-amber-50 p-3 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Non-approved feed — certifier derogation required</p>
+                    <p className="text-xs text-amber-700 mt-1">Under UK Organic Regulations 2020, non-organically-approved feed ingredients may only be used with prior written approval from your certification body. Record the certifier's reference below and document your justification in the Notes field. Retain the written approval on file.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Certifier Derogation Approval Ref *</Label>
+                    <Input value={form.certifierApprovalRef ?? ""} onChange={f("certifierApprovalRef")} placeholder="e.g. SA/DER/2025/001" />
+                    <p className="text-xs text-muted-foreground">Reference issued by your certification body when approving this derogation.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Regulatory Derogation Category</Label>
+                    <Input value={form.derogationReference ?? ""} onChange={f("derogationReference")} placeholder="e.g. Art. 22(2)(b)" />
+                    <p className="text-xs text-muted-foreground">The derogation category under UK Organic Regulations 2020, if stated by your certifier.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={form.notes ?? ""} onChange={f("notes")} rows={3} />
+              <Label>{!(form.isOrganicApproved ?? true) ? "Derogation Justification / Notes" : "Notes"}</Label>
+              <Textarea
+                value={form.notes ?? ""}
+                onChange={f("notes")}
+                rows={3}
+                placeholder={!(form.isOrganicApproved ?? true) ? "State why no organically approved equivalent was available — this should match the justification submitted to your certification body." : undefined}
+              />
             </div>
           </div>
           <DialogFooter>
