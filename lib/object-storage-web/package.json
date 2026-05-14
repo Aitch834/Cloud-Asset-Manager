@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ObjectUploader": "./src/ObjectUploader.tsx"
   },
   "dependencies": {
     "@uppy/aws-s3": "^5.0.0",

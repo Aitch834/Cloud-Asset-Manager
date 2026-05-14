@@ -120,6 +120,18 @@ export default defineConfig({
       // with the react alias above applied (avoiding a second React instance).
       { find: "@clerk/react", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@clerk/react") },
 
+      // ── @uppy/* ───────────────────────────────────────────────────────────
+      // Uppy lives only in dashboard/node_modules (via @workspace/object-storage-web).
+      // Without explicit aliases + optimizeDeps entries, Vite discovers these
+      // packages mid-render (first visit to PoultryProductionPage), triggers a
+      // forced re-optimisation, rehashes ALL chunks including React, and briefly
+      // creates two React instances — causing "Invalid hook call" on FlocksTab.
+      // Same mechanism as the lucide-react / Radix UI fix above.
+      { find: "@uppy/core",      replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/core") },
+      { find: "@uppy/react",     replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/react") },
+      { find: "@uppy/aws-s3",    replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/aws-s3") },
+      { find: "@uppy/dashboard", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/dashboard") },
+
       // ── Other React-aware packages ───────────────────────────────────────
       { find: "@tanstack/react-query", replacement: td("@tanstack/react-query") },
       { find: "react-hook-form",       replacement: td("react-hook-form") },
@@ -142,6 +154,10 @@ export default defineConfig({
       "wouter",
       "zustand",
       "@clerk/react",
+      "@uppy/core",
+      "@uppy/react",
+      "@uppy/aws-s3",
+      "@uppy/dashboard",
       "@radix-ui/react-accordion",
       "@radix-ui/react-alert-dialog",
       "@radix-ui/react-aspect-ratio",
@@ -190,6 +206,16 @@ export default defineConfig({
       // it triggers a forced re-optimisation that briefly creates two React instances,
       // causing "Invalid hook call" errors (same mechanism as the Radix issue below).
       "lucide-react",
+      // @uppy/* must be pre-bundled for the same reason: ObjectUploader.tsx (loaded
+      // via @workspace/object-storage-web) imports these packages, and discovering
+      // them mid-render on PoultryProductionPage causes a second optimisation run
+      // that rehashes all chunks including React, producing two React instances and
+      // "Invalid hook call" on FlocksTab.  Primary fix: index.ts no longer re-exports
+      // ObjectUploader (belt-and-suspenders in case any future code path loads it).
+      "@uppy/core",
+      "@uppy/react",
+      "@uppy/aws-s3",
+      "@uppy/dashboard",
       // Radix UI packages must be pre-bundled before any page renders.
       // Without this, Vite discovers them during the first CompliancePage render
       // (which uses many Radix components via @/components/ui/*), triggers a

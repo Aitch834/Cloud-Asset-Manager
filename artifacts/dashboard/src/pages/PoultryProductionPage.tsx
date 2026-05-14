@@ -400,7 +400,7 @@ function HousesTab({ farmId }: { farmId: number }) {
 function FlocksTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
-  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
+  const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()).then(d => Array.isArray(d) ? d : Array.isArray(d?.records) ? d.records : []).catch(() => []) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks: any[] = Array.isArray(raw) ? (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName })) : [];
   const [statusFilter, setStatusFilter] = useState("active");
