@@ -14648,6 +14648,23 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
+  // ── Organic Livestock: parallel production without certifier approval reference ──
+  const parallelProdRows = await db.select({ id: organicLivestockConversionTable.id, herdFlockName: organicLivestockConversionTable.herdFlockName, species: organicLivestockConversionTable.species, certificationRef: organicLivestockConversionTable.certificationRef })
+    .from(organicLivestockConversionTable)
+    .where(and(eq(organicLivestockConversionTable.farmId, farmId), eq(organicLivestockConversionTable.parallelProduction, true), isNull(organicLivestockConversionTable.certificationRef)));
+  for (const r of parallelProdRows) {
+    tasks.push({
+      id: `org-livestock-parallel-${r.id}`,
+      type: "organic_parallel_production",
+      title: `Parallel Production — Certifier Approval Missing: ${r.herdFlockName || r.species}`,
+      description: `The herd/flock '${r.herdFlockName || r.species}' is marked as parallel production (running organic and non-organic animals of the same species on the same holding). UK Organic Regulations 2020 require explicit written approval from your certification body. No certification reference is currently on file — obtain and record approval in Organic Livestock → Conversion.`,
+      dueDate: new Date().toISOString(),
+      module: "Organic Livestock",
+      href: "/organic-livestock?tab=conversion",
+      colour: "amber",
+    });
+  }
+
   res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });
 });
 
@@ -20770,6 +20787,13 @@ router.put("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requi
 router.delete("/farms/:farmId/organic-livestock/conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id as string);
   await db.delete(organicLivestockConversionTable).where(eq(organicLivestockConversionTable.id, id));
+  res.json({ ok: true });
+});
+
+router.patch("/farms/:farmId/organic-livestock/conversion/:id/document", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { documentPath, documentName } = req.body;
+  await db.update(organicLivestockConversionTable).set({ certDocumentPath: documentPath ?? null, certDocumentName: documentName ?? null }).where(eq(organicLivestockConversionTable.id, id));
   res.json({ ok: true });
 });
 

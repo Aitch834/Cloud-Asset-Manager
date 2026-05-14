@@ -32,7 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText } from "lucide-react";
+import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
@@ -267,6 +268,8 @@ type ConversionRecord = {
   certifier: string | null;
   certificationRef: string | null;
   parallelProduction: boolean;
+  certDocumentPath: string | null;
+  certDocumentName: string | null;
   notes: string | null;
 };
 
@@ -447,13 +450,14 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
             <TableHead>Expected Cert</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Certifier</TableHead>
+            <TableHead>Cert Doc</TableHead>
             <TableHead className="w-24" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {records.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 No conversion records yet. Link a herd from your Livestock Register to get started.
               </TableCell>
             </TableRow>
@@ -470,6 +474,16 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
               <TableCell>{fmt(r.expectedCertDate)}</TableCell>
               <TableCell>{conversionStatusBadge(r.status)}</TableCell>
               <TableCell>{r.certifier ?? "—"}</TableCell>
+              <TableCell>
+                <DocAttach
+                  farmId={farmId}
+                  endpoint="organic-livestock/conversion"
+                  recordId={r.id}
+                  documentPath={r.certDocumentPath}
+                  documentName={r.certDocumentName}
+                  queryKey={["organic-livestock-conversion", String(farmId)]}
+                />
+              </TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>
@@ -502,7 +516,15 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Actual Cert Date</p><p className="font-medium">{fmt(viewRecord.actualCertDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier</p><p className="font-medium">{fmtRaw(viewRecord.certifier)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Ref</p><p className="font-medium">{fmtRaw(viewRecord.certificationRef)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parallel Production</p><p className="font-medium">{viewRecord.parallelProduction ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parallel Production</p><p className="font-medium">{viewRecord.parallelProduction ? "Yes — certifier approval required" : "No"}</p></div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Document</p>
+                {viewRecord.certDocumentName ? (
+                  <p className="font-medium flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-blue-600" />{viewRecord.certDocumentName}</p>
+                ) : (
+                  <p className="font-medium text-muted-foreground text-sm">No document attached</p>
+                )}
+              </div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
             </div>
             <DialogFooter>
@@ -618,6 +640,12 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
               />
               <Label htmlFor="parallel">Parallel Production</Label>
             </div>
+            {form.parallelProduction && (
+              <div className="col-span-2 rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-amber-800 mb-1">Certifier Approval Required</p>
+                <p className="text-amber-700">Under UK Organic Regulations 2020, parallel production — running organic and non-organic animals of the same species on the same holding — requires explicit written approval from your certification body. Ensure written approval is obtained before parallel production commences, record the certification reference above, and notify your certifier annually. Keep approval documentation on file for inspection.</p>
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
               <Label>Notes</Label>
               <Textarea value={form.notes ?? ""} onChange={f("notes")} rows={3} />

@@ -106,6 +106,8 @@ export const organicLivestockConversionTable = pgTable("organic_livestock_conver
   certifier: text("certifier"),
   certificationRef: text("certification_ref"),
   parallelProduction: boolean("parallel_production").notNull().default(false),
+  certDocumentPath: text("cert_document_path"),
+  certDocumentName: text("cert_document_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
