@@ -14,6 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -276,6 +277,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Certification | null>(null);
   const EMPTY = { certifier: "Soil Association", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
   const [form, setForm] = useState(EMPTY);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   const { data, isLoading } = useQuery<{ record: Certification | null }>({
     queryKey: ["organic-cert", farmId],
@@ -330,6 +332,11 @@ function CertificationTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div className="flex gap-2">
+              {record.renewalDate && (
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="Raise task" onClick={() => setRaiseTaskFor({ title: `Organic Certification Renewal Due — ${record.certifier}`, description: `Your organic certification annual renewal is due. Contact ${record.certifier} and update the record in Organic Compliance → Certification.`, dueDate: record.renewalDate ?? undefined })}>
+                  <ClipboardList className="w-4 h-4 text-amber-600" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(record)}><Eye className="w-4 h-4" /></Button>
               <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
             </div>
@@ -414,6 +421,19 @@ function CertificationTab({ farmId }: { farmId: number }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Compliance"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -689,6 +709,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   const [editing, setEditing] = useState<InspectionRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INSP);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   const { data, isLoading } = useQuery<{ records: InspectionRecord[] }>({
     queryKey: ["organic-inspections", farmId],
@@ -778,6 +799,11 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {r.nextDueDate && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Raise task" onClick={() => setRaiseTaskFor({ title: `Organic Inspection Due — ${r.certifier}`, description: `The next annual organic inspection by ${r.certifier} is due. Contact your certifying body to schedule and confirm the visit.`, dueDate: r.nextDueDate ?? undefined })}>
+                        <ClipboardList className="w-4 h-4 text-amber-600" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -860,6 +886,19 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Compliance"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </>
   );
 }

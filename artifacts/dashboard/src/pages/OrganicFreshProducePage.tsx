@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
-  Eye, Info, Package, CheckCircle2, Clock, Printer,
+  Eye, Info, Package, CheckCircle2, Clock, Printer, ClipboardList,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1170,6 +1171,7 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   const { data: certs = [], isLoading } = useQuery({
     queryKey: ["ofp-certificates", farmId],
@@ -1242,6 +1244,11 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {!!(c.annualRenewalDue || c.expiryDate) && (
+                      <Button size="icon" variant="ghost" title="Raise task" onClick={() => setRaiseTaskFor({ title: `Organic Certificate ${c.annualRenewalDue ? "Renewal Due" : "Expiring"} — ${c.certifyingBody ?? ""}`, description: `The organic fresh produce certificate${c.certifyingBody ? ` from ${String(c.certifyingBody)}` : ""} ${c.annualRenewalDue ? "annual renewal is due" : "is due to expire"}. Update in Organic Fresh Produce → Certificates.`, dueDate: (c.annualRenewalDue ?? c.expiryDate) as string | undefined })}>
+                        <ClipboardList className="w-3.5 h-3.5 text-amber-600" />
+                      </Button>
+                    )}
                     <Button size="icon" variant="ghost" onClick={() => setViewRecord(c)}><Eye className="w-3.5 h-3.5" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => openEdit(c)}><Pencil className="w-3.5 h-3.5" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => del.mutate(c.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
@@ -1318,6 +1325,19 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Fresh Produce"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1574,6 +1594,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
   const [uploading, setUploading] = React.useState(false);
   const [correspondences, setCorrespondences] = React.useState<Record<number, FpDerogCorrespondence[]>>({});
   const [documents, setDocuments] = React.useState<Record<number, FpDerogDocument[]>>({});
+  const [raiseTaskFor, setRaiseTaskFor] = React.useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   const { data: casesData, isLoading } = useQuery<{ cases: FpDerogCase[] }>({
     queryKey: ["ofp-input-derogations", farmId],
@@ -1749,6 +1770,11 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
                   {c.expiryDate && c.status === "approved" && <FpDaysRemaining dateStr={c.expiryDate} />}
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-2">
+                  {c.expiryDate && c.status === "approved" && (
+                    <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Input Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
+                      <ClipboardList className="h-4 w-4 text-amber-600" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" title="Edit" onClick={e => { e.stopPropagation(); openEditCase(c); }}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" title="Delete" onClick={e => { e.stopPropagation(); if (confirm("Delete this derogation case and all its correspondence?")) deleteCase.mutate(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   <Eye className={`h-4 w-4 text-muted-foreground transition-transform ${isExp ? "opacity-70" : ""}`} />
@@ -1966,6 +1992,19 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Fresh Produce"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </div>
   );
 }

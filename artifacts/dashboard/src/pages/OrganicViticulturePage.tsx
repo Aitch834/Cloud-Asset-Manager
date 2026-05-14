@@ -9,9 +9,10 @@ import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
   Eye, Info, Package, CheckCircle2, Clock, Grape,
-  ChevronDown, ChevronUp, Wine, Beaker, Award,
+  ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -650,6 +651,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<DerogCase | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   // Correspondence
   const [showAddCorr, setShowAddCorr] = useState(false);
@@ -794,6 +796,11 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                       {c.regulatoryBasis && <p className="text-xs text-gray-500 mt-1"><span className="font-medium">Regulatory basis:</span> {c.regulatoryBasis}</p>}
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      {c.expiryDate && (
+                        <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Viticulture Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
+                          <ClipboardList className="h-4 w-4 text-amber-600" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => setDeleting(c)}><Trash2 className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => setExpandedId(isOpen ? null : c.id)}>
@@ -965,6 +972,19 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Viticulture"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1167,6 +1187,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-certs", farmId],
@@ -1254,6 +1275,11 @@ function CertificatesTab({ farmId }: { farmId: number }) {
                   {r.notes && <p className="text-sm text-gray-500 mt-1">{r.notes}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  {r.expiryDate && (
+                    <Button variant="ghost" size="icon" title="Raise task" onClick={() => setRaiseTaskFor({ title: `Organic Viticulture Certificate Expiring — ${r.certificateType || r.certifyingBody}`, description: `The organic viticulture certificate${r.certifyingBody ? ` from ${r.certifyingBody}` : ""}${r.certificateType ? ` (${r.certificateType})` : ""} is due to expire. Arrange renewal with your certifying body.`, dueDate: r.expiryDate ?? undefined })}>
+                      <ClipboardList className="h-4 w-4 text-amber-600" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
@@ -1310,6 +1336,19 @@ function CertificatesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          defaultTitle={raiseTaskFor.title}
+          defaultDescription={raiseTaskFor.description}
+          defaultDueDate={raiseTaskFor.dueDate}
+          taskType="compliance_fix"
+          module="Organic Viticulture"
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
     </div>
   );
 }

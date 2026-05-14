@@ -277,6 +277,9 @@ import {
   organicFeedDerogationCorrespondenceTable,
   organicFpDerogationTable,
   organicFpDerogationCorrespondenceTable,
+  organicVitBlockStatusTable,
+  organicVitDerogationTable,
+  organicVitCertificateTable,
   organicLivestockOutdoorAccessTable,
   organicLivestockTreatmentTable,
   organicDairyHerdConversionTable,
@@ -13621,6 +13624,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     carbonActionRows,
     allergenReviewRows,
     organicFPCertRows,
+    organicFPDerogRows,
+    organicComplianceCertRows,
+    organicVitDerogRows,
+    organicVitCertRows,
+    organicVitBlockRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14033,6 +14041,31 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: organicFreshProduceCertificatesTable.id, certifyingBody: organicFreshProduceCertificatesTable.certifyingBody, expiryDate: organicFreshProduceCertificatesTable.expiryDate, annualRenewalDue: organicFreshProduceCertificatesTable.annualRenewalDue })
       .from(organicFreshProduceCertificatesTable)
       .where(and(eq(organicFreshProduceCertificatesTable.farmId, farmId), or(and(isNotNull(organicFreshProduceCertificatesTable.annualRenewalDue), gte(organicFreshProduceCertificatesTable.annualRenewalDue, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.annualRenewalDue, rangeEnd.toISOString().split("T")[0])), and(isNotNull(organicFreshProduceCertificatesTable.expiryDate), gte(organicFreshProduceCertificatesTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicFreshProduceCertificatesTable.expiryDate, rangeEnd.toISOString().split("T")[0]))))),
+
+    // ── Organic FP Input Derogations: expiry date ─────────────────────────────
+    db.select({ id: organicFpDerogationTable.id, inputName: organicFpDerogationTable.inputName, expiryDate: organicFpDerogationTable.expiryDate, status: organicFpDerogationTable.status })
+      .from(organicFpDerogationTable)
+      .where(and(eq(organicFpDerogationTable.farmId, farmId), isNotNull(organicFpDerogationTable.expiryDate), gte(organicFpDerogationTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicFpDerogationTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Compliance Certification: annual renewal date ─────────────────
+    db.select({ id: organicCertificationTable.id, certifier: organicCertificationTable.certifier, renewalDate: organicCertificationTable.renewalDate })
+      .from(organicCertificationTable)
+      .where(and(eq(organicCertificationTable.farmId, farmId), isNotNull(organicCertificationTable.renewalDate), gte(organicCertificationTable.renewalDate, overdueStart.toISOString().split("T")[0]), lt(organicCertificationTable.renewalDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Viticulture: input derogation expiry ──────────────────────────
+    db.select({ id: organicVitDerogationTable.id, inputName: organicVitDerogationTable.inputName, expiryDate: organicVitDerogationTable.expiryDate, status: organicVitDerogationTable.status })
+      .from(organicVitDerogationTable)
+      .where(and(eq(organicVitDerogationTable.farmId, farmId), isNotNull(organicVitDerogationTable.expiryDate), gte(organicVitDerogationTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicVitDerogationTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Viticulture: certificate expiry ───────────────────────────────
+    db.select({ id: organicVitCertificateTable.id, certifyingBody: organicVitCertificateTable.certifyingBody, certificateType: organicVitCertificateTable.certificateType, expiryDate: organicVitCertificateTable.expiryDate })
+      .from(organicVitCertificateTable)
+      .where(and(eq(organicVitCertificateTable.farmId, farmId), isNotNull(organicVitCertificateTable.expiryDate), gte(organicVitCertificateTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(organicVitCertificateTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Organic Viticulture: block fully-organic date ─────────────────────────
+    db.select({ id: organicVitBlockStatusTable.id, blockName: organicVitBlockStatusTable.blockName, fullyOrganicDate: organicVitBlockStatusTable.fullyOrganicDate, status: organicVitBlockStatusTable.status })
+      .from(organicVitBlockStatusTable)
+      .where(and(eq(organicVitBlockStatusTable.farmId, farmId), isNotNull(organicVitBlockStatusTable.fullyOrganicDate), gte(organicVitBlockStatusTable.fullyOrganicDate, overdueStart.toISOString().split("T")[0]), lt(organicVitBlockStatusTable.fullyOrganicDate, rangeEnd.toISOString().split("T")[0]))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -14719,6 +14752,36 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     const isOverdue = new Date(dateStr + "T00:00:00Z") < now;
     const label = r.annualRenewalDue ? "Annual Renewal Due" : "Expiring";
     tasks.push({ id: `org-fp-cert-${r.id}`, type: "organic_fp_cert_due", title: `${isOverdue ? "Overdue: " : ""}Organic Fresh Produce Certificate — ${label}`, description: `The organic fresh produce certificate${r.certifyingBody ? ` from ${r.certifyingBody}` : ""} ${isOverdue ? "is overdue for renewal" : "has an annual renewal or expiry approaching"}. Update in Horticulture → Organic Certification.`, dueDate: new Date(dateStr + "T00:00:00Z").toISOString(), module: "Horticulture", href: "/horticulture?tab=organic", colour: isOverdue ? "red" : "violet" });
+  }
+
+  for (const r of organicFPDerogRows) {
+    if (!r.expiryDate) continue;
+    const isOverdue = new Date(r.expiryDate + "T00:00:00Z") < now;
+    tasks.push({ id: `org-fp-derog-${r.id}`, type: "organic_fp_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Input Derogation Expiring — ${r.inputName}`, description: `The derogation approval for '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Renew or confirm with your certifying body. Manage in Organic Fresh Produce → Input Derogations.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Fresh Produce", href: "/organic-fresh-produce?tab=derogations", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of organicComplianceCertRows) {
+    if (!r.renewalDate) continue;
+    const isOverdue = new Date(r.renewalDate + "T00:00:00Z") < now;
+    tasks.push({ id: `org-cert-renewal-${r.id}`, type: "organic_compliance_cert_renewal", title: `${isOverdue ? "Overdue: " : ""}Organic Certification Renewal Due${r.certifier ? ` — ${r.certifier}` : ""}`, description: `Your organic certification annual renewal is ${isOverdue ? "overdue" : "due"}. Contact your certifying body${r.certifier ? ` (${r.certifier})` : ""} and update the record in Organic Compliance → Certification.`, dueDate: new Date(r.renewalDate + "T00:00:00Z").toISOString(), module: "Organic Compliance", href: "/organic?tab=certification", colour: isOverdue ? "red" : "green" });
+  }
+
+  for (const r of organicVitDerogRows) {
+    if (!r.expiryDate) continue;
+    const isOverdue = new Date(r.expiryDate + "T00:00:00Z") < now;
+    tasks.push({ id: `org-vit-derog-${r.id}`, type: "organic_vit_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Viticulture Derogation Expiring — ${r.inputName}`, description: `The derogation approval for '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Renew or confirm with your certifying body. Manage in Organic Viticulture → Input Derogations.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Viticulture", href: "/organic-viticulture?tab=derogations", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of organicVitCertRows) {
+    if (!r.expiryDate) continue;
+    const isOverdue = new Date(r.expiryDate + "T00:00:00Z") < now;
+    const certType = r.certificateType || "Organic Certificate";
+    tasks.push({ id: `org-vit-cert-${r.id}`, type: "organic_vit_cert_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Viticulture Certificate Expiring — ${certType}`, description: `The organic viticulture certificate${r.certifyingBody ? ` from ${r.certifyingBody}` : ""} (${certType}) ${isOverdue ? "has expired" : "is due to expire"}. Arrange renewal and update the record in Organic Viticulture → Certificates.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Viticulture", href: "/organic-viticulture?tab=certificates", colour: isOverdue ? "red" : "violet" });
+  }
+
+  for (const r of organicVitBlockRows) {
+    if (!r.fullyOrganicDate) continue;
+    tasks.push({ id: `org-vit-block-${r.id}`, type: "organic_vit_block_conversion", title: `Vineyard Block Conversion Complete — ${r.blockName}`, description: `Block '${r.blockName}' is due to complete its organic conversion period. Confirm certification with your certifying body and update the block status in Organic Viticulture → Block Conversion.`, dueDate: new Date(r.fullyOrganicDate + "T00:00:00Z").toISOString(), module: "Organic Viticulture", href: "/organic-viticulture?tab=block-conversion", colour: "green" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
