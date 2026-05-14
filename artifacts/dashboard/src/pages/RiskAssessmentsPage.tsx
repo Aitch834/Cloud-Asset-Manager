@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList, QrCode } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList, QrCode, Eye } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
@@ -564,6 +564,7 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const emptyForm = { substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [search, setSearch] = useState("");
@@ -647,15 +648,15 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", tableLayout: "fixed" }}>
             <colgroup>
               <col style={{ width: "12%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "10%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "9%" }} />
               <col style={{ width: "9%" }} />
               <col style={{ width: "8%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "4%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "7%" }} />
             </colgroup>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
@@ -688,6 +689,7 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem", verticalAlign: "top", wordBreak: "break-word" }}>{r.ppe || "—"}</td>
                     <td style={{ padding: "0.5rem", verticalAlign: "top" }}>
                       <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
@@ -698,6 +700,38 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 text-amber-600" />
+                {viewRecord.substanceName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-1 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {viewRecord.manufacturer && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Manufacturer / Supplier</p><p>{viewRecord.manufacturer}</p></div>}
+                {viewRecord.hazardClassification && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Hazard Classification</p><p><Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.7rem" }}>{viewRecord.hazardClassification}</Badge></p></div>}
+                {viewRecord.usageArea && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Usage Area</p><p>{viewRecord.usageArea}</p></div>}
+                {viewRecord.storageLocation && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Storage Location</p><p>{viewRecord.storageLocation}</p></div>}
+                {viewRecord.assessedBy && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Assessed By</p><p>{viewRecord.assessedBy}</p></div>}
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Assessment Date</p><p>{fmt(viewRecord.assessmentDate)}</p></div>
+                {viewRecord.reviewDate && <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Review Due</p><p className={viewRecord.reviewDate && new Date(viewRecord.reviewDate) < new Date() ? "text-red-600 font-medium" : ""}>{fmt(viewRecord.reviewDate)}</p></div>}
+              </div>
+              {viewRecord.ppe && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">PPE Required</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.ppe}</p></div>}
+              {viewRecord.controlMeasures && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Control Measures</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.controlMeasures}</p></div>}
+              {viewRecord.emergencyProcedures && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Emergency Procedures</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.emergencyProcedures}</p></div>}
+              {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setViewRecord(null); openEdit(viewRecord); }}>Edit</Button>
+              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
