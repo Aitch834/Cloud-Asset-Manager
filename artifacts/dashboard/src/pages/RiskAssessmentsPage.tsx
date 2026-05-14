@@ -1039,9 +1039,11 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   useEffect(() => {
     if (!openId || autoOpened.current || allRecords.length === 0) return;
-    if (allRecords.some((r: any) => r.id === openId)) {
+    const target = allRecords.find((r: any) => r.id === openId);
+    if (target) {
       autoOpened.current = true;
-      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+      setExpandedId(openId);
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200);
     }
   }, [openId, allRecords]);
 
@@ -1678,9 +1680,11 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   useEffect(() => {
     if (!openId || autoOpened.current || allRecords.length === 0) return;
-    if (allRecords.some((r: any) => r.id === openId)) {
+    const target = allRecords.find((r: any) => r.id === openId);
+    if (target) {
       autoOpened.current = true;
-      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+      setExpandedId(openId);
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200);
     }
   }, [openId, allRecords]);
 

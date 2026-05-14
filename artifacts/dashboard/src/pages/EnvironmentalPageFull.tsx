@@ -1829,6 +1829,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState<Record<string, string>>({});
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
@@ -1856,9 +1857,10 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   useEffect(() => {
     if (!openId || autoOpened.current || rows.length === 0) return;
-    if (rows.some(r => Number(r.id) === openId)) {
+    const target = rows.find(r => Number(r.id) === openId);
+    if (target) {
       autoOpened.current = true;
-      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+      setTimeout(() => setViewRecord(target), 100);
     }
   }, [openId, rows]);
 
@@ -1901,6 +1903,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
                     <td className="px-4 py-3 font-mono text-xs">{String(r.applicationReference ?? "—")}</td>
                     <td className="px-4 py-3">{r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toFixed(2)}` : "—"}</td>
                     <td className="px-4 py-3 text-right space-x-1">
+                      <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this SFI/ELMs agreement? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
@@ -1910,6 +1913,27 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
             </div>
           )}
         </div>
+      )}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Leaf className="w-4 h-4 text-green-600" />SFI / ELMs Agreement</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-1">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {!!viewRecord.agreementNumber && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Agreement No.</p><p className="font-mono">{String(viewRecord.agreementNumber)}</p></div>}
+                {!!viewRecord.applicationReference && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Application Ref</p><p className="font-mono">{String(viewRecord.applicationReference)}</p></div>}
+                {!!viewRecord.startDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Start Date</p><p>{new Date(viewRecord.startDate as string).toLocaleDateString("en-GB")}</p></div>}
+                {!!viewRecord.endDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">End Date</p><p>{new Date(viewRecord.endDate as string).toLocaleDateString("en-GB")}</p></div>}
+                <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Status</p><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${String(viewRecord.status) === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>{String(viewRecord.status ?? "—")}</span></div>
+                {!!viewRecord.totalAnnualPayment && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Annual Payment</p><p>£{Number(viewRecord.totalAnnualPayment).toFixed(2)}</p></div>}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { const r = viewRecord; setViewRecord(null); setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}>Edit</Button>
+              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       <ConfirmDialog
         open={!!pendingConfirm}
@@ -1958,6 +1982,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   const [storeForm, setStoreForm] = useState<Record<string, string>>({});
   const [spreadForm, setSpreadForm] = useState<Record<string, string>>({});
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const [viewStore, setViewStore] = useState<Record<string, unknown> | null>(null);
   const storeRowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
   const activeMembers = (slurryMembersData?.members ?? []).filter((m: any) => m.isActive);
@@ -2069,9 +2094,10 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
 
   useEffect(() => {
     if (!openId || autoOpened.current || stores.length === 0) return;
-    if (stores.some(r => Number(r.id) === openId)) {
+    const target = stores.find(r => Number(r.id) === openId);
+    if (target) {
       autoOpened.current = true;
-      setTimeout(() => { storeRowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+      setTimeout(() => setViewStore(target), 100);
     }
   }, [openId, stores]);
 
@@ -2111,6 +2137,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${(r.status as string) === "Compliant" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{String(r.status ?? "—")}</span>
                     </td>
                     <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => setViewStore(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, padding: "0 10px" }} onClick={() => openInspDialog(r)}>Inspect</Button>
                       <Button size="icon" variant="ghost" onClick={() => { setEditingStore(r); setStoreForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setStoreOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                     </td>
@@ -2122,6 +2149,28 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
         )}
       </div>
 
+      {viewStore && (
+        <Dialog open onOpenChange={() => setViewStore(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><TreePine className="w-4 h-4 text-green-700" />Slurry / Manure Store</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-1">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Store Name</p><p className="font-semibold">{String(viewStore.storeName ?? "—")}</p></div>
+                {!!viewStore.storeType && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Type</p><p>{String(viewStore.storeType)}</p></div>}
+                {!!viewStore.capacityM3 && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Capacity (m³)</p><p>{String(viewStore.capacityM3)}</p></div>}
+                {!!viewStore.material && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Material</p><p>{String(viewStore.material)}</p></div>}
+                <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Status</p><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${String(viewStore.status) === "Compliant" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{String(viewStore.status ?? "—")}</span></div>
+                {!!viewStore.lastInspectionDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Last Inspection</p><p>{new Date(viewStore.lastInspectionDate as string).toLocaleDateString("en-GB")}</p></div>}
+                {!!viewStore.nextInspectionDue && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Next Inspection Due</p><p>{new Date(viewStore.nextInspectionDue as string).toLocaleDateString("en-GB")}</p></div>}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { const s = viewStore; setViewStore(null); setEditingStore(s); setStoreForm(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, String(v ?? "")]))); setStoreOpen(true); }}>Edit</Button>
+              <Button variant="ghost" onClick={() => setViewStore(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {/* Spreading Records */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
