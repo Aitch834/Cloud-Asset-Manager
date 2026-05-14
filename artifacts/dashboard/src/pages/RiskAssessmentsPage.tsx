@@ -644,11 +644,23 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
-          <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "4%" }} />
+            </colgroup>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                 {["Substance", "Manufacturer", "Hazard Classification", "Usage Area", "Storage", "Assessed By", "Assessment Date", "Review Due", "PPE Required", ""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", verticalAlign: "bottom" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -657,24 +669,24 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
                 const reviewOverdue = r.reviewDate && new Date(r.reviewDate) < new Date();
                 return (
                   <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : undefined, outline: hlId === r.id ? "2px solid #f59e0b" : undefined, outlineOffset: hlId === r.id ? -2 : undefined, transition: "background 0.5s" }}>
-                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.substanceName}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.manufacturer || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600, verticalAlign: "top", wordBreak: "break-word" }}>{r.substanceName}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", verticalAlign: "top", wordBreak: "break-word" }}>{r.manufacturer || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", verticalAlign: "top" }}>
                       {r.hazardClassification ? (
-                        <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.7rem" }}>{r.hazardClassification}</Badge>
+                        <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.7rem", whiteSpace: "normal", textAlign: "left" }}>{r.hazardClassification}</Badge>
                       ) : "—"}
                     </td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.usageArea || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.storageLocation || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.assessedBy || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.assessmentDate)}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", verticalAlign: "top", wordBreak: "break-word" }}>{r.usageArea || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", verticalAlign: "top", wordBreak: "break-word" }}>{r.storageLocation || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", verticalAlign: "top", wordBreak: "break-word" }}>{r.assessedBy || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", verticalAlign: "top", whiteSpace: "nowrap" }}>{fmt(r.assessmentDate)}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", verticalAlign: "top", whiteSpace: "nowrap" }}>
                       <span style={{ color: reviewOverdue ? "#991b1b" : "#6b7280", fontWeight: reviewOverdue ? 600 : 400 }}>
                         {reviewOverdue && "⚠ "}{fmt(r.reviewDate)}
                       </span>
                     </td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160, fontSize: "0.75rem" }}>{r.ppe || "—"}</td>
-                    <td style={{ padding: "0.5rem" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem", verticalAlign: "top", wordBreak: "break-word" }}>{r.ppe || "—"}</td>
+                    <td style={{ padding: "0.5rem", verticalAlign: "top" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
