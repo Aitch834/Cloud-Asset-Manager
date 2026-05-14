@@ -402,7 +402,7 @@ function FlocksTab({ farmId }: { farmId: number }) {
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
   const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
-  const flocks: any[] = ((raw as { flock: Record<string, unknown>; houseName: string | null }[] | null) || []).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const flocks: any[] = Array.isArray(raw) ? (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName })) : [];
   const [statusFilter, setStatusFilter] = useState("active");
   const filteredFlocks = statusFilter === "all" ? flocks : flocks.filter(f => statusFilter === "active" ? String(f.status ?? "").toLowerCase() !== "depleted" : String(f.status ?? "").toLowerCase() === "depleted");
   const houseList = houses as Record<string, unknown>[];
@@ -560,8 +560,8 @@ function FlocksTab({ farmId }: { farmId: number }) {
 }
 
 function useFlocks(farmId: number) {
-  const { data: rawFlocks = [] } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
-  return (rawFlocks as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const { data: rawFlocks } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
+  return Array.isArray(rawFlocks) ? (rawFlocks as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName })) : [];
 }
 
 function FlockSelect({ flocks, value, onChange }: { flocks: Record<string, unknown>[]; value: string; onChange: (v: string) => void }) {
@@ -587,8 +587,8 @@ function fmtFlock(r: Record<string, unknown>): string {
 
 function ChickPurchasesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
-  const { data: flockData = [] } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
-  const flockList = (flockData as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const { data: flockData } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
+  const flockList = Array.isArray(flockData) ? (flockData as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName })) : [];
   const { data: supplierData = [] } = useQuery({ queryKey: ["suppliers", farmId, "hatchery"], queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => r.json()).catch(() => []) });
   const hatcherySuppliers = (Array.isArray(supplierData) ? supplierData as Record<string, unknown>[] : []).filter(s => s.supplierType === "hatchery");
   const { data: raw, isLoading, open, setOpen, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-chick-purchases", "poultry-chick-purchases");
