@@ -606,9 +606,10 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
 
   useEffect(() => {
     if (!openId || autoOpened.current || records.length === 0) return;
-    if (records.some(r => r.id === openId)) {
+    const target = records.find(r => r.id === openId);
+    if (target) {
       autoOpened.current = true;
-      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+      setTimeout(() => setViewRecord(target), 100);
     }
   }, [openId, records]);
 
