@@ -188,7 +188,12 @@ export default defineConfig({
     ],
   },
   optimizeDeps: {
-    force: true,
+    // NOTE: force:true intentionally removed. It re-hashes all pre-bundled
+    // chunks on every server restart. Replit's preview proxy caches the old
+    // hashes; the browser then loads mixed old/new chunks → two React
+    // instances → "Invalid hook call" on FlocksTab and others.
+    // All packages that would trigger mid-render discovery are listed in
+    // `include` below, so stable hashes between restarts are safe.
     include: [
       "react",
       "react/jsx-runtime",
