@@ -215,6 +215,13 @@ const TITLES: [string, string][] = [
   ["Organic Dairy — Feed Derogation Case Linking in Feed & Nutrition Records", "Organic Dairy"],
   ["Mobile App — FP Input Derogation Register: Viewing Cases and Logging Derogation-Required Inputs", "Mobile App"],
   ["Mobile App — Organic Farming Quick Capture: Herd Lookup, Outdoor Access & Treatment Recording", "Mobile App"],
+  ["Organic Viticulture — Block Conversion Register: 3-Year Conversion Tracking and Certifying Body Records", "Organic Viticulture"],
+  ["Organic Viticulture — Organic Input Log: Approved Products, Approval Status and Certifier References", "Organic Viticulture"],
+  ["Organic Viticulture — Copper Register: Application Log and Running 28 kg Per 7-Year Limit Tracker", "Organic Viticulture"],
+  ["Organic Viticulture — Input Derogations: Case Register, Correspondence Log and Availability Evidence", "Organic Viticulture"],
+  ["Organic Viticulture — Wine Production Additives: SO2 Compliance and Organic Wine Certification Records", "Organic Viticulture"],
+  ["Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register", "Organic Viticulture"],
+  ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({

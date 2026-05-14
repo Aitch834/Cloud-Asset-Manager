@@ -7,8 +7,16 @@ import {
   vineyardOperationsTable,
   vineyardHarvestTable,
   vineyardScoutingTable,
+  organicVitBlockStatusTable,
+  organicVitInputLogTable,
+  organicVitCopperLogTable,
+  organicVitDerogationTable,
+  organicVitDerogationCorrespondenceTable,
+  organicVitCertificateTable,
+  organicVitWineProductionTable,
+  farmRecordAttachmentsTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { sanitiseBody } from "../lib/sanitise";
 
@@ -179,6 +187,183 @@ router.delete("/farms/:farmId/vineyard-scouting/:id", requireAuth, requireTenant
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   await db.delete(vineyardScoutingTable).where(and(eq(vineyardScoutingTable.id, id), eq(vineyardScoutingTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Block Conversion Status ────────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/block-status", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicVitBlockStatusTable).where(eq(organicVitBlockStatusTable.farmId, farmId)).orderBy(organicVitBlockStatusTable.blockName);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-viticulture/block-status", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitBlockStatusTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitBlockStatusTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitBlockStatusTable.id, id), eq(organicVitBlockStatusTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitBlockStatusTable).where(and(eq(organicVitBlockStatusTable.id, id), eq(organicVitBlockStatusTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Input Log ─────────────────────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/input-log", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicVitInputLogTable).where(eq(organicVitInputLogTable.farmId, farmId)).orderBy(desc(organicVitInputLogTable.dateApplied));
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-viticulture/input-log", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitInputLogTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitInputLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitInputLogTable.id, id), eq(organicVitInputLogTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/input-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitInputLogTable).where(and(eq(organicVitInputLogTable.id, id), eq(organicVitInputLogTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Copper Register ────────────────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/copper-log", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicVitCopperLogTable).where(eq(organicVitCopperLogTable.farmId, farmId)).orderBy(desc(organicVitCopperLogTable.applicationDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-viticulture/copper-log", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitCopperLogTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/copper-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitCopperLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitCopperLogTable.id, id), eq(organicVitCopperLogTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/copper-log/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitCopperLogTable).where(and(eq(organicVitCopperLogTable.id, id), eq(organicVitCopperLogTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Input Derogations ──────────────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/input-derogations", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const cases = await db.select().from(organicVitDerogationTable).where(eq(organicVitDerogationTable.farmId, farmId)).orderBy(desc(organicVitDerogationTable.createdAt));
+  res.json({ cases });
+});
+router.post("/farms/:farmId/organic-viticulture/input-derogations", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitDerogationTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/input-derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitDerogationTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitDerogationTable.id, id), eq(organicVitDerogationTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/input-derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitDerogationTable).where(and(eq(organicVitDerogationTable.id, id), eq(organicVitDerogationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-viticulture/input-derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const items = await db.select().from(organicVitDerogationCorrespondenceTable).where(and(eq(organicVitDerogationCorrespondenceTable.farmId, farmId), eq(organicVitDerogationCorrespondenceTable.derogationId, id))).orderBy(desc(organicVitDerogationCorrespondenceTable.correspondenceDate));
+  res.json({ items });
+});
+router.post("/farms/:farmId/organic-viticulture/input-derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [item] = await (db.insert(organicVitDerogationCorrespondenceTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, derogationId: id }).returning();
+  res.status(201).json({ item });
+});
+router.put("/farms/:farmId/organic-viticulture/input-derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [item] = await db.update(organicVitDerogationCorrespondenceTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitDerogationCorrespondenceTable.id, id), eq(organicVitDerogationCorrespondenceTable.farmId, farmId))).returning();
+  res.json({ item });
+});
+router.delete("/farms/:farmId/organic-viticulture/input-derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitDerogationCorrespondenceTable).where(and(eq(organicVitDerogationCorrespondenceTable.id, id), eq(organicVitDerogationCorrespondenceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-viticulture/input-derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const items = await db.select().from(farmRecordAttachmentsTable).where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, "organic_vit_derogation"), eq(farmRecordAttachmentsTable.recordId, id), isNull(farmRecordAttachmentsTable.deletedAt))).orderBy(farmRecordAttachmentsTable.uploadedAt);
+  res.json({ items });
+});
+router.post("/farms/:farmId/organic-viticulture/input-derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const { fileKey, fileName, fileSize, documentType, mimeType } = req.body;
+  const fileUrl = fileKey;
+  const [item] = await db.insert(farmRecordAttachmentsTable).values({ farmId, recordType: "organic_vit_derogation", recordId: id, fileUrl, fileKey, fileName, fileSize: fileSize ?? null, mimeType: mimeType ?? null, notes: documentType ?? null }).returning();
+  res.status(201).json({ item });
+});
+router.delete("/farms/:farmId/organic-viticulture/input-derogation-documents/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.update(farmRecordAttachmentsTable).set({ deletedAt: new Date() }).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Certificates ──────────────────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/certificates", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicVitCertificateTable).where(eq(organicVitCertificateTable.farmId, farmId)).orderBy(desc(organicVitCertificateTable.createdAt));
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-viticulture/certificates", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitCertificateTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitCertificateTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitCertificateTable.id, id), eq(organicVitCertificateTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/certificates/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitCertificateTable).where(and(eq(organicVitCertificateTable.id, id), eq(organicVitCertificateTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Viticulture — Wine Production Additives ─────────────────────────
+
+router.get("/farms/:farmId/organic-viticulture/wine-production", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicVitWineProductionTable).where(eq(organicVitWineProductionTable.farmId, farmId)).orderBy(desc(organicVitWineProductionTable.vintageYear));
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-viticulture/wine-production", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(organicVitWineProductionTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-viticulture/wine-production/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(organicVitWineProductionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(organicVitWineProductionTable.id, id), eq(organicVitWineProductionTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-viticulture/wine-production/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(organicVitWineProductionTable).where(and(eq(organicVitWineProductionTable.id, id), eq(organicVitWineProductionTable.farmId, farmId)));
   res.json({ success: true });
 });
 

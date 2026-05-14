@@ -89,6 +89,7 @@ import OrganicPage from "@/pages/OrganicPage";
 import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
 import OrganicDairyPage from "@/pages/OrganicDairyPage";
 import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
+import OrganicViticulturePage from "@/pages/OrganicViticulturePage";
 import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
@@ -373,6 +374,7 @@ function ProtectedContent() {
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
+        <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route path="/group-overview" component={MultiFarmGroupPage} />
         <Route component={NotFound} />
@@ -486,6 +488,7 @@ function DevBypassContent() {
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
+        <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route path="/group-overview" component={MultiFarmGroupPage} />
         <Route component={NotFound} />

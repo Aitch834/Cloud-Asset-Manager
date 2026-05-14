@@ -446,6 +446,14 @@ export default function OrganicOverviewScreen() {
                 <Text style={[styles.actionLabel, { color: "#ca8a04" }]}>FP Input Derogations</Text>
                 <Text style={styles.actionSub}>Sched. 1 / Annex II</Text>
               </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" }]}
+                onPress={() => router.push("/organic-vit-derogations")}
+              >
+                <Feather name="git-branch" size={22} color="#9333ea" />
+                <Text style={[styles.actionLabel, { color: "#9333ea" }]}>Vit Derogations</Text>
+                <Text style={styles.actionSub}>Organic viticulture</Text>
+              </Pressable>
             </View>
 
             {inspections.length > 0 && (

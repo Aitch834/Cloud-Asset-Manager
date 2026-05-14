@@ -47,6 +47,7 @@ import {
   TreePine,
   Landmark,
   AlertTriangle,
+  Grape,
   BookOpen,
   TrendingUp,
   ClipboardList,
@@ -113,6 +114,7 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Livestock", href: "/organic-livestock", icon: HeartPulse, moduleKeys: ["organic-livestock"] },
   { name: "Organic Dairy", href: "/organic-dairy", icon: Milk, moduleKeys: ["organic-dairy"] },
   { name: "Organic Fresh Produce", href: "/organic-fresh-produce", icon: Leaf, moduleKeys: ["organic-fresh-produce"] },
+  { name: "Organic Viticulture", href: "/organic-viticulture", icon: Grape, moduleKeys: ["organic-viticulture"] },
 ];
 
 const biosecurityNav: NavItem[] = [

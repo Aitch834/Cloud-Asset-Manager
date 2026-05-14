@@ -42,6 +42,7 @@ const MODULES = [
   { id: "water-irrigation", label: "Water & Irrigation Management" },
   { id: "fresh-produce", label: "Fresh Produce" },
   { id: "viticulture", label: "Viticulture (vine register with UK variety & rootstock selects, GI classification (PDO/PGI/Table Wine), BBCH phenology records, canopy & pruning operations, harvest records with Brix/pH/TA, disease scouting with Xylella & Phytophthora notifiable flags, CSV export, 4 dedicated mobile screens)" },
+  { id: "organic-viticulture", label: "Organic Viticulture (block conversion register with 3-year period tracking, organic input log, copper register with 28 kg/7yr limit tracker, input derogation case management with correspondence log, organic wine production additives and SO₂ compliance (UK-retained EU Reg 203/2012), certificate register, mobile derogation viewer)" },
   { id: "sheep-production", label: "Sheep Production (flocks via Livestock register, tupping, scanning, weigh-in & DLWG, shearing, health plans, Red Tractor Sheep Assurance)" },
   { id: "beef-production", label: "Beef Production (herds via Livestock register, weigh-in & DLWG, finishing records, body condition scoring, deadweight settlement)" },
   { id: "pig-production", label: "Pig Production (herds via Livestock register, farrowing & weaning, feed consumption & FCR, health & medicines, movements, mortality, Red Tractor Pigs)" },

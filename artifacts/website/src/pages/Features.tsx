@@ -788,6 +788,22 @@ const sections: Section[] = [
         ],
       },
       {
+        title: "Organic Viticulture",
+        icon: Grape,
+        color: "bg-purple-50 text-purple-800 border-purple-200",
+        badge: "module",
+        features: [
+          "Block Conversion Register — log each vineyard block's organic conversion status (In Conversion, Fully Organic, Suspended, Withdrawn), certifying body, conversion start date, fully-organic date, pre-conversion land use history, and synthetic input history; 3-year conversion period tracked per block in line with UK Organic Regulations 2020",
+          "Organic Inputs Log — record all organic-approved inputs applied in the vineyard per block: product name, input type (fungicide, fertiliser, biostimulant, etc.), supplier, date applied, quantity, area (ha), vintage year, approval status (Permitted / Derogation / Not Permitted), certifier approval reference, and operator; full audit trail for annual organic inspection",
+          "Copper Register — dedicated running log of all copper-based fungicide applications with product name, copper content (%), quantity applied, area (ha), and actual copper kg applied; running total displayed against the UK 28 kg/ha per 7-year regulatory limit (4 kg/ha/year average) with colour-coded progress bar (green / amber / red)",
+          "Input Derogations — full case register for UK Organic Regs 2020 Sch. 1 / Annex II derogation applications: input name and type, regulatory basis, certifying body reference, availability search date and reference, application date, decision date, status (Pending / Approved / Refused / Withdrawn / Expired), approval conditions, expiry date, vintage year, and justification; expiry urgency badges at 90 / 30 days",
+          "Derogation Correspondence Log — expandable within each derogation case: correspondence date, direction (Inbound / Outbound), type (Email, Letter, Phone Call, Portal Submission, Decision Notice, etc.), summary, and reference; full paper trail for certifier audit",
+          "Wine Production Additives — record permitted additive use and SO₂ compliance per vintage: wine colour, volume (litres), certified organic status, certifier reference, additive name and type, quantity used, maximum permitted level, actual SO₂ (mg/L), maximum SO₂ permitted (mg/L), and SO₂ compliant flag; regulatory reference to UK-retained EU Reg 203/2012 (100 mg/L red, 150 mg/L white/rosé)",
+          "Certificates Register — store organic viticulture and wine certificates: certifying body, certificate number, certificate type (Vineyard Organic, Organic Wine, In-Conversion, Other), issue date, expiry date, scope, and status; expiry urgency badges at 90 / 30 days",
+          "Mobile app — dedicated Organic Viticulture Derogations screen: read-only register of all input derogation cases with status chips, expandable case detail (certifier, dates, expiry urgency, availability search evidence, justification, approval conditions), and a dashboard prompt for correspondence and document management",
+        ],
+      },
+      {
         title: "Farm Diversification",
         icon: Store,
         color: "bg-violet-50 text-violet-700 border-violet-100",
