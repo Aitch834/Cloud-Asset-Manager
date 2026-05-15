@@ -10,45 +10,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import {
   Plus, Search, Trash2, FileText, AlertTriangle, CheckCircle, Clock,
-  CheckSquare, Square, Upload, Loader2, X, Paperclip, Eye, File,
+  Upload, Loader2, X, Eye, File, Users, Shield, FlaskConical,
+  ExternalLink, Award, Info,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
-const DOC_CATEGORIES: { category: string; types: string[] }[] = [
-  {
-    category: "Assurance & Certification",
-    types: [
-      "Red Tractor Assurance Certificate",
-      "LEAF Marque Certificate",
-      "Organic Certification",
-      "Soil Association Certificate",
-      "RSPCA Assured Certificate",
-      "QMS / HCC Assured Certificate",
-      "BRCGS Certificate",
-    ],
-  },
-  {
-    category: "Operator Competence",
-    types: [
-      "Spray Operator Certificate (PA1)",
-      "Spray Operator Certificate (PA2 – Ground)",
-      "Spray Operator Certificate (PA6 – Handheld)",
-      "Forklift / Telehandler Certificate",
-      "Chainsaw Certificate (CS30/31/38)",
-      "Safe Pass / CSCS Card",
-      "First Aid Certificate",
-      "Manual Handling Training Record",
-      "Training Certificate (Other)",
-    ],
-  },
+// ─── Standalone document categories ─────────────────────────────────────────
+// Types managed by dedicated modules (Staff & Training, Insurance, Safety & Risk,
+// Red Tractor Compliance) are intentionally excluded — they are auto-surfaced in
+// the Compliance Hub tab by reading from their native data sources.
+const STANDALONE_DOC_CATEGORIES: { category: string; types: string[]; machinery?: boolean }[] = [
   {
     category: "Agronomy & Soil",
     types: [
-      "FACTS Adviser Certificate",
-      "BASIS Certificate",
-      "CRoPS Adviser Certificate",
       "Soil Analysis Report",
       "Nutrient Management Plan (NMP)",
       "Agronomy Recommendation Report",
@@ -57,6 +34,7 @@ const DOC_CATEGORIES: { category: string; types: string[] }[] = [
   },
   {
     category: "Equipment & Machinery",
+    machinery: true,
     types: [
       "Sprayer Calibration Certificate (NSTS)",
       "Sprayer MOT Certificate",
@@ -69,10 +47,8 @@ const DOC_CATEGORIES: { category: string; types: string[] }[] = [
     ],
   },
   {
-    category: "Health & Safety",
+    category: "Safety & Fire",
     types: [
-      "COSHH Assessment",
-      "Risk Assessment",
       "Fire Risk Assessment",
       "Asbestos Survey Report",
       "RIDDOR Report",
@@ -80,12 +56,8 @@ const DOC_CATEGORIES: { category: string; types: string[] }[] = [
     ],
   },
   {
-    category: "Insurance & Legal",
+    category: "Legal & Agreements",
     types: [
-      "Farm Insurance Certificate",
-      "Public Liability Insurance",
-      "Employers Liability Insurance",
-      "Vehicle Insurance Certificate",
       "Farm Business Tenancy Agreement",
       "Land Ownership / Title Deeds",
       "Basic Payment Scheme (BPS) Agreement",
@@ -99,148 +71,335 @@ const DOC_CATEGORIES: { category: string; types: string[] }[] = [
     types: [
       "Pesticide Invoice / Purchase Record",
       "Seed Certificate",
-      "Veterinary Prescription",
       "Veterinary Health Certificate",
-      "Movement Licence / Movement Record",
       "Grain Storage Record",
     ],
   },
-  {
-    category: "Other",
-    types: ["Other"],
-  },
+  { category: "Other", types: ["Other"] },
 ];
 
-const ALL_DOC_TYPES = DOC_CATEGORIES.flatMap(c => c.types);
+const ALL_STANDALONE_TYPES = STANDALONE_DOC_CATEGORIES.flatMap(c => c.types);
+const MACHINERY_TYPES = new Set(STANDALONE_DOC_CATEGORIES.find(c => c.machinery)?.types ?? []);
 
-const RT_REQUIRED_DOCS: { label: string; key: string }[] = [
-  { label: "Red Tractor Assurance Certificate", key: "Red Tractor Assurance Certificate" },
-  { label: "Spray Operator Certificate (PA1 or PA2/PA6)", key: "Spray Operator Certificate (PA1)" },
-  { label: "Nutrient Management Plan (NMP)", key: "Nutrient Management Plan (NMP)" },
-  { label: "COSHH Assessments for all agrochemicals", key: "COSHH Assessment" },
-  { label: "Risk Assessments (H&S)", key: "Risk Assessment" },
-  { label: "Soil Analysis Report (within 5 years)", key: "Soil Analysis Report" },
-  { label: "Sprayer Calibration Certificate (NSTS)", key: "Sprayer Calibration Certificate (NSTS)" },
-  { label: "Grain Store Inspection Certificate", key: "Grain Store Inspection Certificate" },
-  { label: "Farm Insurance Certificate", key: "Farm Insurance Certificate" },
-  { label: "Employer's Liability Insurance", key: "Employers Liability Insurance" },
-  { label: "Pesticide Purchase/Application Records", key: "Pesticide Invoice / Purchase Record" },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return null;
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-function getExpiryStatus(expiryDate: string | null | undefined): "expired" | "expiring" | "valid" | "none" {
-  if (!expiryDate) return "none";
-  const now = new Date();
-  const exp = new Date(expiryDate);
-  const daysLeft = Math.floor((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  if (daysLeft < 0) return "expired";
-  if (daysLeft <= 90) return "expiring";
+function getExpiryStatus(date: string | null | undefined): "expired" | "expiring" | "valid" | "none" {
+  if (!date) return "none";
+  const days = Math.floor((new Date(date).getTime() - Date.now()) / 86400000);
+  if (days < 0) return "expired";
+  if (days <= 90) return "expiring";
   return "valid";
 }
 
-function StatCard({ icon, label, value, bg, iconBg, onClick, active }: any) {
+function ExpiryBadge({ status }: { status: "expired" | "expiring" | "valid" | "none" }) {
+  const map = {
+    expired: { bg: "#fee2e2", color: "#991b1b", label: "Expired" },
+    expiring: { bg: "#fef3c7", color: "#92400e", label: "Expiring Soon" },
+    valid: { bg: "#dcfce7", color: "#166534", label: "Valid" },
+    none: { bg: "#f3f4f6", color: "#6b7280", label: "No Expiry" },
+  };
+  const s = map[status];
+  return <Badge style={{ background: s.bg, color: s.color, border: "none", fontSize: "0.72rem", whiteSpace: "nowrap" }}>{s.label}</Badge>;
+}
+
+function SectionHeader({
+  icon, title, count, managedIn, managedHref, status,
+}: {
+  icon: React.ReactNode; title: string; count?: number;
+  managedIn?: string; managedHref?: string;
+  status?: "ok" | "warn" | "error";
+}) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: bg, border: active ? "2px solid #dc2626" : "1px solid #e5e7eb", borderRadius: 10,
-        padding: active ? "calc(1rem - 1px) calc(1.25rem - 1px)" : "1rem 1.25rem",
-        display: "flex", alignItems: "center", gap: 12,
-        cursor: onClick ? "pointer" : "default",
-        boxShadow: active ? "0 0 0 3px #fee2e2" : undefined,
-        transition: "box-shadow 0.15s, border 0.15s",
-      }}
-    >
-      <div style={{ background: iconBg, borderRadius: 8, padding: 8 }}>{icon}</div>
-      <div>
-        <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>{label}</p>
-        <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{value}</p>
-        {onClick && <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{active ? "Filtered — click to clear" : "Click to filter"}</p>}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.875rem", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          background: status === "error" ? "#fee2e2" : status === "warn" ? "#fef3c7" : "#f0f9ff",
+          borderRadius: 8, padding: 8, flexShrink: 0,
+        }}>
+          {icon}
+        </div>
+        <div>
+          <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#111827", margin: 0, lineHeight: 1.3 }}>{title}</h2>
+          {count !== undefined && (
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>{count} record{count !== 1 ? "s" : ""}</p>
+          )}
+        </div>
+        {status === "error" && <Badge style={{ background: "#fee2e2", color: "#991b1b", border: "none", fontSize: "0.7rem" }}>Action Required</Badge>}
+        {status === "warn" && <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.7rem" }}>Attention</Badge>}
       </div>
+      {managedIn && managedHref && (
+        <a
+          href={managedHref}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            fontSize: "0.8rem", color: "#1d4ed8", fontWeight: 500,
+            textDecoration: "none", background: "#eff6ff",
+            border: "1px solid #bfdbfe", padding: "4px 12px", borderRadius: 6,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Manage in {managedIn} <ExternalLink size={11} />
+        </a>
+      )}
     </div>
   );
 }
 
-function ExpiryBadge({ status }: { status: "expired" | "expiring" | "valid" | "none" }) {
-  if (status === "expired") return <Badge style={{ background: "#fee2e2", color: "#991b1b", border: "none", fontSize: "0.72rem" }}>Expired</Badge>;
-  if (status === "expiring") return <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem" }}>Expiring Soon</Badge>;
-  if (status === "valid") return <Badge style={{ background: "#dcfce7", color: "#166534", border: "none", fontSize: "0.72rem" }}>Valid</Badge>;
-  return <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "none", fontSize: "0.72rem" }}>No Expiry</Badge>;
+function ModuleUnavailable({ moduleName, href }: { moduleName: string; href: string }) {
+  return (
+    <div style={{ background: "#f9fafb", border: "1px dashed #e5e7eb", borderRadius: 8, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+      <Info size={15} color="#9ca3af" style={{ flexShrink: 0 }} />
+      <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0, flex: 1 }}>
+        <strong>{moduleName}</strong> module not active — records cannot be displayed here.
+      </p>
+      <a href={href} style={{ fontSize: "0.8rem", color: "#1d4ed8", textDecoration: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
+        Go to module <ExternalLink size={11} />
+      </a>
+    </div>
+  );
 }
 
-function DocTypeBadge({ type }: { type: string }) {
-  const short = type.replace("Red Tractor ", "RT ").replace(" Certificate", "").replace(" Assessment", "");
-  const colors: Record<string, { bg: string; color: string }> = {
-    "Red Tractor Assurance Certificate": { bg: "#dcfce7", color: "#166534" },
-    "Spray Operator Certificate (PA1)": { bg: "#dbeafe", color: "#1e40af" },
-    "Spray Operator Certificate (PA2 – Ground)": { bg: "#dbeafe", color: "#1e40af" },
-    "Spray Operator Certificate (PA6 – Handheld)": { bg: "#dbeafe", color: "#1e40af" },
-    "Equipment Calibration Certificate": { bg: "#ede9fe", color: "#5b21b6" },
-    "Sprayer Calibration Certificate (NSTS)": { bg: "#ede9fe", color: "#5b21b6" },
-    "COSHH Assessment": { bg: "#fee2e2", color: "#991b1b" },
-    "Risk Assessment": { bg: "#fef3c7", color: "#92400e" },
-    "Training Certificate (Other)": { bg: "#e0f2fe", color: "#0369a1" },
-    "Farm Insurance Certificate": { bg: "#f0fdf4", color: "#166534" },
-    "Employers Liability Insurance": { bg: "#f0fdf4", color: "#166534" },
-  };
-  const c = colors[type] || { bg: "#f3f4f6", color: "#374151" };
-  return <Badge style={{ background: c.bg, color: c.color, border: "none", fontSize: "0.7rem", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", display: "block", whiteSpace: "nowrap" }} title={type}>{short}</Badge>;
+function AlertBanner({ type, children }: { type: "error" | "warn"; children: React.ReactNode }) {
+  const s = type === "error"
+    ? { bg: "#fef2f2", border: "#fca5a5", color: "#991b1b" }
+    : { bg: "#fffbeb", border: "#fcd34d", color: "#92400e" };
+  return (
+    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: "0.625rem 1rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", color: s.color }}>
+      <AlertTriangle size={14} style={{ flexShrink: 0 }} />{children}
+    </div>
+  );
 }
 
-function fileIcon(mimeType: string | null | undefined) {
-  if (!mimeType) return <File size={13} style={{ color: "#6b7280" }} />;
-  if (mimeType.startsWith("image/")) return <File size={13} style={{ color: "#0891b2" }} />;
-  if (mimeType === "application/pdf") return <File size={13} style={{ color: "#dc2626" }} />;
-  return <File size={13} style={{ color: "#7c3aed" }} />;
+async function safeJsonFetch(url: string): Promise<{ data: any; ok: boolean }> {
+  try {
+    const r = await fetch(url, { credentials: "include" });
+    if (!r.ok) return { data: null, ok: false };
+    return { data: await r.json(), ok: true };
+  } catch {
+    return { data: null, ok: false };
+  }
 }
 
-function fileSizeLabel(bytes: number | null | undefined) {
-  if (!bytes) return null;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+const TH_STYLE: React.CSSProperties = { padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" };
+const TD_STYLE: React.CSSProperties = { padding: "0.5rem 0.75rem", color: "#6b7280" };
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DocumentsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [pageTab, setPageTab] = useState<"hub" | "register" | "checklist">("hub");
+
+  // ── Standalone documents (Document Register) ──────────────────────────────
+  const docsQ = useQuery({
+    queryKey: ["documents", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const docs: any[] = docsQ.data ?? [];
+
+  // ── Staff certificates (Staff & Training module) ──────────────────────────
+  const certsQ = useQuery({
+    queryKey: ["staff-certs-hub", farmId],
+    queryFn: () => safeJsonFetch(`/api/farms/${farmId}/certificates`),
+    enabled: !!farmId,
+    staleTime: 60000,
+  });
+  const certsOk = certsQ.data?.ok ?? false;
+  const staffCerts: any[] = certsQ.data?.data?.records ?? [];
+
+  // ── COSHH records (Safety & Risk module) ─────────────────────────────────
+  const coshhQ = useQuery({
+    queryKey: ["risk-coshh-hub", farmId],
+    queryFn: () => safeJsonFetch(`/api/farms/${farmId}/risk-coshh`),
+    enabled: !!farmId,
+    staleTime: 60000,
+  });
+  const coshhOk = coshhQ.data?.ok ?? false;
+  const coshhRecords: any[] = coshhQ.data?.data?.records ?? [];
+
+  // ── Insurance policies ────────────────────────────────────────────────────
+  const insuranceQ = useQuery({
+    queryKey: ["insurance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+    staleTime: 60000,
+  });
+  const insuranceRecords: any[] = insuranceQ.data ?? [];
+
+  // ── Assurance certificates (Red Tractor Compliance module) ────────────────
+  const assuranceQ = useQuery({
+    queryKey: ["assurance-certs-hub", farmId],
+    queryFn: () => safeJsonFetch(`/api/farms/${farmId}/assurance-certs`),
+    enabled: !!farmId,
+    staleTime: 60000,
+  });
+  const assuranceOk = assuranceQ.data?.ok ?? false;
+  const assuranceCerts: any[] = assuranceQ.data?.data?.records ?? [];
+
+  // ── Staff members (for name resolution on certificates) ───────────────────
+  const membersQ = useFarmMembers(farmId);
+  const memberNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of membersQ.data?.members ?? []) {
+      if (m.linkedUserId) map.set(m.linkedUserId, memberFullName(m));
+    }
+    return map;
+  }, [membersQ.data]);
+  const resolveName = (uid: string) => memberNameMap.get(uid) ?? uid ?? "—";
+
+  // ── Derived alert counts ──────────────────────────────────────────────────
+  const certExpired = staffCerts.filter(c => getExpiryStatus(c.expiryDate) === "expired").length;
+  const certExpiring = staffCerts.filter(c => getExpiryStatus(c.expiryDate) === "expiring").length;
+  const assuranceExpired = assuranceCerts.filter(a => getExpiryStatus(a.expiryDate) === "expired").length;
+  const insuranceExpired = insuranceRecords.filter(i => getExpiryStatus(i.expiryDate) === "expired" && !i.supersededByRenewal).length;
+  const coshhOverdue = coshhRecords.filter(c => c.reviewDate && getExpiryStatus(c.reviewDate) === "expired").length;
+  const docsExpired = docs.filter(d => getExpiryStatus(d.expiryDate) === "expired").length;
+  const docsExpiring = docs.filter(d => getExpiryStatus(d.expiryDate) === "expiring").length;
+
+  // ── Red Tractor intelligent checklist ────────────────────────────────────
+  const hasPLI = insuranceRecords.some(i => i.policyType === "public_liability" && getExpiryStatus(i.expiryDate) !== "expired" && !i.supersededByRenewal);
+  const hasELI = insuranceRecords.some(i => (i.policyType === "employers_liability" || i.coversEmployerLiability) && getExpiryStatus(i.expiryDate) !== "expired" && !i.supersededByRenewal);
+  const hasRtCert = assuranceOk
+    ? assuranceCerts.some(a => a.certificationBody?.toLowerCase().includes("red") && getExpiryStatus(a.expiryDate) !== "expired")
+    : docs.some(d => d.documentType === "Red Tractor Assurance Certificate" && getExpiryStatus(d.expiryDate) !== "expired");
+  const paHolders = certsOk
+    ? staffCerts.filter(c => (c.certificateType?.includes("PA1") || c.certificateType?.includes("PA2") || c.certificateType?.includes("PA6")) && getExpiryStatus(c.expiryDate) !== "expired")
+    : [];
+  const hasPA = certsOk ? paHolders.length > 0 : docs.some(d => d.documentType?.includes("Spray Operator") && getExpiryStatus(d.expiryDate) !== "expired");
+
+  type CheckStatus = "present" | "expired" | "missing";
+  const checklistItems: { label: string; note: string; status: CheckStatus; dataFrom: string; href: string | null; detail: string | null }[] = [
+    {
+      label: "Red Tractor Assurance Certificate",
+      note: "Must be current and in date",
+      status: hasRtCert ? "present" : (assuranceOk ? assuranceCerts.some(a => a.certificationBody?.toLowerCase().includes("red")) : docs.some(d => d.documentType === "Red Tractor Assurance Certificate")) ? "expired" : "missing",
+      dataFrom: assuranceOk ? "Red Tractor Compliance" : "Document Register",
+      href: assuranceOk ? "/compliance" : null,
+      detail: assuranceOk
+        ? (() => { const a = assuranceCerts.find(c => c.certificationBody?.toLowerCase().includes("red")); return a ? `${a.scheme ?? a.certificationBody}${a.expiryDate ? ` — expires ${fmt(a.expiryDate)}` : ""}` : null; })()
+        : null,
+    },
+    {
+      label: "Spray Operator Certificate (PA1 / PA2 / PA6)",
+      note: "At least one qualified operator required",
+      status: hasPA ? "present"
+        : certsOk ? (staffCerts.some(c => c.certificateType?.includes("PA1") || c.certificateType?.includes("PA2") || c.certificateType?.includes("PA6")) ? "expired" : "missing")
+        : "missing",
+      dataFrom: certsOk ? "Staff & Training → Certificates" : "Document Register",
+      href: certsOk ? "/training?tab=certificates" : null,
+      detail: certsOk && paHolders.length > 0
+        ? `${paHolders.length} qualified operator${paHolders.length !== 1 ? "s" : ""}: ${paHolders.slice(0, 4).map(h => resolveName(h.userId)).join(", ")}${paHolders.length > 4 ? "…" : ""}`
+        : null,
+    },
+    {
+      label: "Nutrient Management Plan (NMP)",
+      note: "Must be reviewed annually",
+      status: docs.some(d => d.documentType === "Nutrient Management Plan (NMP)" && getExpiryStatus(d.expiryDate) !== "expired") ? "present"
+        : docs.some(d => d.documentType === "Nutrient Management Plan (NMP)") ? "expired" : "missing",
+      dataFrom: "Document Register",
+      href: null,
+      detail: (() => { const d = docs.find(x => x.documentType === "Nutrient Management Plan (NMP)"); return d ? `${d.title}${d.expiryDate ? ` — expires ${fmt(d.expiryDate)}` : ""}` : null; })(),
+    },
+    {
+      label: "COSHH Assessments (all agrochemicals)",
+      note: "Required for every product in use",
+      status: coshhOk ? (coshhRecords.length > 0 ? "present" : "missing") : docs.some(d => d.documentType === "COSHH Assessment") ? "present" : "missing",
+      dataFrom: coshhOk ? "Safety & Risk → COSHH" : "Document Register",
+      href: coshhOk ? "/safety?tab=coshh" : null,
+      detail: coshhOk && coshhRecords.length > 0
+        ? `${coshhRecords.length} substance${coshhRecords.length !== 1 ? "s" : ""} assessed${coshhOverdue > 0 ? ` · ${coshhOverdue} overdue for review` : ""}`
+        : null,
+    },
+    {
+      label: "Soil Analysis Report (within 5 years)",
+      note: "Required within the last 5 years",
+      status: docs.some(d => d.documentType === "Soil Analysis Report" && getExpiryStatus(d.expiryDate) !== "expired") ? "present"
+        : docs.some(d => d.documentType === "Soil Analysis Report") ? "expired" : "missing",
+      dataFrom: "Document Register",
+      href: null,
+      detail: (() => { const d = docs.find(x => x.documentType === "Soil Analysis Report"); return d ? `${d.title}${d.issueDate ? ` — issued ${fmt(d.issueDate)}` : ""}` : null; })(),
+    },
+    {
+      label: "Sprayer Calibration Certificate (NSTS)",
+      note: "Required every 3 years under Red Tractor",
+      status: docs.some(d => d.documentType === "Sprayer Calibration Certificate (NSTS)" && getExpiryStatus(d.expiryDate) !== "expired") ? "present"
+        : docs.some(d => d.documentType === "Sprayer Calibration Certificate (NSTS)") ? "expired" : "missing",
+      dataFrom: "Document Register",
+      href: null,
+      detail: (() => {
+        const certs = docs.filter(d => d.documentType === "Sprayer Calibration Certificate (NSTS)");
+        if (certs.length === 0) return null;
+        return certs.map(c => {
+          const machine = c.notes?.startsWith("Equipment:") ? c.notes.split("\n")[0].replace("Equipment: ", "") : c.title;
+          return machine;
+        }).join(", ");
+      })(),
+    },
+    {
+      label: "Grain Store Inspection Certificate",
+      note: "Required for commercial grain storage",
+      status: docs.some(d => d.documentType === "Grain Store Inspection Certificate" && getExpiryStatus(d.expiryDate) !== "expired") ? "present"
+        : docs.some(d => d.documentType === "Grain Store Inspection Certificate") ? "expired" : "missing",
+      dataFrom: "Document Register",
+      href: null,
+      detail: null,
+    },
+    {
+      label: "Farm Insurance — Public Liability",
+      note: "Minimum £5m cover required by Red Tractor",
+      status: hasPLI ? "present"
+        : insuranceRecords.some(i => i.policyType === "public_liability") ? "expired" : "missing",
+      dataFrom: "Insurance",
+      href: "/insurance",
+      detail: (() => { const p = insuranceRecords.find(i => i.policyType === "public_liability" && !i.supersededByRenewal); return p ? `${p.insurer ?? "Insurer not recorded"}${p.expiryDate ? ` — expires ${fmt(p.expiryDate)}` : ""}` : null; })(),
+    },
+    {
+      label: "Employer's Liability Insurance",
+      note: "Legally required under the EL (CI) Act 1969",
+      status: hasELI ? "present"
+        : insuranceRecords.some(i => i.policyType === "employers_liability" || i.coversEmployerLiability) ? "expired" : "missing",
+      dataFrom: "Insurance",
+      href: "/insurance",
+      detail: (() => { const p = insuranceRecords.find(i => (i.policyType === "employers_liability" || i.coversEmployerLiability) && !i.supersededByRenewal); return p ? `${p.insurer ?? "Insurer not recorded"}${p.expiryDate ? ` — expires ${fmt(p.expiryDate)}` : ""}` : null; })(),
+    },
+  ];
+
+  const checklistPass = checklistItems.filter(i => i.status === "present").length;
+  const checklistFail = checklistItems.filter(i => i.status !== "present").length;
+
+  // ── Document Register CRUD ────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [showChecklist, setShowChecklist] = useState(true);
-  const [pageTab, setPageTab] = useState<"register" | "required">("register");
 
   const emptyForm = {
     title: "", documentType: "", referenceNumber: "", issuedBy: "",
-    issueDate: "", expiryDate: "", uploadedBy: "", notes: "",
+    issueDate: "", expiryDate: "", uploadedBy: "", notes: "", machineName: "",
     filePath: "", mimeType: "", fileSize: 0,
   };
   const [form, setForm] = useState<any>(emptyForm);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFileName, setPendingFileName] = useState<string | null>(null);
   const [pendingFileSize, setPendingFileSize] = useState<number | null>(null);
   const [pendingFileMime, setPendingFileMime] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { uploadFile, isUploading, progress } = useUpload({
+  const { uploadFile, isUploading } = useUpload({
     onSuccess: (response) => {
-      setForm((f: any) => ({
-        ...f,
-        filePath: response.objectPath,
-        mimeType: pendingFileMime ?? "",
-        fileSize: pendingFileSize ?? 0,
-      }));
+      setForm((f: any) => ({ ...f, filePath: response.objectPath, mimeType: pendingFileMime ?? "", fileSize: pendingFileSize ?? 0 }));
     },
     onError: () => {
-      toast({ title: "File upload failed", description: "The file could not be uploaded. Please try again.", variant: "destructive" });
+      toast({ title: "File upload failed", variant: "destructive" });
       setPendingFileName(null);
     },
   });
@@ -256,613 +415,651 @@ export default function DocumentsPage() {
   }, [uploadFile]);
 
   const clearFile = useCallback(() => {
-    setPendingFileName(null);
-    setPendingFileSize(null);
-    setPendingFileMime(null);
+    setPendingFileName(null); setPendingFileSize(null); setPendingFileMime(null);
     setForm((f: any) => ({ ...f, filePath: "", mimeType: "", fileSize: 0 }));
   }, []);
 
-  const closeAddDialog = useCallback((open: boolean) => {
+  const closeAdd = useCallback((open: boolean) => {
     setAddOpen(open);
-    if (!open) {
-      setForm(emptyForm);
-      setPendingFileName(null);
-      setPendingFileSize(null);
-      setPendingFileMime(null);
-    }
+    if (!open) { setForm(emptyForm); setPendingFileName(null); setPendingFileSize(null); setPendingFileMime(null); }
   }, []);
-
-  const docsQ = useQuery({
-    queryKey: ["documents", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()),
-    enabled: !!farmId,
-    select: d => d.records ?? [],
-  });
-  const docs: any[] = docsQ.data ?? [];
 
   const createMut = useMutation({
     mutationFn: (body: any) =>
-      fetch(`/api/farms/${farmId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      toast({ title: "Document recorded" });
-      qc.invalidateQueries({ queryKey: ["documents", farmId] });
-      closeAddDialog(false);
-    },
+      fetch(`/api/farms/${farmId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Document recorded" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); closeAdd(false); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) =>
-      fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Document deleted" });
-      qc.invalidateQueries({ queryKey: ["documents", farmId] });
-      setDeleteId(null);
-    },
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Document deleted" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const filtered = useMemo(() => {
-    return docs.filter((d: any) => {
-      if (categoryFilter !== "all") {
-        const cat = DOC_CATEGORIES.find(c => c.category === categoryFilter);
-        if (cat && !cat.types.includes(d.documentType)) return false;
-      }
-      if (typeFilter !== "all" && d.documentType !== typeFilter) return false;
-      if (statusFilter !== "all") {
-        const s = getExpiryStatus(d.expiryDate);
-        if (statusFilter === "attention" && s !== "expired" && s !== "expiring") return false;
-        if (statusFilter === "expired" && s !== "expired") return false;
-        if (statusFilter === "expiring" && s !== "expiring") return false;
-        if (statusFilter === "valid" && (s !== "valid" && s !== "none")) return false;
-      }
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          d.title?.toLowerCase().includes(q) ||
-          d.issuedBy?.toLowerCase().includes(q) ||
-          d.referenceNumber?.toLowerCase().includes(q) ||
-          d.documentType?.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [docs, search, categoryFilter, typeFilter, statusFilter]);
-
-  const expired = docs.filter(d => getExpiryStatus(d.expiryDate) === "expired").length;
-  const expiringSoon = docs.filter(d => getExpiryStatus(d.expiryDate) === "expiring").length;
-
-  const checklistPresent = RT_REQUIRED_DOCS.map(item => {
-    const found = docs.some(d => d.documentType === item.key && getExpiryStatus(d.expiryDate) !== "expired");
-    return { ...item, present: found };
-  });
-  const checklistComplete = checklistPresent.filter(c => c.present).length;
-
-  const RT_FULL: { label: string; key: string; category: string; note?: string }[] = [
-    { label: "Red Tractor Assurance Certificate", key: "Red Tractor Assurance Certificate", category: "Assurance & Certification" },
-    { label: "Farm Insurance Certificate (Public Liability)", key: "Farm Insurance Certificate", category: "Insurance", note: "Minimum £5M public liability required" },
-    { label: "Employers Liability Insurance", key: "Employers Liability Insurance", category: "Insurance", note: "Required if you employ any staff" },
-    { label: "Spray Operator Certificate — PA1 (Foundation)", key: "Spray Operator Certificate (PA1)", category: "Operator Competence" },
-    { label: "Spray Operator Certificate — PA2 (Ground) or PA6 (Handheld)", key: "Spray Operator Certificate (PA2 – Ground)", category: "Operator Competence" },
-    { label: "Sprayer Calibration Certificate (NSTS)", key: "Sprayer Calibration Certificate (NSTS)", category: "Equipment & Machinery", note: "Required every 3 years under Red Tractor" },
-    { label: "Nutrient Management Plan (NMP)", key: "Nutrient Management Plan (NMP)", category: "Agronomy & Soil", note: "Must be reviewed annually" },
-    { label: "Soil Analysis Report (within 5 years)", key: "Soil Analysis Report", category: "Agronomy & Soil" },
-    { label: "FACTS or BASIS Adviser Certificate", key: "FACTS Adviser Certificate", category: "Agronomy & Soil" },
-    { label: "COSHH Assessments (agrochemicals)", key: "COSHH Assessment", category: "Health & Safety" },
-    { label: "Risk Assessment — General Farm", key: "Risk Assessment (General)", category: "Health & Safety" },
-    { label: "First Aid Certificate", key: "First Aid Certificate", category: "Operator Competence" },
-    { label: "Grain Store Inspection Certificate", key: "Grain Store Inspection Certificate", category: "Storage & Grain" },
-    { label: "Pesticide Purchase & Application Records", key: "Pesticide Invoice / Purchase Record", category: "Compliance Records" },
-  ];
-  const rtByCategory: Record<string, typeof RT_FULL> = {};
-  for (const item of RT_FULL) {
-    if (!rtByCategory[item.category]) rtByCategory[item.category] = [];
-    rtByCategory[item.category].push(item);
-  }
-
-  const onDocTypeSelect = (v: string) => {
-    setForm((f: any) => ({ ...f, documentType: v }));
-    const defaultIssuers: Record<string, string> = {
-      "Red Tractor Assurance Certificate": "Red Tractor Assurance",
-      "Spray Operator Certificate (PA1)": "BASIS Registration Ltd",
-      "Spray Operator Certificate (PA2 – Ground)": "BASIS Registration Ltd",
-      "Spray Operator Certificate (PA6 – Handheld)": "BASIS Registration Ltd",
-      "Sprayer Calibration Certificate (NSTS)": "NSTS Tester",
-      "Farm Insurance Certificate": "",
-    };
-    if (defaultIssuers[v] !== undefined) {
-      setForm((f: any) => ({ ...f, documentType: v, issuedBy: f.issuedBy || defaultIssuers[v] }));
-    }
-  };
-
   const handleSave = () => {
-    const body: any = { ...form };
+    const { machineName, ...rest } = form;
+    const body: any = { ...rest };
+    if (machineName?.trim()) {
+      body.notes = `Equipment: ${machineName.trim()}${rest.notes ? `\n${rest.notes}` : ""}`;
+    }
     if (!body.filePath) { delete body.filePath; delete body.mimeType; delete body.fileSize; }
     if (!body.issueDate) delete body.issueDate;
     if (!body.expiryDate) delete body.expiryDate;
     createMut.mutate(body);
   };
 
+  const isMachineryType = MACHINERY_TYPES.has(form.documentType);
   const canSave = !!form.title && !isUploading && !createMut.isPending;
 
+  const filteredDocs = useMemo(() => docs.filter((d: any) => {
+    if (categoryFilter !== "all") {
+      const cat = STANDALONE_DOC_CATEGORIES.find(c => c.category === categoryFilter);
+      if (cat && !cat.types.includes(d.documentType)) return false;
+    }
+    if (statusFilter !== "all") {
+      const s = getExpiryStatus(d.expiryDate);
+      if (statusFilter === "expired" && s !== "expired") return false;
+      if (statusFilter === "expiring" && s !== "expiring") return false;
+      if (statusFilter === "valid" && s !== "valid" && s !== "none") return false;
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      return d.title?.toLowerCase().includes(q) || d.issuedBy?.toLowerCase().includes(q) || d.referenceNumber?.toLowerCase().includes(q) || d.documentType?.toLowerCase().includes(q);
+    }
+    return true;
+  }), [docs, search, categoryFilter, statusFilter]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <AppLayout title="Documents">
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem", gap: 12, flexWrap: "wrap" }}>
-          <p className="text-sm text-gray-500" style={{ margin: 0, flex: 1 }}>
-            Farm document register — certificates, assessments, assurance documents, and compliance records. Red Tractor assessors will request to see these during an audit visit.
+      <div style={{ maxWidth: 1240, margin: "0 auto" }}>
+
+        {/* Tab bar */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem", gap: 12, flexWrap: "wrap" }}>
+          <p className="text-sm text-gray-500" style={{ margin: 0, flex: 1, maxWidth: 600 }}>
+            Compliance document hub — live view across all modules. Operator certificates, COSHH assessments, insurance, and assurance records are read automatically from their source modules; no manual re-entry required.
           </p>
           <div style={{ display: "flex", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
-            {(["register", "required"] as const).map(t => (
+            {([
+              ["hub", "Compliance Hub"],
+              ["register", "Document Register"],
+              ["checklist", `Red Tractor (${checklistPass}/${checklistItems.length})`],
+            ] as const).map(([t, label], i) => (
               <button
                 key={t}
                 onClick={() => setPageTab(t)}
                 style={{
-                  padding: "0.45rem 1rem", border: "none", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500,
+                  padding: "0.45rem 1rem", border: "none", cursor: "pointer",
+                  fontSize: "0.8125rem", fontWeight: 500,
                   background: pageTab === t ? "#166534" : "#fff",
                   color: pageTab === t ? "#fff" : "#374151",
-                  borderRight: t === "register" ? "1px solid #e5e7eb" : "none",
+                  borderRight: i < 2 ? "1px solid #e5e7eb" : "none",
                   transition: "background 0.15s, color 0.15s",
                 }}
               >
-                {t === "register" ? "Document Register" : `Required Documents (${checklistComplete}/${RT_REQUIRED_DOCS.length})`}
+                {label}
               </button>
             ))}
           </div>
         </div>
 
-        {pageTab === "required" && (
-          <div>
-            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: 10 }}>
-              <CheckCircle size={16} color="#16a34a" />
-              <span style={{ fontSize: "0.875rem", color: "#166534" }}>
-                <strong>{checklistComplete}</strong> of <strong>{RT_FULL.length}</strong> Red Tractor required documents present and valid.
-                {checklistComplete < RT_FULL.length && <span style={{ color: "#92400e", marginLeft: 8 }}>&#9888; {RT_FULL.length - checklistComplete} missing or expired — action required before your next audit.</span>}
-              </span>
+        {/* ════════════════════════════════════════
+            COMPLIANCE HUB
+        ════════════════════════════════════════ */}
+        {pageTab === "hub" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+
+            {/* ── Assurance & Certification ── */}
+            <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+              <SectionHeader
+                icon={<Award size={18} color={assuranceExpired > 0 ? "#991b1b" : "#166534"} />}
+                title="Assurance & Certification"
+                count={assuranceCerts.length}
+                managedIn="Red Tractor Compliance"
+                managedHref="/compliance"
+                status={assuranceExpired > 0 ? "error" : undefined}
+              />
+              {!assuranceOk ? (
+                <ModuleUnavailable moduleName="Red Tractor Compliance" href="/compliance" />
+              ) : assuranceCerts.length === 0 ? (
+                <AlertBanner type="error">
+                  No assurance certificates recorded — add your Red Tractor and other scheme certificates in Red Tractor Compliance.
+                </AlertBanner>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        {["Certification Body", "Scheme", "Certificate No.", "Issue Date", "Expiry", "Status"].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assuranceCerts.map((a: any, i: number) => {
+                        const s = getExpiryStatus(a.expiryDate);
+                        return (
+                          <tr key={a.id} style={{ borderBottom: i < assuranceCerts.length - 1 ? "1px solid #f3f4f6" : "none", background: s === "expired" ? "#fff7f7" : "transparent" }}>
+                            <td style={{ ...TD_STYLE, fontWeight: 500, color: "#111827" }}>{a.certificationBody ?? "—"}</td>
+                            <td style={TD_STYLE}>{a.scheme ?? "—"}</td>
+                            <td style={{ ...TD_STYLE, fontFamily: "monospace" }}>{a.certNumber ?? "—"}</td>
+                            <td style={{ ...TD_STYLE, whiteSpace: "nowrap" }}>{fmt(a.issueDate) ?? "—"}</td>
+                            <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: s === "expired" ? "#991b1b" : s === "expiring" ? "#92400e" : "#166534", fontWeight: 600 }}>
+                              {fmt(a.expiryDate) ?? "No expiry"}
+                            </td>
+                            <td style={TD_STYLE}><ExpiryBadge status={s} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {/* ── Operator Competence & Qualifications ── */}
+            <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+              <SectionHeader
+                icon={<Users size={18} color={certExpired > 0 ? "#991b1b" : "#1d4ed8"} />}
+                title="Operator Competence & Qualifications"
+                count={staffCerts.length}
+                managedIn="Staff & Training"
+                managedHref="/training?tab=certificates"
+                status={certExpired > 0 ? "error" : certExpiring > 0 ? "warn" : undefined}
+              />
+              {!certsOk ? (
+                <ModuleUnavailable moduleName="Staff & Training" href="/training?tab=certificates" />
+              ) : staffCerts.length === 0 ? (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.875rem 1rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <Info size={15} color="#1d4ed8" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: "0.875rem", color: "#1e40af" }}>
+                    No certificates recorded — add operator certificates (PA1, PA2, PA6, First Aid, Forklift, Chainsaw and all others) per person in <a href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</a>. Each holder gets their own record with individual expiry tracking.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {certExpired > 0 && <AlertBanner type="error"><strong>{certExpired}</strong> expired certificate{certExpired !== 1 ? "s" : ""} — renew immediately</AlertBanner>}
+                  {certExpiring > 0 && <AlertBanner type="warn"><strong>{certExpiring}</strong> certificate{certExpiring !== 1 ? "s" : ""} expiring within 90 days</AlertBanner>}
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          {["Staff Member", "Certificate Type", "Issuer", "Cert Number", "Issue Date", "Expiry", "Status"].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staffCerts.map((c: any, i: number) => {
+                          const s = getExpiryStatus(c.expiryDate);
+                          return (
+                            <tr key={c.id} style={{ borderBottom: i < staffCerts.length - 1 ? "1px solid #f3f4f6" : "none", background: s === "expired" ? "#fff7f7" : "transparent" }}>
+                              <td style={{ ...TD_STYLE, fontWeight: 600, color: "#111827" }}>{resolveName(c.userId)}</td>
+                              <td style={{ ...TD_STYLE, color: "#111827" }}>{c.certificateType}</td>
+                              <td style={TD_STYLE}>{c.issuer ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, fontFamily: "monospace" }}>{c.certificateNumber ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap" }}>{fmt(c.issueDate) ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: s === "expired" ? "#991b1b" : s === "expiring" ? "#92400e" : "#166534", fontWeight: 600 }}>
+                                {fmt(c.expiryDate) ?? "No expiry"}
+                              </td>
+                              <td style={TD_STYLE}><ExpiryBadge status={s} /></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/* ── COSHH & Safety Records ── */}
+            <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+              <SectionHeader
+                icon={<FlaskConical size={18} color={coshhOverdue > 0 ? "#92400e" : "#7c3aed"} />}
+                title="COSHH & Safety Records"
+                count={coshhRecords.length}
+                managedIn="Safety & Risk"
+                managedHref="/safety?tab=coshh"
+                status={coshhOverdue > 0 ? "warn" : undefined}
+              />
+              {!coshhOk ? (
+                <ModuleUnavailable moduleName="Safety & Risk" href="/safety" />
+              ) : coshhRecords.length === 0 ? (
+                <AlertBanner type="error">
+                  No COSHH assessments recorded — Red Tractor requires a COSHH assessment for every agrochemical in use. Add assessments in <a href="/safety?tab=coshh" style={{ color: "#991b1b", fontWeight: 600 }}>Safety &amp; Risk → COSHH</a>.
+                </AlertBanner>
+              ) : (
+                <>
+                  {coshhOverdue > 0 && <AlertBanner type="warn"><strong>{coshhOverdue}</strong> COSHH assessment{coshhOverdue !== 1 ? "s" : ""} overdue for review</AlertBanner>}
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          {["Substance", "Hazard Classification", "Assessed By", "Assessment Date", "Review Due", "Status"].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {coshhRecords.map((c: any, i: number) => {
+                          const s = c.reviewDate ? getExpiryStatus(c.reviewDate) : "none";
+                          return (
+                            <tr key={c.id} style={{ borderBottom: i < coshhRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: s === "expired" ? "#fffbeb" : "transparent" }}>
+                              <td style={{ ...TD_STYLE, fontWeight: 500, color: "#111827" }}>{c.substanceName}</td>
+                              <td style={TD_STYLE}>{c.hazardClassification ?? "—"}</td>
+                              <td style={TD_STYLE}>{c.assessedBy ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap" }}>{fmt(c.assessmentDate) ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: s === "expired" ? "#92400e" : "#374151", fontWeight: s === "expired" ? 600 : 400 }}>
+                                {fmt(c.reviewDate) ?? "—"}
+                              </td>
+                              <td style={TD_STYLE}>
+                                {c.reviewDate
+                                  ? <ExpiryBadge status={s} />
+                                  : <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "none", fontSize: "0.72rem" }}>No Review Set</Badge>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/* ── Farm Insurance ── */}
+            <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+              <SectionHeader
+                icon={<Shield size={18} color={insuranceExpired > 0 ? "#991b1b" : "#0369a1"} />}
+                title="Farm Insurance"
+                count={insuranceRecords.filter(i => !i.supersededByRenewal).length}
+                managedIn="Insurance"
+                managedHref="/insurance"
+                status={insuranceExpired > 0 ? "error" : undefined}
+              />
+              {insuranceQ.isLoading ? (
+                <p className="text-sm text-gray-400 text-center py-4">Loading...</p>
+              ) : insuranceRecords.length === 0 ? (
+                <AlertBanner type="error">
+                  No insurance policies recorded. Employer's Liability and Public Liability are mandatory — add them in <a href="/insurance" style={{ color: "#991b1b", fontWeight: 600 }}>Insurance</a>.
+                </AlertBanner>
+              ) : (
+                <>
+                  {insuranceExpired > 0 && <AlertBanner type="error"><strong>{insuranceExpired}</strong> expired polic{insuranceExpired !== 1 ? "ies" : "y"} — renew immediately</AlertBanner>}
+                  {(() => {
+                    const missing = [!hasPLI && "Public Liability", !hasELI && "Employer's Liability"].filter(Boolean) as string[];
+                    return missing.length > 0 ? <AlertBanner type="error">Missing critical cover: <strong>{missing.join(", ")}</strong></AlertBanner> : null;
+                  })()}
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          {["Policy Type", "Insurer", "Policy Number", "Start Date", "Expiry", "Status"].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {insuranceRecords.filter((i: any) => !i.supersededByRenewal).map((ins: any, i: number, arr: any[]) => {
+                          const s = getExpiryStatus(ins.expiryDate);
+                          const isCritical = ins.policyType === "employers_liability" || ins.policyType === "public_liability" || ins.coversEmployerLiability;
+                          const LABELS: Record<string, string> = {
+                            employers_liability: "Employer's Liability", public_liability: "Public Liability",
+                            product_liability: "Product Liability", motor_agricultural: "Motor / Agricultural",
+                            buildings_contents: "Buildings & Contents", farm_machinery: "Farm Machinery",
+                            livestock: "Livestock", crop_revenue: "Crop & Revenue",
+                            environmental_liability: "Environmental Liability", goods_in_custody: "Goods in Custody",
+                            contract_work: "Contract Work", tascc: "TASCC Bond", hired_in_plant: "Hired-in Plant", other: "Other",
+                          };
+                          return (
+                            <tr key={ins.id} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none", background: s === "expired" ? "#fff7f7" : "transparent" }}>
+                              <td style={{ ...TD_STYLE, color: "#111827" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontWeight: 500 }}>{LABELS[ins.policyType] ?? ins.policyType}</span>
+                                  {isCritical && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "1px 5px", borderRadius: 4 }}>Required</span>}
+                                </div>
+                              </td>
+                              <td style={TD_STYLE}>{ins.insurer ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, fontFamily: "monospace" }}>{ins.policyNumber ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap" }}>{fmt(ins.startDate) ?? "—"}</td>
+                              <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: s === "expired" ? "#991b1b" : s === "expiring" ? "#92400e" : "#166534", fontWeight: 600 }}>
+                                {fmt(ins.expiryDate) ?? "No expiry"}
+                              </td>
+                              <td style={TD_STYLE}><ExpiryBadge status={s} /></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/* ── Farm Documents (standalone) ── */}
+            <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+              <SectionHeader
+                icon={<FileText size={18} color={docsExpired > 0 ? "#991b1b" : "#374151"} />}
+                title="Farm Documents"
+                count={docs.length}
+                status={docsExpired > 0 ? "error" : docsExpiring > 0 ? "warn" : undefined}
+              />
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.875rem", marginTop: "-0.25rem" }}>
+                Soil analysis reports, calibration certificates, NMPs, legal agreements, and other documents not managed by a dedicated module.{" "}
+                <button onClick={() => setPageTab("register")} style={{ background: "none", border: "none", color: "#1d4ed8", cursor: "pointer", fontSize: "0.8rem", padding: 0, textDecoration: "underline" }}>
+                  Add or manage in Document Register →
+                </button>
+              </p>
+              {docsExpired > 0 && <AlertBanner type="error"><strong>{docsExpired}</strong> expired document{docsExpired !== 1 ? "s" : ""} — requires attention</AlertBanner>}
+              {docsExpiring > 0 && <AlertBanner type="warn"><strong>{docsExpiring}</strong> document{docsExpiring !== 1 ? "s" : ""} expiring within 90 days</AlertBanner>}
+              {docs.length === 0 ? (
+                <div style={{ background: "#f9fafb", border: "1px dashed #e5e7eb", borderRadius: 8, padding: "1.5rem", textAlign: "center" }}>
+                  <p style={{ fontSize: "0.875rem", color: "#9ca3af", margin: "0 0 0.5rem" }}>No standalone documents yet.</p>
+                  <button onClick={() => { setPageTab("register"); setTimeout(() => setAddOpen(true), 50); }} style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 12px", fontSize: "0.8rem", color: "#374151", cursor: "pointer" }}>
+                    + Add Document
+                  </button>
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        {["Title", "Type", "Issued By", "Expiry", "Status", ""].map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {docs.slice(0, 10).map((doc: any, i: number) => {
+                        const s = getExpiryStatus(doc.expiryDate);
+                        const machine = doc.notes?.startsWith("Equipment:") ? doc.notes.split("\n")[0].replace("Equipment: ", "") : null;
+                        const viewUrl = doc.filePath ? `/api/storage${doc.filePath}` : null;
+                        return (
+                          <tr key={doc.id} style={{ borderBottom: i < Math.min(docs.length, 10) - 1 ? "1px solid #f3f4f6" : "none", background: s === "expired" ? "#fff7f7" : "transparent" }}>
+                            <td style={{ ...TD_STYLE, color: "#111827", fontWeight: 500, maxWidth: 240 }}>
+                              <div>{doc.title}</div>
+                              {machine && <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 2 }}>Equipment: {machine}</div>}
+                            </td>
+                            <td style={{ ...TD_STYLE, fontSize: "0.8rem" }}>{doc.documentType ?? "—"}</td>
+                            <td style={TD_STYLE}>{doc.issuedBy ?? "—"}</td>
+                            <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: s === "expired" ? "#991b1b" : s === "expiring" ? "#92400e" : "#374151", fontWeight: s !== "valid" && s !== "none" ? 600 : 400 }}>
+                              {fmt(doc.expiryDate) ?? "No expiry"}
+                            </td>
+                            <td style={TD_STYLE}><ExpiryBadge status={s} /></td>
+                            <td style={TD_STYLE}>
+                              {viewUrl && <a href={viewUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 5, background: "#eff6ff", color: "#1d4ed8", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none", border: "1px solid #bfdbfe" }}><Eye size={11} /> View</a>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {docs.length > 10 && (
+                    <button onClick={() => setPageTab("register")} style={{ display: "block", marginTop: "0.75rem", background: "none", border: "none", color: "#1d4ed8", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 }}>
+                      View all {docs.length} documents in Document Register →
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════
+            DOCUMENT REGISTER
+        ════════════════════════════════════════ */}
+        {pageTab === "register" && (
+          <>
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Info size={15} color="#1d4ed8" style={{ flexShrink: 0, marginTop: 2 }} />
+              <p style={{ fontSize: "0.875rem", color: "#1e40af", margin: 0 }}>
+                <strong>Standalone documents only.</strong>{" "}
+                Operator certificates are managed per person in <a href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</a>. Farm insurance is in <a href="/insurance" style={{ color: "#1d4ed8" }}>Insurance</a>. COSHH assessments are in <a href="/safety?tab=coshh" style={{ color: "#1d4ed8" }}>Safety &amp; Risk</a>. Assurance certificates are in <a href="/compliance" style={{ color: "#1d4ed8" }}>Red Tractor Compliance</a>. All of these are surfaced automatically in the Compliance Hub tab.
+              </p>
             </div>
-            {Object.entries(rtByCategory).map(([cat, items]) => (
-              <div key={cat} style={{ marginBottom: "1.5rem" }}>
-                <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.625rem" }}>{cat}</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10 }}>
-                  {items.map(item => {
-                    const matchingDocs = docs.filter((d: any) => d.documentType === item.key);
-                    const validDoc = matchingDocs.find((d: any) => getExpiryStatus(d.expiryDate) !== "expired");
-                    const expiredDoc = !validDoc && matchingDocs.find((d: any) => getExpiryStatus(d.expiryDate) === "expired");
-                    const itemStatus = validDoc ? getExpiryStatus(validDoc.expiryDate) : expiredDoc ? "expired" : "missing";
-                    const SC: Record<string, { bg: string; border: string; dot: string; label: string; labelColor: string }> = {
-                      valid: { bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", label: "Present", labelColor: "#166534" },
-                      expiring: { bg: "#fffbeb", border: "#fcd34d", dot: "#d97706", label: "Expiring Soon", labelColor: "#92400e" },
-                      expired: { bg: "#fef2f2", border: "#fca5a5", dot: "#dc2626", label: "Expired", labelColor: "#991b1b" },
-                      none: { bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", label: "Present", labelColor: "#166534" },
-                      missing: { bg: "#f9fafb", border: "#e5e7eb", dot: "#d1d5db", label: "Missing", labelColor: "#9ca3af" },
-                    };
-                    const sc = SC[itemStatus];
-                    return (
-                      <div key={item.key} style={{ background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 8, padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: sc.dot, flexShrink: 0, marginTop: 4 }} />
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.4 }}>{item.label}</p>
-                            {item.note && <p style={{ fontSize: "0.72rem", color: "#6b7280", margin: "2px 0 0" }}>{item.note}</p>}
-                          </div>
-                          <span style={{ fontSize: "0.72rem", fontWeight: 600, color: sc.labelColor, flexShrink: 0, background: "#fff", padding: "2px 7px", borderRadius: 5, border: `1px solid ${sc.border}` }}>{sc.label}</span>
-                        </div>
-                        {validDoc && (
-                          <div style={{ fontSize: "0.75rem", color: "#6b7280", display: "flex", gap: 12, paddingLeft: 16, flexWrap: "wrap" }}>
-                            <span>{validDoc.title}</span>
-                            {validDoc.expiryDate && <span>Expires: <strong style={{ color: itemStatus === "expiring" ? "#92400e" : "#374151" }}>{fmt(validDoc.expiryDate)}</strong></span>}
-                            {validDoc.referenceNumber && <span style={{ fontFamily: "monospace" }}>#{validDoc.referenceNumber}</span>}
-                          </div>
+
+            {(docsExpired > 0 || docsExpiring > 0) && (
+              <div style={{ display: "flex", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
+                {docsExpired > 0 && <AlertBanner type="error"><strong>{docsExpired}</strong> expired document{docsExpired !== 1 ? "s" : ""}</AlertBanner>}
+                {docsExpiring > 0 && <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", color: "#92400e" }}><Clock size={14} /><strong>{docsExpiring}</strong> expiring within 90 days</div>}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                <Input placeholder="Search documents..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger style={{ width: 200 }}><SelectValue placeholder="All Categories" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {STANDALONE_DOC_CATEGORIES.map(c => <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger style={{ width: 160 }}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="expired">Expired Only</SelectItem>
+                  <SelectItem value="expiring">Expiring Soon</SelectItem>
+                  <SelectItem value="valid">Valid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
+                <Plus size={14} className="mr-1" />Add Document
+              </Button>
+            </div>
+
+            {docsQ.isLoading ? (
+              <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+            ) : filteredDocs.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4rem 1rem", textAlign: "center" }}>
+                <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}>
+                  <FileText size={28} color="#9ca3af" />
+                </div>
+                <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>{docs.length === 0 ? "No documents on record" : "No documents match your filters"}</p>
+                <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 420, marginBottom: "1.25rem" }}>
+                  {docs.length === 0
+                    ? "Record standalone farm documents — soil analysis reports, NMPs, calibration certificates, legal agreements and more."
+                    : "Try changing your search or filters."}
+                </p>
+                {docs.length === 0 && <Button size="sm" onClick={() => setAddOpen(true)}><Plus size={14} className="mr-1" />Add First Document</Button>}
+              </div>
+            ) : (
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        {["Title / Equipment", "Type", "Reference No.", "Issued By", "Issue Date", "Expiry", "Status", "File", ""].map((h, i) => (
+                          <th key={i} style={TH_STYLE}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDocs.map((doc: any, i: number) => {
+                        const status = getExpiryStatus(doc.expiryDate);
+                        const machine = doc.notes?.startsWith("Equipment:") ? doc.notes.split("\n")[0].replace("Equipment: ", "") : null;
+                        const viewUrl = doc.filePath ? `/api/storage${doc.filePath}` : null;
+                        return (
+                          <tr key={doc.id} style={{ borderBottom: i < filteredDocs.length - 1 ? "1px solid #f3f4f6" : "none", background: status === "expired" ? "#fff7f7" : "transparent" }}>
+                            <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500, color: "#111827", maxWidth: 240 }}>
+                              <div>{doc.title}</div>
+                              {machine && <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 2 }}>Equipment: {machine}</div>}
+                            </td>
+                            <td style={{ ...TD_STYLE, fontSize: "0.8rem", maxWidth: 180 }}>{doc.documentType ?? "—"}</td>
+                            <td style={{ ...TD_STYLE, fontFamily: doc.referenceNumber ? "monospace" : "inherit" }}>{doc.referenceNumber || "—"}</td>
+                            <td style={TD_STYLE}>{doc.issuedBy || "—"}</td>
+                            <td style={{ ...TD_STYLE, whiteSpace: "nowrap" }}>{fmt(doc.issueDate) || "—"}</td>
+                            <td style={{ ...TD_STYLE, whiteSpace: "nowrap", color: status === "expired" ? "#991b1b" : status === "expiring" ? "#92400e" : "#166534", fontWeight: status !== "valid" && status !== "none" ? 600 : 400 }}>
+                              {doc.expiryDate ? fmt(doc.expiryDate) : "No expiry"}
+                            </td>
+                            <td style={TD_STYLE}><ExpiryBadge status={status} /></td>
+                            <td style={TD_STYLE}>
+                              {viewUrl
+                                ? <a href={viewUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 5, background: "#eff6ff", color: "#1d4ed8", fontSize: "0.75rem", fontWeight: 500, textDecoration: "none", border: "1px solid #bfdbfe" }}><Eye size={11} />View</a>
+                                : <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>—</span>}
+                            </td>
+                            <td style={{ padding: "0.5rem" }}>
+                              <button onClick={() => setDeleteId(doc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4 }} title="Delete">
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ════════════════════════════════════════
+            RED TRACTOR CHECKLIST
+        ════════════════════════════════════════ */}
+        {pageTab === "checklist" && (
+          <div>
+            <div style={{
+              background: checklistFail === 0 ? "#f0fdf4" : "#fef2f2",
+              border: `1px solid ${checklistFail === 0 ? "#bbf7d0" : "#fca5a5"}`,
+              borderRadius: 8, padding: "0.875rem 1rem", marginBottom: "1.5rem",
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              {checklistFail === 0 ? <CheckCircle size={16} color="#16a34a" /> : <AlertTriangle size={16} color="#dc2626" />}
+              <div style={{ fontSize: "0.875rem", color: checklistFail === 0 ? "#166534" : "#991b1b" }}>
+                <strong>{checklistPass}</strong> of <strong>{checklistItems.length}</strong> Red Tractor required items present and valid.
+                {checklistFail > 0 && <span style={{ marginLeft: 8 }}>{checklistFail} missing or expired — action required before your next audit.</span>}
+              </div>
+            </div>
+
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.625rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: 8 }}>
+              <Info size={14} color="#1d4ed8" style={{ flexShrink: 0 }} />
+              <p style={{ fontSize: "0.8rem", color: "#1e40af", margin: 0 }}>
+                Each item reads from its source module in real time — not from a separate manual entry. The source is shown on each card.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 12 }}>
+              {checklistItems.map((item, idx) => {
+                const SC = {
+                  present: { bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", label: "Present", labelColor: "#166534" },
+                  expired: { bg: "#fef2f2", border: "#fca5a5", dot: "#dc2626", label: "Expired", labelColor: "#991b1b" },
+                  missing: { bg: "#f9fafb", border: "#e5e7eb", dot: "#d1d5db", label: "Missing", labelColor: "#9ca3af" },
+                };
+                const sc = SC[item.status];
+                return (
+                  <div key={idx} style={{ background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 10, padding: "0.875rem 1rem", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: sc.dot, flexShrink: 0, marginTop: 4 }} />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111827", margin: 0, lineHeight: 1.4 }}>{item.label}</p>
+                        <p style={{ fontSize: "0.72rem", color: "#6b7280", margin: "2px 0 0" }}>{item.note}</p>
+                      </div>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 600, color: sc.labelColor, flexShrink: 0, background: "#fff", padding: "2px 7px", borderRadius: 5, border: `1px solid ${sc.border}` }}>
+                        {sc.label}
+                      </span>
+                    </div>
+                    {item.detail && (
+                      <div style={{ fontSize: "0.75rem", color: "#374151", paddingLeft: 16, fontWeight: 500 }}>{item.detail}</div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 16, marginTop: 2 }}>
+                      <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>
+                        Source: <span style={{ color: "#6b7280", fontWeight: 500 }}>{item.dataFrom}</span>
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {item.href && (
+                          <a href={item.href} style={{ fontSize: "0.75rem", color: "#1d4ed8", textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
+                            View <ExternalLink size={10} />
+                          </a>
                         )}
-                        {expiredDoc && (
-                          <div style={{ fontSize: "0.75rem", color: "#991b1b", paddingLeft: 16 }}>
-                            Expired {fmt((expiredDoc as any).expiryDate)} — renew immediately
-                          </div>
-                        )}
-                        {itemStatus === "missing" && (
+                        {!item.href && item.status === "missing" && (
                           <button
-                            onClick={() => { setForm((f: any) => ({ ...f, documentType: item.key })); setAddOpen(true); }}
-                            style={{ alignSelf: "flex-start", marginLeft: 16, background: "none", border: "1px solid #d1d5db", borderRadius: 5, padding: "3px 10px", fontSize: "0.75rem", cursor: "pointer", color: "#374151" }}
+                            onClick={() => {
+                              setPageTab("register");
+                              setTimeout(() => { setForm((f: any) => ({ ...emptyForm, documentType: item.label })); setAddOpen(true); }, 50);
+                            }}
+                            style={{ fontSize: "0.75rem", color: "#1d4ed8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           >
-                            + Add Document
+                            + Add →
                           </button>
                         )}
                       </div>
-                    );
-                  })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Add Document Dialog ─────────────────────────────────────────── */}
+        <Dialog open={addOpen} onOpenChange={closeAdd}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Add Document</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+              <div><Label>Title *</Label><Input value={form.title} onChange={e => setForm((f: any) => ({ ...f, title: e.target.value }))} placeholder="e.g. Soil Analysis 2024 — Home Farm" /></div>
+              <div>
+                <Label>Document Type</Label>
+                <Select value={form.documentType} onValueChange={v => setForm((f: any) => ({ ...f, documentType: v, machineName: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
+                  <SelectContent>
+                    {STANDALONE_DOC_CATEGORIES.map(cat => (
+                      <React.Fragment key={cat.category}>
+                        <div style={{ padding: "4px 8px", fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>{cat.category}</div>
+                        {cat.types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </React.Fragment>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isMachineryType && (
+                <div>
+                  <Label>Equipment / Machine</Label>
+                  <Input value={form.machineName} onChange={e => setForm((f: any) => ({ ...f, machineName: e.target.value }))} placeholder="e.g. Hardi Commander 4000, Weighbridge Unit 2" />
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>Which machine or equipment does this certificate apply to?</p>
                 </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div><Label>Reference Number</Label><Input value={form.referenceNumber} onChange={e => setForm((f: any) => ({ ...f, referenceNumber: e.target.value }))} placeholder="Cert / ref no." /></div>
+                <div><Label>Issued By</Label><Input value={form.issuedBy} onChange={e => setForm((f: any) => ({ ...f, issuedBy: e.target.value }))} placeholder="Issuing body or inspector" /></div>
               </div>
-            ))}
-          </div>
-        )}
-
-        {pageTab === "register" && (expired > 0 || expiringSoon > 0) && (
-          <div style={{ display: "flex", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
-            {expired > 0 && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", color: "#991b1b" }}>
-                <AlertTriangle size={15} /><strong>{expired}</strong> expired document{expired !== 1 ? "s" : ""} — requires immediate attention
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div><Label>Issue Date</Label><Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} /></div>
+                <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} /></div>
               </div>
-            )}
-            {expiringSoon > 0 && (
-              <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", color: "#92400e" }}>
-                <Clock size={15} /><strong>{expiringSoon}</strong> document{expiringSoon !== 1 ? "s" : ""} expiring within 90 days
-              </div>
-            )}
-          </div>
-        )}
-
-        {pageTab === "register" && (<>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: "1.5rem", alignItems: "start" }}>
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-            <button
-              onClick={() => setShowChecklist(v => !v)}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", background: "#f0fdf4", border: "none", borderBottom: "1px solid #e5e7eb", cursor: "pointer", textAlign: "left" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <CheckSquare size={15} color="#166534" />
-                <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "#166534" }}>Red Tractor Required Documents</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: "0.8rem", color: checklistComplete === RT_REQUIRED_DOCS.length ? "#166534" : "#6b7280", fontWeight: 500 }}>
-                  {checklistComplete}/{RT_REQUIRED_DOCS.length}
-                </span>
-                <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>{showChecklist ? "▲" : "▼"}</span>
-              </div>
-            </button>
-            {showChecklist && (
-              <div style={{ padding: "0.75rem 1rem" }}>
-                {checklistPresent.map(item => (
-                  <div key={item.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: "0.5rem" }}>
-                    {item.present
-                      ? <CheckSquare size={14} color="#16a34a" style={{ flexShrink: 0, marginTop: 1 }} />
-                      : <Square size={14} color="#d1d5db" style={{ flexShrink: 0, marginTop: 1 }} />
-                    }
-                    <span style={{ fontSize: "0.8rem", color: item.present ? "#374151" : "#9ca3af", lineHeight: 1.4 }}>{item.label}</span>
+              <div><Label>Uploaded By</Label><Input value={form.uploadedBy} onChange={e => setForm((f: any) => ({ ...f, uploadedBy: e.target.value }))} placeholder="Your name" /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Additional notes" /></div>
+              <div>
+                <Label>Document File</Label>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="application/pdf,image/*" style={{ display: "none" }} />
+                {pendingFileName ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.625rem 0.875rem" }}>
+                    {isUploading ? <Loader2 size={14} className="animate-spin" /> : <File size={14} color="#16a34a" />}
+                    <span style={{ fontSize: "0.8rem", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFileName}</span>
+                    <button onClick={clearFile} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", flexShrink: 0 }}><X size={14} /></button>
                   </div>
-                ))}
-                {checklistComplete === RT_REQUIRED_DOCS.length && (
-                  <div style={{ marginTop: "0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.75rem", color: "#166534", fontWeight: 500 }}>
-                    All required documents present
-                  </div>
+                ) : (
+                  <button onClick={() => fileInputRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.625rem 1rem", border: "1px dashed #d1d5db", borderRadius: 8, background: "#f9fafb", cursor: "pointer", width: "100%", color: "#6b7280", fontSize: "0.875rem" }}>
+                    <Upload size={14} /> Upload PDF or image
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-            <StatCard icon={<FileText size={18} color="#1d4ed8" />} label="Total Documents" value={docs.length} bg="#eff6ff" iconBg="#dbeafe" />
-            <StatCard
-              icon={<CheckCircle size={18} color="#166534" />}
-              label="Valid / No Expiry"
-              value={docs.filter(d => { const s = getExpiryStatus(d.expiryDate); return s === "valid" || s === "none"; }).length}
-              bg="#f0fdf4" iconBg="#dcfce7"
-            />
-            <StatCard
-              icon={<AlertTriangle size={18} color="#991b1b" />}
-              label="Expired or Expiring"
-              value={expired + expiringSoon}
-              bg={expired + expiringSoon > 0 ? "#fef2f2" : "#f9fafb"}
-              iconBg={expired + expiringSoon > 0 ? "#fee2e2" : "#f3f4f6"}
-              active={statusFilter === "attention"}
-              onClick={expired + expiringSoon > 0 ? () => setStatusFilter(s => s === "attention" ? "all" : "attention") : undefined}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-            <Input placeholder="Search documents..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
-          </div>
-          <Select value={categoryFilter} onValueChange={v => { setCategoryFilter(v); setTypeFilter("all"); }}>
-            <SelectTrigger style={{ width: 200 }}><SelectValue placeholder="All Categories" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {DOC_CATEGORIES.map(c => <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger style={{ width: 220 }}><SelectValue placeholder="All Types" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {(categoryFilter !== "all" ? DOC_CATEGORIES.find(c => c.category === categoryFilter)?.types ?? [] : ALL_DOC_TYPES).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger style={{ width: 175 }}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="attention">Expired or Expiring</SelectItem>
-              <SelectItem value="expired">Expired Only</SelectItem>
-              <SelectItem value="expiring">Expiring Soon</SelectItem>
-              <SelectItem value="valid">Valid</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
-            <Plus size={14} className="mr-1" />Add Document
-          </Button>
-        </div>
-
-        {docsQ.isLoading ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
-        ) : filtered.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4rem 1rem", textAlign: "center" }}>
-            <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}>
-              <FileText size={28} color="#9ca3af" />
             </div>
-            <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-              {docs.length === 0 ? "No documents on record" : "No documents match your filters"}
-            </p>
-            <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 400, marginBottom: "1.25rem" }}>
-              {docs.length === 0
-                ? "Record your farm's key documents — assurance certificates, spray operator certificates, FACTS qualifications, calibration records and more."
-                : "Try changing your search or filters."}
-            </p>
-            {docs.length === 0 && (
-              <Button size="sm" onClick={() => setAddOpen(true)}>
-                <Plus size={14} className="mr-1" />Add First Document
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Title", "Type", "Reference No.", "Issued By", "Issue Date", "Expiry", "Status", "Logged By", "File", ""].map((h, i) => (
-                    <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((doc: any, i: number) => {
-                  const status = getExpiryStatus(doc.expiryDate);
-                  const viewUrl = doc.filePath ? `/api/storage${doc.filePath}` : null;
-                  return (
-                    <tr key={doc.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                      <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500, maxWidth: 220 }}>
-                        <div>
-                          <div>{doc.title}</div>
-                          {doc.notes && (
-                            <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>
-                              {doc.notes.substring(0, 60)}{doc.notes.length > 60 ? "…" : ""}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: "0.625rem 0.75rem" }}>
-                        {doc.documentType ? <DocTypeBadge type={doc.documentType} /> : <span style={{ color: "#d1d5db" }}>—</span>}
-                      </td>
-                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontFamily: doc.referenceNumber ? "monospace" : "inherit" }}>
-                        {doc.referenceNumber || "—"}
-                      </td>
-                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{doc.issuedBy || "—"}</td>
-                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(doc.issueDate) || "—"}</td>
-                      <td style={{ padding: "0.625rem 0.75rem", whiteSpace: "nowrap" }}>
-                        {doc.expiryDate ? (
-                          <span style={{ color: status === "expired" ? "#991b1b" : status === "expiring" ? "#92400e" : "#166534", fontWeight: 500 }}>
-                            {fmt(doc.expiryDate)}
-                          </span>
-                        ) : <span style={{ color: "#d1d5db" }}>No expiry</span>}
-                      </td>
-                      <td style={{ padding: "0.625rem 0.75rem" }}><ExpiryBadge status={status} /></td>
-                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{doc.uploadedBy || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>
-                        {viewUrl ? (
-                          <a
-                            href={viewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`View${doc.fileSize ? ` · ${fileSizeLabel(doc.fileSize)}` : ""}`}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: 4,
-                              padding: "3px 8px", borderRadius: 5,
-                              background: "#eff6ff", color: "#1d4ed8",
-                              fontSize: "0.75rem", fontWeight: 500,
-                              textDecoration: "none", border: "1px solid #bfdbfe",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            <Eye size={11} />
-                            View
-                          </a>
-                        ) : (
-                          <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "0.5rem" }}>
-                        <button
-                          onClick={() => setDeleteId(doc.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        </>)}
-
-        {/* ── Add Document Dialog ─────────────────────────────── */}
-        <Dialog open={addOpen} onOpenChange={closeAddDialog}>
-          <DialogContent style={{ maxWidth: 580 }}>
-            <DialogHeader><DialogTitle>Add Document Record</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-2">
-              <div>
-                <Label>Document Title <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input
-                  placeholder="e.g. Red Tractor Combinable Crops Certificate 2025"
-                  value={form.title}
-                  onChange={e => setForm((f: any) => ({ ...f, title: e.target.value }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Document Type</Label>
-                  <Select value={form.documentType} onValueChange={onDocTypeSelect}>
-                    <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
-                    <SelectContent>
-                      {DOC_CATEGORIES.map(cat => (
-                        <React.Fragment key={cat.category}>
-                          <div style={{ padding: "4px 8px 2px", fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                            {cat.category}
-                          </div>
-                          {cat.types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                        </React.Fragment>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Reference / Certificate No.</Label>
-                  <Input
-                    placeholder="e.g. RT-2025-001234"
-                    value={form.referenceNumber}
-                    onChange={e => setForm((f: any) => ({ ...f, referenceNumber: e.target.value }))}
-                    style={{ fontFamily: "monospace" }}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Issued By</Label>
-                <Input
-                  placeholder="e.g. Red Tractor Assurance, BASIS Registration Ltd"
-                  value={form.issuedBy}
-                  onChange={e => setForm((f: any) => ({ ...f, issuedBy: e.target.value }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Issue Date</Label>
-                  <Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Expiry Date</Label>
-                  <Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <Label>Logged By</Label>
-                <Input
-                  placeholder="Name of person adding this record"
-                  value={form.uploadedBy}
-                  onChange={e => setForm((f: any) => ({ ...f, uploadedBy: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Textarea
-                  placeholder="Location of physical copy, renewal reminders, etc."
-                  value={form.notes}
-                  onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-
-              {/* ── File Attachment ── */}
-              <div>
-                <Label style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                  <Paperclip size={13} />
-                  Attach a Copy <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: "0.75rem" }}>(optional — PDF, image, or Word document)</span>
-                </Label>
-
-                {!pendingFileName && !form.filePath ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      width: "100%", padding: "0.75rem 1rem",
-                      border: "1.5px dashed #d1d5db", borderRadius: 8,
-                      background: "#f9fafb", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      color: "#6b7280", fontSize: "0.875rem",
-                      transition: "border-color 0.15s, background 0.15s",
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3b82f6"; (e.currentTarget as HTMLButtonElement).style.background = "#eff6ff"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#d1d5db"; (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
-                  >
-                    <Upload size={15} />
-                    Click to attach a file
-                  </button>
-                ) : isUploading ? (
-                  <div style={{ border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", padding: "0.75rem 1rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <Loader2 size={14} style={{ color: "#2563eb", animation: "spin 1s linear infinite" }} />
-                      <span style={{ fontSize: "0.8125rem", color: "#1d4ed8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFileName}</span>
-                    </div>
-                    <div style={{ height: 4, background: "#dbeafe", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", background: "#2563eb", width: `${progress}%`, borderRadius: 2, transition: "width 0.3s" }} />
-                    </div>
-                    <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 4 }}>Uploading… {progress}%</p>
-                  </div>
-                ) : form.filePath ? (
-                  <div style={{ border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8 }}>
-                    {fileIcon(form.mimeType)}
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#166534", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {pendingFileName ?? "File attached"}
-                      </p>
-                      {form.fileSize > 0 && (
-                        <p style={{ fontSize: "0.7rem", color: "#4ade80" }}>{fileSizeLabel(form.fileSize)} — ready to save</p>
-                      )}
-                    </div>
-                    <a
-                      href={`/api/storage${form.filePath}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Preview in new tab"
-                      style={{ color: "#16a34a", display: "flex" }}
-                    >
-                      <Eye size={14} />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={clearFile}
-                      title="Remove file"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", display: "flex", padding: 2 }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : null}
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv"
-                  style={{ display: "none" }}
-                  onChange={handleFileChange}
-                />
-              </div>
-            </div>
-
             <DialogFooter>
-              <Button variant="outline" onClick={() => closeAddDialog(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => closeAdd(false)}>Cancel</Button>
               <Button onClick={handleSave} disabled={!canSave}>
-                {createMut.isPending ? <><Loader2 size={14} className="mr-1 animate-spin" />Saving…</> : isUploading ? <><Loader2 size={14} className="mr-1 animate-spin" />Uploading…</> : "Save Document"}
+                {createMut.isPending && <Loader2 size={14} className="animate-spin mr-1" />}
+                Save Document
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* ── Delete Confirm Dialog ───────────────────────────── */}
-        <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
-          <DialogContent style={{ maxWidth: 400 }}>
-            <DialogHeader><DialogTitle>Delete Document Record</DialogTitle></DialogHeader>
-            <p className="text-sm text-gray-600 py-2">This will remove this document from your register. This cannot be undone.</p>
+        {/* ── Delete Confirm ─────────────────────────────────────────────── */}
+        <Dialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
+          <DialogContent style={{ maxWidth: 380 }}>
+            <DialogHeader><DialogTitle>Delete Document?</DialogTitle></DialogHeader>
+            <p className="text-sm text-gray-600">This document record will be permanently removed. Any uploaded file attached to it will also be deleted.</p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+              <Button variant="destructive" onClick={() => deleteId && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending && <Loader2 size={14} className="animate-spin mr-1" />}Delete
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
