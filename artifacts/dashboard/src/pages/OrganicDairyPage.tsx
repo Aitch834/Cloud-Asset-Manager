@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -175,21 +176,21 @@ function printMilkCollectionLog(records: CollectionRecord[], farmName: string) {
     <tr>
       <td>${fmt(r.collectionDate)}</td>
       <td>${fmtRaw(r.collectorName)}</td>
-      <td>${fmtRaw(r.vehicleRef)}</td>
+      <td>${fmtRaw(r.vehicleRegistration)}</td>
       <td>${fmtRaw(r.volumeLitres)}</td>
       <td>${r.fatPercentage ? r.fatPercentage + '%' : '—'}</td>
       <td>${r.proteinPercentage ? r.proteinPercentage + '%' : '—'}</td>
-      <td>${r.sccThousandsPerMl ? r.sccThousandsPerMl + 'k' : '—'}</td>
-      <td>${fmtRaw(r.tbc)}</td>
-      <td><span class="badge ${r.isOrganicCertified ? 'badge-green' : 'badge-gray'}">${r.isOrganicCertified ? 'Organic' : 'Standard'}</span></td>
-      <td>${fmtRaw(r.collectionRef)}</td>
+      <td>${r.sccCount ? r.sccCount + 'k' : '—'}</td>
+      <td>${r.tbcCount ? r.tbcCount + 'k' : '—'}</td>
+      <td><span class="badge ${r.isOrganicCollection ? 'badge-green' : 'badge-amber'}">${r.isOrganicCollection ? 'Organic' : 'Non-organic'}${!r.isOrganicCollection && r.nonOrganicReason ? ' — ' + r.nonOrganicReason : ''}</span></td>
+      <td>${fmtRaw(r.collectionSlipRef)}</td>
       <td>${fmtRaw(r.processorRef)}</td>
       <td>${r.netValuePence != null ? '£' + (r.netValuePence / 100).toFixed(2) : '—'}</td>
     </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Organic Milk Collection Log — ${farmName}</title><style>${PRINT_CSS}</style></head><body>
     <div class="hdr"><div class="hdr-l"><div class="title">Organic Milk Collection Log</div><div class="farm">${farmName}</div></div>
     <div class="hdr-r"><b>Milk Collections</b><br>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-    <table><thead><tr><th>Date</th><th>Collector</th><th>Vehicle</th><th>Volume (L)</th><th>Fat %</th><th>Protein %</th><th>SCC</th><th>TBC</th><th>Organic</th><th>Collection Ref</th><th>Processor Ref</th><th>Net Value</th></tr></thead>
+    <table><thead><tr><th>Date</th><th>Collector</th><th>Vehicle</th><th>Volume (L)</th><th>Fat %</th><th>Protein %</th><th>SCC</th><th>TBC</th><th>Organic</th><th>Collection Docket</th><th>Processor Ref</th><th>Net Value</th></tr></thead>
     <tbody>${rows}</tbody></table></body></html>`);
 }
 
@@ -264,17 +265,22 @@ type CollectionRecord = {
   id: number;
   collectionDate: string;
   collectorName: string | null;
-  vehicleRef: string | null;
+  collectorSupplierId: number | null;
+  vehicleRegistration: string | null;
   volumeLitres: string;
   fatPercentage: string | null;
   proteinPercentage: string | null;
-  sccThousandsPerMl: string | null;
-  tbc: string | null;
-  isOrganicCertified: boolean;
+  sccCount: number | null;
+  tbcCount: number | null;
+  isOrganicCollection: boolean;
+  nonOrganicReason: string | null;
   processorRef: string | null;
-  collectionRef: string | null;
+  collectionSlipRef: string | null;
   deductionsPence: number | null;
   netValuePence: number | null;
+  recordedByUserId: string | null;
+  recordedByUserName: string | null;
+  witnessedBy: string | null;
   notes: string | null;
 };
 
@@ -621,6 +627,7 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
 function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useUser();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CollectionRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<CollectionRecord | null>(null);
@@ -632,6 +639,20 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     enabled: !!farmId,
   });
   const records = data?.records ?? [];
+
+  const { data: supplierData } = useQuery<{ records: Array<{ id: number; name: string }> }>({
+    queryKey: ["farm-suppliers-for-collection", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.ok ? r.json() : { records: [] }),
+    enabled: !!farmId,
+  });
+  const suppliers = supplierData?.records ?? [];
+
+  const { data: membersData } = useQuery<{ members: Array<{ id: number; firstName: string; lastName: string }> }>({
+    queryKey: ["farm-members-for-collection", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const members = membersData?.members ?? [];
 
   const save = useMutation({
     mutationFn: () => {
@@ -654,7 +675,18 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ isOrganicCertified: true, collectionDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
+  function openNew() {
+    setEditing(null);
+    setForm({
+      isOrganicCollection: true,
+      collectionDate: new Date().toISOString().slice(0, 10),
+      recordedByUserId: user?.id ?? null,
+      recordedByUserName: user
+        ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.primaryEmailAddress?.emailAddress || null)
+        : null,
+    });
+    setOpen(true);
+  }
   function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof CollectionRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -702,11 +734,16 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <TableCell>{r.volumeLitres}</TableCell>
               <TableCell>{r.fatPercentage ? `${r.fatPercentage}%` : "—"}</TableCell>
               <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
-              <TableCell>{r.sccThousandsPerMl ? `${r.sccThousandsPerMl}k` : "—"}</TableCell>
+              <TableCell>{r.sccCount ? `${r.sccCount}k` : "—"}</TableCell>
               <TableCell>
-                <Badge className={r.isOrganicCertified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}>
-                  {r.isOrganicCertified ? "Organic" : "Standard"}
-                </Badge>
+                <div className="flex flex-col gap-0.5">
+                  <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800 border border-amber-300"}>
+                    {r.isOrganicCollection ? "Organic" : "Non-organic"}
+                  </Badge>
+                  {!r.isOrganicCollection && r.nonOrganicReason && (
+                    <span className="text-xs text-amber-700 truncate max-w-[110px]" title={r.nonOrganicReason}>{r.nonOrganicReason}</span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{formatPence(r.netValuePence)}</TableCell>
               <TableCell>
@@ -734,17 +771,32 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Date</p><p className="font-medium">{fmt(viewRecord.collectionDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume (litres)</p><p className="font-medium">{fmtRaw(viewRecord.volumeLitres)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collector Name</p><p className="font-medium">{fmtRaw(viewRecord.collectorName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle Ref</p><p className="font-medium">{fmtRaw(viewRecord.vehicleRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collector</p><p className="font-medium">{fmtRaw(viewRecord.collectorName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle Registration</p><p className="font-medium">{fmtRaw(viewRecord.vehicleRegistration)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fat %</p><p className="font-medium">{viewRecord.fatPercentage ? `${viewRecord.fatPercentage}%` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protein %</p><p className="font-medium">{viewRecord.proteinPercentage ? `${viewRecord.proteinPercentage}%` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (000s/ml)</p><p className="font-medium">{viewRecord.sccThousandsPerMl ? `${viewRecord.sccThousandsPerMl}k` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (000s/ml)</p><p className="font-medium">{fmtRaw(viewRecord.tbc)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (000s/ml)</p><p className="font-medium">{viewRecord.sccCount ? `${viewRecord.sccCount}k` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (000s/ml)</p><p className="font-medium">{viewRecord.tbcCount ? `${viewRecord.tbcCount}k` : "—"}</p></div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Certified</p>
+                <p className="font-medium">{viewRecord.isOrganicCollection
+                  ? <span className="text-green-700">Yes — sold as organic</span>
+                  : <span className="text-amber-700">No — sold as conventional</span>
+                }</p>
+              </div>
+              {!viewRecord.isOrganicCollection && viewRecord.nonOrganicReason && (
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Reason (non-organic)</p><p className="font-medium text-amber-800">{viewRecord.nonOrganicReason}</p></div>
+              )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Processor Ref</p><p className="font-medium">{fmtRaw(viewRecord.processorRef)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Ref</p><p className="font-medium">{fmtRaw(viewRecord.collectionRef)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Deductions (pence)</p><p className="font-medium">{fmtRaw(viewRecord.deductionsPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Docket / Receipt Ref</p><p className="font-medium">{fmtRaw(viewRecord.collectionSlipRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Deductions</p><p className="font-medium">{viewRecord.deductionsPence != null ? `${viewRecord.deductionsPence}p` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Value</p><p className="font-medium">{formatPence(viewRecord.netValuePence)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Certified</p><p className="font-medium">{viewRecord.isOrganicCertified ? "Yes" : "No"}</p></div>
+              {viewRecord.witnessedBy && (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Witnessed By</p><p className="font-medium">{viewRecord.witnessedBy}</p></div>
+              )}
+              {viewRecord.recordedByUserName && (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Recorded By</p><p className="font-medium">{viewRecord.recordedByUserName}</p></div>
+              )}
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
             </div>
             <DialogFooter>
@@ -759,7 +811,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit" : "Add"} Milk Collection</DialogTitle>
-            <DialogDescription>Record each milk collection with quality metrics and organic status.</DialogDescription>
+            <DialogDescription>Record each milk collection with quality metrics and organic certification status.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -770,13 +822,45 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <Label>Volume (litres) *</Label>
               <Input type="number" step="0.01" value={form.volumeLitres ?? ""} onChange={f("volumeLitres")} />
             </div>
+
+            <div className="col-span-2 space-y-1">
+              <Label>Collector (Milk Buyer)</Label>
+              {suppliers.length > 0 && (
+                <Select
+                  value={form.collectorSupplierId ? String(form.collectorSupplierId) : "__other__"}
+                  onValueChange={(v) => {
+                    if (v === "__other__") {
+                      setForm(p => ({ ...p, collectorSupplierId: null }));
+                    } else {
+                      const sup = suppliers.find(s => s.id === Number(v));
+                      setForm(p => ({ ...p, collectorSupplierId: Number(v), collectorName: sup?.name ?? p.collectorName ?? null }));
+                    }
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choose from suppliers register…" /></SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    <SelectItem value="__other__">Other — enter name below</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {!form.collectorSupplierId && (
+                <Input
+                  value={form.collectorName ?? ""}
+                  onChange={f("collectorName")}
+                  placeholder="e.g. Arla UK Ltd"
+                  className={suppliers.length > 0 ? "mt-1" : ""}
+                />
+              )}
+            </div>
+
             <div className="space-y-1">
-              <Label>Collector Name</Label>
-              <Input value={form.collectorName ?? ""} onChange={f("collectorName")} placeholder="e.g. Arla" />
+              <Label>Vehicle Registration</Label>
+              <Input value={form.vehicleRegistration ?? ""} onChange={f("vehicleRegistration")} placeholder="e.g. AB12 CDE" />
             </div>
             <div className="space-y-1">
-              <Label>Vehicle Ref</Label>
-              <Input value={form.vehicleRef ?? ""} onChange={f("vehicleRef")} />
+              <Label>Processor Ref</Label>
+              <Input value={form.processorRef ?? ""} onChange={f("processorRef")} />
             </div>
             <div className="space-y-1">
               <Label>Fat %</Label>
@@ -788,36 +872,73 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             </div>
             <div className="space-y-1">
               <Label>SCC (000s/ml)</Label>
-              <Input type="number" step="1" value={form.sccThousandsPerMl ?? ""} onChange={f("sccThousandsPerMl")} />
+              <Input type="number" step="1" value={form.sccCount ?? ""} onChange={(e) => setForm(p => ({ ...p, sccCount: e.target.value ? Number(e.target.value) : null }))} />
             </div>
             <div className="space-y-1">
               <Label>TBC (000s/ml)</Label>
-              <Input type="number" step="1" value={form.tbc ?? ""} onChange={f("tbc")} />
+              <Input type="number" step="1" value={form.tbcCount ?? ""} onChange={(e) => setForm(p => ({ ...p, tbcCount: e.target.value ? Number(e.target.value) : null }))} />
             </div>
             <div className="space-y-1">
-              <Label>Processor Ref</Label>
-              <Input value={form.processorRef ?? ""} onChange={f("processorRef")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Collection Ref</Label>
-              <Input value={form.collectionRef ?? ""} onChange={f("collectionRef")} />
+              <Label>Collection Docket / Receipt Ref</Label>
+              <Input value={form.collectionSlipRef ?? ""} onChange={f("collectionSlipRef")} placeholder="Docket number from tanker driver" />
             </div>
             <div className="space-y-1">
               <Label>Deductions (pence)</Label>
-              <Input type="number" value={form.deductionsPence ?? ""} onChange={f("deductionsPence")} />
+              <Input type="number" value={form.deductionsPence ?? ""} onChange={(e) => setForm(p => ({ ...p, deductionsPence: e.target.value ? Number(e.target.value) : null }))} />
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Net Value (pence)</Label>
-              <Input type="number" value={form.netValuePence ?? ""} onChange={f("netValuePence")} />
+              <Input type="number" value={form.netValuePence ?? ""} onChange={(e) => setForm(p => ({ ...p, netValuePence: e.target.value ? Number(e.target.value) : null }))} />
             </div>
-            <div className="flex items-center gap-2 pt-5">
+
+            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
               <Checkbox
-                checked={form.isOrganicCertified ?? true}
-                onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicCertified: !!v }))}
+                checked={form.isOrganicCollection ?? true}
+                onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicCollection: !!v, nonOrganicReason: !!v ? null : p.nonOrganicReason }))}
                 id="organic-cert"
               />
-              <Label htmlFor="organic-cert">Organic Certified Milk</Label>
+              <Label htmlFor="organic-cert" className="cursor-pointer font-normal">This collection is certified as Organic</Label>
             </div>
+            {!form.isOrganicCollection && (
+              <div className="col-span-2 space-y-1">
+                <Label className="text-amber-700">Reason — non-organic collection *</Label>
+                <Input
+                  value={form.nonOrganicReason ?? ""}
+                  onChange={f("nonOrganicReason")}
+                  placeholder="e.g. Antibiotic withdrawal period, conversion milk…"
+                  className="border-amber-300 focus-visible:ring-amber-400"
+                />
+                <p className="text-xs text-amber-600">Required. This milk will be sold as conventional. Notify your certifier if this occurs regularly.</p>
+              </div>
+            )}
+
+            <div className="col-span-2 space-y-1">
+              <Label>Witnessed By (farm staff present at collection)</Label>
+              {members.length > 0 ? (
+                <Select
+                  value={form.witnessedBy ?? "__none__"}
+                  onValueChange={(v) => setForm(p => ({ ...p, witnessedBy: v === "__none__" ? null : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not specified —</SelectItem>
+                    {members.map(m => (
+                      <SelectItem key={m.id} value={`${m.firstName} ${m.lastName}`}>{m.firstName} {m.lastName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={form.witnessedBy ?? ""} onChange={f("witnessedBy")} placeholder="Name of farm staff present" />
+              )}
+            </div>
+
+            {form.recordedByUserName && (
+              <div className="col-span-2 space-y-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Recorded By (system user)</Label>
+                <Input value={form.recordedByUserName} readOnly className="bg-muted/40 text-muted-foreground cursor-default" />
+              </div>
+            )}
+
             <div className="col-span-2 space-y-1">
               <Label>Notes</Label>
               <Textarea value={form.notes ?? ""} onChange={f("notes")} rows={3} />
@@ -825,7 +946,16 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            <Button
+              onClick={() => {
+                if (!form.isOrganicCollection && !form.nonOrganicReason?.trim()) {
+                  toast({ title: "Reason required", description: "Please explain why this collection is non-organic before saving.", variant: "destructive" });
+                  return;
+                }
+                save.mutate();
+              }}
+              disabled={save.isPending}
+            >
               {save.isPending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>

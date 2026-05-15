@@ -748,6 +748,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["organic-compliance"],
   },
   {
+    id: "organic-milk-collection",
+    title: "Organic Milk Collection",
+    description: "Record each milk collection — volume, fat %, protein %, SCC, TBC, collection docket ref and organic certification status",
+    icon: "droplet",
+    color: "#15803D",
+    bgColor: "#DCFCE7",
+    route: "/organic-milk-collection",
+    moduleKeys: ["organic-compliance"],
+  },
+  {
     id: "equipment-defect",
     title: "Equipment Defect Report",
     description: "Report machinery faults, flag unsafe equipment and record corrective actions",
