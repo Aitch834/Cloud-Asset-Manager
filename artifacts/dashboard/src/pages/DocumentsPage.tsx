@@ -16,6 +16,7 @@ import {
   Upload, Loader2, X, Eye, File, Users, Shield, FlaskConical,
   ExternalLink, Award, Info,
 } from "lucide-react";
+import { Link } from "wouter";
 import { useUpload } from "@workspace/object-storage-web";
 
 // ─── Standalone document categories ─────────────────────────────────────────
@@ -133,7 +134,7 @@ function SectionHeader({
         {status === "warn" && <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.7rem" }}>Attention</Badge>}
       </div>
       {managedIn && managedHref && (
-        <a
+        <Link
           href={managedHref}
           style={{
             display: "inline-flex", alignItems: "center", gap: 5,
@@ -144,7 +145,7 @@ function SectionHeader({
           }}
         >
           Manage in {managedIn} <ExternalLink size={11} />
-        </a>
+        </Link>
       )}
     </div>
   );
@@ -157,9 +158,9 @@ function ModuleUnavailable({ moduleName, href }: { moduleName: string; href: str
       <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0, flex: 1 }}>
         <strong>{moduleName}</strong> module not active — records cannot be displayed here.
       </p>
-      <a href={href} style={{ fontSize: "0.8rem", color: "#1d4ed8", textDecoration: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
+      <Link href={href} style={{ fontSize: "0.8rem", color: "#1d4ed8", textDecoration: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
         Go to module <ExternalLink size={11} />
-      </a>
+      </Link>
     </div>
   );
 }
@@ -314,7 +315,7 @@ export default function DocumentsPage() {
       note: "Required for every product in use",
       status: coshhOk ? (coshhRecords.length > 0 ? "present" : "missing") : docs.some(d => d.documentType === "COSHH Assessment") ? "present" : "missing",
       dataFrom: coshhOk ? "Safety & Risk → COSHH" : "Document Register",
-      href: coshhOk ? "/safety?tab=coshh" : null,
+      href: coshhOk ? "/risks?tab=coshh" : null,
       detail: coshhOk && coshhRecords.length > 0
         ? `${coshhRecords.length} substance${coshhRecords.length !== 1 ? "s" : ""} assessed${coshhOverdue > 0 ? ` · ${coshhOverdue} overdue for review` : ""}`
         : null,
@@ -572,7 +573,7 @@ export default function DocumentsPage() {
                 <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.875rem 1rem", display: "flex", alignItems: "center", gap: 10 }}>
                   <Info size={15} color="#1d4ed8" style={{ flexShrink: 0 }} />
                   <span style={{ fontSize: "0.875rem", color: "#1e40af" }}>
-                    No certificates recorded — add operator certificates (PA1, PA2, PA6, First Aid, Forklift, Chainsaw and all others) per person in <a href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</a>. Each holder gets their own record with individual expiry tracking.
+                    No certificates recorded — add operator certificates (PA1, PA2, PA6, First Aid, Forklift, Chainsaw and all others) per person in <Link href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</Link>. Each holder gets their own record with individual expiry tracking.
                   </span>
                 </div>
               ) : (
@@ -617,14 +618,14 @@ export default function DocumentsPage() {
                 title="COSHH & Safety Records"
                 count={coshhRecords.length}
                 managedIn="Safety & Risk"
-                managedHref="/safety?tab=coshh"
+                managedHref="/risks?tab=coshh"
                 status={coshhOverdue > 0 ? "warn" : undefined}
               />
               {!coshhOk ? (
-                <ModuleUnavailable moduleName="Safety & Risk" href="/safety" />
+                <ModuleUnavailable moduleName="Safety & Risk" href="/risks" />
               ) : coshhRecords.length === 0 ? (
                 <AlertBanner type="error">
-                  No COSHH assessments recorded — Red Tractor requires a COSHH assessment for every agrochemical in use. Add assessments in <a href="/safety?tab=coshh" style={{ color: "#991b1b", fontWeight: 600 }}>Safety &amp; Risk → COSHH</a>.
+                  No COSHH assessments recorded — Red Tractor requires a COSHH assessment for every agrochemical in use. Add assessments in <Link href="/risks?tab=coshh" style={{ color: "#991b1b", fontWeight: 600 }}>Safety &amp; Risk → COSHH</Link>.
                 </AlertBanner>
               ) : (
                 <>
@@ -677,7 +678,7 @@ export default function DocumentsPage() {
                 <p className="text-sm text-gray-400 text-center py-4">Loading...</p>
               ) : insuranceRecords.length === 0 ? (
                 <AlertBanner type="error">
-                  No insurance policies recorded. Employer's Liability and Public Liability are mandatory — add them in <a href="/insurance" style={{ color: "#991b1b", fontWeight: 600 }}>Insurance</a>.
+                  No insurance policies recorded. Employer's Liability and Public Liability are mandatory — add them in <Link href="/insurance" style={{ color: "#991b1b", fontWeight: 600 }}>Insurance</Link>.
                 </AlertBanner>
               ) : (
                 <>
@@ -806,7 +807,7 @@ export default function DocumentsPage() {
               <Info size={15} color="#1d4ed8" style={{ flexShrink: 0, marginTop: 2 }} />
               <p style={{ fontSize: "0.875rem", color: "#1e40af", margin: 0 }}>
                 <strong>Standalone documents only.</strong>{" "}
-                Operator certificates are managed per person in <a href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</a>. Farm insurance is in <a href="/insurance" style={{ color: "#1d4ed8" }}>Insurance</a>. COSHH assessments are in <a href="/safety?tab=coshh" style={{ color: "#1d4ed8" }}>Safety &amp; Risk</a>. Assurance certificates are in <a href="/compliance" style={{ color: "#1d4ed8" }}>Red Tractor Compliance</a>. All of these are surfaced automatically in the Compliance Hub tab.
+                Operator certificates are managed per person in <Link href="/training?tab=certificates" style={{ color: "#1d4ed8" }}>Staff &amp; Training → Certificates</Link>. Farm insurance is in <Link href="/insurance" style={{ color: "#1d4ed8" }}>Insurance</Link>. COSHH assessments are in <Link href="/risks?tab=coshh" style={{ color: "#1d4ed8" }}>Safety &amp; Risk</Link>. Assurance certificates are in <Link href="/compliance" style={{ color: "#1d4ed8" }}>Red Tractor Compliance</Link>. All of these are surfaced automatically in the Compliance Hub tab.
               </p>
             </div>
 
