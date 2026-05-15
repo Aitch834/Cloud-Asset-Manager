@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -33,9 +33,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
 
 const FEED_TYPES: [string, string][] = [
   ["Concentrate", "Concentrate"],
@@ -622,6 +623,241 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
   );
 }
 
+// ─── SCC Badge ───────────────────────────────────────────────────────────────
+
+function CollectionSccBadge({ v }: { v?: number | null }) {
+  if (v == null) return <span className="text-gray-400 text-sm">—</span>;
+  const ok = v < 200;
+  const warn = v >= 200 && v < 400;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : warn ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>
+      {v.toLocaleString()} k/mL
+    </span>
+  );
+}
+
+// ─── Monthly Summary Component ────────────────────────────────────────────────
+
+function CollectionMonthlySummary({ records, monthLabel, farmName }: { records: CollectionRecord[]; monthLabel: string; farmName: string }) {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const totalVol = records.reduce((s, r) => s + (parseFloat(r.volumeLitres || "0") || 0), 0);
+  const collectionCount = records.length;
+
+  const fatReadings = records.map(r => r.fatPercentage ? parseFloat(r.fatPercentage) : null).filter((v): v is number => v != null && !isNaN(v));
+  const avgFat = fatReadings.length > 0 ? fatReadings.reduce((a, b) => a + b, 0) / fatReadings.length : null;
+
+  const proteinReadings = records.map(r => r.proteinPercentage ? parseFloat(r.proteinPercentage) : null).filter((v): v is number => v != null && !isNaN(v));
+  const avgProtein = proteinReadings.length > 0 ? proteinReadings.reduce((a, b) => a + b, 0) / proteinReadings.length : null;
+
+  const sccReadings = records.map(r => r.sccCount).filter((v): v is number => v != null);
+  const avgScc = sccReadings.length > 0 ? Math.round(sccReadings.reduce((a, b) => a + b, 0) / sccReadings.length) : null;
+
+  const totalNetValuePence = records.filter(r => r.netValuePence != null).reduce((s, r) => s + (r.netValuePence ?? 0), 0);
+  const hasNetValue = records.some(r => r.netValuePence != null);
+
+  const nonOrganicCount = records.filter(r => !r.isOrganicCollection).length;
+
+  // Group by calendar day — sum volume, average SCC
+  const byDay = new Map<string, { vol: number; sccSum: number; sccCount: number }>();
+  for (const r of records) {
+    const day = r.collectionDate?.slice(0, 10);
+    if (!day) continue;
+    const vol = parseFloat(r.volumeLitres || "0") || 0;
+    const scc = r.sccCount;
+    const ex = byDay.get(day) ?? { vol: 0, sccSum: 0, sccCount: 0 };
+    byDay.set(day, {
+      vol: ex.vol + vol,
+      sccSum: scc != null ? ex.sccSum + scc : ex.sccSum,
+      sccCount: scc != null ? ex.sccCount + 1 : ex.sccCount,
+    });
+  }
+
+  const chartData = Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({
+      day: parseInt(date.slice(8, 10)),
+      date,
+      vol: Math.round(v.vol * 10) / 10,
+      scc: v.sccCount > 0 ? Math.round(v.sccSum / v.sccCount) : null,
+    }));
+
+  const hasScc = chartData.some(d => d.scc != null);
+
+  function handlePrint() {
+    if (!printRef.current) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Organic Milk Collections — ${monthLabel} — ${farmName}</title>
+      <style>
+        body{font-family:sans-serif;font-size:13px;color:#111;padding:24px}
+        h2{margin:0 0 4px;font-size:18px} .sub{color:#6b7280;font-size:12px;margin-bottom:16px}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+        .stat{border:1px solid #e5e7eb;border-radius:6px;padding:10px}
+        .stat-label{font-size:11px;color:#6b7280;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+        .stat-value{font-size:20px;font-weight:600}
+        .stat-sub{font-size:11px;color:#9ca3af;margin-top:2px}
+        .badge-green{background:#dcfce7;color:#166534;padding:2px 8px;border-radius:9999px;font-size:11px}
+        .badge-amber{background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:9999px;font-size:11px}
+        table{width:100%;border-collapse:collapse}
+        th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;padding:6px 8px;border-bottom:2px solid #e5e7eb}
+        td{padding:6px 8px;border-bottom:1px solid #f3f4f6;font-size:12px}
+      </style></head><body>`);
+    w.document.write(printRef.current.innerHTML);
+    w.document.write("</body></html>");
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.addEventListener("afterprint", () => w.close()); w.print(); }, 400);
+  }
+
+  const sccColour = (v: number | null) =>
+    v == null ? "text-gray-400" : v > 400 ? "text-red-700" : v > 200 ? "text-amber-700" : "text-green-700";
+  const sccBg = (v: number | null) =>
+    v == null ? "bg-gray-50 border-gray-200" : v > 400 ? "bg-red-50 border-red-200" : v > 200 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200";
+
+  return (
+    <div className="mb-4 rounded-md border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Droplets className="h-4 w-4 text-blue-500" />
+          <span className="text-sm font-semibold text-gray-800">Monthly Summary — {monthLabel}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={handlePrint}>
+          <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
+        </Button>
+      </div>
+
+      {records.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">No records for this month to summarise.</p>
+      ) : (
+        <div className="p-4 space-y-5">
+          {/* Hidden print content */}
+          <div ref={printRef} style={{ display: "none" }}>
+            <h2>Organic Milk Collections — {monthLabel}</h2>
+            <div className="sub">{farmName} · {collectionCount} collection{collectionCount !== 1 ? "s" : ""} · Printed {new Date().toLocaleDateString("en-GB")}</div>
+            <div className="stats">
+              <div className="stat"><div className="stat-label">Total Volume</div><div className="stat-value">{totalVol.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</div><div className="stat-sub">{collectionCount} collections</div></div>
+              <div className="stat"><div className="stat-label">Avg SCC (k/mL)</div><div className="stat-value">{avgScc != null ? avgScc.toLocaleString() : "—"}</div><div className="stat-sub">{avgScc == null ? "" : avgScc <= 200 ? "Within threshold" : avgScc <= 400 ? "Above 200k — monitor" : "High — action needed"}</div></div>
+              {(avgFat != null || avgProtein != null) && <div className="stat"><div className="stat-label">Avg Fat / Protein</div><div className="stat-value">{avgFat != null ? avgFat.toFixed(2) + "%" : "—"}</div><div className="stat-sub">{avgProtein != null ? "Protein: " + avgProtein.toFixed(2) + "%" : ""}</div></div>}
+              {hasNetValue && <div className="stat"><div className="stat-label">Total Net Value</div><div className="stat-value">£{(totalNetValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>}
+              {nonOrganicCount > 0 && <div className="stat"><div className="stat-label">Non-organic</div><div className="stat-value">{nonOrganicCount}</div><div className="stat-sub">of {collectionCount} collections</div></div>}
+            </div>
+            <table>
+              <thead><tr><th>Date</th><th>Collector</th><th>Volume (L)</th><th>Fat %</th><th>Protein %</th><th>SCC (k/mL)</th><th>TBC (k/mL)</th><th>Organic</th><th>Collection Docket</th><th>Net Value</th></tr></thead>
+              <tbody>{[...records].sort((a, b) => (a.collectionDate ?? "").localeCompare(b.collectionDate ?? "")).map(r => (
+                <tr key={r.id}>
+                  <td>{new Date(r.collectionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</td>
+                  <td>{r.collectorName ?? "—"}</td>
+                  <td>{r.volumeLitres ? parseFloat(r.volumeLitres).toLocaleString() : "—"}</td>
+                  <td>{r.fatPercentage ? r.fatPercentage + "%" : "—"}</td>
+                  <td>{r.proteinPercentage ? r.proteinPercentage + "%" : "—"}</td>
+                  <td>{r.sccCount != null ? r.sccCount + "k" : "—"}</td>
+                  <td>{r.tbcCount != null ? r.tbcCount + "k" : "—"}</td>
+                  <td><span className={r.isOrganicCollection ? "badge-green" : "badge-amber"}>{r.isOrganicCollection ? "Organic" : `Non-organic${r.nonOrganicReason ? " — " + r.nonOrganicReason : ""}`}</span></td>
+                  <td>{r.collectionSlipRef ?? "—"}</td>
+                  <td>{r.netValuePence != null ? "£" + (r.netValuePence / 100).toFixed(2) : "—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2.5">
+              <p className="text-xs text-blue-600 mb-0.5">Total Volume</p>
+              <p className="text-xl font-bold text-blue-800">{totalVol.toLocaleString("en-GB", { maximumFractionDigits: 0 })}<span className="text-sm font-normal ml-1">L</span></p>
+              <p className="text-xs text-blue-400">{collectionCount} collection{collectionCount !== 1 ? "s" : ""}</p>
+            </div>
+            <div className={`rounded-md border px-3 py-2.5 ${sccBg(avgScc)}`}>
+              <p className={`text-xs mb-0.5 ${avgScc == null ? "text-gray-500" : avgScc > 400 ? "text-red-600" : avgScc > 200 ? "text-amber-600" : "text-green-600"}`}>Avg SCC (k/mL)</p>
+              <p className={`text-xl font-bold ${sccColour(avgScc)}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p>
+              {avgScc != null && <p className={`text-xs ${sccColour(avgScc)}`}>{avgScc <= 200 ? "Within threshold" : avgScc <= 400 ? "Above 200k — monitor" : "High — action needed"}</p>}
+            </div>
+            <div className="rounded-md bg-green-50 border border-green-100 px-3 py-2.5">
+              <p className="text-xs text-green-600 mb-0.5">Avg Fat / Protein</p>
+              <p className="text-xl font-bold text-green-800">{avgFat != null ? avgFat.toFixed(2) + "%" : "—"}</p>
+              <p className="text-xs text-green-500">{avgProtein != null ? "Protein: " + avgProtein.toFixed(2) + "%" : "No protein data"}</p>
+            </div>
+            {nonOrganicCount > 0 ? (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2.5">
+                <p className="text-xs text-amber-600 mb-0.5 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Non-organic</p>
+                <p className="text-xl font-bold text-amber-700">{nonOrganicCount}</p>
+                <p className="text-xs text-amber-600">of {collectionCount} collections</p>
+              </div>
+            ) : hasNetValue ? (
+              <div className="rounded-md bg-emerald-50 border border-emerald-100 px-3 py-2.5">
+                <p className="text-xs text-emerald-600 mb-0.5">Total Net Value</p>
+                <p className="text-xl font-bold text-emerald-800">£{(totalNetValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            ) : (
+              <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2.5">
+                <p className="text-xs text-gray-500 mb-0.5">Collections</p>
+                <p className="text-xl font-bold text-gray-800">{collectionCount}</p>
+                <p className="text-xs text-gray-400">this month</p>
+              </div>
+            )}
+          </div>
+
+          {/* Show net value row if non-organic card took the 4th slot */}
+          {nonOrganicCount > 0 && hasNetValue && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md bg-emerald-50 border border-emerald-100 px-3 py-2.5">
+                <p className="text-xs text-emerald-600 mb-0.5">Total Net Value</p>
+                <p className="text-xl font-bold text-emerald-800">£{(totalNetValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Chart */}
+          {chartData.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
+                Daily Volume{hasScc ? " & SCC Trend" : ""}
+              </p>
+              <ResponsiveContainer width="100%" height={210}>
+                <ComposedChart data={chartData} margin={{ top: 4, right: hasScc ? 52 : 12, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="vol" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} width={50} tickFormatter={(v: number) => `${v}L`} />
+                  {hasScc && (
+                    <YAxis yAxisId="scc" orientation="right" tick={{ fontSize: 11, fill: "#fb923c" }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${v}k`} />
+                  )}
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]?.payload;
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-md shadow px-3 py-2 text-xs">
+                          <p className="font-semibold text-gray-700 mb-1">
+                            {new Date(d.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                          </p>
+                          {d.vol > 0 && <p className="text-blue-600">Volume: <span className="font-medium">{d.vol.toLocaleString()} L</span></p>}
+                          {d.scc != null && <p className="text-orange-500">SCC: <span className="font-medium">{d.scc.toLocaleString()} k/mL</span></p>}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar yAxisId="vol" dataKey="vol" fill="#3b82f6" fillOpacity={0.8} radius={[3, 3, 0, 0]} name="Volume (L)" maxBarSize={32} />
+                  {hasScc && (
+                    <>
+                      <Line yAxisId="scc" type="monotone" dataKey="scc" stroke="#f97316" strokeWidth={2.5} dot={{ r: 3.5, fill: "#f97316", strokeWidth: 0 }} connectNulls name="SCC (k/mL)" />
+                      <ReferenceLine yAxisId="scc" y={200} stroke="#f97316" strokeDasharray="5 3" strokeOpacity={0.45} label={{ value: "200k", position: "right", fontSize: 10, fill: "#f97316" }} />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-500 opacity-80" />Volume (L)</span>
+                {hasScc && <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-orange-400" />SCC (k/mL) — dashed line = 200k threshold</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MilkCollectionsTab ───────────────────────────────────────────────────────
 
 function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
@@ -632,6 +868,23 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
   const [editing, setEditing] = useState<CollectionRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<CollectionRecord | null>(null);
   const [form, setForm] = useState<Partial<CollectionRecord>>({});
+  const [raiseTaskFor, setRaiseTaskFor] = useState<CollectionRecord | null>(null);
+
+  // Month filter — default to current month
+  const now = new Date();
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
+  const [filterMonth, setFilterMonth] = useState(now.getMonth()); // 0-indexed
+
+  function stepMonth(dir: 1 | -1) {
+    setFilterMonth(m => {
+      const next = m + dir;
+      if (next < 0) { setFilterYear(y => y - 1); return 11; }
+      if (next > 11) { setFilterYear(y => y + 1); return 0; }
+      return next;
+    });
+  }
+
+  const monthLabel = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
   const { data } = useQuery<{ records: CollectionRecord[] }>({
     queryKey: ["organic-dairy-collections", farmId],
@@ -639,6 +892,13 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     enabled: !!farmId,
   });
   const records = data?.records ?? [];
+
+  // Filter to selected month (for display and summary)
+  const filteredRecords = records.filter(r => {
+    if (!r.collectionDate) return false;
+    const d = new Date(r.collectionDate);
+    return d.getFullYear() === filterYear && d.getMonth() === filterMonth;
+  });
 
   const { data: supplierData } = useQuery<{ records: Array<{ id: number; name: string }> }>({
     queryKey: ["farm-suppliers-for-collection", farmId],
@@ -699,14 +959,31 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      {/* ── Toolbar ──────────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => printMilkCollectionLog(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-          <Printer className="h-4 w-4" />Print Collection Log
+          <Printer className="h-4 w-4" />Print All Records
         </Button>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Collection
         </Button>
       </div>
+
+      {/* ── Month Navigation ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+        <button onClick={() => stepMonth(-1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Previous month">
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">{monthLabel}</span>
+        <button onClick={() => stepMonth(1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Next month">
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        </button>
+      </div>
+
+      {/* ── Monthly Summary ───────────────────────────────────────────────────── */}
+      <CollectionMonthlySummary records={filteredRecords} monthLabel={monthLabel} farmName={farmName} />
+
+      {/* ── Table ────────────────────────────────────────────────────────────── */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -718,26 +995,30 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             <TableHead>SCC</TableHead>
             <TableHead>Organic</TableHead>
             <TableHead>Net Value</TableHead>
-            <TableHead className="w-28" />
+            <TableHead className="w-32" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.length === 0 && (
+          {filteredRecords.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No milk collection records yet</TableCell>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                {records.length > 0
+                  ? `No collections for ${monthLabel} — use the arrows to browse other months.`
+                  : "No milk collection records yet — click Add Collection to begin."}
+              </TableCell>
             </TableRow>
           )}
-          {records.map((r) => (
-            <TableRow key={r.id}>
+          {filteredRecords.map((r) => (
+            <TableRow key={r.id} className={!r.isOrganicCollection ? "bg-amber-50/40" : undefined}>
               <TableCell>{fmt(r.collectionDate)}</TableCell>
               <TableCell>{r.collectorName ?? "—"}</TableCell>
-              <TableCell>{r.volumeLitres}</TableCell>
+              <TableCell className="font-medium">{r.volumeLitres ? `${parseFloat(r.volumeLitres).toLocaleString()} L` : "—"}</TableCell>
               <TableCell>{r.fatPercentage ? `${r.fatPercentage}%` : "—"}</TableCell>
               <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
-              <TableCell>{r.sccCount ? `${r.sccCount}k` : "—"}</TableCell>
+              <TableCell><CollectionSccBadge v={r.sccCount} /></TableCell>
               <TableCell>
                 <div className="flex flex-col gap-0.5">
-                  <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800 border border-amber-300"}>
+                  <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-100"}>
                     {r.isOrganicCollection ? "Organic" : "Non-organic"}
                   </Badge>
                   {!r.isOrganicCollection && r.nonOrganicReason && (
@@ -748,15 +1029,20 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <TableCell>{formatPence(r.netValuePence)}</TableCell>
               <TableCell>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>
-                    <Eye className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="View" onClick={() => setViewRecord(r)}>
+                    <Eye className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                    <Pencil className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}>
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => remove.mutate(r.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove.mutate(r.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
+                  {((r.sccCount != null && r.sccCount > 200) || !r.isOrganicCollection) && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" title="Raise Task — quality alert" onClick={() => setRaiseTaskFor(r)}>
+                      <ClipboardList className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
@@ -961,6 +1247,17 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle={`Milk Quality Alert — ${!raiseTaskFor.isOrganicCollection ? "Non-organic Collection" : "High SCC"}`}
+          defaultDescription={`Date: ${raiseTaskFor.collectionDate} · Volume: ${raiseTaskFor.volumeLitres}L · SCC: ${raiseTaskFor.sccCount != null ? raiseTaskFor.sccCount + "k/mL" : "—"} · Organic: ${raiseTaskFor.isOrganicCollection ? "Yes" : "No"}${!raiseTaskFor.isOrganicCollection && raiseTaskFor.nonOrganicReason ? " — " + raiseTaskFor.nonOrganicReason : ""}`}
+          module="organic-dairy"
+        />
+      )}
     </div>
   );
 }
