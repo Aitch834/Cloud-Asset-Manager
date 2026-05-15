@@ -222,6 +222,9 @@ const TITLES: [string, string][] = [
   ["Organic Viticulture — Wine Production Additives: SO2 Compliance and Organic Wine Certification Records", "Organic Viticulture"],
   ["Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register", "Organic Viticulture"],
   ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
+  ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
+  ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
+  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Phenology, Pruning & Canopy, Harvest and Disease Scouting", "Organic Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
