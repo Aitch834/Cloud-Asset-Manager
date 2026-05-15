@@ -94,6 +94,7 @@ import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
 import MultiFarmGroupPage from "@/pages/MultiFarmGroupPage";
+import { NavHistoryProvider } from "@/context/NavHistoryContext";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 // NOTE: in dev this env var will be empty, in prod it will be automatically set
@@ -508,9 +509,11 @@ function ClerkProviderWrapper() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
-        {!isDevBypass && <ClerkQueryClientCacheInvalidator />}
-        {isDevBypass ? <DevBypassContent /> : <Router />}
-        <Toaster />
+        <NavHistoryProvider>
+          {!isDevBypass && <ClerkQueryClientCacheInvalidator />}
+          {isDevBypass ? <DevBypassContent /> : <Router />}
+          <Toaster />
+        </NavHistoryProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

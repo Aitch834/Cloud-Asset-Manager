@@ -1,11 +1,12 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
-import { Menu } from "lucide-react";
+import { ArrowLeft, Menu } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery } from "@tanstack/react-query";
 import { NotificationPanel } from "@/components/NotificationPanel";
+import { useNavHistory } from "@/context/NavHistoryContext";
 
-export function AppLayout({ children, title }: { children: ReactNode, title?: string }) {
+export function AppLayout({ children, title }: { children: ReactNode; title?: string }) {
   const { farmId } = useAppStore();
   const { data: farmDetail } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
     queryKey: ["farm-detail", farmId],
@@ -14,12 +15,18 @@ export function AppLayout({ children, title }: { children: ReactNode, title?: st
   });
   const farmName = farmDetail?.record?.name;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { registerTitle, goBack, backLabel } = useNavHistory();
+
+  // Register this page's title into the navigation history so the *next*
+  // page can show "← Back to <this title>" in its header.
+  useEffect(() => {
+    if (title) registerTitle(title);
+  }, [title, registerTitle]);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Sidebar backdrop — sits below the header so the hamburger stays clickable */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50"
@@ -37,11 +44,26 @@ export function AppLayout({ children, title }: { children: ReactNode, title?: st
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div>
-              {title && <h2 className="text-2xl font-display font-bold text-foreground">{title}</h2>}
-              {farmName && (
-                <p className="text-sm text-muted-foreground -mt-0.5">{farmName}</p>
+
+            <div className="flex items-center gap-3">
+              {/* Subtle back button — only visible when there is somewhere to return to */}
+              {backLabel && (
+                <button
+                  onClick={goBack}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors bg-muted/40 hover:bg-muted px-2.5 py-1.5 rounded-full border border-border/60 shrink-0"
+                  title={`Back to ${backLabel}`}
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  <span className="hidden sm:inline">{backLabel}</span>
+                </button>
               )}
+
+              <div>
+                {title && <h2 className="text-2xl font-display font-bold text-foreground leading-tight">{title}</h2>}
+                {farmName && (
+                  <p className="text-sm text-muted-foreground -mt-0.5">{farmName}</p>
+                )}
+              </div>
             </div>
           </div>
 
