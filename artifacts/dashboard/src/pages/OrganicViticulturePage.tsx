@@ -12,6 +12,14 @@ import {
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  OverviewTab as VitOverviewTab,
+  VineRegisterTab,
+  PhenologyTab,
+  OperationsTab,
+  HarvestTab as VitHarvestTab,
+  ScoutingTab,
+} from "@/pages/ViticulturePage";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -32,7 +40,8 @@ function fmtNum(val: number | null | undefined): string {
   return String(val);
 }
 
-type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "certificates";
+type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "certificates"
+         | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "block-conversion", label: "Block Conversion" },
@@ -41,6 +50,12 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "input-derogations", label: "Input Derogations" },
   { id: "wine-production", label: "Wine Production" },
   { id: "certificates", label: "Certificates" },
+  { id: "vit-overview", label: "Overview" },
+  { id: "vine-register", label: "Vine Register" },
+  { id: "phenology", label: "Phenology" },
+  { id: "operations", label: "Pruning & Canopy" },
+  { id: "vit-harvest", label: "Harvest" },
+  { id: "scouting", label: "Disease Scouting" },
 ];
 
 const BLOCK_STATUS_OPTIONS = ["in-conversion", "fully-organic", "suspended", "withdrawn"];
@@ -1359,6 +1374,16 @@ export default function OrganicViticulturePage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("block-conversion");
 
+  const { data: vineyardBlocks = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["vineyard-blocks", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/vineyard-blocks`, { credentials: "include" });
+      const d = await r.json();
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+  });
+
   if (!farmId) return (
     <AppLayout>
       <div className="flex items-center justify-center h-64 text-gray-500">No farm selected.</div>
@@ -1393,6 +1418,12 @@ export default function OrganicViticulturePage() {
           {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={farmId} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}
+          {tab === "vit-overview" && <VitOverviewTab farmId={farmId} />}
+          {tab === "vine-register" && <VineRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "phenology" && <PhenologyTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "operations" && <OperationsTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "vit-harvest" && <VitHarvestTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "scouting" && <ScoutingTab farmId={farmId} blocks={vineyardBlocks} />}
         </Card>
       </div>
     </AppLayout>

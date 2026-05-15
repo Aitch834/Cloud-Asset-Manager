@@ -283,7 +283,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
 
 // ── CROPS ──────────────────────────────────────────────────────────────────
 
-function CropsTab({ farmId }: { farmId: number }) {
+export function CropsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -353,7 +353,7 @@ function CropsTab({ farmId }: { farmId: number }) {
 
 // ── WATER TESTS ────────────────────────────────────────────────────────────
 
-function WaterTestsTab({ farmId }: { farmId: number }) {
+export function WaterTestsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -430,7 +430,7 @@ function WaterTestsTab({ farmId }: { farmId: number }) {
 
 // ── HARVEST ────────────────────────────────────────────────────────────────
 
-function HarvestTab({ farmId }: { farmId: number }) {
+export function HarvestTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -506,7 +506,7 @@ function useHarvestRecords(farmId: number) {
   });
 }
 
-function IntakeTab({ farmId }: { farmId: number }) {
+export function IntakeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -638,7 +638,7 @@ function IntakeTab({ farmId }: { farmId: number }) {
 
 // ── PACKHOUSE ──────────────────────────────────────────────────────────────
 
-function PackhouseTab({ farmId }: { farmId: number }) {
+export function PackhouseTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -775,7 +775,7 @@ function PackhouseTab({ farmId }: { farmId: number }) {
 
 // ── ALLERGENS ──────────────────────────────────────────────────────────────
 
-function AllergenTab({ farmId }: { farmId: number }) {
+export function AllergenTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);

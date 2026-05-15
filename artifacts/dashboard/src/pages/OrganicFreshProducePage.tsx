@@ -9,7 +9,11 @@ import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
   Eye, Info, Package, CheckCircle2, Clock, Printer, ClipboardList,
+  Droplets, Thermometer, Warehouse,
 } from "lucide-react";
+import {
+  CropsTab, WaterTestsTab, HarvestTab, IntakeTab, PackhouseTab, AllergenTab,
+} from "@/pages/FreshProducePage";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -2017,6 +2021,12 @@ const TABS = [
   { key: "input-derogations", label: "Input Derogations", icon: <AlertTriangle className="w-4 h-4" /> },
   { key: "certificates", label: "Certificates", icon: <ShieldCheck className="w-4 h-4" /> },
   { key: "buyer-declarations", label: "Buyer Declarations", icon: <FileText className="w-4 h-4" /> },
+  { key: "crops", label: "Crops", icon: <Leaf className="w-4 h-4" /> },
+  { key: "water-tests", label: "Water Tests", icon: <Droplets className="w-4 h-4" /> },
+  { key: "harvest", label: "Harvest", icon: <Package className="w-4 h-4" /> },
+  { key: "intake", label: "Intake", icon: <Thermometer className="w-4 h-4" /> },
+  { key: "packhouse", label: "Packhouse", icon: <Warehouse className="w-4 h-4" /> },
+  { key: "allergen", label: "Allergens", icon: <AlertTriangle className="w-4 h-4" /> },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -2059,6 +2069,12 @@ export default function OrganicFreshProducePage() {
           {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} farmName={farmName} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} farmName={farmName} />}
           {tab === "buyer-declarations" && <BuyerDeclarationsTab farmId={farmId} farmName={farmName} />}
+          {tab === "crops" && <CropsTab farmId={farmId} />}
+          {tab === "water-tests" && <WaterTestsTab farmId={farmId} />}
+          {tab === "harvest" && <HarvestTab farmId={farmId} />}
+          {tab === "intake" && <IntakeTab farmId={farmId} />}
+          {tab === "packhouse" && <PackhouseTab farmId={farmId} />}
+          {tab === "allergen" && <AllergenTab farmId={farmId} />}
         </Card>
       </div>
     </AppLayout>

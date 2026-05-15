@@ -211,7 +211,7 @@ function RaiseTaskBtn({ onClick }: { onClick: () => void }) {
 }
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
-function OverviewTab({ farmId }: { farmId: number }) {
+export function OverviewTab({ farmId }: { farmId: number }) {
   const blocks = useCrud(farmId, "vineyard-blocks", "vineyard-blocks");
   const register = useCrud(farmId, "vine-register", "vine-register");
   const harvest = useCrud(farmId, "vineyard-harvest", "vineyard-harvest");
@@ -313,7 +313,7 @@ function OverviewTab({ farmId }: { farmId: number }) {
 // ─── Vine Register ─────────────────────────────────────────────────────────────
 type VineReg = Record<string, unknown>;
 
-function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<VineReg | null>(null);
@@ -491,7 +491,7 @@ function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<st
 // ─── Blocks ────────────────────────────────────────────────────────────────────
 type Block = Record<string, unknown>;
 
-function BlocksTab({ farmId }: { farmId: number }) {
+export function BlocksTab({ farmId }: { farmId: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Block | null>(null);
@@ -693,7 +693,7 @@ function BlocksTab({ farmId }: { farmId: number }) {
 // ─── Phenology ─────────────────────────────────────────────────────────────────
 type Phenology = Record<string, unknown>;
 
-function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -835,7 +835,7 @@ function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Record<strin
 // ─── Operations ────────────────────────────────────────────────────────────────
 type Operation = Record<string, unknown>;
 
-function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<Operation>(farmId, "vineyard-operations", "vineyard-operations");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -1014,7 +1014,7 @@ function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Record<stri
 // ─── Harvest ───────────────────────────────────────────────────────────────────
 type Harvest = Record<string, unknown>;
 
-function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<Harvest>(farmId, "vineyard-harvest", "vineyard-harvest");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -1204,7 +1204,7 @@ function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<string,
 // ─── Disease Scouting ──────────────────────────────────────────────────────────
 type Scouting = Record<string, unknown>;
 
-function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<Scouting>(farmId, "vineyard-scouting", "vineyard-scouting");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);

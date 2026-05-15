@@ -36,6 +36,14 @@ import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, Aler
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { MortalitySection } from "@/pages/livestock/MortalitySection";
+import {
+  HerdsSection, AnimalsSection, VetHealthPlansSection,
+  FallenStockContractorsSection, FeedSection, WaterSection,
+  SiresSection, AIReproductionSection, VetPrescriptionsSection,
+  StrawInventorySection, LambingSection, TbTestsSection,
+  WelfareOutcomeSection, SheepDippingSection,
+} from "@/pages/LivestockPage";
 
 const CERTIFIERS = [
   "Soil Association",
@@ -2422,12 +2430,27 @@ export default function OrganicLivestockPage() {
     <AppLayout title="Organic Livestock">
       {farmId && (
         <Tabs defaultValue="conversion">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
             <TabsTrigger value="feed">Feed Records</TabsTrigger>
             <TabsTrigger value="feed-derogations">Feed Derogations</TabsTrigger>
             <TabsTrigger value="outdoor-access">Outdoor Access / Stocking</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
+            <TabsTrigger value="herds">Herds &amp; Flocks</TabsTrigger>
+            <TabsTrigger value="animals">Animals</TabsTrigger>
+            <TabsTrigger value="vet-plans">Vet Health Plans</TabsTrigger>
+            <TabsTrigger value="mortality">Mortality</TabsTrigger>
+            <TabsTrigger value="contractors">Contractors</TabsTrigger>
+            <TabsTrigger value="ls-feed">Feed</TabsTrigger>
+            <TabsTrigger value="water">Water</TabsTrigger>
+            <TabsTrigger value="sires">Sires</TabsTrigger>
+            <TabsTrigger value="straws">Straws</TabsTrigger>
+            <TabsTrigger value="ai-repro">AI &amp; Repro</TabsTrigger>
+            <TabsTrigger value="vet-rx">Vet Rx</TabsTrigger>
+            <TabsTrigger value="lambing">Lambing</TabsTrigger>
+            <TabsTrigger value="tb-tests">TB Tests</TabsTrigger>
+            <TabsTrigger value="welfare-outcomes">Welfare Outcomes</TabsTrigger>
+            <TabsTrigger value="sheep-dipping">Sheep Dipping</TabsTrigger>
           </TabsList>
           <TabsContent value="conversion" className="mt-4">
             <ConversionTab farmId={farmId} farmName={name} />
@@ -2443,6 +2466,51 @@ export default function OrganicLivestockPage() {
           </TabsContent>
           <TabsContent value="treatments" className="mt-4">
             <TreatmentsTab farmId={farmId} farmName={name} />
+          </TabsContent>
+          <TabsContent value="herds" className="mt-4">
+            <HerdsSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="animals" className="mt-4">
+            <AnimalsSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="vet-plans" className="mt-4">
+            <VetHealthPlansSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="mortality" className="mt-4">
+            <MortalitySection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="contractors" className="mt-4">
+            <FallenStockContractorsSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="ls-feed" className="mt-4">
+            <FeedSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="water" className="mt-4">
+            <WaterSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="sires" className="mt-4">
+            <SiresSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="straws" className="mt-4">
+            <StrawInventorySection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="ai-repro" className="mt-4">
+            <AIReproductionSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="vet-rx" className="mt-4">
+            <VetPrescriptionsSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="lambing" className="mt-4">
+            <LambingSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="tb-tests" className="mt-4">
+            <TbTestsSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="welfare-outcomes" className="mt-4">
+            <WelfareOutcomeSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="sheep-dipping" className="mt-4">
+            <SheepDippingSection farmId={farmId} />
           </TabsContent>
         </Tabs>
       )}

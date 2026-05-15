@@ -630,7 +630,7 @@ function getHerdNamePlaceholder(species: string): string {
   return "e.g. Main Herd / Flock";
 }
 
-function HerdsSection({ farmId }: { farmId: number }) {
+export function HerdsSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const livestockSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const [search, setSearch] = useState("");
@@ -1492,7 +1492,7 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
   );
 }
 
-function VetHealthPlansSection({ farmId }: { farmId: number }) {
+export function VetHealthPlansSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<VetHealthPlan | null>(null);
@@ -1857,7 +1857,7 @@ const EMPTY_FEED = {
   herdId: "", feedStockItemId: "", deliveryId: "",
 };
 
-function FallenStockContractorsSection({ farmId }: { farmId: number }) {
+export function FallenStockContractorsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FallenStockContractor | null>(null);
@@ -2021,7 +2021,7 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
   );
 }
 
-function FeedSection({ farmId }: { farmId: number }) {
+export function FeedSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/feed-records`;
 
@@ -2500,7 +2500,7 @@ function WaterCertificatesDialog({
   );
 }
 
-function WaterSection({ farmId }: { farmId: number }) {
+export function WaterSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/water-records`;
   const { data, isLoading } = useQuery<{ records: WaterRecord[] }>({
@@ -3449,7 +3449,7 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   );
 }
 
-function AnimalsSection({ farmId }: { farmId: number }) {
+export function AnimalsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const animalSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const base = `/api/farms/${farmId}/animals`;
@@ -3891,7 +3891,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
 }
 
 // ─── Sire Register Section ─────────────────────────────────────────────────────
-function SiresSection({ farmId }: { farmId: number }) {
+export function SiresSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Sire | null>(null);
@@ -4100,7 +4100,7 @@ function SiresSection({ farmId }: { farmId: number }) {
 }
 
 // ─── AI / Reproduction Section ─────────────────────────────────────────────────
-function AIReproductionSection({ farmId }: { farmId: number }) {
+export function AIReproductionSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -4454,7 +4454,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
 }
 
 // ─── Vet Prescriptions / Medicine Treatment Register ────────────────────────────
-function VetPrescriptionsSection({ farmId }: { farmId: number }) {
+export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -4630,7 +4630,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   );
 }
 
-function StrawInventorySection({ farmId }: { farmId: number }) {
+export function StrawInventorySection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<StrawInventory | null>(null);
@@ -4929,7 +4929,7 @@ function LambSection({ n, form, set }: {
   );
 }
 
-function LambingSection({ farmId }: { farmId: number }) {
+export function LambingSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const EMPTY: Partial<LambingRecord> = { numberOfLambs: 1, lambingDate: todayStr(), assistanceRequired: false, vetAttended: false, fosteringRequired: false };
@@ -5659,7 +5659,7 @@ interface TbTest { id: number; farmId: number; testDate: string; readingDate: st
 
 const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, herdId: null, animalsTested: null, animalEarTags: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, documentPath: null, movementId: null, notes: null };
 
-function TbTestsSection({ farmId }: { farmId: number }) {
+export function TbTestsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/tb-tests`;
   const { data, isLoading } = useQuery<{ records: TbTest[] }>({ queryKey: ["tb-tests", farmId], queryFn: () => fetch(base).then(r => r.json()) });
@@ -5953,7 +5953,7 @@ interface WelfareOutcomeRecord { id: number; farmId: number; assessmentDate: str
 
 const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = { assessmentDate: "", assessorName: "", assessorRole: null, species: "cattle", herdFlockRef: null, sampleSize: null, lamenessScore: null, bodyConditionScore: null, dungScore: null, skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null, mortalityRate: null, calvingLambingScore: null, overallOutcome: "acceptable", correctiveActions: null, targetDate: null, nextAssessmentDue: null, documentUrl: null, documentName: null, documentPath: null, notes: null };
 
-function WelfareOutcomeSection({ farmId }: { farmId: number }) {
+export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/welfare-outcome-assessments`;
   const { data, isLoading } = useQuery<{ records: WelfareOutcomeRecord[] }>({ queryKey: ["welfare-outcomes", farmId], queryFn: () => fetch(base).then(r => r.json()) });
@@ -6260,7 +6260,7 @@ interface DipCert { id: number; userId: string; certificateType: string; certifi
 
 const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId" | "stockItemName" | "stockItemUnit" | "stockItemStorageLocation"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, stockItemId: null, quantityUsed: null, documentPath: null, documentUrl: null, documentName: null, notes: null };
 
-function SheepDippingSection({ farmId }: { farmId: number }) {
+export function SheepDippingSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/sheep-dipping-records`;
   const { data, isLoading } = useQuery<{ records: SheepDippingRecord[] }>({ queryKey: ["sheep-dipping", farmId], queryFn: () => fetch(base).then(r => r.json()) });
