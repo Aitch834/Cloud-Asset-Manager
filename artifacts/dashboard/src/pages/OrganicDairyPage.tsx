@@ -37,6 +37,7 @@ import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, Chevron
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab } from "@/pages/DairyPage";
 
 const FEED_TYPES: [string, string][] = [
   ["Concentrate", "Concentrate"],
@@ -1897,9 +1898,15 @@ export default function OrganicDairyPage() {
     <AppLayout title="Organic Dairy">
       {farmId && (
         <Tabs defaultValue="herd-conversion">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="herd-conversion">Herd Conversion</TabsTrigger>
             <TabsTrigger value="collections">Milk Collections</TabsTrigger>
+            <TabsTrigger value="mastitis">Mastitis</TabsTrigger>
+            <TabsTrigger value="calving">Calving</TabsTrigger>
+            <TabsTrigger value="bcs">Body Condition</TabsTrigger>
+            <TabsTrigger value="mobility">Mobility Scoring</TabsTrigger>
+            <TabsTrigger value="tank">Bulk Tank</TabsTrigger>
+            <TabsTrigger value="dct">Dry Cow Therapy</TabsTrigger>
             <TabsTrigger value="feed">Feed & Nutrition</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
           </TabsList>
@@ -1908,6 +1915,24 @@ export default function OrganicDairyPage() {
           </TabsContent>
           <TabsContent value="collections" className="mt-4">
             <MilkCollectionsTab farmId={farmId} farmName={name} />
+          </TabsContent>
+          <TabsContent value="mastitis" className="mt-4">
+            <MastitisTab farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="calving" className="mt-4">
+            <CalvingTab farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="bcs" className="mt-4">
+            <BcsTab farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="mobility" className="mt-4">
+            <MobilityTab farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="tank" className="mt-4">
+            <BulkTankTab farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="dct" className="mt-4">
+            <DctTab farmId={farmId} />
           </TabsContent>
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />

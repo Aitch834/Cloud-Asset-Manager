@@ -715,7 +715,7 @@ function normalizeGrade(g?: string | null): string {
 const GRADE_PIE_COLOURS = ["#6366f1", "#f59e0b", "#f97316", "#ef4444", "#94a3b8"];
 const OUTCOME_PIE_COLOURS = ["#22c55e", "#eab308", "#f97316", "#3b82f6", "#ef4444", "#94a3b8"];
 
-function MastitisTab({ farmId }: { farmId: number }) {
+export function MastitisTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MastitisRecord | null>(null);
@@ -1365,7 +1365,7 @@ interface CalvingRecord {
   notes?: string | null;
 }
 
-function CalvingTab({ farmId }: { farmId: number }) {
+export function CalvingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CalvingRecord | null>(null);
@@ -2098,7 +2098,7 @@ interface BcsRecord {
   actionTaken?: string | null; notes?: string | null;
 }
 
-function BcsTab({ farmId }: { farmId: number }) {
+export function BcsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { user: clerkUser } = useUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
@@ -2353,7 +2353,7 @@ interface MobilityScoring {
   score3AnimalTags?: string | null; score2AnimalTags?: string | null;
 }
 
-function MobilityTab({ farmId }: { farmId: number }) {
+export function MobilityTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { user: clerkUser } = useUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
@@ -2920,7 +2920,7 @@ function TempBadge({ v }: { v?: string | null }) {
 
 // ─── BulkTankTab ──────────────────────────────────────────────────────────────
 
-function BulkTankTab({ farmId }: { farmId: number }) {
+export function BulkTankTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
 
   // ── Tank registry ──────────────────────────────────────────────────────────
@@ -3814,7 +3814,7 @@ function AnimalEarTagCombobox({
   );
 }
 
-function DctTab({ farmId }: { farmId: number }) {
+export function DctTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DctRecord | null>(null);
