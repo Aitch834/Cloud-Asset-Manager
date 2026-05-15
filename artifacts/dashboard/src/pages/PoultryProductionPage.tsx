@@ -2888,7 +2888,7 @@ export default function PoultryProductionPage() {
         <Card><CardContent className="pt-4">
           {tab === "overview" && <OverviewTab farmId={farmId} onGoto={t => setTab(t as Tab)} />}
           {tab === "houses" && <HousesTab farmId={farmId} />}
-          <div className={tab !== "flocks" ? "hidden" : undefined}><FlocksTab farmId={farmId} /></div>
+          {tab === "flocks" && <FlocksTab farmId={farmId} />}
           {tab === "purchases" && <ChickPurchasesTab farmId={farmId} />}
           {tab === "mortality" && <MortalityTab farmId={farmId} />}
           {tab === "treatments" && <TreatmentsTab farmId={farmId} />}
