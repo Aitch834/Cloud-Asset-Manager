@@ -132,6 +132,22 @@ export default defineConfig({
       { find: "@uppy/aws-s3",    replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/aws-s3") },
       { find: "@uppy/dashboard", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@uppy/dashboard") },
 
+      // ── shadcn/ui peer dependencies ──────────────────────────────────────
+      // These packages are used by @/components/ui/* (calendar, carousel,
+      // drawer, input-otp, resizable, sonner) and are NOT in the Radix UI
+      // list above.  Without explicit aliases + optimizeDeps entries, Vite
+      // discovers them on the first page load, triggers a forced mid-render
+      // re-optimisation, rehashes ALL chunks including React, and briefly
+      // creates two React instances — the same mechanism documented above for
+      // lucide-react, Radix UI, and @uppy/*.
+      { find: "vaul",                   replacement: td("vaul") },
+      { find: "sonner",                 replacement: td("sonner") },
+      { find: "next-themes",            replacement: td("next-themes") },
+      { find: "input-otp",              replacement: td("input-otp") },
+      { find: "embla-carousel-react",   replacement: td("embla-carousel-react") },
+      { find: "react-day-picker",       replacement: td("react-day-picker") },
+      { find: "react-resizable-panels", replacement: td("react-resizable-panels") },
+
       // ── Other React-aware packages ───────────────────────────────────────
       { find: "@tanstack/react-query", replacement: td("@tanstack/react-query") },
       { find: "react-hook-form",       replacement: td("react-hook-form") },
@@ -185,6 +201,14 @@ export default defineConfig({
       "@radix-ui/react-toggle",
       "@radix-ui/react-toggle-group",
       "@radix-ui/react-tooltip",
+      // shadcn/ui peer deps — must be deduped for the same reason as above
+      "vaul",
+      "sonner",
+      "next-themes",
+      "input-otp",
+      "embla-carousel-react",
+      "react-day-picker",
+      "react-resizable-panels",
     ],
   },
   optimizeDeps: {
@@ -253,6 +277,18 @@ export default defineConfig({
       "@radix-ui/react-toggle",
       "@radix-ui/react-toggle-group",
       "@radix-ui/react-tooltip",
+      // shadcn/ui peer deps — same mid-render re-optimisation risk as above.
+      // Used by @/components/ui/{calendar,carousel,drawer,input-otp,resizable,sonner}.
+      // Without these entries Vite discovers them on the first SPA page load,
+      // rehashes ALL chunks including React, and briefly creates two React
+      // instances — causing "Invalid hook call" on FlocksTab and other tabs.
+      "vaul",
+      "sonner",
+      "next-themes",
+      "input-otp",
+      "embla-carousel-react",
+      "react-day-picker",
+      "react-resizable-panels",
     ],
   },
   root: path.resolve(import.meta.dirname),
