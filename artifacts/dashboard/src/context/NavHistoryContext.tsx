@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 
 interface HistoryEntry {
@@ -7,7 +7,7 @@ interface HistoryEntry {
 }
 
 interface NavHistoryContextType {
-  registerTitle: (title: string) => void;
+  registerTitle: (title: string, path: string) => void;
   goBack: () => void;
   backLabel: string | null;
 }
@@ -21,7 +21,7 @@ const NavHistoryContext = createContext<NavHistoryContextType>({
 // Friendly names for paths that might appear before a title is registered
 function friendlyPath(path: string): string {
   const MAP: Record<string, string> = {
-    "/dashboard": "Dashboard",
+    "/dashboard": "Overview",
     "/documents": "Documents",
     "/training": "Staff & Training",
     "/staff": "Staff",
@@ -66,6 +66,9 @@ export function NavHistoryProvider({ children }: { children: React.ReactNode }) 
   const [location, navigate] = useLocation();
   const [stack, setStack] = useState<HistoryEntry[]>([]);
   const goingBack = useRef(false);
+  // Mirror stack in a ref so goBack can read it outside of setStack
+  const stackRef = useRef<HistoryEntry[]>([]);
+  useEffect(() => { stackRef.current = stack; }, [stack]);
 
   useEffect(() => {
     if (goingBack.current) {
@@ -76,34 +79,53 @@ export function NavHistoryProvider({ children }: { children: React.ReactNode }) 
     if (location === "/") return;
     setStack((prev) => {
       const last = prev[prev.length - 1];
-      // Same path — no new entry (handles StrictMode double-fires etc.)
+      // If registerTitle already added this path (fired before us), don't duplicate
       if (last?.path === location) return prev;
-      // Push new entry; keep max 20 entries
       return [...prev.slice(-19), { path: location, title: "" }];
     });
   }, [location]);
 
-  const registerTitle = useCallback((title: string) => {
-    if (!title) return;
+  /**
+   * Called by AppLayout to associate a human title with its path.
+   *
+   * We pass both title AND the page's own current path so this function can
+   * find the correct stack entry by path — avoiding the race condition where
+   * this fires before the location effect has pushed the new entry (React fires
+   * child effects before parent effects).
+   */
+  const registerTitle = useCallback((title: string, path: string) => {
+    if (!title || !path) return;
     setStack((prev) => {
-      const last = prev[prev.length - 1];
-      if (!last || last.title === title) return prev;
-      return [...prev.slice(0, -1), { ...last, title }];
+      // Find the most recent entry for this path and update it
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].path === path) {
+          if (prev[i].title === title) return prev; // already correct
+          const next = [...prev];
+          next[i] = { ...next[i], title };
+          return next;
+        }
+      }
+      // Path not yet in stack — registerTitle fired before the location effect.
+      // Insert it now; the location effect will see it's already there and skip.
+      if (path === "/") return prev; // never add the root redirect path
+      return [...prev.slice(-19), { path, title }];
     });
   }, []);
 
   const goBack = useCallback(() => {
-    setStack((prev) => {
-      if (prev.length < 2) return prev;
-      const target = prev[prev.length - 2];
-      goingBack.current = true;
-      navigate(target.path);
-      return prev.slice(0, -1);
-    });
+    const current = stackRef.current;
+    if (current.length < 2) return;
+    const target = current[current.length - 2];
+    goingBack.current = true;
+    // Update state and navigate separately — calling navigate() inside a
+    // setStack updater causes "setState during render" errors in React.
+    setStack(current.slice(0, -1));
+    navigate(target.path);
   }, [navigate]);
 
-  // The label to show on the back button — the previous entry's title,
-  // falling back to a friendly version of its path
+  // The label for the back button is the previous entry's title,
+  // falling back to a friendly version of its path if the title hasn't been
+  // registered yet.
   const backEntry = stack.length >= 2 ? stack[stack.length - 2] : null;
   const backLabel = backEntry
     ? backEntry.title || friendlyPath(backEntry.path)

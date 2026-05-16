@@ -5,6 +5,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery } from "@tanstack/react-query";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { useNavHistory } from "@/context/NavHistoryContext";
+import { useLocation } from "wouter";
 
 export function AppLayout({ children, title }: { children: ReactNode; title?: string }) {
   const { farmId } = useAppStore();
@@ -15,13 +16,14 @@ export function AppLayout({ children, title }: { children: ReactNode; title?: st
   });
   const farmName = farmDetail?.record?.name;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [location] = useLocation();
   const { registerTitle, goBack, backLabel } = useNavHistory();
 
-  // Register this page's title into the navigation history so the *next*
-  // page can show "← Back to <this title>" in its header.
+  // Register this page's title keyed by its own path so the context can
+  // match the right stack entry regardless of effect firing order.
   useEffect(() => {
-    if (title) registerTitle(title);
-  }, [title, registerTitle]);
+    if (title) registerTitle(title, location);
+  }, [title, location, registerTitle]);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
