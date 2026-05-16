@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Building2, MapPin, Wheat, ChevronRight, TrendingUp, Shield } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 interface FarmSummary {
   id: number;
@@ -54,6 +54,7 @@ function sectorBadges(farm: FarmSummary): string[] {
 
 export default function MultiFarmGroupPage() {
   const { setFarmId } = useAppStore();
+  const [, navigate] = useLocation();
 
   const farmsQ = useQuery<{ farms: FarmSummary[] }>({
     queryKey: ["tenant-farms-group"],
@@ -209,7 +210,7 @@ export default function MultiFarmGroupPage() {
                         <div className="w-12 h-10 bg-gray-100 rounded animate-pulse" />
                       )}
                       <button
-                        onClick={() => setFarmId(farm.id)}
+                        onClick={() => { setFarmId(farm.id); navigate("/dashboard"); }}
                         className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/5 transition-colors"
                       >
                         View <ChevronRight className="w-3 h-3" />
