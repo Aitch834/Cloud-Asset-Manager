@@ -701,6 +701,7 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
   const [form, setForm] = useState<Phenology>({});
   const [viewing, setViewing] = useState<Phenology | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const openAdd = () => { setForm({ observationDate: today, observer: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Phenology) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -711,6 +712,10 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
     else await add.mutateAsync(form);
     setOpen(false);
   };
+
+  const phenologyYears = Array.from(new Set(data.map(r => new Date(r.observationDate as string).getFullYear()))).sort((a, b) => b - a);
+  if (!phenologyYears.includes(new Date().getFullYear())) phenologyYears.unshift(new Date().getFullYear());
+  const filteredPhenology = yearFilter === "all" ? data : data.filter(r => new Date(r.observationDate as string).getFullYear() === Number(yearFilter));
 
   const csvCols = [
     { key: "observationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.observationDate) },
@@ -732,8 +737,15 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
           <p className="font-semibold">Phenology (BBCH Growth Stages)</p>
           <p className="text-xs text-muted-foreground">Log key growth stages using the BBCH scale. Used to time spray applications, canopy operations, and vintner decisions.</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(data, "phenology.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {phenologyYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredPhenology, "phenology.csv", csvCols)} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
       </div>
@@ -747,7 +759,7 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
           { key: "observer", label: "Observer" },
           { key: "temperatureC", label: "Temp (°C)", render: r => fmtNum(r.temperatureC, 1) },
         ]}
-        rows={data}
+        rows={filteredPhenology}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)}
@@ -843,6 +855,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [form, setForm] = useState<Operation>({});
   const [viewing, setViewing] = useState<Operation | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const openAdd = () => { setForm({ operationDate: today, operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Operation) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -855,6 +868,10 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   };
 
   const isPruning = String(form.operationType ?? "").toLowerCase().includes("prun");
+
+  const operationYears = Array.from(new Set(data.map(r => new Date(r.operationDate as string).getFullYear()))).sort((a, b) => b - a);
+  if (!operationYears.includes(new Date().getFullYear())) operationYears.unshift(new Date().getFullYear());
+  const filteredOperations = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
 
   const csvCols = [
     { key: "operationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.operationDate) },
@@ -882,8 +899,15 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
           <p className="font-semibold">Pruning & Canopy Operations</p>
           <p className="text-xs text-muted-foreground">Record all canopy management activities. Pruning records including bud counts are required for GI / PDO compliance and assurance schemes.</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vineyard-operations.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {operationYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredOperations, "vineyard-operations.csv", csvCols)} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>
       </div>
@@ -898,7 +922,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
           { key: "operatorName", label: "Operator" },
           { key: "hoursWorked", label: "Hours", render: r => fmtNum(r.hoursWorked, 1) },
         ]}
-        rows={data}
+        rows={filteredOperations}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)}
@@ -1022,6 +1046,7 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const [form, setForm] = useState<Harvest>({});
   const [viewing, setViewing] = useState<Harvest | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Harvest | null>(null);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const openAdd = () => { setForm({ harvestDate: today, vintageYear: new Date().getFullYear(), operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Harvest) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -1032,6 +1057,10 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
     else await add.mutateAsync(form);
     setOpen(false);
   };
+
+  const harvestYears = Array.from(new Set(data.map(r => Number(r.vintageYear)))).filter(Boolean).sort((a, b) => b - a);
+  if (!harvestYears.includes(new Date().getFullYear())) harvestYears.unshift(new Date().getFullYear());
+  const filteredHarvest = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
 
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
@@ -1062,8 +1091,15 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
           <p className="font-semibold">Harvest & Vintage Records</p>
           <p className="text-xs text-muted-foreground">Per-block vintage records including yield, must chemistry, and grape condition. Required for GI / PDO vintage declarations.</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vineyard-harvest.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All vintages</SelectItem>
+              {harvestYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredHarvest, "vineyard-harvest.csv", csvCols)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
@@ -1080,7 +1116,7 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
           { key: "grapeCondition", label: "Condition" },
           { key: "botrytisPresent", label: "Botrytis", render: r => r.botrytisPresent ? <Badge variant="destructive">Yes {r.botrytisPercentage ? `${r.botrytisPercentage}%` : ""}</Badge> : <span className="text-muted-foreground">No</span> },
         ]}
-        rows={data}
+        rows={filteredHarvest}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)}
@@ -1212,6 +1248,7 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
   const [form, setForm] = useState<Scouting>({});
   const [viewing, setViewing] = useState<Scouting | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Scouting | null>(null);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const openAdd = () => {
     setForm({ scoutDate: today, scoutedBy: displayName ?? "", downyMildewPressure: "0", powderyMildewPressure: "0", botrytisPressure: "0", phomopsisPressure: "0", leafhopperPressure: "0", spiderMitePressure: "0" });
@@ -1263,6 +1300,10 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
     { key: "notes", label: "Notes" },
   ];
 
+  const scoutingYears = Array.from(new Set(data.map(r => new Date(r.scoutDate as string).getFullYear()))).sort((a, b) => b - a);
+  if (!scoutingYears.includes(new Date().getFullYear())) scoutingYears.unshift(new Date().getFullYear());
+  const filteredScouting = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
   const xylellaRows = data.filter(r => r.xylellaFastidiosa);
@@ -1283,8 +1324,15 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
           <p className="font-semibold">Disease & Pest Scouting</p>
           <p className="text-xs text-muted-foreground">Regular scouting records demonstrate due diligence for plant health and inform spray timing decisions.</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vineyard-scouting.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {scoutingYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols)} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
         </div>
       </div>
@@ -1299,7 +1347,7 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
           { key: "vineWeevilSighted", label: "Vine Weevil", render: r => r.vineWeevilSighted ? <Badge variant="destructive">Yes</Badge> : <span className="text-muted-foreground">No</span> },
           { key: "xylellaFastidiosa", label: "Xylella", render: r => r.xylellaFastidiosa ? <Badge className="bg-red-700 text-white hover:bg-red-700">ALERT</Badge> : <span className="text-muted-foreground">No</span> },
         ]}
-        rows={data}
+        rows={filteredScouting}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)}
