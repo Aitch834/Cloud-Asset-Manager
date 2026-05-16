@@ -25,11 +25,12 @@ export interface BdeScanResult {
 }
 
 const ENTITY_LABELS: Record<BdeEntityType, string> = {
-  equipment: "Equipment Asset",
-  field:     "Field",
-  animal:    "Animal",
-  storage:   "Storage Location",
-  tank:      "Bulk Tank",
+  equipment:       "Equipment Asset",
+  field:           "Field",
+  animal:          "Animal",
+  storage:         "Storage Location",
+  tank:            "Bulk Tank",
+  "poultry-house": "Poultry House",
 };
 
 interface QrScanModalProps {
@@ -110,7 +111,7 @@ export function QrScanModal({
 
   const hintLine = entityType
     ? `${ENTITY_LABELS[entityType]} labels only`
-    : "Fields · Animals · Equipment · Storage";
+    : "Fields · Animals · Equipment · Storage · Poultry Houses";
 
   return (
     <Modal

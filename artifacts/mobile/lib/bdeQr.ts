@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { kvGet } from "@/lib/database";
 
-export type BdeEntityType = "equipment" | "field" | "animal" | "storage" | "tank";
+export type BdeEntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "poultry-house";
 
 export function parseBdeCode(raw: string): string {
   const match = raw.match(/^BDE:F\d+:(.+)$/i);
@@ -15,16 +15,18 @@ export function detectBdeType(raw: string): BdeEntityType | null {
   if (code.startsWith("ANM-")) return "animal";
   if (code.startsWith("STG-")) return "storage";
   if (code.startsWith("TNK-")) return "tank";
+  if (code.startsWith("PH-"))  return "poultry-house";
   return null;
 }
 
 export function bdeEntityDisplayName(type: BdeEntityType, data: Record<string, unknown>): string {
   switch (type) {
-    case "equipment": return (data.name as string) || `Asset #${data.id}`;
-    case "field":     return (data.name as string) || `Field #${data.id}`;
-    case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
-    case "storage":   return (data.name as string) || `Store #${data.id}`;
-    case "tank":      return (data.name as string) || `Tank #${data.id}`;
+    case "equipment":     return (data.name as string) || `Asset #${data.id}`;
+    case "field":         return (data.name as string) || `Field #${data.id}`;
+    case "animal":        return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
+    case "storage":       return (data.name as string) || `Store #${data.id}`;
+    case "tank":          return (data.name as string) || `Tank #${data.id}`;
+    case "poultry-house": return (data.houseName as string) || `House #${data.id}`;
   }
 }
 
@@ -61,11 +63,12 @@ export async function lookupBdeEntity(
   const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
   const base = `https://${apiDomain}/api/farms/${farmId}`;
   const endpoints: Record<BdeEntityType, string> = {
-    equipment: `${base}/equipment/by-asset/${normalizedCode}`,
-    field:     `${base}/fields/by-code/${normalizedCode}`,
-    animal:    `${base}/animals/by-code/${normalizedCode}`,
-    storage:   `${base}/storage-locations/by-code/${normalizedCode}`,
-    tank:      `${base}/dairy/tanks/by-code/${normalizedCode}`,
+    equipment:       `${base}/equipment/by-asset/${normalizedCode}`,
+    field:           `${base}/fields/by-code/${normalizedCode}`,
+    animal:          `${base}/animals/by-code/${normalizedCode}`,
+    storage:         `${base}/storage-locations/by-code/${normalizedCode}`,
+    tank:            `${base}/dairy/tanks/by-code/${normalizedCode}`,
+    "poultry-house": `${base}/poultry-houses/by-code/${normalizedCode}`,
   };
   try {
     const headers = await getAuthHeaders();

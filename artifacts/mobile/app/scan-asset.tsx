@@ -48,7 +48,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-type EntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "pat";
+type EntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "pat" | "poultry-house";
 
 interface ScanResult {
   type: EntityType;
@@ -57,12 +57,13 @@ interface ScanResult {
 }
 
 const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: keyof typeof Feather.glyphMap }> = {
-  equipment: { label: "Equipment Asset",   colour: "#0f766e", icon: "tool" },
-  field:     { label: "Field",             colour: "#15803d", icon: "map" },
-  animal:    { label: "Animal",            colour: "#b45309", icon: "feather" },
-  storage:   { label: "Storage Location", colour: "#1d4ed8", icon: "archive" },
-  tank:      { label: "Bulk Milk Tank",   colour: "#0369a1", icon: "droplet" },
-  pat:       { label: "PAT Equipment",    colour: "#7c3aed", icon: "zap" },
+  equipment:       { label: "Equipment Asset",   colour: "#0f766e", icon: "tool" },
+  field:           { label: "Field",             colour: "#15803d", icon: "map" },
+  animal:          { label: "Animal",            colour: "#b45309", icon: "feather" },
+  storage:         { label: "Storage Location",  colour: "#1d4ed8", icon: "archive" },
+  tank:            { label: "Bulk Milk Tank",    colour: "#0369a1", icon: "droplet" },
+  pat:             { label: "PAT Equipment",     colour: "#7c3aed", icon: "zap" },
+  "poultry-house": { label: "Poultry House",     colour: "#d97706", icon: "home" },
 };
 
 const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string; extraParams?: Record<string, string> }[]> = {
@@ -94,6 +95,13 @@ const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyo
   pat: [
     { label: "Record PAT Test",            sub: "Log a test result for this appliance — pass, fail or advisory", icon: "check-circle", colour: "#7c3aed", bg: "#ede9fe", route: "/pat-test-scan", paramKey: "equipmentId", nameKey: "equipmentName" },
   ],
+  "poultry-house": [
+    { label: "Log Daily Mortality",        sub: "Record bird deaths and culls for this house",                   icon: "alert-circle",  colour: "#dc2626", bg: "#FEE2E2", route: "/poultry-daily-mortality",       paramKey: "houseId", nameKey: "houseName" },
+    { label: "Environmental Log",          sub: "Record temperature, humidity, CO₂ and ventilation readings",    icon: "thermometer",   colour: "#0369a1", bg: "#DBEAFE", route: "/poultry-env-log",               paramKey: "houseId", nameKey: "houseName" },
+    { label: "Biosecurity Cleanout",       sub: "Complete a between-flock cleanout and disinfection checklist",  icon: "check-circle",  colour: "#0f766e", bg: "#CCFBF1", route: "/poultry-biosecurity-cleanout",  paramKey: "houseId", nameKey: "houseName" },
+    { label: "Welfare Check",             sub: "Log a welfare inspection observation for this house",            icon: "shield",        colour: "#7c3aed", bg: "#EDE9FE", route: "/poultry-welfare-check",         paramKey: "houseId", nameKey: "houseName" },
+    { label: "Log Treatment",             sub: "Record a medicine or treatment event for this house",            icon: "activity",      colour: "#be123c", bg: "#FFE4E6", route: "/poultry-treatment",             paramKey: "houseId", nameKey: "houseName" },
+  ],
 };
 
 function normaliseBdeCode(raw: string): string {
@@ -109,6 +117,7 @@ function detectEntityType(raw: string): EntityType | null {
   if (code.startsWith("STG-"))      return "storage";
   if (code.startsWith("TNK-"))      return "tank";
   if (code.startsWith("BDE-PAT-"))  return "pat";
+  if (code.startsWith("PH-"))       return "poultry-house";
   return null;
 }
 
@@ -117,12 +126,13 @@ async function lookupEntity(rawCode: string, type: EntityType, farmId: number, h
   const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
   const base = `https://${apiDomain}/api/farms/${farmId}`;
   const endpoints: Record<EntityType, string> = {
-    equipment: `${base}/equipment/by-asset/${code}`,
-    field:     `${base}/fields/by-code/${code}`,
-    animal:    `${base}/animals/by-code/${code}`,
-    storage:   `${base}/storage-locations/by-code/${code}`,
-    tank:      `${base}/dairy/tanks/by-code/${code}`,
-    pat:       `${base}/workshop/pat-equipment/by-asset/${code}`,
+    equipment:       `${base}/equipment/by-asset/${code}`,
+    field:           `${base}/fields/by-code/${code}`,
+    animal:          `${base}/animals/by-code/${code}`,
+    storage:         `${base}/storage-locations/by-code/${code}`,
+    tank:            `${base}/dairy/tanks/by-code/${code}`,
+    pat:             `${base}/workshop/pat-equipment/by-asset/${code}`,
+    "poultry-house": `${base}/poultry-houses/by-code/${code}`,
   };
   const res = await fetch(endpoints[type], { headers });
   if (!res.ok) return null;
@@ -131,23 +141,25 @@ async function lookupEntity(rawCode: string, type: EntityType, farmId: number, h
 
 function entityDisplayName(type: EntityType, data: Record<string, unknown>): string {
   switch (type) {
-    case "equipment": return (data.name as string) || `Asset #${data.id}`;
-    case "field":     return (data.name as string) || `Field #${data.id}`;
-    case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
-    case "storage":   return (data.name as string) || `Store #${data.id}`;
-    case "tank":      return (data.name as string) || `Tank #${data.id}`;
-    case "pat":       return (data.itemName as string) || `PAT #${data.id}`;
+    case "equipment":     return (data.name as string) || `Asset #${data.id}`;
+    case "field":         return (data.name as string) || `Field #${data.id}`;
+    case "animal":        return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
+    case "storage":       return (data.name as string) || `Store #${data.id}`;
+    case "tank":          return (data.name as string) || `Tank #${data.id}`;
+    case "pat":           return (data.itemName as string) || `PAT #${data.id}`;
+    case "poultry-house": return (data.houseName as string) || `House #${data.id}`;
   }
 }
 
 function entitySubtitle(type: EntityType, data: Record<string, unknown>): string | null {
   switch (type) {
-    case "equipment": return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.type as string) || null;
-    case "field":     return (data.fieldReference as string) ? `Ref: ${data.fieldReference}` : (data.soilType as string) || null;
-    case "animal":    return [(data.species as string), (data.breed as string)].filter(Boolean).join(" · ") || null;
-    case "storage":   return (data.type as string) ? `${data.type}`.replace(/_/g, " ") : null;
-    case "tank":      return (data.location as string) || (data.capacityLitres ? `Capacity: ${Number(data.capacityLitres).toLocaleString()} L` : null);
-    case "pat":       return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.location as string) || null;
+    case "equipment":     return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.type as string) || null;
+    case "field":         return (data.fieldReference as string) ? `Ref: ${data.fieldReference}` : (data.soilType as string) || null;
+    case "animal":        return [(data.species as string), (data.breed as string)].filter(Boolean).join(" · ") || null;
+    case "storage":       return (data.type as string) ? `${data.type}`.replace(/_/g, " ") : null;
+    case "tank":          return (data.location as string) || (data.capacityLitres ? `Capacity: ${Number(data.capacityLitres).toLocaleString()} L` : null);
+    case "pat":           return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.location as string) || null;
+    case "poultry-house": return [(data.species as string), (data.productionSystem as string)].filter(Boolean).join(" · ") || (data.houseType as string) || null;
   }
 }
 
@@ -303,7 +315,7 @@ export default function ScanQRScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color="#fff" />
         </Pressable>
-        <Text style={styles.headerTitle}>Workshop — Scan QR Code</Text>
+        <Text style={styles.headerTitle}>Scan Asset QR Label</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -323,7 +335,7 @@ export default function ScanQRScreen() {
               <View style={[styles.corner, styles.br]} />
             </View>
             <Text style={styles.scanHint}>Point at a BDE Farm Trac QR label</Text>
-            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · PAT Appliances</Text>
+            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · Poultry Houses</Text>
           </View>
         </View>
       ) : (

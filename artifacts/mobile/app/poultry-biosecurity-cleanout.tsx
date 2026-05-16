@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -123,8 +123,9 @@ export default function PoultryBiosecurityCleanoutScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const params = useLocalSearchParams<{ houseId?: string; houseName?: string }>();
 
-  const [houseName, setHouseName] = useState("");
+  const [houseName, setHouseName] = useState(params.houseName ?? "");
   const [flockRef, setFlockRef] = useState("");
   const [isContractor, setIsContractor] = useState(false);
   const [contractorName, setContractorName] = useState("");

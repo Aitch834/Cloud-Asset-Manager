@@ -16505,6 +16505,16 @@ router.delete("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, r
   await db.delete(poultryHousesTable).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId)));
   res.json({ success: true });
 });
+router.get("/farms/:farmId/poultry-houses/by-code/:code", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const code = req.params.code as string;
+  const match = code.match(/^PH-(\d+)$/i);
+  if (!match) { res.status(400).json({ error: "Invalid poultry house code format. Expected PH-{id}" }); return; }
+  const id = parseInt(match[1]);
+  const [row] = await db.select().from(poultryHousesTable).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId))).limit(1);
+  if (!row) { res.status(404).json({ error: "Poultry house not found" }); return; }
+  res.json(row);
+});
 
 router.get("/farms/:farmId/poultry-flocks", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

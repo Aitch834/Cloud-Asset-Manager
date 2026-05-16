@@ -1,9 +1,10 @@
 // @ts-nocheck
-import { useState, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -63,19 +64,20 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
     </Dialog>
   );
 }
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView, onQr }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; onQr?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView || onQr) && <th />}</tr></thead>
           <tbody>{rows.map((row, i) => (
             <tr key={i} className="border-b last:border-0">
               {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-              {(onEdit || onDelete || onView) && (
+              {(onEdit || onDelete || onView || onQr) && (
                 <td className="py-2 text-right space-x-1">
+                  {onQr && <Button size="icon" variant="ghost" title="Print QR Label" onClick={() => onQr(row)}><QrCode className="w-3.5 h-3.5 text-teal-600" /></Button>}
                   {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
                   {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
                   {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
@@ -284,8 +286,72 @@ function StockingDensityPanel({ floorAreaM2, capacity, species, productionSystem
   );
 }
 
+const HOUSE_LABEL_CSS = `
+  @page{size:62mm 90mm;margin:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}
+  .brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+  .divider{border:none;border-top:1px solid #e5e7eb;margin:4px 0}
+  .farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}
+  svg{display:block;margin:0 auto}
+  .code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}
+  .iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}
+  .desc{font-size:9px;color:#9ca3af;margin-top:2px}
+  .hint{font-size:8px;color:#d1d5db;margin-top:4px}
+`;
+
+function PoultryHouseQRDialog({ house, farmId, farmName, onClose }: {
+  house: { id: number; houseName?: string; species?: string; houseType?: string };
+  farmId: number;
+  farmName: string;
+  onClose: () => void;
+}) {
+  const houseCode = `PH-${house.id}`;
+  const qrValue = `BDE:F${farmId}:${houseCode}`;
+  const printRef = useRef<HTMLDivElement>(null);
+
+  function handlePrint() {
+    const win = window.open("", "_blank");
+    if (!win || !printRef.current) return;
+    win.document.write(`<html><head><title>House Label — ${houseCode}</title><style>${HOUSE_LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    win.addEventListener("afterprint", () => win.close());
+    win.print();
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>Poultry House QR Label</DialogTitle></DialogHeader>
+        <div className="flex flex-col items-center gap-1.5 py-2 border rounded-xl bg-white px-5 shadow-sm" ref={printRef}>
+          <p className="text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+          <hr className="w-full border-gray-200" />
+          <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+          <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+          <p className="font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{houseCode}</p>
+          <p className="text-sm font-semibold text-gray-700">{house.houseName ?? "Poultry House"}</p>
+          {(house.species || house.houseType) && (
+            <p className="text-xs text-gray-400">{[house.species, house.houseType].filter(Boolean).join(" · ")}</p>
+          )}
+          <p className="text-[10px] text-gray-300 mb-1">Scan to log records for this house</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={handlePrint}><Printer className="h-4 w-4 mr-1" />Print Label</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function HousesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [qrItem, setQrItem] = useState<Record<string, unknown> | null>(null);
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm-record", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()),
+  });
+  const farmName = (farmData as any)?.record?.name ?? (farmData as any)?.name ?? "Farm";
   const { data: houses, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-houses", "poultry-houses");
   const lengthM = parseFloat(String(form.lengthM ?? "")) || null;
   const widthM = parseFloat(String(form.widthM ?? "")) || null;
@@ -305,7 +371,15 @@ function HousesTab({ farmId }: { farmId: number }) {
         { key: "approvedCapacity", label: "Capacity (birds)" },
         { key: "floorArea", label: "Floor Area", fmt: r => (r.lengthM && r.widthM) ? `${(Number(r.lengthM) * Number(r.widthM)).toFixed(0)} m²` : "—" },
         { key: "density", label: "Density (birds/m²)", fmt: r => (r.lengthM && r.widthM && r.approvedCapacity) ? (Number(r.approvedCapacity) / (Number(r.lengthM) * Number(r.widthM))).toFixed(1) : "—" },
-      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} onQr={setQrItem} />}
+      {qrItem && (
+        <PoultryHouseQRDialog
+          house={{ id: Number(qrItem.id), houseName: qrItem.houseName as string, species: qrItem.species as string, houseType: qrItem.houseType as string }}
+          farmId={farmId}
+          farmName={farmName}
+          onClose={() => setQrItem(null)}
+        />
+      )}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
