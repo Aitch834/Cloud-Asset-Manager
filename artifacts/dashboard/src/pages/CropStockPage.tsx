@@ -1253,7 +1253,11 @@ function MovementsTab({ farmId }: { farmId: number }) {
                 <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.movedAt)}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
-                    <Badge style={{ fontSize: "0.7rem", background: r.direction === "in" ? "#dcfce7" : "#fee2e2", color: r.direction === "in" ? "#166534" : "#991b1b", border: "none" }}>
+                    <Badge style={{
+                      fontSize: "0.7rem", border: "none",
+                      background: r.movementType === "adjustment" ? "#fef3c7" : r.direction === "in" ? "#dcfce7" : "#fee2e2",
+                      color: r.movementType === "adjustment" ? "#92400e" : r.direction === "in" ? "#166534" : "#991b1b",
+                    }}>
                       {movTypeLabel(r.movementType)}
                     </Badge>
                   </td>
