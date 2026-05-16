@@ -82,7 +82,7 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
     const unitCostPence: number | null = prod?.unitCostPence ?? null;
 
     if (!productUsage.has(a.productId)) {
-      productUsage.set(a.productId, { name, category, totalHa: 0, count: 0, totalQty: qty, rateUnit: unit, mixedUnits: false, totalSpendPence: null });
+      productUsage.set(a.productId, { name, category, totalHa: 0, count: 0, totalQty: 0, rateUnit: null, mixedUnits: false, totalSpendPence: null });
     }
     const b = productUsage.get(a.productId)!;
     b.totalHa += ha;
@@ -108,7 +108,8 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
     .slice(0, 12)
     .map(p => {
       const qty = p.mixedUnits ? null : (p.totalQty != null ? parseFloat(p.totalQty.toFixed(3)) : null);
-      const qtyLabel = qty != null && p.rateUnit ? `${qty % 1 === 0 ? qty : qty.toFixed(2)} ${p.rateUnit}` : null;
+      const displayUnit = p.rateUnit ? p.rateUnit.replace(/\/ha$/i, "").trim() : null;
+      const qtyLabel = qty != null && displayUnit ? `${qty % 1 === 0 ? qty : qty.toFixed(2)} ${displayUnit}` : null;
       return {
         ...p,
         totalHa: parseFloat(p.totalHa.toFixed(2)),
