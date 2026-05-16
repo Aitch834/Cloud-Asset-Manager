@@ -336,7 +336,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory } from "../lib/alertingJob";
-import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
@@ -588,15 +588,24 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     sprayCount: sprayCount.count,
     inspectionCount: inspectionCount.count,
     moduleStats,
-    activeSubscriptions: activeSubs.map((s) => ({
-      id: s.id,
-      farmId: s.farmId,
-      moduleId: s.moduleId,
-      moduleKey: s.moduleKey,
-      moduleName: s.moduleName,
-      status: s.status,
-      currentPeriodEnd: s.currentPeriodEnd,
-    })),
+    activeSubscriptions: (() => {
+      const direct = activeSubs.map((s) => ({
+        id: s.id,
+        farmId: s.farmId,
+        moduleId: s.moduleId,
+        moduleKey: s.moduleKey,
+        moduleName: s.moduleName,
+        status: s.status,
+        currentPeriodEnd: s.currentPeriodEnd,
+        bundled: false,
+      }));
+      const directKeys = new Set(direct.map(s => s.moduleKey));
+      const expanded = expandModuleKeys([...directKeys]);
+      const bundledEntries = expanded
+        .filter(k => !directKeys.has(k))
+        .map(k => ({ id: 0, farmId, moduleId: 0, moduleKey: k, moduleName: k, status: "active" as const, currentPeriodEnd: null, bundled: true }));
+      return [...direct, ...bundledEntries];
+    })(),
   });
 });
 
@@ -617,7 +626,7 @@ router.get("/farms/:farmId/modules", requireAuth, requireTenant, async (req: Req
       s.status === "active" ||
       (s.status === "trial" && (!s.currentPeriodEnd || new Date(s.currentPeriodEnd).getTime() > nowMs)),
   );
-  res.json({ activeModuleKeys: activeSubs.map((s) => s.moduleKey) });
+  res.json({ activeModuleKeys: expandModuleKeys(activeSubs.map((s) => s.moduleKey)) });
 });
 
 router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {

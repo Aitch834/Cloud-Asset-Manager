@@ -158,6 +158,58 @@ async function resolveModuleId(key: string): Promise<number | null> {
   return null;
 }
 
+// Modules that are bundled into viticulture subscriptions at no extra charge.
+// Key = the module being requested; values = modules whose subscription grants implicit access.
+export const MODULE_BUNDLES: Record<string, string[]> = {
+  "sprays-inputs":        ["viticulture", "organic-viticulture"],
+  "risk-waste":           ["viticulture", "organic-viticulture"],
+  "staff-training":       ["viticulture", "organic-viticulture"],
+  "equipment-management": ["viticulture", "organic-viticulture"],
+  "stock-suppliers":      ["viticulture", "organic-viticulture"],
+};
+
+// Returns all module keys a farm effectively has, including bundled ones.
+export function expandModuleKeys(actualKeys: string[]): string[] {
+  const expanded = new Set(actualKeys);
+  for (const [impliedKey, triggerKeys] of Object.entries(MODULE_BUNDLES)) {
+    if (triggerKeys.some(k => expanded.has(k))) {
+      expanded.add(impliedKey);
+    }
+  }
+  return [...expanded];
+}
+
+async function checkModulePermission(
+  roleId: number,
+  moduleKey: string,
+  level: PermissionLevel,
+  farmIdNum: number | null,
+): Promise<boolean> {
+  const moduleId = await resolveModuleId(moduleKey);
+  if (!moduleId) return false;
+  const rows = await db
+    .select()
+    .from(permissionsTable)
+    .where(
+      and(
+        eq(permissionsTable.roleId, roleId),
+        eq(permissionsTable.moduleId, moduleId),
+        farmIdNum
+          ? or(eq(permissionsTable.farmId, farmIdNum), isNull(permissionsTable.farmId))
+          : isNull(permissionsTable.farmId),
+      ),
+    )
+    .limit(1);
+  const p = rows[0];
+  if (!p) return false;
+  return (
+    (level === "read" && p.canRead) ||
+    (level === "write" && p.canWrite) ||
+    (level === "delete" && p.canDelete) ||
+    (level === "approve" && p.canApprove)
+  );
+}
+
 export function requireModuleByKey(moduleKey: string, level: PermissionLevel) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (req.isSuperAdmin) {
@@ -179,37 +231,23 @@ export function requireModuleByKey(moduleKey: string, level: PermissionLevel) {
     const farmId = req.params?.farmId;
     const farmIdNum = farmId ? parseInt(String(farmId), 10) : null;
 
-    const permissions = await db
-      .select()
-      .from(permissionsTable)
-      .where(
-        and(
-          eq(permissionsTable.roleId, req.roleId),
-          eq(permissionsTable.moduleId, moduleId),
-          farmIdNum
-            ? or(eq(permissionsTable.farmId, farmIdNum), isNull(permissionsTable.farmId))
-            : isNull(permissionsTable.farmId),
-        ),
-      )
-      .limit(1);
-
-    const permission = permissions[0];
-    if (!permission) {
-      res.status(403).json({ error: "No permission for this module" });
+    // Direct permission check
+    if (await checkModulePermission(req.roleId, moduleKey, level, farmIdNum)) {
+      next();
       return;
     }
 
-    const hasPermission =
-      (level === "read" && permission.canRead) ||
-      (level === "write" && permission.canWrite) ||
-      (level === "delete" && permission.canDelete) ||
-      (level === "approve" && permission.canApprove);
-
-    if (!hasPermission) {
-      res.status(403).json({ error: `Insufficient permission: ${level} access required` });
-      return;
+    // Bundle fallback — check if any trigger module grants implicit access
+    const triggerKeys = MODULE_BUNDLES[moduleKey];
+    if (triggerKeys) {
+      for (const triggerKey of triggerKeys) {
+        if (await checkModulePermission(req.roleId, triggerKey, level, farmIdNum)) {
+          next();
+          return;
+        }
+      }
     }
 
-    next();
+    res.status(403).json({ error: "No permission for this module" });
   };
 }
