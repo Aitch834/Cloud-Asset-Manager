@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
 
@@ -106,12 +106,17 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
   const topProducts = [...productUsage.values()]
     .sort((a, b) => b.totalHa - a.totalHa)
     .slice(0, 12)
-    .map(p => ({
-      ...p,
-      totalHa: parseFloat(p.totalHa.toFixed(2)),
-      totalQty: p.mixedUnits ? null : (p.totalQty != null ? parseFloat(p.totalQty.toFixed(3)) : null),
-      totalSpendPence: p.mixedUnits ? null : p.totalSpendPence,
-    }));
+    .map(p => {
+      const qty = p.mixedUnits ? null : (p.totalQty != null ? parseFloat(p.totalQty.toFixed(3)) : null);
+      const qtyLabel = qty != null && p.rateUnit ? `${qty % 1 === 0 ? qty : qty.toFixed(2)} ${p.rateUnit}` : null;
+      return {
+        ...p,
+        totalHa: parseFloat(p.totalHa.toFixed(2)),
+        totalQty: qty,
+        totalQtyLabel: qtyLabel,
+        totalSpendPence: p.mixedUnits ? null : p.totalSpendPence,
+      };
+    });
 
   const monthMap = new Map<string, { label: string; count: number; totalHa: number }>();
   filtered.forEach((a: any) => {
@@ -177,12 +182,14 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <p className="text-sm font-semibold text-gray-700 mb-4">Area Sprayed by Product (ha) — top {topProducts.length}</p>
             <ResponsiveContainer width="100%" height={Math.max(200, topProducts.length * 36)}>
-              <BarChart data={topProducts} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <BarChart data={topProducts} layout="vertical" margin={{ top: 4, right: 90, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                 <XAxis type="number" tickFormatter={(v: number) => `${v} ha`} tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
                 <Tooltip content={<ProductBarTooltip />} />
-                <Bar dataKey="totalHa" fill="#7c3aed" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="totalHa" fill="#7c3aed" radius={[0, 3, 3, 0]}>
+                  <LabelList dataKey="totalQtyLabel" position="right" style={{ fontSize: 11, fill: "#2563eb", fontWeight: 500 }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
