@@ -18,6 +18,7 @@ import {
 } from "@workspace/db";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
+import { createScoutingAlerts } from "../lib/alertingJob";
 import { sanitiseBody } from "../lib/sanitise";
 
 const router: IRouter = Router();
@@ -174,6 +175,43 @@ router.post("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requ
   const farmId = Number(req.params.farmId);
   const [record] = await (db.insert(vineyardScoutingTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json({ record });
+
+  // Fire-and-forget: create notifications based on scouting findings
+  if (record) {
+    (async () => {
+      try {
+        let blockLabel = "";
+        if (record.blockId) {
+          const [blk] = await db
+            .select({ blockName: vineyardBlocksTable.blockName })
+            .from(vineyardBlocksTable)
+            .where(eq(vineyardBlocksTable.id, Number(record.blockId)))
+            .limit(1);
+          blockLabel = blk?.blockName ?? "";
+        }
+        await createScoutingAlerts({
+          tenantId: req.tenantId!,
+          farmId,
+          recordId: record.id,
+          blockName: blockLabel,
+          scoutDate: String(record.scoutDate ?? ""),
+          scoutedBy: String(record.scoutedBy ?? ""),
+          downyMildewPressure: Number(record.downyMildewPressure ?? 0),
+          powderyMildewPressure: Number(record.powderyMildewPressure ?? 0),
+          botrytisPressure: Number(record.botrytisPressure ?? 0),
+          phomopsisPressure: Number(record.phomopsisPressure ?? 0),
+          leafhopperPressure: Number(record.leafhopperPressure ?? 0),
+          spiderMitePressure: Number(record.spiderMitePressure ?? 0),
+          vineWeevilSighted: Boolean(record.vineWeevilSighted),
+          eutypaDiebackSighted: Boolean(record.eutypaDiebackSighted),
+          xylellaFastidiosa: Boolean(record.xylellaFastidiosa),
+          phytophthoraViticola: Boolean(record.phytophthoraViticola),
+        });
+      } catch (err) {
+        console.error("[SCOUTING ALERTS]", err);
+      }
+    })();
+  }
 });
 
 router.put("/farms/:farmId/vineyard-scouting/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

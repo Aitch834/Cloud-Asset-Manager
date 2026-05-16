@@ -1223,9 +1223,25 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
   const blockName = (id: unknown) => blocks.find(b => b.id === id)?.blockName ?? id;
   const pressureLabel = (v: unknown) => { const p = PRESSURE_LABELS[Number(v) || 0]; return <span className={p?.color}>{p?.label ?? "—"}</span>; };
   const save = async () => {
-    if (current) await edit.mutateAsync({ ...form, id: current.id as number });
-    else await add.mutateAsync(form);
-    setOpen(false);
+    if (current) {
+      await edit.mutateAsync({ ...form, id: current.id as number });
+      setOpen(false);
+    } else {
+      await add.mutateAsync(form);
+      setOpen(false);
+      const hasHighPressure =
+        Number(form.downyMildewPressure) >= 2 ||
+        Number(form.powderyMildewPressure) >= 2 ||
+        Number(form.botrytisPressure) >= 2 ||
+        Number(form.phomopsisPressure) >= 2 ||
+        Number(form.leafhopperPressure) >= 2 ||
+        Number(form.spiderMitePressure) >= 2 ||
+        !!form.vineWeevilSighted ||
+        !!form.xylellaFastidiosa ||
+        !!form.phytophthoraViticola ||
+        !!form.eutypaDiebackSighted;
+      if (hasHighPressure) setRaiseTaskFor(form);
+    }
   };
 
   const csvCols = [
@@ -1242,8 +1258,6 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
     { key: "eutypaDiebackSighted", label: "Eutypa Dieback", fmt: (r: Record<string, unknown>) => r.eutypaDiebackSighted ? "Yes" : "No" },
     { key: "xylellaFastidiosa", label: "Xylella", fmt: (r: Record<string, unknown>) => r.xylellaFastidiosa ? "ALERT" : "No" },
     { key: "phytophthoraViticola", label: "Phytophthora viticola", fmt: (r: Record<string, unknown>) => r.phytophthoraViticola ? "ALERT" : "No" },
-    { key: "sprayApplied", label: "Spray Applied", fmt: (r: Record<string, unknown>) => r.sprayApplied ? "Yes" : "No" },
-    { key: "sprayProduct", label: "Spray Product" },
     { key: "nextScoutDate", label: "Next Scout Date", fmt: (r: Record<string, unknown>) => fmtDate(r.nextScoutDate) },
     { key: "actionTaken", label: "Action Taken" },
     { key: "notes", label: "Notes" },
@@ -1284,7 +1298,6 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
           { key: "botrytisPressure", label: "Botrytis", render: r => pressureLabel(r.botrytisPressure) },
           { key: "vineWeevilSighted", label: "Vine Weevil", render: r => r.vineWeevilSighted ? <Badge variant="destructive">Yes</Badge> : <span className="text-muted-foreground">No</span> },
           { key: "xylellaFastidiosa", label: "Xylella", render: r => r.xylellaFastidiosa ? <Badge className="bg-red-700 text-white hover:bg-red-700">ALERT</Badge> : <span className="text-muted-foreground">No</span> },
-          { key: "sprayApplied", label: "Spray", render: r => r.sprayApplied ? <Badge variant="default">Applied</Badge> : <span className="text-muted-foreground">No</span> },
         ]}
         rows={data}
         onView={setViewing}
@@ -1324,7 +1337,6 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
                   {!!viewing.phytophthoraViticola && <p className="text-xs text-red-700">⚠ Phytophthora viticola suspected</p>}
                 </div>
               )}
-              {!!viewing.sprayApplied && <ViewField label="Spray Product" value={fmt(viewing.sprayProduct)} />}
               {!!viewing.actionTaken && <div className="col-span-2"><ViewField label="Action Taken" value={fmt(viewing.actionTaken)} /></div>}
               {!!viewing.notes && <ViewField label="Notes" value={fmt(viewing.notes)} />}
             </div>
@@ -1405,8 +1417,6 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
               <div className="flex items-center gap-2"><Checkbox checked={!!form.xylellaFastidiosa} onCheckedChange={v => sf("xylellaFastidiosa", !!v)} id="xy" /><Label htmlFor="xy" className="text-red-900">Xylella fastidiosa suspected</Label></div>
               <div className="flex items-center gap-2"><Checkbox checked={!!form.phytophthoraViticola} onCheckedChange={v => sf("phytophthoraViticola", !!v)} id="pv" /><Label htmlFor="pv" className="text-red-900">Phytophthora viticola suspected</Label></div>
             </div>
-            <div className="flex items-center gap-2"><Checkbox checked={!!form.sprayApplied} onCheckedChange={v => sf("sprayApplied", !!v)} id="sp" /><Label htmlFor="sp">Spray applied following this scouting</Label></div>
-            {!!form.sprayApplied && <div><Label>Spray Product(s)</Label><Input value={String(form.sprayProduct ?? "")} onChange={e => sf("sprayProduct", e.target.value)} placeholder="Product name(s)" /></div>}
             <div><Label>Action Taken</Label><Textarea value={String(form.actionTaken ?? "")} onChange={e => sf("actionTaken", e.target.value)} rows={2} placeholder="Describe any action taken…" /></div>
             <div><Label>Next Scout Date</Label><Input type="date" min={today} value={String(form.nextScoutDate ?? "")} onChange={e => sf("nextScoutDate", e.target.value)} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>

@@ -89,8 +89,6 @@ export default function VineScoutingScreen() {
   const [xylella, setXylella] = useState(false);
   const [phytophthora, setPhytophthora] = useState(false);
 
-  const [sprayApplied, setSprayApplied] = useState(false);
-  const [sprayProduct, setSprayProduct] = useState("");
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -135,8 +133,6 @@ export default function VineScoutingScreen() {
       eutypaDiebackSighted: eutypaDieback,
       xylellaFastidiosa: xylella,
       phytophthoraViticola: phytophthora,
-      sprayApplied,
-      sprayProduct: sprayProduct.trim() || undefined,
       actionTaken: actionTaken.trim() || undefined,
       notes: notes.trim() || undefined,
       createdAt: new Date().toISOString(),
@@ -229,13 +225,6 @@ export default function VineScoutingScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Actions & Notes</Text>
-          <BooleanToggle label="Spray applied following this scouting" value={sprayApplied} onChange={setSprayApplied} />
-          {sprayApplied && (
-            <>
-              <Text style={styles.fieldLabel}>Spray Product(s)</Text>
-              <Input placeholder="Product name(s)" value={sprayProduct} onChangeText={setSprayProduct} />
-            </>
-          )}
           <Text style={styles.fieldLabel}>Action Taken</Text>
           <Input placeholder="Describe any action taken…" value={actionTaken} onChangeText={setActionTaken} multiline numberOfLines={3} />
           <Text style={styles.fieldLabel}>Notes</Text>

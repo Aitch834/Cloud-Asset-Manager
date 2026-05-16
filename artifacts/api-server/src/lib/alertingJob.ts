@@ -9,7 +9,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -1397,6 +1397,138 @@ async function checkPigTailBitingOutbreaks() {
     if (isActive) {
       await dispatchSmsForCriticalAlert(farm.tenantId, "Active Tail Biting Outbreak", `Tail biting outbreak recorded on ${dateStr}. Remove biters, treat wounds, add enrichment. Notify vet if injuries are severe.`);
     }
+  }
+}
+
+// ── Vineyard Scouting Alerts ──────────────────────────────────────────────────
+// Called immediately after a scouting record is saved. Creates in-app notifications
+// (and SMS for critical findings) based on the recorded disease / pest pressures.
+export async function createScoutingAlerts(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  blockName: string;
+  scoutDate: string;
+  scoutedBy: string;
+  downyMildewPressure: number;
+  powderyMildewPressure: number;
+  botrytisPressure: number;
+  phomopsisPressure: number;
+  leafhopperPressure: number;
+  spiderMitePressure: number;
+  vineWeevilSighted: boolean;
+  eutypaDiebackSighted: boolean;
+  xylellaFastidiosa: boolean;
+  phytophthoraViticola: boolean;
+}) {
+  const { tenantId, farmId, recordId, scoutedBy } = params;
+  const location = params.blockName ? `${params.blockName} · ${params.scoutDate}` : params.scoutDate;
+
+  // Notifiable plant pests — critical, trigger SMS via CRITICAL_TYPES
+  if (params.xylellaFastidiosa) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_xylella",
+      severity: "critical",
+      title: `Xylella fastidiosa Suspected — ${location}`,
+      message: `${scoutedBy} has flagged possible Xylella fastidiosa at ${location}. This is a regulated notifiable plant pest. Report immediately to APHA on 0300 1000 313 before moving any plant material off-site.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-xylella-${recordId}`,
+    });
+  }
+
+  if (params.phytophthoraViticola) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_phytophthora",
+      severity: "critical",
+      title: `Phytophthora viticola Suspected — ${location}`,
+      message: `${scoutedBy} has flagged possible Phytophthora viticola at ${location}. Report to APHA on 0300 1000 313 if confirmed. Do not move plant material off-site.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-phytophthora-${recordId}`,
+    });
+  }
+
+  // Vine weevil — critical (larvae kill established vines)
+  if (params.vineWeevilSighted) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_vine_weevil",
+      severity: "critical",
+      title: `Vine Weevil Sighted — ${location}`,
+      message: `${scoutedBy} confirmed a vine weevil sighting at ${location}. Larvae cause root damage and can kill established vines. Consider nematode treatment (Steinernema kraussei) or an approved insecticide and review mulch management.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-vine-weevil-${recordId}`,
+    });
+  }
+
+  // Disease pressure
+  const DISEASE_LABELS: [keyof typeof params, string][] = [
+    ["downyMildewPressure", "Downy Mildew"],
+    ["powderyMildewPressure", "Powdery Mildew"],
+    ["botrytisPressure", "Botrytis"],
+    ["phomopsisPressure", "Phomopsis"],
+  ];
+  const highDiseases = DISEASE_LABELS.filter(([k]) => (params[k] as number) >= 3).map(([, n]) => n);
+  const mediumDiseases = DISEASE_LABELS.filter(([k]) => (params[k] as number) === 2).map(([, n]) => n);
+
+  if (highDiseases.length > 0) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_high_disease",
+      severity: "critical",
+      title: `High Disease Pressure — ${location}`,
+      message: `${scoutedBy} recorded HIGH pressure for: ${highDiseases.join(", ")} at ${location}. Spray intervention is strongly recommended — check spray records and consult your agronomist.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-high-disease-${recordId}`,
+    });
+  } else if (mediumDiseases.length > 0) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_medium_disease",
+      severity: "warning",
+      title: `Medium Disease Pressure — ${location}`,
+      message: `${scoutedBy} recorded MEDIUM pressure for: ${mediumDiseases.join(", ")} at ${location}. Monitor closely and review spray timing with your agronomist.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-medium-disease-${recordId}`,
+    });
+  }
+
+  // Pest pressure (leafhopper / spider mite ≥ 2)
+  const highPests: string[] = [];
+  if (params.leafhopperPressure >= 2) highPests.push(`Leafhopper (${params.leafhopperPressure >= 3 ? "High" : "Medium"})`);
+  if (params.spiderMitePressure >= 2) highPests.push(`Spider Mite (${params.spiderMitePressure >= 3 ? "High" : "Medium"})`);
+  if (highPests.length > 0) {
+    const isHigh = params.leafhopperPressure >= 3 || params.spiderMitePressure >= 3;
+    await upsertNotification({
+      tenantId, farmId,
+      type: isHigh ? "scouting_high_pest" : "scouting_medium_pest",
+      severity: isHigh ? "critical" : "warning",
+      title: `${isHigh ? "High" : "Elevated"} Pest Pressure — ${location}`,
+      message: `${scoutedBy} recorded elevated pest pressure at ${location}: ${highPests.join(", ")}. Review pest management plan and consider approved control options.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-pest-${recordId}`,
+    });
+  }
+
+  // Eutypa dieback — warning
+  if (params.eutypaDiebackSighted) {
+    await upsertNotification({
+      tenantId, farmId,
+      type: "scouting_eutypa_dieback",
+      severity: "warning",
+      title: `Eutypa Dieback Sighted — ${location}`,
+      message: `${scoutedBy} sighted Eutypa dieback at ${location}. Prune affected wood during dry weather, treat fresh wounds promptly and monitor spread across blocks.`,
+      relatedModule: "viticulture",
+      relatedId: recordId,
+      dedupeKey: `scouting-eutypa-${recordId}`,
+    });
   }
 }
 
