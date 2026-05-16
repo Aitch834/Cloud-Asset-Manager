@@ -126,9 +126,11 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
   });
   const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, totalHa: parseFloat(v.totalHa.toFixed(2)) }));
 
+  const normaliseCategory = (c: string) => c.trim().length === 0 ? "Other" : c.trim().charAt(0).toUpperCase() + c.trim().slice(1).toLowerCase();
   const catMap = new Map<string, number>();
   filtered.forEach((a: any) => {
-    const cat = productMap.get(a.productId)?.category ?? "Other";
+    const raw: string = productMap.get(a.productId)?.category ?? "Other";
+    const cat = normaliseCategory(raw);
     catMap.set(cat, (catMap.get(cat) ?? 0) + parseFloat(String(a.areaSprayedHa || 0)));
   });
   const catData = [...catMap.entries()].sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
