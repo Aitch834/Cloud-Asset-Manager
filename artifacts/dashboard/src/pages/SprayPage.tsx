@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -168,6 +168,10 @@ const fmt = (d: string | null | undefined) => {
 
 const RATE_UNITS = ["L/ha", "kg/ha", "g/ha", "mL/ha", "kg/1000L", "L/1000L"];
 const WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+function degreesToCompass(deg: number): string {
+  return WIND_DIRS[Math.round(deg / 45) % 8];
+}
 const PRODUCT_CATEGORIES_FALLBACK = ["Herbicide", "Fungicide", "Insecticide", "Molluscicide", "Growth Regulator", "Foliar Feed", "Adjuvant", "Other"];
 
 
@@ -257,6 +261,9 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
+  const [vehicleStationFilled, setVehicleStationFilled] = useState<any>(null);
+  const [weatherFetching, setWeatherFetching] = useState(false);
+  const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
   const [deliveryStockItemId, setDeliveryStockItemId] = useState<string | null>(null);
   const formOpen = addOpen || !!editRecord;
   function openEdit(r: any) {
@@ -289,13 +296,21 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       notes: r.notes || "",
     });
   }
-  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
 
   const deliveriesQ = useQuery({
     queryKey: ["spray-batch-deliveries", farmId, deliveryStockItemId],
     queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries/by-product/${deliveryStockItemId}`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId && !!deliveryStockItemId,
   });
+
+  const vehicleWeatherQ = useQuery({
+    queryKey: ["vehicle-weather", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vehicle-weather-readings`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const vehicleReadings: any[] = vehicleWeatherQ.data ?? [];
 
   const handleProductChange = (v: string) => {
     const product = products.find((p: any) => String(p.id) === v);
@@ -373,6 +388,58 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         setWeatherAutoFilled(true);
       }
     } catch { /* ignore */ }
+  }
+
+  function checkVehicleWeather(equipmentId: string, date: string) {
+    if (!equipmentId || !date || equipmentId === "__other__") { setVehicleStationFilled(null); return; }
+    const target = new Date(date).getTime();
+    const forEq = vehicleReadings.filter(r => r.equipmentId && String(r.equipmentId) === equipmentId && r.readingTimestamp);
+    if (forEq.length === 0) { setVehicleStationFilled(null); return; }
+    let best: any = null, bestDiff = Infinity;
+    for (const r of forEq) {
+      const diff = Math.abs(new Date(r.readingTimestamp).getTime() - target);
+      if (diff < bestDiff) { bestDiff = diff; best = r; }
+    }
+    if (best && bestDiff < 86400000 * 2) {
+      setVehicleStationFilled(best);
+      setWeatherAutoFilled(false);
+      setForm((f: any) => ({
+        ...f,
+        windSpeedKmh: best.windSpeedKmh != null ? String(best.windSpeedKmh) : f.windSpeedKmh,
+        windDirection: best.windDirection || f.windDirection,
+        temperatureC: best.temperatureC != null ? String(best.temperatureC) : f.temperatureC,
+      }));
+    } else {
+      setVehicleStationFilled(null);
+    }
+  }
+
+  async function fetchLiveWeather() {
+    setWeatherFetching(true);
+    setWeatherFetchMsg(null);
+    try {
+      const pos: GeolocationPosition = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+      );
+      const { latitude, longitude } = pos.coords;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Weather service error ${resp.status}`);
+      const data = await resp.json();
+      const c = data.current;
+      setForm((f: any) => ({
+        ...f,
+        windSpeedKmh: c.wind_speed_10m != null ? String(Math.round(c.wind_speed_10m)) : f.windSpeedKmh,
+        windDirection: c.wind_direction_10m != null ? degreesToCompass(c.wind_direction_10m) : f.windDirection,
+        temperatureC: c.temperature_2m != null ? String(Math.round(c.temperature_2m * 10) / 10) : f.temperatureC,
+      }));
+      setWeatherAutoFilled(false);
+      setWeatherFetchMsg(`Live · ${latitude.toFixed(3)}°N, ${Math.abs(longitude).toFixed(3)}°${longitude < 0 ? "W" : "E"}`);
+    } catch (err) {
+      setWeatherFetchMsg(`Could not fetch: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setWeatherFetching(false);
+    }
   }
 
   const buildPayload = (body: any) => ({
@@ -508,7 +575,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Application Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.applicationDate} onChange={e => { const d = e.target.value; setWeatherAutoFilled(false); setForm((f: any) => ({ ...f, applicationDate: d })); fetchWeatherForDate(d); }} />
+                <Input type="date" value={form.applicationDate} onChange={e => { const d = e.target.value; setWeatherAutoFilled(false); setVehicleStationFilled(null); setForm((f: any) => ({ ...f, applicationDate: d })); fetchWeatherForDate(d); checkVehicleWeather(form.equipmentId, d); }} />
               </div>
             </div>
             <div>
@@ -626,10 +693,12 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     onValueChange={v => {
                       if (v === "__other__") {
                         setForm((f: any) => ({ ...f, equipmentId: "", equipmentUsed: "" }));
+                        setVehicleStationFilled(null);
                       } else {
                         const eq = sprayEquipment.find((e: any) => String(e.id) === v);
                         const label = eq ? [eq.name, eq.make, eq.model, eq.registrationNumber].filter(Boolean).join(" · ") : "";
                         setForm((f: any) => ({ ...f, equipmentId: v, equipmentUsed: label }));
+                        checkVehicleWeather(v, form.applicationDate);
                       }
                     }}
                   >
@@ -651,11 +720,37 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 )}
               </div>
             </div>
-            {weatherAutoFilled && (
-              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#1d4ed8", display: "flex", alignItems: "center", gap: 6 }}>
-                <span>&#9729;</span> Weather conditions auto-filled from your nearest weather reading. You can adjust the values below.
+            {vehicleStationFilled ? (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#166534", display: "flex", alignItems: "center", gap: 6 }}>
+                <Truck size={13} style={{ flexShrink: 0 }} />
+                Conditions loaded from vehicle-mounted weather station
+                {vehicleStationFilled.vehicleName ? ` (${vehicleStationFilled.vehicleName})` : ""}
+                {vehicleStationFilled.readingTimestamp ? ` · ${new Date(vehicleStationFilled.readingTimestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}.
+                You can adjust below if needed.
               </div>
-            )}
+            ) : weatherAutoFilled ? (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#1d4ed8", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>&#9729;</span> Weather conditions auto-filled from your nearest stored reading. You can adjust below.
+              </div>
+            ) : null}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", letterSpacing: "0.01em" }}>Weather Conditions at Application</span>
+              {!vehicleStationFilled && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {weatherFetchMsg && (
+                    <span style={{ fontSize: "0.7rem", color: weatherFetchMsg.startsWith("Could") ? "#991b1b" : "#166534" }}>{weatherFetchMsg}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={fetchLiveWeather}
+                    disabled={weatherFetching}
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 5, padding: "3px 8px", cursor: weatherFetching ? "default" : "pointer", opacity: weatherFetching ? 0.7 : 1 }}
+                  >
+                    {weatherFetching ? <><Loader2 size={11} className="animate-spin" /> Fetching…</> : <><MapPin size={11} /> Get live conditions</>}
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Wind Speed (km/h)</Label>
