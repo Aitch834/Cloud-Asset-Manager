@@ -807,18 +807,33 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Supplier</Label>
-                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Not specified</SelectItem>
-                    {allSuppliers.map((s: any) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.supplierId && form.stockDeliveryId && (
-                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Auto-filled from delivery record</p>
-                )}
+                {(() => {
+                  const agchemSuppliers = allSuppliers.filter((s: any) => s.supplierType === "agrochemicals");
+                  const currentSupplier = form.supplierId ? allSuppliers.find((s: any) => String(s.id) === form.supplierId) : null;
+                  const needsCurrentAdded = currentSupplier && currentSupplier.supplierType !== "agrochemicals";
+                  const listItems = needsCurrentAdded ? [...agchemSuppliers, currentSupplier] : agchemSuppliers;
+                  return (
+                    <>
+                      <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {listItems.length === 0 ? (
+                            <SelectItem value="__empty__" disabled>No agrochemical suppliers — add in Suppliers register</SelectItem>
+                          ) : listItems.map((s: any) => (
+                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {form.supplierId && form.stockDeliveryId && (
+                        <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Auto-filled from delivery record</p>
+                      )}
+                      {agchemSuppliers.length === 0 && !form.supplierId && (
+                        <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 3 }}>Add agrochemical suppliers in the Suppliers register to enable this field.</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <Label>Reason for Application <span style={{ color: "#ef4444" }}>*</span></Label>
