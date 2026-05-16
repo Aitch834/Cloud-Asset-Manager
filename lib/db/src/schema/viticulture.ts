@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 // ─── Vineyard Blocks ──────────────────────────────────────────────────────────
@@ -24,6 +24,15 @@ export const vineyardBlocksTable = pgTable("vineyard_blocks", {
   isActive: boolean("is_active").notNull().default(true),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Vineyard Block Boundaries ────────────────────────────────────────────────
+export const vineyardBlockBoundariesTable = pgTable("vineyard_block_boundaries", {
+  id: serial("id").primaryKey(),
+  blockId: integer("block_id").notNull().references(() => vineyardBlocksTable.id, { onDelete: "cascade" }),
+  polygonPoints: jsonb("polygon_points").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  capturedBy: text("captured_by"),
 });
 
 // ─── HMRC Vine Register ───────────────────────────────────────────────────────

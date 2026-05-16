@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   db,
   vineyardBlocksTable,
+  vineyardBlockBoundariesTable,
   vineRegisterTable,
   vineyardPhenologyTable,
   vineyardOperationsTable,
@@ -403,6 +404,34 @@ router.delete("/farms/:farmId/organic-viticulture/wine-production/:id", requireA
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(organicVitWineProductionTable).where(and(eq(organicVitWineProductionTable.id, id), eq(organicVitWineProductionTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Vineyard Block Boundaries ────────────────────────────────────────────────
+router.get("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = parseInt(req.params.blockId as string, 10);
+  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
+  const [block] = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+  const [boundary] = await db.select().from(vineyardBlockBoundariesTable).where(eq(vineyardBlockBoundariesTable.blockId, blockId)).orderBy(desc(vineyardBlockBoundariesTable.capturedAt)).limit(1);
+  res.json({ boundary: boundary ?? null });
+});
+
+router.post("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = parseInt(req.params.blockId as string, 10);
+  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
+  const [block] = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+  const { polygonPoints, capturedBy, areaHectares } = req.body as { polygonPoints: unknown; capturedBy?: string; areaHectares?: number };
+  if (!polygonPoints || !Array.isArray(polygonPoints) || polygonPoints.length < 3) {
+    res.status(400).json({ error: "polygonPoints must be an array of at least 3 points" }); return;
+  }
+  const [boundary] = await db.insert(vineyardBlockBoundariesTable).values({ blockId, polygonPoints, capturedBy: capturedBy ?? null }).returning();
+  if (areaHectares != null && !isNaN(areaHectares)) {
+    await db.update(vineyardBlocksTable).set({ areaHa: String(areaHectares) }).where(eq(vineyardBlocksTable.id, blockId));
+  }
+  res.status(201).json({ boundary });
 });
 
 export default router;

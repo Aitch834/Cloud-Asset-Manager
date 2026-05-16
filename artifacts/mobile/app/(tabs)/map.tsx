@@ -26,7 +26,7 @@ import { kvGet } from "@/lib/database";
 import { generateId, getList, appendToList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary } from "@/lib/types";
 
-type RecordingMode = "field" | "block";
+type RecordingMode = "field" | "block" | "vineyard";
 interface GrowingBlock { id: number; blockName: string; blockCode?: string | null; }
 
 function calculateAreaHectares(points: { latitude: number; longitude: number }[]): number {
@@ -89,6 +89,8 @@ export default function MapScreen() {
   const [recordingMode, setRecordingMode] = useState<RecordingMode>("field");
   const [availableBlocks, setAvailableBlocks] = useState<GrowingBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
+  const [availableVineyardBlocks, setAvailableVineyardBlocks] = useState<GrowingBlock[]>([]);
+  const [selectedVineyardBlockId, setSelectedVineyardBlockId] = useState<number | null>(null);
 
   const loadFields = useCallback(async () => {
     const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
@@ -109,10 +111,24 @@ export default function MapScreen() {
     } catch { }
   }, [currentFarm?.id]);
 
+  const loadVineyardBlocks = useCallback(async () => {
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!apiDomain || !currentFarm?.id) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/vineyard-blocks`, { headers });
+      if (res.ok) {
+        const rows = await res.json() as GrowingBlock[];
+        setAvailableVineyardBlocks(rows);
+      }
+    } catch { }
+  }, [currentFarm?.id]);
+
   useEffect(() => {
     loadFields();
     loadBlocks();
-  }, [loadFields, loadBlocks]);
+    loadVineyardBlocks();
+  }, [loadFields, loadBlocks, loadVineyardBlocks]);
 
   useEffect(() => {
     const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -167,6 +183,8 @@ export default function MapScreen() {
     setCalculatedArea(area);
     if (recordingMode === "block") {
       setSelectedBlockId(availableBlocks[0]?.id ?? null);
+    } else if (recordingMode === "vineyard") {
+      setSelectedVineyardBlockId(availableVineyardBlocks[0]?.id ?? null);
     } else {
       setFieldNameInput("");
     }
@@ -245,6 +263,32 @@ export default function MapScreen() {
         const headers = await getAuthHeaders();
         const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
         await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/horticulture-blocks/${blockId}/boundary`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
+        });
+      } catch {
+      } finally {
+        setSyncing(false);
+      }
+    }
+  };
+
+  const saveVineyardBlock = async (blockId: number) => {
+    const area = calculateAreaHectares(recordedPoints);
+    const block = availableVineyardBlocks.find(b => b.id === blockId);
+    if (!block) return;
+    setIsRecording(false);
+    setRecordedPoints([]);
+    setNameModalVisible(false);
+
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (apiDomain && currentFarm?.id) {
+      setSyncing(true);
+      try {
+        const headers = await getAuthHeaders();
+        const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+        await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/vineyard-blocks/${blockId}/boundary`, {
           method: "POST",
           headers,
           body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
@@ -357,7 +401,13 @@ export default function MapScreen() {
               style={[styles.modeButton, recordingMode === "block" && styles.modeButtonActive]}
               onPress={() => { setRecordingMode("block"); loadBlocks(); }}
             >
-              <Text style={[styles.modeButtonText, recordingMode === "block" && styles.modeButtonTextActive]}>Block</Text>
+              <Text style={[styles.modeButtonText, recordingMode === "block" && styles.modeButtonTextActive]}>Hort Block</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeButton, recordingMode === "vineyard" && styles.modeButtonActive]}
+              onPress={() => { setRecordingMode("vineyard"); loadVineyardBlocks(); }}
+            >
+              <Text style={[styles.modeButtonText, recordingMode === "vineyard" && styles.modeButtonTextActive]}>Vineyard</Text>
             </Pressable>
           </View>
         )}
@@ -384,15 +434,20 @@ export default function MapScreen() {
         ) : (
           <>
             <Button
-              title={recordingMode === "block" ? "Record Block Boundary" : "Record Field Boundary"}
+              title={recordingMode === "block" ? "Record Block Boundary" : recordingMode === "vineyard" ? "Record Vineyard Block Boundary" : "Record Field Boundary"}
               icon="plus-circle"
               onPress={startRecording}
               fullWidth
-              disabled={!location || (recordingMode === "block" && availableBlocks.length === 0)}
+              disabled={!location || (recordingMode === "block" && availableBlocks.length === 0) || (recordingMode === "vineyard" && availableVineyardBlocks.length === 0)}
             />
             {recordingMode === "block" && availableBlocks.length === 0 && (
               <Text style={[styles.fieldCount, { color: colors.textSecondary }]}>
                 Add blocks in Fresh Produce → Blocks first
+              </Text>
+            )}
+            {recordingMode === "vineyard" && availableVineyardBlocks.length === 0 && (
+              <Text style={[styles.fieldCount, { color: colors.textSecondary }]}>
+                Add blocks in Viticulture → Blocks first
               </Text>
             )}
             {recordingMode === "field" && fields.length > 0 && (
@@ -413,7 +468,7 @@ export default function MapScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { paddingBottom: insets.bottom + spacing.lg }]}>
             <Text style={styles.modalTitle}>
-              {recordingMode === "block" ? "Select Growing Block" : "Name This Field"}
+              {recordingMode === "block" ? "Select Growing Block" : recordingMode === "vineyard" ? "Select Vineyard Block" : "Name This Field"}
             </Text>
             {calculatedArea > 0 && (
               <View style={styles.areaChip}>
@@ -448,6 +503,33 @@ export default function MapScreen() {
                     onPress={() => { if (selectedBlockId) saveBlock(selectedBlockId); }}
                     style={{ flex: 1 }}
                     disabled={!selectedBlockId}
+                  />
+                </View>
+              </>
+            ) : recordingMode === "vineyard" ? (
+              <>
+                <Text style={styles.blockPickerLabel}>Choose which vineyard block this boundary belongs to:</Text>
+                <View style={styles.blockPickerList}>
+                  {availableVineyardBlocks.map(b => (
+                    <Pressable
+                      key={b.id}
+                      style={[styles.blockPickerItem, selectedVineyardBlockId === b.id && styles.blockPickerItemActive]}
+                      onPress={() => setSelectedVineyardBlockId(b.id)}
+                    >
+                      <Text style={[styles.blockPickerItemText, selectedVineyardBlockId === b.id && styles.blockPickerItemTextActive]}>
+                        {b.blockName}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.modalActions}>
+                  <Button title="Cancel" variant="outline" onPress={() => setNameModalVisible(false)} style={{ flex: 1 }} />
+                  <Button
+                    title="Save Boundary"
+                    icon="check"
+                    onPress={() => { if (selectedVineyardBlockId) saveVineyardBlock(selectedVineyardBlockId); }}
+                    style={{ flex: 1 }}
+                    disabled={!selectedVineyardBlockId}
                   />
                 </View>
               </>

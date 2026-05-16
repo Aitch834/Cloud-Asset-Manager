@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
-  FileDown, Pencil,
+  FileDown, Pencil, Map,
 } from "lucide-react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUserRole } from "@/hooks/use-user-role";
+import { VineyardBlockBoundaryMapDialog } from "@/components/viticulture/VineyardBlockBoundaryMapDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const api = (path: string) => `/api/${path}`;
@@ -493,11 +494,13 @@ type Block = Record<string, unknown>;
 
 export function BlocksTab({ farmId }: { farmId: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Block | null>(null);
   const [form, setForm] = useState<Block>({});
   const [viewing, setViewing] = useState<Block | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Block | null>(null);
+  const [boundaryBlock, setBoundaryBlock] = useState<Block | null>(null);
 
   const openAdd = () => { setForm({ isActive: true }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Block) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -589,6 +592,9 @@ export function BlocksTab({ farmId }: { farmId: number }) {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+            <Button variant="outline" onClick={() => { setBoundaryBlock(viewing); setViewing(null); }}>
+              <Map className="w-4 h-4 mr-1" />Draw Boundary
+            </Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
@@ -686,6 +692,19 @@ export function BlocksTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {boundaryBlock && (
+        <VineyardBlockBoundaryMapDialog
+          blockId={boundaryBlock.id as number}
+          blockName={fmt(boundaryBlock.blockName)}
+          open={!!boundaryBlock}
+          onClose={() => setBoundaryBlock(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+            setBoundaryBlock(null);
+          }}
+        />
+      )}
     </div>
   );
 }
