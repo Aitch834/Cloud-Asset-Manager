@@ -1140,10 +1140,10 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", Number(v))}>
+                <Select value={form.blockId ? String(form.blockId) : "__all__"} onValueChange={v => sf("blockId", v === "__all__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="Select block…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— All blocks —</SelectItem>
+                    <SelectItem value="__all__">— All blocks —</SelectItem>
                     {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)} ({String(b.variety)})</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -1356,10 +1356,10 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Scout Date *</Label><Input type="date" max={today} value={String(form.scoutDate ?? "")} onChange={e => sf("scoutDate", e.target.value)} /></div>
               <div><Label>Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", Number(v))}>
+                <Select value={form.blockId ? String(form.blockId) : "__all__"} onValueChange={v => sf("blockId", v === "__all__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="All blocks…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— All blocks —</SelectItem>
+                    <SelectItem value="__all__">— All blocks —</SelectItem>
                     {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
                   </SelectContent>
                 </Select>
