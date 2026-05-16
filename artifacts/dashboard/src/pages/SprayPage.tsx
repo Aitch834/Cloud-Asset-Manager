@@ -21,25 +21,100 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
 
+function ProductBarTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs space-y-1 min-w-[180px]">
+      <p className="font-semibold text-gray-800 text-sm truncate max-w-[220px]">{d.name}</p>
+      <div className="flex justify-between gap-4">
+        <span className="text-gray-500">Area sprayed</span>
+        <span className="font-medium text-purple-700">{d.totalHa.toFixed(2)} ha</span>
+      </div>
+      <div className="flex justify-between gap-4">
+        <span className="text-gray-500">Applications</span>
+        <span className="font-medium text-gray-700">{d.count}</span>
+      </div>
+      {d.totalQty != null && (
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500">Qty used</span>
+          <span className="font-medium text-blue-700">
+            {d.totalQty % 1 === 0 ? d.totalQty : d.totalQty.toFixed(2)}{" "}
+            {d.rateUnit ?? ""}
+          </span>
+        </div>
+      )}
+      {d.totalSpendPence != null ? (
+        <div className="flex justify-between gap-4 border-t border-gray-100 pt-1 mt-1">
+          <span className="text-gray-500">Est. spend</span>
+          <span className="font-semibold text-green-700">£{(d.totalSpendPence / 100).toFixed(2)}</span>
+        </div>
+      ) : (
+        <div className="flex justify-between gap-4 border-t border-gray-100 pt-1 mt-1">
+          <span className="text-gray-500">Est. spend</span>
+          <span className="text-gray-400 italic">No price on record</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SprayAnalyticsTab({ applications, products, fields }: { applications: any[]; products: any[]; fields: any[] }) {
+  const [cropYear, setCropYear] = useState<number>(currentCropYear());
+
   const fieldMap = new Map(fields.map((f: any) => [f.id, f.name]));
   const productMap = new Map(products.map((p: any) => [p.id, p]));
 
-  const productUsage = new Map<number, { name: string; category: string; totalHa: number; count: number }>();
-  applications.forEach((a: any) => {
+  const filtered = applications.filter((a: any) =>
+    a.applicationDate && isInCropYear(a.applicationDate, cropYear)
+  );
+
+  type ProdUsage = { name: string; category: string; totalHa: number; count: number; totalQty: number | null; rateUnit: string | null; mixedUnits: boolean; totalSpendPence: number | null };
+  const productUsage = new Map<number, ProdUsage>();
+  filtered.forEach((a: any) => {
     const prod = productMap.get(a.productId);
     const name = prod?.productName ?? `Product #${a.productId}`;
     const category = prod?.category ?? "Other";
     const ha = parseFloat(String(a.areaSprayedHa || 0));
-    if (!productUsage.has(a.productId)) productUsage.set(a.productId, { name, category, totalHa: 0, count: 0 });
+    const rate = parseFloat(String(a.applicationRate || 0));
+    const qty = isNaN(ha) || isNaN(rate) ? 0 : rate * ha;
+    const unit: string | null = a.rateUnit ?? null;
+    const unitCostPence: number | null = prod?.unitCostPence ?? null;
+
+    if (!productUsage.has(a.productId)) {
+      productUsage.set(a.productId, { name, category, totalHa: 0, count: 0, totalQty: qty, rateUnit: unit, mixedUnits: false, totalSpendPence: null });
+    }
     const b = productUsage.get(a.productId)!;
     b.totalHa += ha;
     b.count++;
+    if (unit !== null) {
+      if (b.rateUnit === null) {
+        b.rateUnit = unit;
+        b.totalQty = qty;
+      } else if (b.rateUnit !== unit) {
+        b.mixedUnits = true;
+        b.totalQty = null;
+      } else {
+        b.totalQty = (b.totalQty ?? 0) + qty;
+      }
+    }
+    if (unitCostPence != null && b.totalQty != null && !b.mixedUnits) {
+      b.totalSpendPence = (b.totalSpendPence ?? 0) + qty * unitCostPence;
+    }
   });
-  const topProducts = [...productUsage.values()].sort((a, b) => b.totalHa - a.totalHa).slice(0, 12).map(p => ({ ...p, totalHa: parseFloat(p.totalHa.toFixed(2)) }));
+
+  const topProducts = [...productUsage.values()]
+    .sort((a, b) => b.totalHa - a.totalHa)
+    .slice(0, 12)
+    .map(p => ({
+      ...p,
+      totalHa: parseFloat(p.totalHa.toFixed(2)),
+      totalQty: p.mixedUnits ? null : (p.totalQty != null ? parseFloat(p.totalQty.toFixed(3)) : null),
+      totalSpendPence: p.mixedUnits ? null : p.totalSpendPence,
+    }));
 
   const monthMap = new Map<string, { label: string; count: number; totalHa: number }>();
-  applications.forEach((a: any) => {
+  filtered.forEach((a: any) => {
     if (!a.applicationDate) return;
     const d = new Date(a.applicationDate);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -52,103 +127,110 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
   const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, totalHa: parseFloat(v.totalHa.toFixed(2)) }));
 
   const catMap = new Map<string, number>();
-  applications.forEach((a: any) => {
+  filtered.forEach((a: any) => {
     const cat = productMap.get(a.productId)?.category ?? "Other";
     catMap.set(cat, (catMap.get(cat) ?? 0) + parseFloat(String(a.areaSprayedHa || 0)));
   });
   const catData = [...catMap.entries()].sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
 
   const fieldMap2 = new Map<string, number>();
-  applications.forEach((a: any) => {
+  filtered.forEach((a: any) => {
     const fn = fieldMap.get(a.fieldId) ?? `Field #${a.fieldId}`;
     fieldMap2.set(fn, (fieldMap2.get(fn) ?? 0) + 1);
   });
   const fieldData = [...fieldMap2.entries()].sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, count]) => ({ name, count }));
 
-  const totalHa = applications.reduce((s: number, a: any) => s + parseFloat(String(a.areaSprayedHa || 0)), 0);
-
-  if (applications.length === 0) return (
-    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
-      <Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" />
-      <p className="font-medium text-gray-600">No spray records yet</p>
-      <p className="text-sm">Log spray applications to see analytics here.</p>
-    </div>
-  );
+  const totalHa = filtered.reduce((s: number, a: any) => s + parseFloat(String(a.areaSprayedHa || 0)), 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Applications</p>
-          <p className="text-2xl font-bold text-purple-700">{applications.length}</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Area Sprayed</p>
-          <p className="text-2xl font-bold text-blue-700">{totalHa.toFixed(1)} ha</p>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Products Used</p>
-          <p className="text-2xl font-bold text-green-700">{productUsage.size}</p>
-        </div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-sm text-gray-500">Showing data for crop year:</p>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <p className="text-sm font-semibold text-gray-700 mb-4">Area Sprayed by Product (ha) — top {topProducts.length}</p>
-        <ResponsiveContainer width="100%" height={Math.max(200, topProducts.length * 36)}>
-          <BarChart data={topProducts} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-            <XAxis type="number" tickFormatter={(v: number) => `${v} ha`} tick={{ fontSize: 11 }} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
-            <Tooltip formatter={(v: number) => [`${v} ha`, "Area sprayed"]} />
-            <Bar dataKey="totalHa" fill="#7c3aed" radius={[0, 3, 3, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Applications &amp; Area (ha)</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="left" tick={{ fontSize: 10 }} unit=" ha" width={50} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit=" apps" width={45} />
-              <Tooltip />
-              <Legend />
-              <Bar yAxisId="left" dataKey="totalHa" fill="#7c3aed" name="Area (ha)" radius={[3,3,0,0]} />
-              <Bar yAxisId="right" dataKey="count" fill="#0ea5e9" name="Applications" radius={[3,3,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {filtered.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
+          <Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium text-gray-600">No spray records for {cropYearLabel(cropYear)}</p>
+          <p className="text-sm">Try a different crop year or log some applications.</p>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Applications</p>
+              <p className="text-2xl font-bold text-purple-700">{filtered.length}</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Area Sprayed</p>
+              <p className="text-2xl font-bold text-blue-700">{totalHa.toFixed(1)} ha</p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <p className="text-xs text-gray-400 uppercase font-medium mb-1">Products Used</p>
+              <p className="text-2xl font-bold text-green-700">{productUsage.size}</p>
+            </div>
+          </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Area by Product Category (ha)</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie data={catData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={90} label={false}>
-                {catData.map((_: any, i: number) => <Cell key={i} fill={SPRAY_PIE_COLOURS[i % SPRAY_PIE_COLOURS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(v: number) => [`${v} ha`, ""]} />
-              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Area Sprayed by Product (ha) — top {topProducts.length}</p>
+            <ResponsiveContainer width="100%" height={Math.max(200, topProducts.length * 36)}>
+              <BarChart data={topProducts} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v: number) => `${v} ha`} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
+                <Tooltip content={<ProductBarTooltip />} />
+                <Bar dataKey="totalHa" fill="#7c3aed" radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-      {fieldData.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Applications by Field — top {fieldData.length}</p>
-          <ResponsiveContainer width="100%" height={Math.max(160, fieldData.length * 34)}>
-            <BarChart data={fieldData} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} unit=" apps" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-              <Tooltip formatter={(v: number) => [`${v} application${v !== 1 ? "s" : ""}`, ""]} />
-              <Bar dataKey="count" fill="#16a34a" radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Applications &amp; Area (ha)</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} unit=" ha" width={50} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit=" apps" width={45} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="totalHa" fill="#7c3aed" name="Area (ha)" radius={[3,3,0,0]} />
+                  <Bar yAxisId="right" dataKey="count" fill="#0ea5e9" name="Applications" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-4">Area by Product Category (ha)</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={catData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={90} label={false}>
+                    {catData.map((_: any, i: number) => <Cell key={i} fill={SPRAY_PIE_COLOURS[i % SPRAY_PIE_COLOURS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [`${v} ha`, ""]} />
+                  <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {fieldData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-4">Applications by Field — top {fieldData.length}</p>
+              <ResponsiveContainer width="100%" height={Math.max(160, fieldData.length * 34)}>
+                <BarChart data={fieldData} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} unit=" apps" />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
+                  <Tooltip formatter={(v: number) => [`${v} application${v !== 1 ? "s" : ""}`, ""]} />
+                  <Bar dataKey="count" fill="#16a34a" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

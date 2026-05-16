@@ -1315,9 +1315,11 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       coshhPpe: coshhRecordsTable.ppe,
       coshhEmergencyProcedures: coshhRecordsTable.emergencyProcedures,
       coshhControlMeasures: coshhRecordsTable.controlMeasures,
+      stockUnitCostPence: stockItemsTable.unitCostPence,
     })
     .from(sprayProductsTable)
     .leftJoin(coshhRecordsTable, eq(sprayProductsTable.coshhRecordId, coshhRecordsTable.id))
+    .leftJoin(stockItemsTable, eq(sprayProductsTable.stockItemId, stockItemsTable.id))
     .where(eq(sprayProductsTable.farmId, farmId))
     .orderBy(desc(sprayProductsTable.createdAt));
   const records = rows.map(r => ({
@@ -1326,6 +1328,7 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
     harvestInterval: r.harvestInterval, maxApplicationsPerSeason: r.maxApplicationsPerSeason,
     storageRequirements: r.storageRequirements, coshhRecordId: r.coshhRecordId,
     stockItemId: r.stockItemId, createdAt: r.createdAt,
+    unitCostPence: r.stockUnitCostPence ?? null,
     coshhRecord: r.coshhRecordId ? {
       id: r.coshhRecordId,
       substanceName: r.coshhSubstanceName,
