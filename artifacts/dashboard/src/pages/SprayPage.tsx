@@ -37,10 +37,17 @@ function ProductBarTooltip({ active, payload }: any) {
       </div>
       {d.totalQty != null && (
         <div className="flex justify-between gap-4">
-          <span className="text-gray-500">Qty used</span>
+          <span className="text-gray-500">Total qty used</span>
           <span className="font-medium text-blue-700">
-            {d.totalQty % 1 === 0 ? d.totalQty : d.totalQty.toFixed(2)}{" "}
-            {d.rateUnit ?? ""}
+            {d.totalQty % 1 === 0 ? d.totalQty : d.totalQty.toFixed(2)}{d.displayUnit ? ` ${d.displayUnit}` : ""}
+          </span>
+        </div>
+      )}
+      {d.avgRate != null && (
+        <div className="flex justify-between gap-4">
+          <span className="text-gray-500">Avg rate</span>
+          <span className="font-medium text-gray-700">
+            {d.avgRate}{d.rateUnit ? ` ${d.rateUnit}` : ""}
           </span>
         </div>
       )}
@@ -110,11 +117,15 @@ function SprayAnalyticsTab({ applications, products, fields }: { applications: a
       const qty = p.mixedUnits ? null : (p.totalQty != null ? parseFloat(p.totalQty.toFixed(3)) : null);
       const displayUnit = p.rateUnit ? p.rateUnit.replace(/\/ha$/i, "").trim() : null;
       const qtyLabel = qty != null && displayUnit ? `${qty % 1 === 0 ? qty : qty.toFixed(2)} ${displayUnit}` : null;
+      const totalHaRounded = parseFloat(p.totalHa.toFixed(2));
+      const avgRate = qty != null && totalHaRounded > 0 ? parseFloat((qty / totalHaRounded).toFixed(2)) : null;
       return {
         ...p,
-        totalHa: parseFloat(p.totalHa.toFixed(2)),
+        totalHa: totalHaRounded,
         totalQty: qty,
         totalQtyLabel: qtyLabel,
+        displayUnit,
+        avgRate,
         totalSpendPence: p.mixedUnits ? null : p.totalSpendPence,
       };
     });
