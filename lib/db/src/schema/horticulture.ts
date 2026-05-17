@@ -14,6 +14,11 @@ export const horticultureBlocksTable = pgTable("horticulture_blocks", {
   irrigationSystem: text("irrigation_system"),
   waterSource: text("water_source"),
   notes: text("notes"),
+  isActive: boolean("is_active").default(true).notNull(),
+  retiredAt: timestamp("retired_at"),
+  retiredBy: text("retired_by"),
+  retirementReason: text("retirement_reason"),
+  retirementNotes: text("retirement_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

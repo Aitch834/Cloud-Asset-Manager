@@ -16875,6 +16875,7 @@ router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requir
 // ============================================================
 router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const includeRetired = req.query.includeRetired === "true";
   const rows = await db
     .select({
       id: horticultureBlocksTable.id,
@@ -16887,6 +16888,11 @@ router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, req
       irrigationSystem: horticultureBlocksTable.irrigationSystem,
       waterSource: horticultureBlocksTable.waterSource,
       notes: horticultureBlocksTable.notes,
+      isActive: horticultureBlocksTable.isActive,
+      retiredAt: horticultureBlocksTable.retiredAt,
+      retiredBy: horticultureBlocksTable.retiredBy,
+      retirementReason: horticultureBlocksTable.retirementReason,
+      retirementNotes: horticultureBlocksTable.retirementNotes,
       createdAt: horticultureBlocksTable.createdAt,
       fieldName: fieldsTable.name,
       fieldReference: fieldsTable.fieldReference,
@@ -16895,7 +16901,9 @@ router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, req
     })
     .from(horticultureBlocksTable)
     .leftJoin(fieldsTable, eq(horticultureBlocksTable.fieldId, fieldsTable.id))
-    .where(eq(horticultureBlocksTable.farmId, farmId))
+    .where(includeRetired
+      ? eq(horticultureBlocksTable.farmId, farmId)
+      : and(eq(horticultureBlocksTable.farmId, farmId), eq(horticultureBlocksTable.isActive, true)))
     .orderBy(horticultureBlocksTable.blockName);
   res.json(rows);
 });
@@ -16915,6 +16923,28 @@ router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTena
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId)));
   res.json({ success: true });
+});
+router.post("/farms/:farmId/horticulture-blocks/:id/retire", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { retiredBy, retirementReason, retirementNotes } = req.body as { retiredBy?: string; retirementReason?: string; retirementNotes?: string };
+  if (!retirementReason?.trim()) { res.status(400).json({ error: "retirementReason is required" }); return; }
+  const [row] = await db.update(horticultureBlocksTable)
+    .set({ isActive: false, retiredAt: new Date(), retiredBy: retiredBy?.trim() || null, retirementReason: retirementReason.trim(), retirementNotes: retirementNotes?.trim() || null })
+    .where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId)))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Block not found" }); return; }
+  res.json(row);
+});
+router.post("/farms/:farmId/horticulture-blocks/:id/reactivate", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticultureBlocksTable)
+    .set({ isActive: true, retiredAt: null, retiredBy: null, retirementReason: null, retirementNotes: null })
+    .where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId)))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Block not found" }); return; }
+  res.json(row);
 });
 
 // ─── Block Boundaries ─────────────────────────────────────────────────────

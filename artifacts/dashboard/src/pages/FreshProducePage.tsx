@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,16 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
 
 // ── BLOCKS ─────────────────────────────────────────────────────────────────
 
+const RETIREMENT_REASONS = [
+  "Absorbed back into parent field",
+  "Amalgamated with adjacent block",
+  "Converted to arable / combinable crops use",
+  "Converted to non-agricultural use",
+  "Infrastructure or development",
+  "No longer in production",
+  "Other",
+];
+
 function suggestBlockCode(blocks: Record<string, unknown>[]): string {
   const existing = new Set((blocks as { blockCode?: string }[]).map(b => (b.blockCode ?? "").toUpperCase()));
   for (let i = 1; i <= 999; i++) {
@@ -91,20 +101,35 @@ function BlocksTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [codeError, setCodeError] = useState<string | null>(null);
   const [mapBlock, setMapBlock] = useState<{ id: number; name: string } | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
+  const [retireRecord, setRetireRecord] = useState<Record<string, unknown> | null>(null);
+  const [retireForm, setRetireForm] = useState({ retirementReason: "", retiredBy: "", retirementNotes: "" });
+  const [reactivateRecord, setReactivateRecord] = useState<Record<string, unknown> | null>(null);
 
-  const { data: blocks = [], isLoading } = useQuery({ queryKey: ["horti-blocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks`), { credentials: "include" }).then(r => r.json()) });
-  const { data: farmFields = [] } = useQuery({ queryKey: ["farm-fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.ok ? r.json().then((d: { records?: unknown[] } | unknown[]) => (Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? [])) : []) });
+  const { data: allBlocks = [], isLoading } = useQuery({
+    queryKey: ["horti-blocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/horticulture-blocks?includeRetired=true`), { credentials: "include" }).then(r => r.json()),
+  });
+  const blocks = showRetired
+    ? (allBlocks as Record<string, unknown>[])
+    : (allBlocks as Record<string, unknown>[]).filter(b => b.isActive !== false);
+  const retiredCount = (allBlocks as Record<string, unknown>[]).filter(b => b.isActive === false).length;
+
+  const { data: farmFields = [] } = useQuery({
+    queryKey: ["farm-fields", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.ok ? r.json().then((d: { records?: unknown[] } | unknown[]) => (Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? [])) : []),
+  });
 
   useEffect(() => {
     if (open && !editing) {
-      setForm(f => ({ ...f, blockCode: f.blockCode || suggestBlockCode(blocks as Record<string, unknown>[]) }));
+      setForm(f => ({ ...f, blockCode: f.blockCode || suggestBlockCode(allBlocks as Record<string, unknown>[]) }));
     }
-  }, [open, editing, blocks]);
+  }, [open, editing, allBlocks]);
 
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => {
       const code = (b.blockCode as string ?? "").trim().toUpperCase();
-      const duplicate = (blocks as { id: unknown; blockCode?: string }[]).some(
+      const duplicate = (allBlocks as { id: unknown; blockCode?: string }[]).some(
         bl => bl.blockCode?.toUpperCase() === code && String(bl.id) !== String(editing?.id)
       );
       if (code && duplicate) {
@@ -122,13 +147,46 @@ function BlocksTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setOpen(false); setForm({}); setEditing(null); setCodeError(null); },
   });
 
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-blocks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }) });
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r); setCodeError(null); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-blocks/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }),
+  });
+
+  const retire = useMutation({
+    mutationFn: ({ id, ...body }: { id: number; retirementReason: string; retiredBy: string; retirementNotes: string }) =>
+      fetch(api(`farms/${farmId}/horticulture-blocks/${id}/retire`), {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setRetireRecord(null); setRetireForm({ retirementReason: "", retiredBy: "", retirementNotes: "" }); },
+  });
+
+  const reactivate = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-blocks/${id}/reactivate`), { method: "POST", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-blocks", farmId] }); setReactivateRecord(null); },
+  });
+
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r); setCodeError(null);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Growing Blocks / Field Sections</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-sm">Growing Blocks / Field Sections</h3>
+          {retiredCount > 0 && (
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowRetired(v => !v)}
+            >
+              <Eye className={`w-3.5 h-3.5 ${showRetired ? "" : "opacity-40"}`} />
+              {showRetired ? "Hide retired" : `Show retired (${retiredCount})`}
+            </button>
+          )}
+        </div>
         <Button size="sm" onClick={() => { setEditing(null); setCodeError(null); setForm({}); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" />Add Block
         </Button>
@@ -150,35 +208,51 @@ function BlocksTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {(blocks as Record<string, unknown>[]).length === 0 && (
+              {blocks.length === 0 && (
                 <tr><td colSpan={8} className="py-6 text-center text-sm text-muted-foreground italic">No blocks yet. Add one using the button above.</td></tr>
               )}
-              {(blocks as Record<string, unknown>[]).map((row, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 pr-4">{fmt(row.blockName)}</td>
-                  <td className="py-2 pr-4 font-mono text-xs">{fmt(row.blockCode)}</td>
-                  <td className="py-2 pr-4">{row.fieldId ? <span className="text-xs">{fmt(row.fieldName)}{row.fieldReference ? <span className="text-muted-foreground"> ({fmt(row.fieldReference)})</span> : null}</span> : <span className="text-muted-foreground text-xs">—</span>}</td>
-                  <td className="py-2 pr-4">{fmt(row.areaHa)}</td>
-                  <td className="py-2 pr-4">{fmt(row.soilType)}</td>
-                  <td className="py-2 pr-4">{fmt(row.irrigationSystem)}</td>
-                  <td className="py-2 pr-4">{fmt(row.waterSource)}</td>
-                  <td className="py-2 text-right space-x-1 whitespace-nowrap">
-                    <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(row)}><Eye className="w-3.5 h-3.5" /></Button>
-                    <Button size="icon" variant="ghost" title="Draw boundary on map" onClick={() => setMapBlock({ id: row.id as number, name: String(row.blockName) })}><Map className="w-3.5 h-3.5 text-blue-600" /></Button>
-                    <Button size="icon" variant="ghost" title="Edit" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="icon" variant="ghost" title="Delete" onClick={() => del.mutate(row.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                  </td>
-                </tr>
-              ))}
+              {(blocks as Record<string, unknown>[]).map((row, i) => {
+                const isRetired = row.isActive === false;
+                return (
+                  <tr key={i} className={`border-b last:border-0 ${isRetired ? "opacity-50" : ""}`}>
+                    <td className="py-2 pr-4">
+                      <span className={isRetired ? "line-through text-muted-foreground" : ""}>{fmt(row.blockName)}</span>
+                      {isRetired && <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 no-underline not-italic">Retired</span>}
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-xs">{fmt(row.blockCode)}</td>
+                    <td className="py-2 pr-4">{row.fieldId ? <span className="text-xs">{fmt(row.fieldName)}{row.fieldReference ? <span className="text-muted-foreground"> ({fmt(row.fieldReference)})</span> : null}</span> : <span className="text-muted-foreground text-xs">—</span>}</td>
+                    <td className="py-2 pr-4">{fmt(row.areaHa)}</td>
+                    <td className="py-2 pr-4">{fmt(row.soilType)}</td>
+                    <td className="py-2 pr-4">{fmt(row.irrigationSystem)}</td>
+                    <td className="py-2 pr-4">{fmt(row.waterSource)}</td>
+                    <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                      <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                      {!isRetired && <>
+                        <Button size="icon" variant="ghost" title="Draw boundary on map" onClick={() => setMapBlock({ id: row.id as number, name: String(row.blockName) })}><Map className="w-3.5 h-3.5 text-blue-600" /></Button>
+                        <Button size="icon" variant="ghost" title="Edit" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" title="Retire block" onClick={() => { setRetireRecord(row); setRetireForm({ retirementReason: "", retiredBy: "", retirementNotes: "" }); }}><Archive className="w-3.5 h-3.5 text-amber-600" /></Button>
+                      </>}
+                      {isRetired && <Button size="icon" variant="ghost" title="Reactivate block" onClick={() => setReactivateRecord(row)}><RotateCcw className="w-3.5 h-3.5 text-green-600" /></Button>}
+                      <Button size="icon" variant="ghost" title="Delete" onClick={() => del.mutate(row.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
+      {/* View dialog */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Block</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                View Block
+                {viewRecord.isActive === false && <span className="text-xs bg-amber-100 text-amber-700 rounded px-2 py-0.5 font-normal">Retired</span>}
+              </DialogTitle>
+            </DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Name</p><p className="font-medium">{fmt(viewRecord.blockName)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Block Code</p><p className="font-mono text-sm">{fmt(viewRecord.blockCode)}</p></div>
@@ -197,16 +271,35 @@ function BlocksTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Irrigation System</p><p className="font-medium">{fmt(viewRecord.irrigationSystem)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water Source</p><p className="font-medium">{fmt(viewRecord.waterSource)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+              {viewRecord.isActive === false && (
+                <div className="col-span-2 border-t pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Retirement Record</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Retired On</p><p className="font-medium">{fmtDate(viewRecord.retiredAt)}</p></div>
+                    <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Retired By</p><p className="font-medium">{fmt(viewRecord.retiredBy)}</p></div>
+                    <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Reason</p><p className="font-medium">{fmt(viewRecord.retirementReason)}</p></div>
+                    {!!viewRecord.retirementNotes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.retirementNotes)}</p></div>}
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setMapBlock({ id: viewRecord.id as number, name: String(viewRecord.blockName) })}><Map className="w-4 h-4 mr-1" />Draw Boundary</Button>
-              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              {viewRecord.isActive !== false && <>
+                <Button variant="outline" onClick={() => setMapBlock({ id: viewRecord.id as number, name: String(viewRecord.blockName) })}><Map className="w-4 h-4 mr-1" />Draw Boundary</Button>
+                <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              </>}
+              {viewRecord.isActive === false && (
+                <Button variant="outline" onClick={() => { setReactivateRecord(viewRecord); setViewRecord(null); }}>
+                  <RotateCcw className="w-4 h-4 mr-1" />Reactivate
+                </Button>
+              )}
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
+      {/* Add / Edit dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setCodeError(null); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader>
@@ -267,6 +360,55 @@ function BlocksTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Retire dialog */}
+      {retireRecord && (
+        <Dialog open onOpenChange={() => setRetireRecord(null)}>
+          <DialogContent style={{ maxWidth: "34rem" }}>
+            <DialogHeader><DialogTitle>Retire Block — {fmt(retireRecord.blockName)}</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">This block will be marked as permanently out of production. It will be hidden from active crop and record selectors, but its full history is preserved and it can be reactivated at any time.</p>
+            <div className="space-y-3">
+              <div>
+                <Label>Reason *</Label>
+                <Select value={retireForm.retirementReason} onValueChange={v => setRetireForm(f => ({ ...f, retirementReason: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select reason" /></SelectTrigger>
+                  <SelectContent>{RETIREMENT_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Retired By</Label>
+                <Input value={retireForm.retiredBy} onChange={e => setRetireForm(f => ({ ...f, retiredBy: e.target.value }))} placeholder="Name of person retiring this block" />
+              </div>
+              <div>
+                <Label>Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Textarea value={retireForm.retirementNotes} onChange={e => setRetireForm(f => ({ ...f, retirementNotes: e.target.value }))} rows={2} placeholder="e.g. Reabsorbed into North Field for winter wheat rotation" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRetireRecord(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                disabled={retire.isPending || !retireForm.retirementReason}
+                onClick={() => retire.mutate({ id: retireRecord.id as number, ...retireForm })}
+              >
+                {retire.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Archive className="w-4 h-4 mr-1" />Retire Block</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Reactivate confirm */}
+      {reactivateRecord && (
+        <ConfirmDialog
+          open
+          title={`Reactivate Block — ${fmt(reactivateRecord.blockName)}`}
+          message="This will mark the block as active again, making it available in all crop and record selectors."
+          onConfirm={() => reactivate.mutate(reactivateRecord.id as number)}
+          onCancel={() => setReactivateRecord(null)}
+          confirmLabel="Reactivate"
+        />
+      )}
 
       {mapBlock && (
         <BlockBoundaryMapDialog
