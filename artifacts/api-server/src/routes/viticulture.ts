@@ -21,6 +21,8 @@ import {
   wineryExciseReturnsTable,
   wineryTastingSessionsTable,
   wineryAgeVerificationTable,
+  vineyardSprayDiaryTable,
+  vineyardSoilAnalysisTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -787,6 +789,58 @@ router.put("/farms/:farmId/winery-age-verification/:id", requireAuth, requireTen
 router.delete("/farms/:farmId/winery-age-verification/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(wineryAgeVerificationTable).where(and(eq(wineryAgeVerificationTable.id, id), eq(wineryAgeVerificationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Spray Diary ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/vineyard-spray-diary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(vineyardSprayDiaryTable).where(eq(vineyardSprayDiaryTable.farmId, farmId)).orderBy(desc(vineyardSprayDiaryTable.applicationDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vineyard-spray-diary", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(vineyardSprayDiaryTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(vineyardSprayDiaryTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardSprayDiaryTable.id, id), eq(vineyardSprayDiaryTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(vineyardSprayDiaryTable).where(and(eq(vineyardSprayDiaryTable.id, id), eq(vineyardSprayDiaryTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Soil & Leaf Analysis ────────────────────────────────────────────
+
+router.get("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(vineyardSoilAnalysisTable).where(eq(vineyardSoilAnalysisTable.farmId, farmId)).orderBy(desc(vineyardSoilAnalysisTable.analysisDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(vineyardSoilAnalysisTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/vineyard-soil-analysis/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(vineyardSoilAnalysisTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardSoilAnalysisTable.id, id), eq(vineyardSoilAnalysisTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/vineyard-soil-analysis/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(vineyardSoilAnalysisTable).where(and(eq(vineyardSoilAnalysisTable.id, id), eq(vineyardSoilAnalysisTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -6,6 +6,7 @@ import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
+  Droplet, FlaskConical,
 } from "lucide-react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -398,6 +399,11 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
                 <div className="col-span-2"><ViewField label="Removal Reason" value={fmt(viewing.removalReason)} /></div>
               </>}
               {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
+            </div>
+          )}
+          {viewing && typeof viewing.id === "number" && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="vine-register" recordId={viewing.id} />
             </div>
           )}
           <DialogFooter>
@@ -1415,6 +1421,11 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
               {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
             </div>
           )}
+          {viewing && typeof viewing.id === "number" && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="vineyard-harvest" recordId={viewing.id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
@@ -1930,6 +1941,11 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
             <div><Label>Regulatory Basis</Label><Input value={form.regulatoryBasis ?? ""} onChange={sf("regulatoryBasis")} placeholder="e.g. UK-retained EU Reg 203/2012" /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="wine-production" recordId={(editing as Record<string, unknown>).id as number} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.vintageYear || saveMutation.isPending}>
@@ -2012,6 +2028,11 @@ export function LicensingTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><ViewField label="Conditions" value={fmt(view.conditions)} /></div>
               <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
             </div>
+            {typeof view.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="winery-licence" recordId={view.id} />
+              </div>
+            )}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2127,6 +2148,11 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
               <ViewField label="Paid Date" value={fmtDate(view.paidDate)} />
               <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
             </div>
+            {typeof view.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="winery-excise-return" recordId={view.id} />
+              </div>
+            )}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2236,6 +2262,11 @@ export function TastingsToursTab({ farmId }: { farmId: number }) {
               <ViewField label="Revenue" value={view.revenueGbp ? `£${fmtNum(view.revenueGbp, 2)}` : "—"} />
               <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
             </div>
+            {typeof view.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="winery-tasting-session" recordId={view.id} />
+              </div>
+            )}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2518,6 +2549,325 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Spray Diary Tab ──────────────────────────────────────────────────────────
+
+const SPRAY_PRODUCT_TYPES = [
+  "Fungicide", "Herbicide", "Insecticide", "Acaricide",
+  "Growth Regulator", "Adjuvant / Spreader", "Biostimulant",
+  "Nutritional Foliar", "Other",
+];
+
+const SPRAY_APPLICATION_METHODS = [
+  "Knapsack Sprayer", "Tractor-mounted Boom Sprayer",
+  "Air-blast / Vineyard Sprayer", "Lean-to / Facing Sprayer",
+  "Drone Application", "Hand-held Lance", "Other",
+];
+
+export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+  const crud = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
+
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+
+  const openAdd = () => { setEditing(null); setForm({ applicationDate: today }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => {
+    if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number });
+    else crud.add.mutate(form);
+    setOpen(false);
+  };
+
+  const csvCols = [
+    { key: "applicationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate) },
+    { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId) ?? "") },
+    { key: "productName", label: "Product Name" },
+    { key: "mappNumber", label: "MAPP No." },
+    { key: "productType", label: "Type" },
+    { key: "ratePerHectare", label: "Rate/ha" },
+    { key: "rateUnit", label: "Rate Unit" },
+    { key: "areaTreatedHa", label: "Area (ha)" },
+    { key: "operatorName", label: "Operator" },
+    { key: "harvestIntervalDays", label: "Harvest Interval (days)" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-sm">Spray Diary</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Records must be completed within 48 hours of application and kept for 3 years (Plant Protection Products Regs 2011). Required for WineGB, Red Tractor, and cross-compliance audits.
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "spray-diary.csv", csvCols)} disabled={!crud.data.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
+        </div>
+      </div>
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "applicationDate", label: "Date", render: r => fmtDate(r.applicationDate) },
+            { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
+            { key: "productName", label: "Product" },
+            { key: "mappNumber", label: "MAPP No." },
+            { key: "productType", label: "Type" },
+            { key: "ratePerHectare", label: "Rate/ha", render: r => r.ratePerHectare ? `${fmtNum(r.ratePerHectare)} ${fmt(r.rateUnit)}` : "—" },
+            { key: "areaTreatedHa", label: "Area (ha)", render: r => fmtNum(r.areaTreatedHa, 4) },
+            { key: "operatorName", label: "Operator" },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Spray Application — {fmtDate(view.applicationDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="Date" value={fmtDate(view.applicationDate)} />
+              <ViewField label="Block" value={fmt(blockName(view.blockId))} />
+              <ViewField label="Product Name" value={fmt(view.productName)} />
+              <ViewField label="MAPP Number" value={fmt(view.mappNumber)} />
+              <ViewField label="Active Ingredient" value={fmt(view.activeIngredient)} />
+              <ViewField label="Product Type" value={fmt(view.productType)} />
+              <ViewField label="Rate per Hectare" value={view.ratePerHectare ? `${fmtNum(view.ratePerHectare)} ${fmt(view.rateUnit)}` : "—"} />
+              <ViewField label="Total Quantity Applied" value={view.totalQuantityApplied ? `${fmtNum(view.totalQuantityApplied)} ${fmt(view.quantityUnit)}` : "—"} />
+              <ViewField label="Area Treated (ha)" value={fmtNum(view.areaTreatedHa, 4)} />
+              <ViewField label="Water Volume (L/ha)" value={fmt(view.waterVolumeLPerHa)} />
+              <ViewField label="Application Method" value={fmt(view.applicationMethod)} />
+              <ViewField label="Re-entry Period (hrs)" value={fmt(view.reentryPeriodHours)} />
+              <ViewField label="Harvest Interval (days)" value={fmt(view.harvestIntervalDays)} />
+              <ViewField label="Wind Speed (mph)" value={fmt(view.windSpeedMph)} />
+              <ViewField label="Temperature (°C)" value={fmt(view.temperatureCelsius)} />
+              <ViewField label="Weather Conditions" value={fmt(view.weatherConditions)} />
+              <ViewField label="Operator" value={fmt(view.operatorName)} />
+              <ViewField label="Operator Certificate No." value={fmt(view.operatorCertificateNo)} />
+              {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
+            </div>
+            {typeof view.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="vineyard-spray-diary" recordId={view.id} />
+              </div>
+            )}
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Spray Application</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Application Date *</Label><Input type="date" max={today} value={String(form.applicationDate ?? "")} onChange={sf("applicationDate")} /></div>
+            <div>
+              <Label>Block</Label>
+              <Select value={form.blockId ? String(form.blockId) : "__all__"} onValueChange={v => sfv("blockId", v === "__all__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="All blocks" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">— All blocks —</SelectItem>
+                  {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String((b as Record<string, unknown>).blockName ?? b.id)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={sf("productName")} placeholder="e.g. Amistar 250 SC" /></div>
+            <div><Label>MAPP Number</Label><Input value={String(form.mappNumber ?? "")} onChange={sf("mappNumber")} placeholder="e.g. 12345" /></div>
+            <div><Label>Active Ingredient</Label><Input value={String(form.activeIngredient ?? "")} onChange={sf("activeIngredient")} placeholder="e.g. Azoxystrobin" /></div>
+            <div>
+              <Label>Product Type</Label>
+              <Select value={String(form.productType ?? "")} onValueChange={v => sfv("productType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{SPRAY_PRODUCT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Application Method</Label>
+              <Select value={String(form.applicationMethod ?? "")} onValueChange={v => sfv("applicationMethod", v)}>
+                <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                <SelectContent>{SPRAY_APPLICATION_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Rate per Hectare</Label><Input type="number" step="0.001" value={String(form.ratePerHectare ?? "")} onChange={sf("ratePerHectare")} /></div>
+            <div><Label>Rate Unit</Label><Input value={String(form.rateUnit ?? "")} onChange={sf("rateUnit")} placeholder="e.g. L/ha, g/ha" /></div>
+            <div><Label>Total Qty Applied</Label><Input type="number" step="0.001" value={String(form.totalQuantityApplied ?? "")} onChange={sf("totalQuantityApplied")} /></div>
+            <div><Label>Quantity Unit</Label><Input value={String(form.quantityUnit ?? "")} onChange={sf("quantityUnit")} placeholder="e.g. L, g, kg" /></div>
+            <div><Label>Area Treated (ha)</Label><Input type="number" step="0.0001" value={String(form.areaTreatedHa ?? "")} onChange={sf("areaTreatedHa")} /></div>
+            <div><Label>Water Volume (L/ha)</Label><Input type="number" value={String(form.waterVolumeLPerHa ?? "")} onChange={sf("waterVolumeLPerHa")} /></div>
+            <div><Label>Re-entry Period (hrs)</Label><Input type="number" value={String(form.reentryPeriodHours ?? "")} onChange={sf("reentryPeriodHours")} /></div>
+            <div><Label>Harvest Interval (days)</Label><Input type="number" value={String(form.harvestIntervalDays ?? "")} onChange={sf("harvestIntervalDays")} /></div>
+            <div><Label>Wind Speed (mph)</Label><Input type="number" step="0.1" value={String(form.windSpeedMph ?? "")} onChange={sf("windSpeedMph")} /></div>
+            <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureCelsius ?? "")} onChange={sf("temperatureCelsius")} /></div>
+            <div className="col-span-2"><Label>Weather Conditions</Label><Input value={String(form.weatherConditions ?? "")} onChange={sf("weatherConditions")} placeholder="e.g. Overcast, dry, no wind" /></div>
+            <div>
+              <Label>Operator</Label>
+              <StaffSelect value={String(form.operatorName ?? "")} onChange={v => sfv("operatorName", v)} staffNames={staffNames} loading={staffLoading} />
+            </div>
+            <div><Label>Operator Certificate No. (PA1/PA2/PA6)</Label><Input value={String(form.operatorCertificateNo ?? "")} onChange={sf("operatorCertificateNo")} placeholder="e.g. PA6 — 12345" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.applicationDate || !form.productName}>
+              {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Soil & Leaf Analysis Tab ──────────────────────────────────────────────────
+
+const SOIL_ANALYSIS_TYPES = [
+  "Soil Analysis", "Petiole (Leaf) Analysis", "Must Analysis", "Tissue Analysis",
+];
+
+export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+  const crud = useCrud(farmId, "vineyard-soil-analysis", "vineyard-soil-analysis");
+
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+
+  const openAdd = () => { setEditing(null); setForm({ analysisDate: today }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => {
+    if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number });
+    else crud.add.mutate(form);
+    setOpen(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-sm">Soil &amp; Leaf Analysis</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Routine soil and petiole (leaf) analysis per block. Expected by WineGB Good Viticulture Practice guidelines and organic certifiers. Attach lab report PDFs using the document upload on each record.
+          </p>
+        </div>
+        <Button size="sm" onClick={openAdd} className="shrink-0"><Plus className="w-3.5 h-3.5 mr-1" />Add Analysis</Button>
+      </div>
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "analysisDate", label: "Date", render: r => fmtDate(r.analysisDate) },
+            { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
+            { key: "analysisType", label: "Type" },
+            { key: "labName", label: "Lab" },
+            { key: "sampleReference", label: "Sample Ref" },
+            { key: "ph", label: "pH", render: r => fmtNum(r.ph, 2) },
+            { key: "phosphorusMgL", label: "P (mg/L)", render: r => fmtNum(r.phosphorusMgL) },
+            { key: "potassiumMgL", label: "K (mg/L)", render: r => fmtNum(r.potassiumMgL) },
+            { key: "magnesiumMgL", label: "Mg (mg/L)", render: r => fmtNum(r.magnesiumMgL) },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Analysis Results — {fmtDate(view.analysisDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="Date" value={fmtDate(view.analysisDate)} />
+              <ViewField label="Block" value={fmt(blockName(view.blockId))} />
+              <ViewField label="Analysis Type" value={fmt(view.analysisType)} />
+              <ViewField label="Laboratory" value={fmt(view.labName)} />
+              <ViewField label="Sample Reference" value={fmt(view.sampleReference)} />
+              <div className="col-span-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1 pb-0.5">Nutrient Results</p></div>
+              <ViewField label="pH" value={fmtNum(view.ph, 2)} />
+              <ViewField label="Organic Matter (%)" value={fmtNum(view.organicMatterPct, 2)} />
+              <ViewField label="Phosphorus — P (mg/L)" value={fmtNum(view.phosphorusMgL)} />
+              <ViewField label="Potassium — K (mg/L)" value={fmtNum(view.potassiumMgL)} />
+              <ViewField label="Magnesium — Mg (mg/L)" value={fmtNum(view.magnesiumMgL)} />
+              <ViewField label="Calcium — Ca (mg/L)" value={fmtNum(view.calciumMgL)} />
+              <ViewField label="Iron — Fe (mg/L)" value={fmtNum(view.ironMgL)} />
+              <ViewField label="Manganese — Mn (mg/L)" value={fmtNum(view.manganeseMgL)} />
+              <ViewField label="Boron — B (mg/L)" value={fmtNum(view.boronMgL)} />
+              <ViewField label="Nitrogen — N (mg/L)" value={fmtNum(view.nitrogenMgL)} />
+              <ViewField label="Sulphur — S (mg/L)" value={fmtNum(view.sulphurMgL)} />
+              <ViewField label="CEC (cmol/kg)" value={fmtNum(view.cecCmolKg, 2)} />
+              {!!view.recommendations && <div className="col-span-2"><ViewField label="Lab Recommendations" value={fmt(view.recommendations)} /></div>}
+              {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
+            </div>
+            {typeof view.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="vineyard-soil-analysis" recordId={view.id} />
+              </div>
+            )}
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Analysis Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Analysis Date *</Label><Input type="date" max={today} value={String(form.analysisDate ?? "")} onChange={sf("analysisDate")} /></div>
+            <div>
+              <Label>Block</Label>
+              <Select value={form.blockId ? String(form.blockId) : "__none__"} onValueChange={v => sfv("blockId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select block" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None / Farm-wide —</SelectItem>
+                  {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String((b as Record<string, unknown>).blockName ?? b.id)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Analysis Type</Label>
+              <Select value={String(form.analysisType ?? "")} onValueChange={v => sfv("analysisType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{SOIL_ANALYSIS_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Laboratory Name</Label><Input value={String(form.labName ?? "")} onChange={sf("labName")} placeholder="e.g. NRM, Lancrop" /></div>
+            <div className="col-span-2"><Label>Sample Reference</Label><Input value={String(form.sampleReference ?? "")} onChange={sf("sampleReference")} /></div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide col-span-2 pt-1">Nutrient Values</p>
+            <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={sf("ph")} /></div>
+            <div><Label>Organic Matter (%)</Label><Input type="number" step="0.01" value={String(form.organicMatterPct ?? "")} onChange={sf("organicMatterPct")} /></div>
+            <div><Label>Phosphorus — P (mg/L)</Label><Input type="number" step="0.1" value={String(form.phosphorusMgL ?? "")} onChange={sf("phosphorusMgL")} /></div>
+            <div><Label>Potassium — K (mg/L)</Label><Input type="number" step="0.1" value={String(form.potassiumMgL ?? "")} onChange={sf("potassiumMgL")} /></div>
+            <div><Label>Magnesium — Mg (mg/L)</Label><Input type="number" step="0.1" value={String(form.magnesiumMgL ?? "")} onChange={sf("magnesiumMgL")} /></div>
+            <div><Label>Calcium — Ca (mg/L)</Label><Input type="number" step="0.1" value={String(form.calciumMgL ?? "")} onChange={sf("calciumMgL")} /></div>
+            <div><Label>Iron — Fe (mg/L)</Label><Input type="number" step="0.1" value={String(form.ironMgL ?? "")} onChange={sf("ironMgL")} /></div>
+            <div><Label>Manganese — Mn (mg/L)</Label><Input type="number" step="0.1" value={String(form.manganeseMgL ?? "")} onChange={sf("manganeseMgL")} /></div>
+            <div><Label>Boron — B (mg/L)</Label><Input type="number" step="0.1" value={String(form.boronMgL ?? "")} onChange={sf("boronMgL")} /></div>
+            <div><Label>Nitrogen — N (mg/L)</Label><Input type="number" step="0.1" value={String(form.nitrogenMgL ?? "")} onChange={sf("nitrogenMgL")} /></div>
+            <div><Label>Sulphur — S (mg/L)</Label><Input type="number" step="0.1" value={String(form.sulphurMgL ?? "")} onChange={sf("sulphurMgL")} /></div>
+            <div><Label>CEC (cmol/kg)</Label><Input type="number" step="0.01" value={String(form.cecCmolKg ?? "")} onChange={sf("cecCmolKg")} /></div>
+            <div className="col-span-2"><Label>Lab Recommendations</Label><Textarea value={String(form.recommendations ?? "")} onChange={sf("recommendations")} rows={2} placeholder="Recommendations from the lab report" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.analysisDate}>
+              {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -2532,6 +2882,8 @@ const TABS = [
   { id: "tours", label: "Tastings & Tours", icon: CalendarCheck },
   { id: "age-check", label: "Age Verification", icon: ShieldCheck },
   { id: "wine-production", label: "Wine Production", icon: Wine },
+  { id: "spray-diary", label: "Spray Diary", icon: Droplet },
+  { id: "soil-analysis", label: "Soil & Leaf Analysis", icon: FlaskConical },
 ];
 
 export default function ViticulturePage() {
@@ -2583,6 +2935,8 @@ export default function ViticulturePage() {
           {tab === "tours" && <TastingsToursTab farmId={selectedFarmId} />}
           {tab === "age-check" && <AgeVerificationTab farmId={selectedFarmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={selectedFarmId} />}
+          {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "soil-analysis" && <SoilAnalysisTab farmId={selectedFarmId} blocks={blocks.data} />}
         </div>
       </div>
       <RaiseTaskDialog

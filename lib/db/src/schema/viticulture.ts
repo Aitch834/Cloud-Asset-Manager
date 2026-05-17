@@ -224,6 +224,60 @@ export const wineryAgeVerificationTable = pgTable("winery_age_verification", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Vineyard Spray Diary ─────────────────────────────────────────────────────
+export const vineyardSprayDiaryTable = pgTable("vineyard_spray_diary", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  applicationDate: date("application_date").notNull(),
+  productName: text("product_name").notNull(),
+  mappNumber: text("mapp_number"),
+  activeIngredient: text("active_ingredient"),
+  productType: text("product_type"),
+  ratePerHectare: numeric("rate_per_hectare", { precision: 8, scale: 3 }),
+  rateUnit: text("rate_unit"),
+  totalQuantityApplied: numeric("total_quantity_applied", { precision: 10, scale: 3 }),
+  quantityUnit: text("quantity_unit"),
+  areaTreatedHa: numeric("area_treated_ha", { precision: 8, scale: 4 }),
+  waterVolumeLPerHa: integer("water_volume_l_per_ha"),
+  applicationMethod: text("application_method"),
+  reentryPeriodHours: integer("reentry_period_hours"),
+  harvestIntervalDays: integer("harvest_interval_days"),
+  windSpeedMph: numeric("wind_speed_mph", { precision: 4, scale: 1 }),
+  temperatureCelsius: numeric("temperature_celsius", { precision: 4, scale: 1 }),
+  weatherConditions: text("weather_conditions"),
+  operatorName: text("operator_name"),
+  operatorCertificateNo: text("operator_certificate_no"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Vineyard Soil & Leaf Analysis ────────────────────────────────────────────
+export const vineyardSoilAnalysisTable = pgTable("vineyard_soil_analysis", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  analysisDate: date("analysis_date").notNull(),
+  analysisType: text("analysis_type"),
+  labName: text("lab_name"),
+  sampleReference: text("sample_reference"),
+  ph: numeric("ph", { precision: 4, scale: 2 }),
+  organicMatterPct: numeric("organic_matter_pct", { precision: 5, scale: 2 }),
+  phosphorusMgL: numeric("phosphorus_mg_l", { precision: 8, scale: 2 }),
+  potassiumMgL: numeric("potassium_mg_l", { precision: 8, scale: 2 }),
+  magnesiumMgL: numeric("magnesium_mg_l", { precision: 8, scale: 2 }),
+  calciumMgL: numeric("calcium_mg_l", { precision: 8, scale: 2 }),
+  ironMgL: numeric("iron_mg_l", { precision: 8, scale: 2 }),
+  manganeseMgL: numeric("manganese_mg_l", { precision: 8, scale: 2 }),
+  boronMgL: numeric("boron_mg_l", { precision: 8, scale: 2 }),
+  nitrogenMgL: numeric("nitrogen_mg_l", { precision: 8, scale: 2 }),
+  sulphurMgL: numeric("sulphur_mg_l", { precision: 8, scale: 2 }),
+  cecCmolKg: numeric("cec_cmol_kg", { precision: 8, scale: 2 }),
+  recommendations: text("recommendations"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Disease & Pest Scouting ──────────────────────────────────────────────────
 export const vineyardScoutingTable = pgTable("vineyard_scouting", {
   id: serial("id").primaryKey(),

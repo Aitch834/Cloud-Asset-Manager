@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
   OverviewTab as VitOverviewTab,
   VineRegisterTab,
@@ -24,6 +25,8 @@ import {
   TastingsToursTab,
   AgeVerificationTab,
   WineProductionTab,
+  SprayDiaryTab,
+  SoilAnalysisTab,
   SO2Chip,
 } from "@/pages/ViticulturePage";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -48,7 +51,7 @@ function fmtNum(val: number | null | undefined): string {
 
 type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "certificates"
          | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting"
-         | "licensing" | "excise" | "tours" | "age-check";
+         | "licensing" | "excise" | "tours" | "age-check" | "spray-diary" | "soil-analysis";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "block-conversion", label: "Block Conversion" },
@@ -67,6 +70,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "excise", label: "Excise & Duty" },
   { id: "tours", label: "Tastings & Tours" },
   { id: "age-check", label: "Age Verification" },
+  { id: "spray-diary", label: "Spray Diary" },
+  { id: "soil-analysis", label: "Soil & Leaf Analysis" },
 ];
 
 const BLOCK_STATUS_OPTIONS = ["in-conversion", "fully-organic", "suspended", "withdrawn"];
@@ -262,6 +267,11 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
             <div><Label>Synthetic Input History</Label><Textarea value={form.syntheticHistory ?? ""} onChange={sf("syntheticHistory")} placeholder="Note any synthetic pesticide/fertiliser history relevant to conversion" rows={2} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="organic-block-conversion" recordId={(editing as any).id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.blockName || saveMutation.isPending}>
@@ -429,6 +439,11 @@ function InputLogTab({ farmId }: { farmId: number }) {
             <div><Label>Applied By</Label><Input value={form.appliedBy ?? ""} onChange={sf("appliedBy")} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="organic-input-log" recordId={(editing as any).id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.productName || !form.inputType || !form.dateApplied || saveMutation.isPending}>
@@ -614,6 +629,11 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="organic-copper-log" recordId={(editing as any).id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.applicationDate || !form.productName || !form.copperKgApplied || saveMutation.isPending}>
@@ -918,6 +938,11 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
             <div><Label>Approval Conditions</Label><Textarea value={form.approvalConditions ?? ""} onChange={sf("approvalConditions")} rows={2} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="organic-input-derogation" recordId={(editing as any).id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.inputName || !form.inputType || saveMutation.isPending}>
@@ -1140,6 +1165,11 @@ function CertificatesTab({ farmId }: { farmId: number }) {
             <div><Label>Scope</Label><Textarea value={form.scope ?? ""} onChange={sf("scope")} rows={2} placeholder="What does this certificate cover?" /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
+          {editing && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments farmId={farmId} recordType="organic-certificate" recordId={(editing as any).id} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.certifyingBody || saveMutation.isPending}>
@@ -1235,6 +1265,8 @@ export default function OrganicViticulturePage() {
           {tab === "excise" && <ExciseDutyTab farmId={farmId} />}
           {tab === "tours" && <TastingsToursTab farmId={farmId} />}
           {tab === "age-check" && <AgeVerificationTab farmId={farmId} />}
+          {tab === "spray-diary" && <SprayDiaryTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "soil-analysis" && <SoilAnalysisTab farmId={farmId} blocks={vineyardBlocks} />}
         </Card>
       </div>
     </AppLayout>

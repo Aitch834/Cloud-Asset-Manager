@@ -1,0 +1,53 @@
+-- ─── Vineyard Spray Diary ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vineyard_spray_diary (
+  id                       SERIAL PRIMARY KEY,
+  farm_id                  INTEGER NOT NULL REFERENCES farms(id),
+  block_id                 INTEGER REFERENCES vineyard_blocks(id),
+  application_date         DATE NOT NULL,
+  product_name             TEXT NOT NULL,
+  mapp_number              TEXT,
+  active_ingredient        TEXT,
+  product_type             TEXT,
+  rate_per_hectare         NUMERIC(8,3),
+  rate_unit                TEXT,
+  total_quantity_applied   NUMERIC(10,3),
+  quantity_unit            TEXT,
+  area_treated_ha          NUMERIC(8,4),
+  water_volume_l_per_ha    INTEGER,
+  application_method       TEXT,
+  reentry_period_hours     INTEGER,
+  harvest_interval_days    INTEGER,
+  wind_speed_mph           NUMERIC(4,1),
+  temperature_celsius      NUMERIC(4,1),
+  weather_conditions       TEXT,
+  operator_name            TEXT,
+  operator_certificate_no  TEXT,
+  notes                    TEXT,
+  created_at               TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ─── Vineyard Soil & Leaf Analysis ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vineyard_soil_analysis (
+  id                  SERIAL PRIMARY KEY,
+  farm_id             INTEGER NOT NULL REFERENCES farms(id),
+  block_id            INTEGER REFERENCES vineyard_blocks(id),
+  analysis_date       DATE NOT NULL,
+  analysis_type       TEXT,
+  lab_name            TEXT,
+  sample_reference    TEXT,
+  ph                  NUMERIC(4,2),
+  organic_matter_pct  NUMERIC(5,2),
+  phosphorus_mg_l     NUMERIC(8,2),
+  potassium_mg_l      NUMERIC(8,2),
+  magnesium_mg_l      NUMERIC(8,2),
+  calcium_mg_l        NUMERIC(8,2),
+  iron_mg_l           NUMERIC(8,2),
+  manganese_mg_l      NUMERIC(8,2),
+  boron_mg_l          NUMERIC(8,2),
+  nitrogen_mg_l       NUMERIC(8,2),
+  sulphur_mg_l        NUMERIC(8,2),
+  cec_cmol_kg         NUMERIC(8,2),
+  recommendations     TEXT,
+  notes               TEXT,
+  created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
