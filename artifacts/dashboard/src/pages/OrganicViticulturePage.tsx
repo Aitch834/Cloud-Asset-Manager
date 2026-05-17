@@ -19,6 +19,10 @@ import {
   OperationsTab,
   HarvestTab as VitHarvestTab,
   ScoutingTab,
+  LicensingTab,
+  ExciseDutyTab,
+  TastingsToursTab,
+  AgeVerificationTab,
 } from "@/pages/ViticulturePage";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -41,7 +45,8 @@ function fmtNum(val: number | null | undefined): string {
 }
 
 type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "certificates"
-         | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting";
+         | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting"
+         | "licensing" | "excise" | "tours" | "age-check";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "block-conversion", label: "Block Conversion" },
@@ -56,6 +61,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "operations", label: "Pruning & Canopy" },
   { id: "vit-harvest", label: "Harvest" },
   { id: "scouting", label: "Disease Scouting" },
+  { id: "licensing", label: "Licensing" },
+  { id: "excise", label: "Excise & Duty" },
+  { id: "tours", label: "Tastings & Tours" },
+  { id: "age-check", label: "Age Verification" },
 ];
 
 const BLOCK_STATUS_OPTIONS = ["in-conversion", "fully-organic", "suspended", "withdrawn"];
@@ -1424,6 +1433,10 @@ export default function OrganicViticulturePage() {
           {tab === "operations" && <OperationsTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "vit-harvest" && <VitHarvestTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "scouting" && <ScoutingTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "licensing" && <LicensingTab farmId={farmId} />}
+          {tab === "excise" && <ExciseDutyTab farmId={farmId} />}
+          {tab === "tours" && <TastingsToursTab farmId={farmId} />}
+          {tab === "age-check" && <AgeVerificationTab farmId={farmId} />}
         </Card>
       </div>
     </AppLayout>

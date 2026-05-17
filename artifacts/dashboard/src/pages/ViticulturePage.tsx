@@ -1753,7 +1753,7 @@ const LICENCE_STATUS_COLORS: Record<string, string> = {
   lapsed: "bg-red-100 text-red-700",
 };
 
-function LicensingTab({ farmId }: { farmId: number }) {
+export function LicensingTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-licences", "winery-licences");
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -1861,7 +1861,7 @@ const EXCISE_STATUS_COLORS: Record<string, string> = {
   paid: "bg-green-100 text-green-700",
 };
 
-function ExciseDutyTab({ farmId }: { farmId: number }) {
+export function ExciseDutyTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-excise-returns", "winery-excise-returns");
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -1970,7 +1970,7 @@ const SESSION_TYPES: Record<string, string> = {
   private_tasting: "Private Tasting",
 };
 
-function TastingsToursTab({ farmId }: { farmId: number }) {
+export function TastingsToursTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-tasting-sessions", "winery-tasting-sessions");
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -2066,7 +2066,7 @@ function TastingsToursTab({ farmId }: { farmId: number }) {
 
 // ─── Winery: Age Verification — Challenge 25 ───────────────────────────────────
 
-function AgeVerificationTab({ farmId }: { farmId: number }) {
+export function AgeVerificationTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-age-verification", "winery-age-verification");
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
