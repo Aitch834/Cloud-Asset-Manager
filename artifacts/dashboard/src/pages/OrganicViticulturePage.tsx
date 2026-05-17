@@ -23,6 +23,8 @@ import {
   ExciseDutyTab,
   TastingsToursTab,
   AgeVerificationTab,
+  WineProductionTab,
+  SO2Chip,
 } from "@/pages/ViticulturePage";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -76,16 +78,6 @@ const CORRESPONDENCE_TYPE_OPTIONS = ["Email", "Letter", "Phone Call", "Meeting",
 const DIRECTION_OPTIONS = ["outbound", "inbound"];
 const CERT_TYPE_OPTIONS = ["Vineyard Organic Certificate", "Organic Wine Certificate", "In-Conversion Certificate", "Other"];
 const CERT_STATUS_OPTIONS = ["active", "expired", "suspended", "withdrawn"];
-const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
-const ADDITIVE_TYPE_OPTIONS = [
-  "Sulphites / SO₂",
-  "Fining Agent",
-  "Stabiliser",
-  "Acidifier",
-  "Preservative",
-  "Other",
-];
-
 // ─── Status Chips ─────────────────────────────────────────────────────────────
 
 function BlockStatusChip({ status }: { status: string }) {
@@ -150,11 +142,6 @@ function CertStatusChip({ status }: { status: string }) {
   );
 }
 
-function SO2Chip({ compliant }: { compliant: number }) {
-  return compliant === 1
-    ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Compliant</span>
-    : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Exceeds Limit</span>;
-}
 
 // ─── Block Conversion Tab ────────────────────────────────────────────────────
 
@@ -1009,195 +996,6 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
           onClose={() => setRaiseTaskFor(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ─── Wine Production Tab ──────────────────────────────────────────────────────
-
-function WineProductionTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [deleting, setDeleting] = useState<any>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
-
-  const { data, isLoading } = useQuery<{ records: any[] }>({
-    queryKey: ["org-vit-wine", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/wine-production`).then(r => r.json()),
-  });
-
-  const openAdd = () => {
-    setForm({ vintageYear: String(new Date().getFullYear()), certifiedOrganic: "1", so2Compliant: "1" });
-    setShowAdd(true);
-  };
-  const openEdit = (r: any) => {
-    setForm({
-      vintageYear: r.vintageYear ? String(r.vintageYear) : "",
-      wineColour: r.wineColour ?? "",
-      volumeLitres: r.volumeLitres ?? "",
-      certifiedOrganic: r.certifiedOrganic != null ? String(r.certifiedOrganic) : "1",
-      certifierRef: r.certifierRef ?? "",
-      additiveName: r.additiveName ?? "",
-      additiveType: r.additiveType ?? "",
-      quantityUsed: r.quantityUsed ?? "",
-      quantityUnit: r.quantityUnit ?? "",
-      maxPermittedLevel: r.maxPermittedLevel ?? "",
-      actualSO2MgL: r.actualSO2MgL ?? "",
-      maxSO2MgL: r.maxSO2MgL ?? "",
-      so2Compliant: r.so2Compliant != null ? String(r.so2Compliant) : "1",
-      regulatoryBasis: r.regulatoryBasis ?? "",
-      notes: r.notes ?? "",
-    });
-    setEditing(r);
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const url = editing
-        ? `/api/farms/${farmId}/organic-viticulture/wine-production/${editing.id}`
-        : `/api/farms/${farmId}/organic-viticulture/wine-production`;
-      const method = editing ? "PUT" : "POST";
-      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      if (!r.ok) throw new Error("Save failed");
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-wine", farmId] }); setShowAdd(false); setEditing(null); toast({ title: "Saved" }); },
-    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/wine-production/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-wine", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
-    onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
-  });
-
-  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
-
-  const records = data?.records ?? [];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">Record organic wine production additive use and SO₂ compliance per vintage. UK-retained EU Reg 203/2012 sets SO₂ limits: 100 mg/L red, 150 mg/L white/rosé.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
-      </div>
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
-        <strong>SO₂ limits for organic wine (UK-retained Reg 203/2012):</strong> Red wine — 100 mg/L total SO₂. White and rosé wine — 150 mg/L. These limits are lower than for conventional wine. Sparkling and sweet wine may have higher permitted levels — check your certifier guidance.
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : records.length === 0 ? (
-        <Card className="p-8 text-center text-gray-500">No wine production records yet.</Card>
-      ) : (
-        <div className="space-y-3">
-          {records.map((r: any) => (
-            <Card key={r.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-semibold text-gray-900">Vintage {r.vintageYear}</span>
-                    {r.wineColour && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">{r.wineColour}</span>}
-                    {r.certifiedOrganic === 1 || r.certifiedOrganic === "1"
-                      ? <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded font-medium">Certified Organic</span>
-                      : <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Not Certified</span>}
-                    <SO2Chip compliant={Number(r.so2Compliant)} />
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-sm mt-2">
-                    <div><span className="text-gray-500">Volume:</span> <span className="font-medium">{r.volumeLitres ? `${r.volumeLitres} L` : "—"}</span></div>
-                    <div><span className="text-gray-500">Additive:</span> <span className="font-medium">{fmt(r.additiveName)}</span></div>
-                    <div><span className="text-gray-500">Type:</span> <span className="font-medium">{fmt(r.additiveType)}</span></div>
-                    <div><span className="text-gray-500">Quantity Used:</span> <span className="font-medium">{r.quantityUsed ? `${r.quantityUsed} ${r.quantityUnit ?? ""}`.trim() : "—"}</span></div>
-                    <div><span className="text-gray-500">Actual SO₂:</span> <span className="font-medium">{r.actualSO2MgL ? `${r.actualSO2MgL} mg/L` : "—"}</span></div>
-                    <div><span className="text-gray-500">Max SO₂ Permitted:</span> <span className="font-medium">{r.maxSO2MgL ? `${r.maxSO2MgL} mg/L` : "—"}</span></div>
-                  </div>
-                  {r.certifierRef && <p className="text-xs text-gray-500 mt-1">Certifier Ref: {r.certifierRef}</p>}
-                  {r.regulatoryBasis && <p className="text-xs text-gray-500 mt-0.5">Regulatory basis: {r.regulatoryBasis}</p>}
-                  {r.notes && <p className="text-sm text-gray-500 mt-1">{r.notes}</p>}
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing ? "Edit Wine Production Record" : "Add Wine Production Record"}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Vintage Year *</Label><Input type="number" value={form.vintageYear ?? ""} onChange={sf("vintageYear")} placeholder="e.g. 2024" /></div>
-              <div>
-                <Label>Wine Colour</Label>
-                <Select value={form.wineColour ?? ""} onValueChange={v => setForm(f => ({ ...f, wineColour: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{WINE_COLOUR_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Volume (Litres)</Label><Input type="number" value={form.volumeLitres ?? ""} onChange={sf("volumeLitres")} placeholder="Total production" /></div>
-              <div>
-                <Label>Certified Organic?</Label>
-                <Select value={form.certifiedOrganic ?? "1"} onValueChange={v => setForm(f => ({ ...f, certifiedOrganic: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="1">Yes</SelectItem><SelectItem value="0">No</SelectItem></SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div><Label>Certifier Reference</Label><Input value={form.certifierRef ?? ""} onChange={sf("certifierRef")} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Additive Name</Label><Input value={form.additiveName ?? ""} onChange={sf("additiveName")} placeholder="e.g. Potassium Metabisulphite" /></div>
-              <div>
-                <Label>Additive Type</Label>
-                <Select value={form.additiveType ?? ""} onValueChange={v => setForm(f => ({ ...f, additiveType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{ADDITIVE_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Quantity Used</Label><Input value={form.quantityUsed ?? ""} onChange={sf("quantityUsed")} /></div>
-              <div><Label>Unit</Label><Input value={form.quantityUnit ?? ""} onChange={sf("quantityUnit")} placeholder="e.g. g/hL" /></div>
-            </div>
-            <div><Label>Max Permitted Level</Label><Input value={form.maxPermittedLevel ?? ""} onChange={sf("maxPermittedLevel")} placeholder="e.g. 50 g/hL" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Actual SO₂ (mg/L)</Label><Input type="number" value={form.actualSO2MgL ?? ""} onChange={sf("actualSO2MgL")} /></div>
-              <div><Label>Max SO₂ Permitted (mg/L)</Label><Input type="number" value={form.maxSO2MgL ?? ""} onChange={sf("maxSO2MgL")} placeholder="100 or 150" /></div>
-            </div>
-            <div>
-              <Label>SO₂ Compliant?</Label>
-              <Select value={form.so2Compliant ?? "1"} onValueChange={v => setForm(f => ({ ...f, so2Compliant: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="1">Yes — within limit</SelectItem><SelectItem value="0">No — exceeds limit</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>Regulatory Basis</Label><Input value={form.regulatoryBasis ?? ""} onChange={sf("regulatoryBasis")} placeholder="e.g. UK-retained EU Reg 203/2012" /></div>
-            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={!form.vintageYear || saveMutation.isPending}>
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Delete Wine Production Record</DialogTitle><DialogDescription>Remove the record for vintage <strong>{deleting?.vintageYear}</strong>? This cannot be undone.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
