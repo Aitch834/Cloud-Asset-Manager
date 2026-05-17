@@ -54,6 +54,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Organic Dairy": "bg-teal-50 text-teal-800",
   "Organic Fresh Produce": "bg-lime-50 text-lime-800",
   "Viticulture": "bg-purple-50 text-purple-700",
+  "Organic Viticulture": "bg-purple-50 text-purple-800",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -105,6 +106,7 @@ const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Organic Dairy": "organic-dairy",
   "Organic Fresh Produce": "organic-fresh-produce",
   "Viticulture": "viticulture",
+  "Organic Viticulture": "organic-viticulture",
 };
 
 function categoryColor(cat: string) {

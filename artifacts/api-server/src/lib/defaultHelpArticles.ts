@@ -206,6 +206,11 @@ const TITLES: [string, string][] = [
   ["Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag", "Viticulture"],
   ["Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags", "Viticulture"],
   ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest with Active Block Picker", "Viticulture"],
+  ["Winery Licensing — Premises Licence, Personal Licence, DPS and Expiry Status Records", "Viticulture"],
+  ["Winery Excise & Duty Returns — HMRC Wine Duty Register, Payment Status and Return Period Tracking", "Viticulture"],
+  ["Winery Tastings & Tours — Cellar Door Event Register, Attendee Counts and Session Revenue", "Viticulture"],
+  ["Winery Age Verification (Challenge 25) — ID Check Register, Outcome Log and Compliance Audit Trail", "Viticulture"],
+  ["Wine Production — SO₂ Compliance, Additive Records and Organic Wine Certification per Vintage", "Viticulture"],
   ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
   ["Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage", "Organic"],
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
@@ -219,12 +224,12 @@ const TITLES: [string, string][] = [
   ["Organic Viticulture — Organic Input Log: Approved Products, Approval Status and Certifier References", "Organic Viticulture"],
   ["Organic Viticulture — Copper Register: Application Log and Running 28 kg Per 7-Year Limit Tracker", "Organic Viticulture"],
   ["Organic Viticulture — Input Derogations: Case Register, Correspondence Log and Availability Evidence", "Organic Viticulture"],
-  ["Organic Viticulture — Wine Production Additives: SO2 Compliance and Organic Wine Certification Records", "Organic Viticulture"],
+  ["Organic Viticulture — Wine Production Additives: SO2 Compliance, Additive Records and Organic Certification (Shared with Standard Viticulture)", "Organic Viticulture"],
   ["Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register", "Organic Viticulture"],
   ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
   ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
   ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
-  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest and Disease Scouting", "Organic Viticulture"],
+  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance (Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production)", "Organic Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
