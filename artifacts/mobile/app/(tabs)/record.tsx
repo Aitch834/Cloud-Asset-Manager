@@ -648,6 +648,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-age-refusal",
+    title: "Age Verification Refusal",
+    description: "Log a Challenge 25 refusal — staff member, location, customer's estimated age, ID outcome and supervisor notification. Required by premises licence conditions.",
+    icon: "shield",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-age-refusal",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "visitor",
     title: "Visitor Log",
     description: "Quick-log farm visitors with biosecurity compliance checks",
