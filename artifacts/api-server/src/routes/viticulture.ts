@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   db,
   vineyardBlocksTable,
+  vineyardBlockPlantingsTable,
   vineyardBlockBoundariesTable,
   vineRegisterTable,
   vineyardPhenologyTable,
@@ -24,24 +25,183 @@ import { sanitiseBody } from "../lib/sanitise";
 
 const router: IRouter = Router();
 
+// ─── Helper: enrich blocks with current planting data ────────────────────────
+
+async function enrichBlocks(farmId: number) {
+  const blocks = await db
+    .select()
+    .from(vineyardBlocksTable)
+    .where(eq(vineyardBlocksTable.farmId, farmId))
+    .orderBy(vineyardBlocksTable.blockName);
+
+  const plantings = await db
+    .select()
+    .from(vineyardBlockPlantingsTable)
+    .where(eq(vineyardBlockPlantingsTable.farmId, farmId))
+    .orderBy(vineyardBlockPlantingsTable.id);
+
+  return blocks.map(block => {
+    const blockPlantings = plantings
+      .filter(p => p.blockId === block.id)
+      .sort((a, b) => b.id - a.id);
+    const current =
+      blockPlantings.find(p => p.status === "active") ??
+      blockPlantings.find(p => p.status === "suspended") ??
+      blockPlantings[0] ??
+      null;
+
+    return {
+      ...block,
+      // Flatten current planting fields — keeps all consumer tabs backward-compatible
+      variety: current?.variety ?? null,
+      clone: current?.clone ?? null,
+      rootstock: current?.rootstock ?? null,
+      plantingYear: current?.plantingYear ?? null,
+      plantedDate: current?.plantedDate ?? null,
+      numberOfVines: current?.numberOfVines ?? null,
+      rowSpacingM: current?.rowSpacingM ?? null,
+      vineSpacingM: current?.vineSpacingM ?? null,
+      trainingSystem: current?.trainingSystem ?? null,
+      trellisType: current?.trellisType ?? null,
+      areaHa: current?.areaHa ?? null,
+      isOrganicBlock: current?.isOrganic ?? false,
+      isActive: current?.status === "active",
+      plantingId: current?.id ?? null,
+      plantingStatus: current?.status ?? "no_planting",
+      plantings: blockPlantings,
+    };
+  });
+}
+
 // ─── Vineyard Blocks ──────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/vineyard-blocks", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(vineyardBlocksTable).where(eq(vineyardBlocksTable.farmId, farmId)).orderBy(vineyardBlocksTable.blockName);
+  const records = await enrichBlocks(farmId);
   res.json({ records });
 });
 
 router.post("/farms/:farmId/vineyard-blocks", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardBlocksTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+
+  // Split into block site fields and planting fields
+  const {
+    variety, clone, rootstock, plantingYear, plantedDate,
+    numberOfVines, rowSpacingM, vineSpacingM,
+    trainingSystem, trellisType, areaHa, isOrganicBlock,
+    isActive, plantingNotes,
+    ...blockBody
+  } = body;
+
+  const [block] = await (db.insert(vineyardBlocksTable) as any)
+    .values({ farmId, blockName: blockBody.blockName, blockRef: blockBody.blockRef, fieldParcelRef: blockBody.fieldParcelRef, aspect: blockBody.aspect, soilType: blockBody.soilType, notes: blockBody.notes })
+    .returning();
+
+  const [planting] = await (db.insert(vineyardBlockPlantingsTable) as any)
+    .values({
+      blockId: block.id,
+      farmId,
+      variety: variety ?? "Unknown",
+      clone: clone ?? null,
+      rootstock: rootstock ?? null,
+      plantingYear: plantingYear ?? null,
+      plantedDate: plantedDate ?? null,
+      numberOfVines: numberOfVines ?? null,
+      rowSpacingM: rowSpacingM ?? null,
+      vineSpacingM: vineSpacingM ?? null,
+      trainingSystem: trainingSystem ?? null,
+      trellisType: trellisType ?? null,
+      areaHa: areaHa ?? null,
+      isOrganic: isOrganicBlock ?? false,
+      status: "active",
+      notes: plantingNotes ?? null,
+    })
+    .returning();
+
+  const record = {
+    ...block,
+    variety: planting.variety,
+    clone: planting.clone,
+    rootstock: planting.rootstock,
+    plantingYear: planting.plantingYear,
+    plantedDate: planting.plantedDate,
+    numberOfVines: planting.numberOfVines,
+    rowSpacingM: planting.rowSpacingM,
+    vineSpacingM: planting.vineSpacingM,
+    trainingSystem: planting.trainingSystem,
+    trellisType: planting.trellisType,
+    areaHa: planting.areaHa,
+    isOrganicBlock: planting.isOrganic,
+    isActive: true,
+    plantingId: planting.id,
+    plantingStatus: "active",
+    plantings: [planting],
+  };
   res.json({ record });
 });
 
 router.put("/farms/:farmId/vineyard-blocks/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await db.update(vineyardBlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardBlocksTable.id, id), eq(vineyardBlocksTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+
+  const {
+    plantingId,
+    variety, clone, rootstock, plantingYear, plantedDate,
+    numberOfVines, rowSpacingM, vineSpacingM,
+    trainingSystem, trellisType, areaHa, isOrganicBlock,
+    isActive, plantingNotes,
+    ...blockBody
+  } = body;
+
+  // Update block site fields
+  const [block] = await db
+    .update(vineyardBlocksTable)
+    .set({ blockName: blockBody.blockName as string, blockRef: blockBody.blockRef as string | null, fieldParcelRef: blockBody.fieldParcelRef as string | null, aspect: blockBody.aspect as string | null, soilType: blockBody.soilType as string | null, notes: blockBody.notes as string | null })
+    .where(and(eq(vineyardBlocksTable.id, id), eq(vineyardBlocksTable.farmId, farmId)))
+    .returning();
+
+  // Update the current planting if plantingId provided
+  let planting: Record<string, unknown> | null = null;
+  if (plantingId) {
+    const [p] = await (db.update(vineyardBlockPlantingsTable) as any)
+      .set({
+        variety: variety ?? undefined,
+        clone: clone ?? null,
+        rootstock: rootstock ?? null,
+        plantingYear: plantingYear ?? null,
+        plantedDate: plantedDate ?? null,
+        numberOfVines: numberOfVines ?? null,
+        rowSpacingM: rowSpacingM ?? null,
+        vineSpacingM: vineSpacingM ?? null,
+        trainingSystem: trainingSystem ?? null,
+        trellisType: trellisType ?? null,
+        areaHa: areaHa ?? null,
+        isOrganic: isOrganicBlock ?? undefined,
+        notes: plantingNotes ?? null,
+      })
+      .where(and(eq(vineyardBlockPlantingsTable.id, Number(plantingId)), eq(vineyardBlockPlantingsTable.farmId, farmId)))
+      .returning();
+    planting = p ?? null;
+  }
+
+  const record = {
+    ...block,
+    variety: planting ? (planting as any).variety : variety,
+    clone: planting ? (planting as any).clone : clone,
+    rootstock: planting ? (planting as any).rootstock : rootstock,
+    plantingYear: planting ? (planting as any).plantingYear : plantingYear,
+    numberOfVines: planting ? (planting as any).numberOfVines : numberOfVines,
+    rowSpacingM: planting ? (planting as any).rowSpacingM : rowSpacingM,
+    vineSpacingM: planting ? (planting as any).vineSpacingM : vineSpacingM,
+    trainingSystem: planting ? (planting as any).trainingSystem : trainingSystem,
+    trellisType: planting ? (planting as any).trellisType : trellisType,
+    areaHa: planting ? (planting as any).areaHa : areaHa,
+    isOrganicBlock: planting ? (planting as any).isOrganic : isOrganicBlock,
+    isActive: true,
+    plantingId,
+  };
   res.json({ record });
 });
 
@@ -49,6 +209,117 @@ router.delete("/farms/:farmId/vineyard-blocks/:id", requireAuth, requireTenant, 
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   await db.delete(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, id), eq(vineyardBlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Block Plantings ─────────────────────────────────────────────────
+
+router.get("/farms/:farmId/vineyard-block-plantings", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db
+    .select()
+    .from(vineyardBlockPlantingsTable)
+    .where(eq(vineyardBlockPlantingsTable.farmId, farmId))
+    .orderBy(desc(vineyardBlockPlantingsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vineyard-block-plantings", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [record] = await (db.insert(vineyardBlockPlantingsTable) as any)
+    .values({ ...body, farmId, status: body.status ?? "active" })
+    .returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/vineyard-block-plantings/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [record] = await (db.update(vineyardBlockPlantingsTable) as any)
+    .set(body)
+    .where(and(eq(vineyardBlockPlantingsTable.id, id), eq(vineyardBlockPlantingsTable.farmId, farmId)))
+    .returning();
+  res.json({ record });
+});
+
+// PATCH status — retire (suspend/remove) or reactivate a planting
+router.patch("/farms/:farmId/vineyard-block-plantings/:id/status", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const { status, deactivationType, deactivationReason, deactivationNotes, deactivatedBy, reactivatedReason } = req.body;
+
+  let updateData: Record<string, unknown>;
+  if (status === "active") {
+    updateData = {
+      status: "active",
+      reactivatedAt: new Date(),
+      reactivatedReason: reactivatedReason ?? null,
+      deactivatedAt: null,
+      deactivatedBy: null,
+      deactivationType: null,
+      deactivationReason: null,
+      deactivationNotes: null,
+    };
+  } else {
+    updateData = {
+      status,
+      deactivatedAt: new Date(),
+      deactivatedBy: deactivatedBy ?? null,
+      deactivationType: deactivationType ?? null,
+      deactivationReason: deactivationReason ?? null,
+      deactivationNotes: deactivationNotes ?? null,
+    };
+  }
+
+  const [record] = await (db.update(vineyardBlockPlantingsTable) as any)
+    .set(updateData)
+    .where(and(eq(vineyardBlockPlantingsTable.id, id), eq(vineyardBlockPlantingsTable.farmId, farmId)))
+    .returning();
+  res.json({ record });
+});
+
+// POST replant — retire current planting and create new one
+router.post("/farms/:farmId/vineyard-blocks/:blockId/replant", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+
+  const { currentPlantingId, deactivationType, deactivationReason, deactivationNotes, deactivatedBy, ...newPlantingData } = body;
+
+  // Retire the current planting
+  if (currentPlantingId) {
+    await (db.update(vineyardBlockPlantingsTable) as any)
+      .set({
+        status: "removed",
+        deactivatedAt: new Date(),
+        deactivatedBy: deactivatedBy ?? null,
+        deactivationType: deactivationType ?? "replanting",
+        deactivationReason: deactivationReason ?? null,
+        deactivationNotes: deactivationNotes ?? null,
+      })
+      .where(and(eq(vineyardBlockPlantingsTable.id, Number(currentPlantingId)), eq(vineyardBlockPlantingsTable.farmId, farmId)));
+  }
+
+  // Create new planting
+  const [newPlanting] = await (db.insert(vineyardBlockPlantingsTable) as any)
+    .values({
+      ...newPlantingData,
+      blockId,
+      farmId,
+      status: "active",
+      predecessorPlantingId: currentPlantingId ? Number(currentPlantingId) : null,
+    })
+    .returning();
+
+  res.status(201).json({ record: newPlanting });
+});
+
+router.delete("/farms/:farmId/vineyard-block-plantings/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  await db.delete(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.id, id), eq(vineyardBlockPlantingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -90,7 +361,13 @@ router.get("/farms/:farmId/vineyard-phenology", requireAuth, requireTenant, requ
 
 router.post("/farms/:farmId/vineyard-phenology", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardPhenologyTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  // Auto-resolve planting_id from block_id if not supplied
+  if (body.blockId && !body.plantingId) {
+    const [active] = await db.select({ id: vineyardBlockPlantingsTable.id }).from(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active"))).limit(1);
+    if (active) body.plantingId = active.id;
+  }
+  const [record] = await (db.insert(vineyardPhenologyTable) as any).values({ ...body, farmId }).returning();
   res.json({ record });
 });
 
@@ -118,7 +395,12 @@ router.get("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, req
 
 router.post("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardOperationsTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.blockId && !body.plantingId) {
+    const [active] = await db.select({ id: vineyardBlockPlantingsTable.id }).from(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active"))).limit(1);
+    if (active) body.plantingId = active.id;
+  }
+  const [record] = await (db.insert(vineyardOperationsTable) as any).values({ ...body, farmId }).returning();
   res.json({ record });
 });
 
@@ -146,7 +428,12 @@ router.get("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requir
 
 router.post("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardHarvestTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.blockId && !body.plantingId) {
+    const [active] = await db.select({ id: vineyardBlockPlantingsTable.id }).from(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active"))).limit(1);
+    if (active) body.plantingId = active.id;
+  }
+  const [record] = await (db.insert(vineyardHarvestTable) as any).values({ ...body, farmId }).returning();
   res.json({ record });
 });
 
@@ -174,7 +461,12 @@ router.get("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requi
 
 router.post("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardScoutingTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.blockId && !body.plantingId) {
+    const [active] = await db.select({ id: vineyardBlockPlantingsTable.id }).from(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active"))).limit(1);
+    if (active) body.plantingId = active.id;
+  }
+  const [record] = await (db.insert(vineyardScoutingTable) as any).values({ ...body, farmId }).returning();
   res.json({ record });
 
   // Fire-and-forget: create notifications based on scouting findings
@@ -407,31 +699,17 @@ router.delete("/farms/:farmId/organic-viticulture/wine-production/:id", requireA
 });
 
 // ─── Vineyard Block Boundaries ────────────────────────────────────────────────
-router.get("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = Number(req.params.farmId);
-  const blockId = parseInt(req.params.blockId as string, 10);
-  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
-  const [block] = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
-  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
-  const [boundary] = await db.select().from(vineyardBlockBoundariesTable).where(eq(vineyardBlockBoundariesTable.blockId, blockId)).orderBy(desc(vineyardBlockBoundariesTable.capturedAt)).limit(1);
-  res.json({ boundary: boundary ?? null });
+
+router.get("/farms/:farmId/vineyard-block-boundaries/:blockId", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const blockId = Number(req.params.blockId);
+  const records = await db.select().from(vineyardBlockBoundariesTable).where(eq(vineyardBlockBoundariesTable.blockId, blockId)).orderBy(desc(vineyardBlockBoundariesTable.capturedAt));
+  res.json({ records });
 });
 
-router.post("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = Number(req.params.farmId);
-  const blockId = parseInt(req.params.blockId as string, 10);
-  if (isNaN(blockId)) { res.status(400).json({ error: "Invalid block ID" }); return; }
-  const [block] = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
-  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
-  const { polygonPoints, capturedBy, areaHectares } = req.body as { polygonPoints: unknown; capturedBy?: string; areaHectares?: number };
-  if (!polygonPoints || !Array.isArray(polygonPoints) || polygonPoints.length < 3) {
-    res.status(400).json({ error: "polygonPoints must be an array of at least 3 points" }); return;
-  }
-  const [boundary] = await db.insert(vineyardBlockBoundariesTable).values({ blockId, polygonPoints, capturedBy: capturedBy ?? null }).returning();
-  if (areaHectares != null && !isNaN(areaHectares)) {
-    await db.update(vineyardBlocksTable).set({ areaHa: String(areaHectares) }).where(eq(vineyardBlocksTable.id, blockId));
-  }
-  res.status(201).json({ boundary });
+router.post("/farms/:farmId/vineyard-block-boundaries", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const { blockId, polygonPoints, capturedBy } = req.body;
+  const [record] = await db.insert(vineyardBlockBoundariesTable).values({ blockId: Number(blockId), polygonPoints, capturedBy: capturedBy ?? null }).returning();
+  res.status(201).json({ record });
 });
 
 export default router;

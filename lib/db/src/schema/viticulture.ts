@@ -1,27 +1,58 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
-// ─── Vineyard Blocks ──────────────────────────────────────────────────────────
+// ─── Vineyard Blocks (Permanent Geographic Site Identity) ─────────────────────
 export const vineyardBlocksTable = pgTable("vineyard_blocks", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockName: text("block_name").notNull(),
   blockRef: text("block_ref"),
   fieldParcelRef: text("field_parcel_ref"),
+  aspect: text("aspect"),
+  soilType: text("soil_type"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Vineyard Block Plantings (Lifecycle Records) ─────────────────────────────
+export const vineyardBlockPlantingsTable = pgTable("vineyard_block_plantings", {
+  id: serial("id").primaryKey(),
+  blockId: integer("block_id").notNull().references(() => vineyardBlocksTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+
+  // Planting identity
   variety: text("variety").notNull(),
   clone: text("clone"),
   rootstock: text("rootstock"),
   plantingYear: integer("planting_year"),
-  areaHa: numeric("area_ha", { precision: 8, scale: 4 }),
+  plantedDate: date("planted_date"),
+
+  // Physical characteristics
   numberOfVines: integer("number_of_vines"),
   rowSpacingM: numeric("row_spacing_m", { precision: 5, scale: 2 }),
   vineSpacingM: numeric("vine_spacing_m", { precision: 5, scale: 2 }),
   trainingSystem: text("training_system"),
   trellisType: text("trellis_type"),
-  aspect: text("aspect"),
-  soilType: text("soil_type"),
-  isOrganicBlock: boolean("is_organic_block").notNull().default(false),
-  isActive: boolean("is_active").notNull().default(true),
+  areaHa: numeric("area_ha", { precision: 8, scale: 4 }),
+  isOrganic: boolean("is_organic").notNull().default(false),
+
+  // Lifecycle status: active | suspended | removed
+  status: text("status").notNull().default("active"),
+
+  // Deactivation record
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+  deactivatedBy: text("deactivated_by"),
+  deactivationType: text("deactivation_type"), // temporary_suspension | grubbed_up | replanting | other
+  deactivationReason: text("deactivation_reason"),
+  deactivationNotes: text("deactivation_notes"),
+
+  // Reactivation record
+  reactivatedAt: timestamp("reactivated_at", { withTimezone: true }),
+  reactivatedReason: text("reactivated_reason"),
+
+  // Chain: which planting preceded this one (for replanting history)
+  predecessorPlantingId: integer("predecessor_planting_id"),
+
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -40,6 +71,7 @@ export const vineRegisterTable = pgTable("vine_register", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
   hmrcVineRegisterRef: text("hmrc_vine_register_ref"),
   registeredVariety: text("registered_variety").notNull(),
   registeredAreaHa: numeric("registered_area_ha", { precision: 8, scale: 4 }).notNull(),
@@ -59,6 +91,7 @@ export const vineyardPhenologyTable = pgTable("vineyard_phenology", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
   observationDate: date("observation_date").notNull(),
   bbchStage: text("bbch_stage").notNull(),
   bbchDescription: text("bbch_description"),
@@ -74,6 +107,7 @@ export const vineyardOperationsTable = pgTable("vineyard_operations", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
   operationDate: date("operation_date").notNull(),
   operationType: text("operation_type").notNull(),
   pruningSystem: text("pruning_system"),
@@ -95,6 +129,7 @@ export const vineyardHarvestTable = pgTable("vineyard_harvest", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
   vintageYear: integer("vintage_year").notNull(),
   harvestDate: date("harvest_date").notNull(),
   harvestMethod: text("harvest_method"),
@@ -119,6 +154,7 @@ export const vineyardScoutingTable = pgTable("vineyard_scouting", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
   scoutDate: date("scout_date").notNull(),
   scoutedBy: text("scouted_by"),
   downyMildewPressure: integer("downy_mildew_pressure").default(0),

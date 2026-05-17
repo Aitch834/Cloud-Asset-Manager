@@ -492,28 +492,162 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
 // ─── Blocks ────────────────────────────────────────────────────────────────────
 type Block = Record<string, unknown>;
 
+function plantingStatusBadge(status: unknown) {
+  if (status === "active") return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">Active</Badge>;
+  if (status === "suspended") return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-0">Suspended</Badge>;
+  if (status === "removed") return <Badge className="bg-gray-100 text-gray-600 hover:bg-gray-100 border-0">Removed</Badge>;
+  return <Badge variant="secondary">No Planting</Badge>;
+}
+
+function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unknown) => void }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Variety *</Label>
+          <Select value={String(form.variety ?? "")} onValueChange={v => sf("variety", v)}>
+            <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
+            <SelectContent>{UK_GRAPE_VARIETIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div><Label>Clone</Label><Input value={String(form.clone ?? "")} onChange={e => sf("clone", e.target.value)} placeholder="e.g. Chardonnay 96" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Rootstock</Label>
+          <Select value={String(form.rootstock ?? "")} onValueChange={v => sf("rootstock", v)}>
+            <SelectTrigger><SelectValue placeholder="Select rootstock…" /></SelectTrigger>
+            <SelectContent>{UK_ROOTSTOCKS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div><Label>Planting Year</Label><Input type="number" min="1900" max={new Date().getFullYear()} value={String(form.plantingYear ?? "")} onChange={e => sf("plantingYear", e.target.value)} placeholder="e.g. 2018" /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><Label>Area (ha)</Label><Input type="number" step="0.0001" value={String(form.areaHa ?? "")} onChange={e => sf("areaHa", e.target.value)} /></div>
+        <div><Label>Number of Vines</Label><Input type="number" value={String(form.numberOfVines ?? "")} onChange={e => sf("numberOfVines", e.target.value)} /></div>
+        <div><Label>Planted Date</Label><Input type="date" max={today} value={String(form.plantedDate ?? "")} onChange={e => sf("plantedDate", e.target.value)} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Row Spacing (m)</Label><Input type="number" step="0.01" value={String(form.rowSpacingM ?? "")} onChange={e => sf("rowSpacingM", e.target.value)} /></div>
+        <div><Label>Vine Spacing (m)</Label><Input type="number" step="0.01" value={String(form.vineSpacingM ?? "")} onChange={e => sf("vineSpacingM", e.target.value)} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Training System</Label>
+          <Select value={String(form.trainingSystem ?? "")} onValueChange={v => sf("trainingSystem", v)}>
+            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              {["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div><Label>Trellis Type</Label><Input value={String(form.trellisType ?? "")} onChange={e => sf("trellisType", e.target.value)} placeholder="e.g. High wire, 2-wire" /></div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox checked={!!form.isOrganicBlock} onCheckedChange={v => sf("isOrganicBlock", !!v)} id="org-planting" />
+        <Label htmlFor="org-planting">Organic planting</Label>
+      </div>
+    </>
+  );
+}
+
 export function BlocksTab({ farmId }: { farmId: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+
+  // Main add/edit dialog
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Block | null>(null);
   const [form, setForm] = useState<Block>({});
+
+  // View dialog
   const [viewing, setViewing] = useState<Block | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Block | null>(null);
   const [boundaryBlock, setBoundaryBlock] = useState<Block | null>(null);
 
-  const openAdd = () => { setForm({ isActive: true }); setCurrent(null); setOpen(true); };
+  // Retire dialog
+  const [retireOpen, setRetireOpen] = useState(false);
+  const [retirePlanting, setRetirePlanting] = useState<Block | null>(null);
+  const [retireForm, setRetireForm] = useState<Record<string, string>>({});
+
+  // Replant dialog
+  const [replantOpen, setReplantOpen] = useState(false);
+  const [replantBlock, setReplantBlock] = useState<Block | null>(null);
+  const [replantForm, setReplantForm] = useState<Block>({});
+
+  // Reactivate mutation
+  const reactivateMutation = useMutation({
+    mutationFn: async ({ plantingId }: { plantingId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-block-plantings/${plantingId}/status`), {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ status: "active" }),
+      });
+      return r.json();
+    },
+    onSuccess: invalidate,
+  });
+
+  // Retire mutation
+  const retireMutation = useMutation({
+    mutationFn: async ({ plantingId, body }: { plantingId: number; body: Record<string, string> }) => {
+      const status = body.deactivationType === "temporary_suspension" ? "suspended" : "removed";
+      const r = await fetch(api(`farms/${farmId}/vineyard-block-plantings/${plantingId}/status`), {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ status, ...body }),
+      });
+      return r.json();
+    },
+    onSuccess: () => { invalidate(); setRetireOpen(false); setRetirePlanting(null); setRetireForm({}); },
+  });
+
+  // Replant mutation
+  const replantMutation = useMutation({
+    mutationFn: async ({ blockId, currentPlantingId, body }: { blockId: number; currentPlantingId: number | null; body: Block }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/replant`), {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ currentPlantingId, deactivationType: "replanting", ...body }),
+      });
+      return r.json();
+    },
+    onSuccess: () => { invalidate(); setReplantOpen(false); setReplantBlock(null); setReplantForm({}); },
+  });
+
+  const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
   const openEdit = (r: Block) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+  const sfr = (k: string, v: unknown) => setReplantForm(p => ({ ...p, [k]: v }));
+
   const save = async () => {
-    if (current) await edit.mutateAsync({ ...form, id: current.id as number });
+    if (current) await edit.mutateAsync({ ...form, id: current.id as number, plantingId: form.plantingId });
     else await add.mutateAsync(form);
     setOpen(false);
   };
 
+  const openRetire = (block: Block) => {
+    setRetirePlanting(block);
+    setRetireForm({ deactivationType: "grubbed_up", deactivationReason: "", deactivationNotes: "", deactivatedBy: "" });
+    setRetireOpen(true);
+    setViewing(null);
+  };
+
+  const openReplant = (block: Block) => {
+    setReplantBlock(block);
+    setReplantForm({ variety: "", plantingYear: String(new Date().getFullYear()) });
+    setReplantOpen(true);
+    setViewing(null);
+  };
+
+  // Filter controls
+  const [showAll, setShowAll] = useState(false);
+  const displayedBlocks = showAll ? data : data.filter(b => b.isActive !== false || (b.plantingStatus as string) === "suspended");
+
   const csvCols = [
     { key: "blockName", label: "Block Name" },
     { key: "blockRef", label: "Block Ref" },
+    { key: "fieldParcelRef", label: "BPS/SFI Parcel Ref" },
+    { key: "aspect", label: "Aspect" },
+    { key: "soilType", label: "Soil Type" },
     { key: "variety", label: "Variety" },
     { key: "clone", label: "Clone" },
     { key: "rootstock", label: "Rootstock" },
@@ -523,11 +657,8 @@ export function BlocksTab({ farmId }: { farmId: number }) {
     { key: "rowSpacingM", label: "Row Spacing (m)" },
     { key: "vineSpacingM", label: "Vine Spacing (m)" },
     { key: "trainingSystem", label: "Training System" },
-    { key: "aspect", label: "Aspect" },
-    { key: "soilType", label: "Soil Type" },
     { key: "isOrganicBlock", label: "Organic", fmt: (r: Record<string, unknown>) => r.isOrganicBlock ? "Yes" : "No" },
-    { key: "isActive", label: "Status", fmt: (r: Record<string, unknown>) => r.isActive !== false ? "Active" : "Inactive" },
-    { key: "fieldParcelRef", label: "BPS/SFI Parcel Ref" },
+    { key: "plantingStatus", label: "Status" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -538,16 +669,21 @@ export function BlocksTab({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Vineyard Blocks</p>
-          <p className="text-xs text-muted-foreground">Each block represents a distinct planting unit — typically a single variety, rootstock, and training system combination.</p>
+          <p className="text-xs text-muted-foreground">Each block is a permanent geographic site. Individual plantings (variety, rootstock, spacing) are tracked with a full lifecycle — active, suspended, or removed.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-1.5">
+            <Checkbox checked={showAll} onCheckedChange={v => setShowAll(!!v)} id="show-all" />
+            <Label htmlFor="show-all" className="text-xs text-muted-foreground cursor-pointer">Show removed</Label>
+          </div>
           <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vineyard-blocks.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Block</Button>
         </div>
       </div>
+
       <DataTable
         cols={[
-          { key: "blockName", label: "Block Name" },
+          { key: "blockName", label: "Block" },
           { key: "blockRef", label: "Ref" },
           { key: "variety", label: "Variety" },
           { key: "rootstock", label: "Rootstock" },
@@ -555,46 +691,126 @@ export function BlocksTab({ farmId }: { farmId: number }) {
           { key: "areaHa", label: "Area (ha)", render: r => fmtNum(r.areaHa, 4) },
           { key: "numberOfVines", label: "Vines" },
           { key: "trainingSystem", label: "Training" },
-          { key: "isOrganicBlock", label: "Organic", render: r => r.isOrganicBlock ? <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Organic</Badge> : <span className="text-muted-foreground">—</span> },
-          { key: "isActive", label: "Status", render: r => <Badge variant={r.isActive === false ? "secondary" : "default"}>{r.isActive === false ? "Inactive" : "Active"}</Badge> },
+          { key: "isOrganicBlock", label: "Organic", render: r => r.isOrganicBlock ? <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">Organic</Badge> : <span className="text-muted-foreground text-xs">—</span> },
+          { key: "plantingStatus", label: "Status", render: r => plantingStatusBadge(r.plantingStatus) },
         ]}
-        rows={data}
+        rows={displayedBlocks}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)}
       />
 
-      {/* View Dialog */}
+      {/* ── View Dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Vineyard Block — {fmt(viewing?.blockName)}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Vineyard Block — {fmt(viewing?.blockName)}
+              {viewing && plantingStatusBadge(viewing.plantingStatus)}
+            </DialogTitle>
+          </DialogHeader>
           {viewing && (
-            <div className="grid grid-cols-3 gap-3">
-              <ViewField label="Block Name" value={fmt(viewing.blockName)} />
-              <ViewField label="Block Ref" value={fmt(viewing.blockRef)} />
-              <ViewField label="BPS/SFI Parcel" value={fmt(viewing.fieldParcelRef)} />
-              <ViewField label="Variety" value={fmt(viewing.variety)} />
-              <ViewField label="Clone" value={fmt(viewing.clone)} />
-              <ViewField label="Rootstock" value={fmt(viewing.rootstock)} />
-              <ViewField label="Planting Year" value={fmt(viewing.plantingYear)} />
-              <ViewField label="Area (ha)" value={fmtNum(viewing.areaHa, 4)} />
-              <ViewField label="Number of Vines" value={fmt(viewing.numberOfVines)} />
-              <ViewField label="Row Spacing (m)" value={fmtNum(viewing.rowSpacingM, 2)} />
-              <ViewField label="Vine Spacing (m)" value={fmtNum(viewing.vineSpacingM, 2)} />
-              <ViewField label="Training System" value={fmt(viewing.trainingSystem)} />
-              <ViewField label="Trellis Type" value={fmt(viewing.trellisType)} />
-              <ViewField label="Aspect" value={fmt(viewing.aspect)} />
-              <ViewField label="Soil Type" value={fmt(viewing.soilType)} />
-              <ViewField label="Organic" value={!!viewing.isOrganicBlock ? <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Organic</Badge> : "No"} />
-              <ViewField label="Status" value={<Badge variant={viewing.isActive === false ? "secondary" : "default"}>{viewing.isActive === false ? "Inactive" : "Active"}</Badge>} />
-              {!!viewing.notes && <div className="col-span-3"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
+            <div className="space-y-4">
+              {/* Block site identity */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Block Site</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <ViewField label="Block Name" value={fmt(viewing.blockName)} />
+                  <ViewField label="Block Ref" value={fmt(viewing.blockRef)} />
+                  <ViewField label="BPS/SFI Parcel" value={fmt(viewing.fieldParcelRef)} />
+                  <ViewField label="Aspect" value={fmt(viewing.aspect)} />
+                  <ViewField label="Soil Type" value={fmt(viewing.soilType)} />
+                  {!!viewing.notes && <div className="col-span-3"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
+                </div>
+              </div>
+
+              {/* Current planting */}
+              {viewing.plantingStatus !== "no_planting" && (
+                <div className="border-t pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Current Planting</p>
+                    {viewing.plantingStatus === "suspended" && (
+                      <Button size="sm" variant="outline" className="h-6 text-xs text-green-700 border-green-200" onClick={() => reactivateMutation.mutate({ plantingId: viewing.plantingId as number })}>
+                        {reactivateMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}Reactivate
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <ViewField label="Variety" value={fmt(viewing.variety)} />
+                    <ViewField label="Clone" value={fmt(viewing.clone)} />
+                    <ViewField label="Rootstock" value={fmt(viewing.rootstock)} />
+                    <ViewField label="Planting Year" value={fmt(viewing.plantingYear)} />
+                    <ViewField label="Area (ha)" value={fmtNum(viewing.areaHa, 4)} />
+                    <ViewField label="Number of Vines" value={fmt(viewing.numberOfVines)} />
+                    <ViewField label="Row Spacing (m)" value={fmtNum(viewing.rowSpacingM, 2)} />
+                    <ViewField label="Vine Spacing (m)" value={fmtNum(viewing.vineSpacingM, 2)} />
+                    <ViewField label="Training System" value={fmt(viewing.trainingSystem)} />
+                    <ViewField label="Trellis Type" value={fmt(viewing.trellisType)} />
+                    <ViewField label="Organic" value={!!viewing.isOrganicBlock ? <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">Organic</Badge> : "No"} />
+                    <ViewField label="Status" value={plantingStatusBadge(viewing.plantingStatus)} />
+                  </div>
+                  {/* Deactivation record */}
+                  {(viewing.plantingStatus === "suspended" || viewing.plantingStatus === "removed") && (() => {
+                    const plantings = viewing.plantings as Block[];
+                    const cur = plantings?.find((p: Block) => p.id === viewing.plantingId);
+                    if (!cur) return null;
+                    return (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded p-3 space-y-1 text-xs">
+                        <p className="font-semibold text-amber-800 uppercase tracking-wide">Deactivation Record</p>
+                        {!!cur.deactivatedAt && <p className="text-amber-700">Date: {fmtDate(cur.deactivatedAt)}</p>}
+                        {!!cur.deactivationType && <p className="text-amber-700">Type: {String(cur.deactivationType).replace(/_/g, " ")}</p>}
+                        {!!cur.deactivationReason && <p className="text-amber-700">Reason: {fmt(cur.deactivationReason)}</p>}
+                        {!!cur.deactivatedBy && <p className="text-amber-700">By: {fmt(cur.deactivatedBy)}</p>}
+                        {!!cur.deactivationNotes && <p className="text-amber-700">Notes: {fmt(cur.deactivationNotes)}</p>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Planting history */}
+              {(() => {
+                const plantings = (viewing.plantings as Block[]) ?? [];
+                const past = plantings.filter((p: Block) => p.id !== viewing.plantingId);
+                if (!past.length) return null;
+                return (
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Planting History</p>
+                    <div className="space-y-2">
+                      {past.map((p: Block, i: number) => (
+                        <div key={i} className="flex items-start justify-between text-xs bg-gray-50 rounded px-3 py-2 border">
+                          <div>
+                            <span className="font-medium">{fmt(p.variety)}</span>
+                            {p.rootstock ? ` / ${fmt(p.rootstock)}` : ""}
+                            {p.plantingYear ? ` · Planted ${fmt(p.plantingYear)}` : ""}
+                          </div>
+                          <div className="flex flex-col items-end gap-0.5">
+                            {plantingStatusBadge(p.status)}
+                            {!!p.deactivatedAt && <span className="text-muted-foreground">{String(p.deactivationType ?? "").replace(/_/g, " ")} {fmtDate(p.deactivatedAt)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <Button variant="outline" onClick={() => { setBoundaryBlock(viewing); setViewing(null); }}>
               <Map className="w-4 h-4 mr-1" />Draw Boundary
             </Button>
+            {viewing && viewing.plantingStatus === "active" && (
+              <Button variant="outline" className="text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => openRetire(viewing!)}>
+                Retire / Take Out of Production
+              </Button>
+            )}
+            {viewing && (viewing.plantingStatus === "removed" || viewing.plantingStatus === "no_planting") && (
+              <Button variant="outline" className="text-green-700 border-green-200 hover:bg-green-50" onClick={() => openReplant(viewing!)}>
+                <Plus className="w-4 h-4 mr-1" />Replant
+              </Button>
+            )}
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
@@ -612,57 +828,94 @@ export function BlocksTab({ farmId }: { farmId: number }) {
         />
       )}
 
-      {/* Edit Dialog */}
+      {/* ── Retire Dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={retireOpen} onOpenChange={o => { if (!o) { setRetireOpen(false); setRetirePlanting(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Retire / Take Out of Production</DialogTitle>
+          </DialogHeader>
+          {retirePlanting && (
+            <div className="space-y-3">
+              <div className="bg-muted/50 rounded p-3 text-sm">
+                <span className="font-medium">{fmt(retirePlanting.blockName)}</span>
+                {!!retirePlanting.variety && <> — {fmt(retirePlanting.variety)}</>}
+                {!!retirePlanting.plantingYear && <> (planted {fmt(retirePlanting.plantingYear)})</>}
+              </div>
+              <div>
+                <Label>Reason for Retirement *</Label>
+                <Select value={retireForm.deactivationType} onValueChange={v => setRetireForm(p => ({ ...p, deactivationType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select reason…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="temporary_suspension">Temporary Suspension (will reactivate)</SelectItem>
+                    <SelectItem value="grubbed_up">Permanently Grubbed Up</SelectItem>
+                    <SelectItem value="replanting">Grubbed Up for Replanting</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {retireForm.deactivationType === "temporary_suspension" && (
+                  <p className="text-xs text-amber-700 mt-1">Status will be set to Suspended. You can reactivate this planting later.</p>
+                )}
+                {retireForm.deactivationType === "grubbed_up" && (
+                  <p className="text-xs text-red-700 mt-1">Status will be set to Removed. HMRC vine register may need updating.</p>
+                )}
+                {retireForm.deactivationType === "replanting" && (
+                  <p className="text-xs text-blue-700 mt-1">Status will be set to Removed. Use the Replant button to add a new planting on this site afterwards.</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Retired By</Label><Input value={retireForm.deactivatedBy} onChange={e => setRetireForm(p => ({ ...p, deactivatedBy: e.target.value }))} placeholder="Name or role" /></div>
+                <div><Label>Reason Summary</Label><Input value={retireForm.deactivationReason} onChange={e => setRetireForm(p => ({ ...p, deactivationReason: e.target.value }))} placeholder="Brief reason" /></div>
+              </div>
+              <div><Label>Additional Notes</Label><Textarea value={retireForm.deactivationNotes} onChange={e => setRetireForm(p => ({ ...p, deactivationNotes: e.target.value }))} rows={2} placeholder="Any supporting detail for the audit trail…" /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRetireOpen(false); setRetirePlanting(null); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!retireForm.deactivationType || retireMutation.isPending}
+              onClick={() => retireMutation.mutate({ plantingId: retirePlanting!.plantingId as number, body: retireForm })}
+            >
+              {retireMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Confirm Retirement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Replant Dialog ──────────────────────────────────────────────────── */}
+      <Dialog open={replantOpen} onOpenChange={o => { if (!o) { setReplantOpen(false); setReplantBlock(null); } }}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Planting — {fmt(replantBlock?.blockName)}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Enter the details for the new planting on this block site. A new planting record will be created and linked to the block's history.</p>
+            <PlantingFormFields form={replantForm} sf={sfr} />
+            <div><Label>Notes (optional)</Label><Textarea value={String(replantForm.notes ?? "")} onChange={e => sfr("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setReplantOpen(false); setReplantBlock(null); }}>Cancel</Button>
+            <Button
+              disabled={!replantForm.variety || replantMutation.isPending}
+              onClick={() => replantMutation.mutate({ blockId: replantBlock!.id as number, currentPlantingId: replantBlock!.plantingId as number | null, body: replantForm })}
+            >
+              {replantMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Create New Planting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit Dialog ───────────────────────────────────────────────── */}
       <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vineyard Block</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Block Site</p>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Block Name *</Label><Input value={String(form.blockName ?? "")} onChange={e => sf("blockName", e.target.value)} placeholder="e.g. South Slope" /></div>
               <div><Label>Block Reference</Label><Input value={String(form.blockRef ?? "")} onChange={e => sf("blockRef", e.target.value)} placeholder="e.g. BLK-01" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Variety *</Label>
-                <Select value={String(form.variety ?? "")} onValueChange={v => sf("variety", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
-                  <SelectContent>{UK_GRAPE_VARIETIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Clone</Label><Input value={String(form.clone ?? "")} onChange={e => sf("clone", e.target.value)} placeholder="e.g. Chardonnay 96" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Rootstock</Label>
-                <Select value={String(form.rootstock ?? "")} onValueChange={v => sf("rootstock", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select rootstock…" /></SelectTrigger>
-                  <SelectContent>{UK_ROOTSTOCKS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Planting Year</Label><Input type="number" min="1900" max={new Date().getFullYear()} value={String(form.plantingYear ?? "")} onChange={e => sf("plantingYear", e.target.value)} placeholder="e.g. 2018" /></div>
-            </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Area (ha)</Label><Input type="number" step="0.0001" value={String(form.areaHa ?? "")} onChange={e => sf("areaHa", e.target.value)} /></div>
-              <div><Label>Number of Vines</Label><Input type="number" value={String(form.numberOfVines ?? "")} onChange={e => sf("numberOfVines", e.target.value)} /></div>
-              <div><Label>BPS/SFI Parcel Ref</Label><Input value={String(form.fieldParcelRef ?? "")} onChange={e => sf("fieldParcelRef", e.target.value)} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Row Spacing (m)</Label><Input type="number" step="0.01" value={String(form.rowSpacingM ?? "")} onChange={e => sf("rowSpacingM", e.target.value)} /></div>
-              <div><Label>Vine Spacing (m)</Label><Input type="number" step="0.01" value={String(form.vineSpacingM ?? "")} onChange={e => sf("vineSpacingM", e.target.value)} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Training System</Label>
-                <Select value={String(form.trainingSystem ?? "")} onValueChange={v => sf("trainingSystem", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>
-                    {["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Trellis Type</Label><Input value={String(form.trellisType ?? "")} onChange={e => sf("trellisType", e.target.value)} placeholder="e.g. High wire, 2-wire" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Aspect</Label>
                 <Select value={String(form.aspect ?? "")} onValueChange={v => sf("aspect", v)}>
@@ -673,18 +926,12 @@ export function BlocksTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Soil Type</Label><Input value={String(form.soilType ?? "")} onChange={e => sf("soilType", e.target.value)} placeholder="e.g. Greensand over clay" /></div>
+              <div><Label>BPS/SFI Parcel Ref</Label><Input value={String(form.fieldParcelRef ?? "")} onChange={e => sf("fieldParcelRef", e.target.value)} /></div>
             </div>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox checked={!!form.isOrganicBlock} onCheckedChange={v => sf("isOrganicBlock", !!v)} id="org" />
-                <Label htmlFor="org">Organic block</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox checked={form.isActive !== false} onCheckedChange={v => sf("isActive", !!v)} id="act" />
-                <Label htmlFor="act">Active / In production</Label>
-              </div>
-            </div>
-            <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+            <div><Label>Block Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={1} /></div>
+
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-t pt-3">{current ? "Current Planting" : "Initial Planting"}</p>
+            <PlantingFormFields form={form} sf={sf} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
