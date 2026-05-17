@@ -77,7 +77,7 @@ export default function VineAgeRefusalScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { members } = useApiFarmMembers(currentFarm?.id);
+  const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [refusalDate, setRefusalDate] = useState(today);
@@ -161,6 +161,8 @@ export default function VineAgeRefusalScreen() {
             members={members}
             selected={selectedStaff}
             onSelect={setSelectedStaff}
+            loading={membersLoading}
+            error={membersError}
           />
           {!selectedStaff && (
             <Input
