@@ -25,6 +25,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
+import { VineBlockPicker } from "@/components/VineBlockPicker";
+import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -76,6 +78,7 @@ export default function VineHarvestScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
+  const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
@@ -84,7 +87,8 @@ export default function VineHarvestScreen() {
 
   const [harvestDate, setHarvestDate] = useState(today);
   const [vintageYear, setVintageYear] = useState(String(new Date().getFullYear()));
-  const [blockName, setBlockName] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [manualBlockName, setManualBlockName] = useState("");
   const [harvestMethod, setHarvestMethod] = useState("");
   const [yieldKg, setYieldKg] = useState("");
   const [yieldKgPerVine, setYieldKgPerVine] = useState("");
@@ -114,7 +118,7 @@ export default function VineHarvestScreen() {
       farmId: currentFarm?.id || "",
       harvestDate,
       vintageYear: vintageYear ? Number(vintageYear) : new Date().getFullYear(),
-      blockName: blockName.trim() || undefined,
+      blockName: (selectedBlock?.blockName ?? manualBlockName.trim()) || undefined,
       harvestMethod: harvestMethod || undefined,
       yieldKg: Number(yieldKg),
       yieldKgPerVine: yieldKgPerVine ? Number(yieldKgPerVine) : undefined,
@@ -140,7 +144,7 @@ export default function VineHarvestScreen() {
 
     if (grapeCondition === "Poor" || (botrytisPresent && Number(botrytisPercentage) > 30)) {
       setTaskSheet({
-        title: `Harvest Quality Concern — ${blockName || "Vineyard"} · ${vintageYear}`,
+        title: `Harvest Quality Concern — ${(selectedBlock?.blockName ?? manualBlockName) || "Vineyard"} · ${vintageYear}`,
         description: `Yield: ${yieldKg}kg · Condition: ${grapeCondition}${botrytisPresent ? ` · Botrytis: ${botrytisPercentage}%` : ""} · Brix: ${brix}°. Review with winemaker.`,
       });
     } else {
@@ -185,7 +189,10 @@ export default function VineHarvestScreen() {
             </View>
           </View>
           <Text style={styles.fieldLabel}>Block / Area</Text>
-          <Input placeholder="e.g. South Slope, Block 3" value={blockName} onChangeText={setBlockName} />
+          <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
+          {!selectedBlock && (
+            <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
+          )}
           <Text style={styles.fieldLabel}>Harvest Method</Text>
           <MethodPicker value={harvestMethod} onChange={setHarvestMethod} />
         </View>

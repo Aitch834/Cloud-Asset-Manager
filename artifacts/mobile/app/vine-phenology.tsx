@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
+import { VineBlockPicker } from "@/components/VineBlockPicker";
+import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -60,6 +62,7 @@ export default function VinePhenologyScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
+  const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
   const [seasonFilter, setSeasonFilter] = useState<string | null>(null);
 
@@ -68,7 +71,8 @@ export default function VinePhenologyScreen() {
   const observer = selectedObserver ? memberFullName(selectedObserver) : manualObserver;
 
   const [observationDate, setObservationDate] = useState(today);
-  const [blockName, setBlockName] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [manualBlockName, setManualBlockName] = useState("");
   const [selectedStage, setSelectedStage] = useState<typeof BBCH_STAGES[0] | null>(null);
   const [percentageReached, setPercentageReached] = useState("");
   const [temperatureC, setTemperatureC] = useState("");
@@ -89,7 +93,7 @@ export default function VinePhenologyScreen() {
       id: generateId(),
       farmId: currentFarm?.id || "",
       observationDate,
-      blockName: blockName.trim() || undefined,
+      blockName: (selectedBlock?.blockName ?? manualBlockName.trim()) || undefined,
       bbchStage: selectedStage.code,
       bbchDescription: selectedStage.desc,
       percentageReached: percentageReached ? Number(percentageReached) : undefined,
@@ -131,7 +135,10 @@ export default function VinePhenologyScreen() {
             keyboardType="numeric"
           />
           <Text style={styles.fieldLabel}>Block / Area</Text>
-          <Input placeholder="e.g. South Slope, Block 3" value={blockName} onChangeText={setBlockName} />
+          <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
+          {!selectedBlock && (
+            <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
+          )}
           <Text style={styles.fieldLabel}>Observer</Text>
           <StaffMemberPicker
             members={members}

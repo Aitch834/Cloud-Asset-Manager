@@ -200,12 +200,12 @@ const TITLES: [string, string][] = [
   ["Staff Auto-Populate — Operator and Assessor Fields Pre-Fill from Your Login", "Getting Started"],
   ["Viticulture Module Overview — Vine Register, Blocks, Phenology, Operations, Harvest & Scouting", "Viticulture"],
   ["Vine Register — UK Variety and Rootstock Selects, Removal Status and Audit Trail", "Viticulture"],
-  ["Vineyard Block Management — Training System, Soil Type, Organic Status and Block Records", "Viticulture"],
+  ["Vineyard Block Management — Permanent Block Sites, Active Planting Lifecycle (Active, Suspended, Removed), Retire and Replant Workflows, and Full Planting History per Block", "Viticulture"],
   ["BBCH Phenology Records — Growth Stage Observation Log and Season Comparison", "Viticulture"],
   ["Canopy & Pruning Operations — Operation Types, Pruning Systems and Bud Count Records", "Viticulture"],
   ["Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag", "Viticulture"],
   ["Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags", "Viticulture"],
-  ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest", "Viticulture"],
+  ["Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest with Active Block Picker", "Viticulture"],
   ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
   ["Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage", "Organic"],
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
@@ -224,7 +224,7 @@ const TITLES: [string, string][] = [
   ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
   ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
   ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
-  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Phenology, Pruning & Canopy, Harvest and Disease Scouting", "Organic Viticulture"],
+  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest and Disease Scouting", "Organic Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({

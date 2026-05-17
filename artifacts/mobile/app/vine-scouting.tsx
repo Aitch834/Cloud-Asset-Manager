@@ -25,6 +25,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { VineBlockPicker } from "@/components/VineBlockPicker";
+import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -67,6 +69,7 @@ export default function VineScoutingScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
+  const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [selectedScout, setSelectedScout] = useState<ApiFarmMember | null>(null);
@@ -74,7 +77,8 @@ export default function VineScoutingScreen() {
   const scoutedBy = selectedScout ? memberFullName(selectedScout) : manualScout;
 
   const [scoutDate, setScoutDate] = useState(today);
-  const [blockName, setBlockName] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [manualBlockName, setManualBlockName] = useState("");
   const [nextScoutDate, setNextScoutDate] = useState("");
 
   const [downyMildew, setDownyMildew] = useState(0);
@@ -120,7 +124,7 @@ export default function VineScoutingScreen() {
       id: generateId(),
       farmId: currentFarm?.id || "",
       scoutDate,
-      blockName: blockName.trim(),
+      blockName: (selectedBlock?.blockName ?? manualBlockName.trim()) || undefined,
       scoutedBy: scoutedBy.trim(),
       nextScoutDate: nextScoutDate || undefined,
       downyMildewPressure: downyMildew,
@@ -147,7 +151,7 @@ export default function VineScoutingScreen() {
     const hasHighPressure = downyMildew >= 2 || powderyMildew >= 2 || botrytis >= 2 || phomopsis >= 2;
     if (hasHighPressure || xylella || vineWeevil) {
       setTaskSheet({
-        title: `High Disease Pressure — ${blockName || "Vineyard"} · ${scoutDate}`,
+        title: `High Disease Pressure — ${(selectedBlock?.blockName ?? manualBlockName) || "Vineyard"} · ${scoutDate}`,
         description: `Scout: ${scoutedBy}. Downy: ${PRESSURE_LABELS[downyMildew]}, Powdery: ${PRESSURE_LABELS[powderyMildew]}, Botrytis: ${PRESSURE_LABELS[botrytis]}${xylella ? " — XYLELLA SUSPECTED" : ""}. Consider spray intervention.`,
       });
     } else {
@@ -179,7 +183,10 @@ export default function VineScoutingScreen() {
             keyboardType="numeric"
           />
           <Text style={styles.fieldLabel}>Block / Area</Text>
-          <Input placeholder="e.g. South Slope, Block 3" value={blockName} onChangeText={setBlockName} />
+          <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
+          {!selectedBlock && (
+            <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
+          )}
           <Text style={styles.fieldLabel}>Scouted By</Text>
           <StaffMemberPicker
             members={members}

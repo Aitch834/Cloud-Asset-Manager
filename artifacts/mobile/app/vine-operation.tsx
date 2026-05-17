@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
+import { VineBlockPicker } from "@/components/VineBlockPicker";
+import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -51,6 +53,7 @@ export default function VineOperationScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
+  const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
@@ -58,7 +61,8 @@ export default function VineOperationScreen() {
   const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperator;
 
   const [operationDate, setOperationDate] = useState(today);
-  const [blockName, setBlockName] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [manualBlockName, setManualBlockName] = useState("");
   const [operationType, setOperationType] = useState<string | null>(null);
   const [pruningSystem, setPruningSystem] = useState<string | null>(null);
   const [budsPerVineTarget, setBudsPerVineTarget] = useState("");
@@ -86,7 +90,7 @@ export default function VineOperationScreen() {
       id: generateId(),
       farmId: currentFarm?.id || "",
       operationDate,
-      blockName: blockName.trim() || undefined,
+      blockName: (selectedBlock?.blockName ?? manualBlockName.trim()) || undefined,
       operationType,
       pruningSystem: isPruning && pruningSystem ? pruningSystem : undefined,
       budsPerVineTarget: isPruning && budsPerVineTarget ? Number(budsPerVineTarget) : undefined,
@@ -134,7 +138,10 @@ export default function VineOperationScreen() {
             keyboardType="numeric"
           />
           <Text style={styles.fieldLabel}>Block / Area</Text>
-          <Input placeholder="e.g. South Slope, All Blocks" value={blockName} onChangeText={setBlockName} />
+          <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
+          {!selectedBlock && (
+            <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, All Blocks"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
+          )}
         </View>
 
         <View style={styles.card}>
