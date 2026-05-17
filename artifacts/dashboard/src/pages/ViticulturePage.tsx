@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
-  FileDown, Pencil, Map,
+  FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck,
 } from "lucide-react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -1745,6 +1745,433 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
   );
 }
 
+// ─── Winery: Licensing ─────────────────────────────────────────────────────────
+
+const LICENCE_STATUS_COLORS: Record<string, string> = {
+  active: "bg-green-100 text-green-700",
+  suspended: "bg-amber-100 text-amber-700",
+  lapsed: "bg-red-100 text-red-700",
+};
+
+function LicensingTab({ farmId }: { farmId: number }) {
+  const crud = useCrud(farmId, "winery-licences", "winery-licences");
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => { if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number }); else crud.add.mutate(form); setOpen(false); };
+  const today30 = new Date(); today30.setDate(today30.getDate() + 30); const now = new Date();
+  const expiringDps = crud.data.filter(r => r.dpsPersonalLicenceExpiry && new Date(r.dpsPersonalLicenceExpiry as string) <= today30 && new Date(r.dpsPersonalLicenceExpiry as string) >= now);
+  const dueReview = crud.data.filter(r => r.reviewDate && new Date(r.reviewDate as string) <= today30 && new Date(r.reviewDate as string) >= now);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div><h3 className="font-semibold text-sm">Premises Licences & DPS</h3><p className="text-xs text-muted-foreground mt-0.5">Licensing Act 2003 — premises licence, Designated Premises Supervisor personal licence, and review dates.</p></div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Licence</Button>
+      </div>
+      {expiringDps.length > 0 && <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><p><strong>DPS Personal Licence expiring soon:</strong> {expiringDps.map(r => fmt(r.dpsName)).join(", ")}. Renewal must be completed before it lapses.</p></div>}
+      {dueReview.length > 0 && <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><p><strong>Premises licence review due within 30 days:</strong> {dueReview.map(r => fmt(r.licenceNumber) || "unlicensed record").join(", ")}.</p></div>}
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "licenceNumber", label: "Licence No." },
+            { key: "localAuthority", label: "Issuing Council" },
+            { key: "dpsName", label: "DPS" },
+            { key: "licenceType", label: "Type", render: r => <span className="capitalize">{fmt(r.licenceType)?.replace(/_/g, " ")}</span> },
+            { key: "reviewDate", label: "Review Date", render: r => fmtDate(r.reviewDate) },
+            { key: "status", label: "Status", render: r => <span className={`text-xs rounded-full px-2 py-0.5 ${LICENCE_STATUS_COLORS[String(r.status)] ?? "bg-gray-100 text-gray-600"}`}>{fmt(r.status)}</span> },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "40rem" }}>
+            <DialogHeader><DialogTitle>Premises Licence — {fmt(view.licenceNumber) || "Record"}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="Licence Number" value={fmt(view.licenceNumber)} />
+              <ViewField label="Licence Type" value={<span className="capitalize">{fmt(view.licenceType)?.replace(/_/g, " ")}</span>} />
+              <ViewField label="Issuing Council" value={fmt(view.localAuthority)} />
+              <ViewField label="Status" value={<span className={`text-xs rounded-full px-2 py-0.5 ${LICENCE_STATUS_COLORS[String(view.status)] ?? ""}`}>{fmt(view.status)}</span>} />
+              <ViewField label="DPS Name" value={fmt(view.dpsName)} />
+              <ViewField label="DPS Personal Licence No." value={fmt(view.dpsPersonalLicenceNumber)} />
+              <ViewField label="DPS Licence Expiry" value={fmtDate(view.dpsPersonalLicenceExpiry)} />
+              <ViewField label="Granted Date" value={fmtDate(view.grantedDate)} />
+              <ViewField label="Review Date" value={fmtDate(view.reviewDate)} />
+              <div className="col-span-2"><ViewField label="Conditions" value={fmt(view.conditions)} /></div>
+              <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
+            </div>
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Premises Licence</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Licence Number</Label><Input value={String(form.licenceNumber ?? "")} onChange={e => sf("licenceNumber", e.target.value)} /></div>
+            <div><Label>Licence Type</Label>
+              <Select value={String(form.licenceType ?? "")} onValueChange={v => sf("licenceType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="on_licence">On-licence (on-site consumption)</SelectItem>
+                  <SelectItem value="off_licence">Off-licence (retail / farm shop)</SelectItem>
+                  <SelectItem value="both">Both on- and off-licence</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Issuing Local Authority</Label><Input value={String(form.localAuthority ?? "")} onChange={e => sf("localAuthority", e.target.value)} placeholder="e.g. East Sussex County Council" /></div>
+            <div><Label>DPS Name</Label><Input value={String(form.dpsName ?? "")} onChange={e => sf("dpsName", e.target.value)} /></div>
+            <div><Label>DPS Personal Licence No.</Label><Input value={String(form.dpsPersonalLicenceNumber ?? "")} onChange={e => sf("dpsPersonalLicenceNumber", e.target.value)} /></div>
+            <div><Label>DPS Licence Expiry</Label><Input type="date" value={String(form.dpsPersonalLicenceExpiry ?? "")} onChange={e => sf("dpsPersonalLicenceExpiry", e.target.value)} /></div>
+            <div><Label>Granted Date</Label><Input type="date" value={String(form.grantedDate ?? "")} onChange={e => sf("grantedDate", e.target.value)} /></div>
+            <div><Label>Review / Renewal Date</Label><Input type="date" value={String(form.reviewDate ?? "")} onChange={e => sf("reviewDate", e.target.value)} /></div>
+            <div><Label>Status</Label>
+              <Select value={String(form.status ?? "active")} onValueChange={v => sf("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="lapsed">Lapsed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Licence Conditions</Label><Textarea value={String(form.conditions ?? "")} onChange={e => sf("conditions", e.target.value)} rows={2} placeholder="e.g. No off-sales after 22:00, Challenge 25 policy required…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Winery: Excise & Duty Returns ─────────────────────────────────────────────
+
+const EXCISE_STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-600",
+  submitted: "bg-amber-100 text-amber-700",
+  paid: "bg-green-100 text-green-700",
+};
+
+function ExciseDutyTab({ farmId }: { farmId: number }) {
+  const crud = useCrud(farmId, "winery-excise-returns", "winery-excise-returns");
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const openAdd = () => { setEditing(null); setForm({ status: "draft", smallProducerRelief: false }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => { if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number }); else crud.add.mutate(form); setOpen(false); };
+  const oneYearAgo = new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const rolling12mL = crud.data.filter(r => r.periodEnd && new Date(r.periodEnd as string) >= oneYearAgo).reduce((s, r) => s + parseFloat(String(r.totalLitresProduced ?? 0)), 0);
+  const rollingHl = rolling12mL / 100;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div><h3 className="font-semibold text-sm">Excise Duty Returns</h3><p className="text-xs text-muted-foreground mt-0.5">HMRC wine duty log (Excise Notice 163). All wine produced — including tasting volumes — is dutiable. Small Producer Relief (SPR) applies under 4,500 hl/year.</p></div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Return</Button>
+      </div>
+      {rollingHl > 0 && (
+        <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${rollingHl >= 4500 ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <p>Rolling 12-month production: <strong>{rollingHl.toFixed(1)} hl</strong> of 4,500 hl SPR threshold.{rollingHl >= 4500 ? " Standard duty rates apply." : " Small Producer Relief may apply."}</p>
+        </div>
+      )}
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "period", label: "Period", render: r => `${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}` },
+            { key: "status", label: "Status", render: r => <span className={`text-xs rounded-full px-2 py-0.5 ${EXCISE_STATUS_COLORS[String(r.status)] ?? ""}`}>{fmt(r.status)}</span> },
+            { key: "totalLitresProduced", label: "Produced (L)", render: r => fmtNum(r.totalLitresProduced) },
+            { key: "totalLitresSold", label: "Sold (L)", render: r => fmtNum(r.totalLitresSold) },
+            { key: "totalLitresTastings", label: "Tastings (L)", render: r => fmtNum(r.totalLitresTastings) },
+            { key: "totalDutyPayable", label: "Duty (£)", render: r => r.totalDutyPayable ? `£${fmtNum(r.totalDutyPayable, 2)}` : "—" },
+            { key: "paidDate", label: "Paid", render: r => fmtDate(r.paidDate) },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Excise Return — {fmtDate(view.periodStart)} to {fmtDate(view.periodEnd)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="HMRC Excise Ref" value={fmt(view.hmrcExciseRef)} />
+              <ViewField label="Status" value={<span className={`text-xs rounded-full px-2 py-0.5 ${EXCISE_STATUS_COLORS[String(view.status)] ?? ""}`}>{fmt(view.status)}</span>} />
+              <ViewField label="Period Start" value={fmtDate(view.periodStart)} />
+              <ViewField label="Period End" value={fmtDate(view.periodEnd)} />
+              <ViewField label="Total Produced (L)" value={fmtNum(view.totalLitresProduced)} />
+              <ViewField label="Total Sold (L)" value={fmtNum(view.totalLitresSold)} />
+              <ViewField label="Tastings / Samples (L)" value={fmtNum(view.totalLitresTastings)} />
+              <ViewField label="Duty Rate (£ / 100 L)" value={view.dutyRatePer100L ? `£${fmtNum(view.dutyRatePer100L, 2)}` : "—"} />
+              <ViewField label="Total Duty Payable" value={view.totalDutyPayable ? `£${fmtNum(view.totalDutyPayable, 2)}` : "—"} />
+              <ViewField label="Small Producer Relief" value={view.smallProducerRelief ? "Yes — SPR claimed" : "No"} />
+              <ViewField label="Submitted Date" value={fmtDate(view.submittedDate)} />
+              <ViewField label="Paid Date" value={fmtDate(view.paidDate)} />
+              <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
+            </div>
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Excise Return</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>HMRC Excise Ref</Label><Input value={String(form.hmrcExciseRef ?? "")} onChange={e => sf("hmrcExciseRef", e.target.value)} placeholder="e.g. WP123456" /></div>
+            <div><Label>Status</Label>
+              <Select value={String(form.status ?? "draft")} onValueChange={v => sf("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="submitted">Submitted to HMRC</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Period Start *</Label><Input type="date" value={String(form.periodStart ?? "")} onChange={e => sf("periodStart", e.target.value)} /></div>
+            <div><Label>Period End *</Label><Input type="date" value={String(form.periodEnd ?? "")} onChange={e => sf("periodEnd", e.target.value)} /></div>
+            <div><Label>Total Produced (L)</Label><Input type="number" value={String(form.totalLitresProduced ?? "")} onChange={e => sf("totalLitresProduced", e.target.value)} /></div>
+            <div><Label>Total Sold (L)</Label><Input type="number" value={String(form.totalLitresSold ?? "")} onChange={e => sf("totalLitresSold", e.target.value)} /></div>
+            <div><Label>Tastings / Samples (L)</Label><Input type="number" value={String(form.totalLitresTastings ?? "")} onChange={e => sf("totalLitresTastings", e.target.value)} placeholder="All tasting volumes are dutiable" /></div>
+            <div><Label>Duty Rate (£ / 100 L)</Label><Input type="number" step="0.01" value={String(form.dutyRatePer100L ?? "")} onChange={e => sf("dutyRatePer100L", e.target.value)} /></div>
+            <div><Label>Total Duty Payable (£)</Label><Input type="number" step="0.01" value={String(form.totalDutyPayable ?? "")} onChange={e => sf("totalDutyPayable", e.target.value)} /></div>
+            <div><Label>Submitted Date</Label><Input type="date" value={String(form.submittedDate ?? "")} onChange={e => sf("submittedDate", e.target.value)} /></div>
+            <div><Label>Paid Date</Label><Input type="date" value={String(form.paidDate ?? "")} onChange={e => sf("paidDate", e.target.value)} /></div>
+            <div className="flex items-center gap-2 col-span-2"><Checkbox checked={!!form.smallProducerRelief} onCheckedChange={v => sf("smallProducerRelief", !!v)} id="spr" /><Label htmlFor="spr">Claiming Small Producer Relief (under 4,500 hl/year)</Label></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.periodStart || !form.periodEnd}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Winery: Tastings & Tours ────────────────────────────────────────────────────
+
+const SESSION_TYPES: Record<string, string> = {
+  tour: "Winery Tour",
+  event: "Event / Open Day",
+  trade_tasting: "Trade Tasting",
+  private_tasting: "Private Tasting",
+};
+
+function TastingsToursTab({ farmId }: { farmId: number }) {
+  const crud = useCrud(farmId, "winery-tasting-sessions", "winery-tasting-sessions");
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const openAdd = () => { setEditing(null); setForm({ sessionDate: today }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => { if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number }); else crud.add.mutate(form); setOpen(false); };
+  const oneYearAgo = new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const rolling = crud.data.filter(r => r.sessionDate && new Date(r.sessionDate as string) >= oneYearAgo);
+  const rolling12mVolumeL = rolling.reduce((s, r) => s + parseFloat(String(r.totalVolumeL ?? 0)), 0);
+  const rolling12mVisitors = rolling.reduce((s, r) => s + (parseInt(String(r.visitorCount ?? 0)) || 0), 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div><h3 className="font-semibold text-sm">Tastings & Tours Log</h3><p className="text-xs text-muted-foreground mt-0.5">Record all tour sessions, tastings, and events. Tasting volumes are dutiable and must be declared in excise duty returns.</p></div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Session</Button>
+      </div>
+      {crud.data.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard label="Rolling 12M Sessions" value={rolling.length} />
+          <StatCard label="Rolling 12M Visitors" value={rolling12mVisitors.toLocaleString()} />
+          <StatCard label="Rolling 12M Tasting Volume" value={`${rolling12mVolumeL.toFixed(1)} L`} sub="Must be included in duty returns" color="amber" />
+        </div>
+      )}
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "sessionDate", label: "Date", render: r => fmtDate(r.sessionDate) },
+            { key: "sessionType", label: "Type", render: r => SESSION_TYPES[String(r.sessionType)] ?? fmt(r.sessionType) },
+            { key: "sessionName", label: "Session" },
+            { key: "visitorCount", label: "Visitors" },
+            { key: "totalVolumeL", label: "Volume (L)", render: r => fmtNum(r.totalVolumeL) },
+            { key: "revenueGbp", label: "Revenue", render: r => r.revenueGbp ? `£${fmtNum(r.revenueGbp, 2)}` : "—" },
+            { key: "staffName", label: "Staff" },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "40rem" }}>
+            <DialogHeader><DialogTitle>Session — {fmtDate(view.sessionDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="Date" value={fmtDate(view.sessionDate)} />
+              <ViewField label="Type" value={SESSION_TYPES[String(view.sessionType)] ?? fmt(view.sessionType)} />
+              <ViewField label="Session Name" value={fmt(view.sessionName)} />
+              <ViewField label="Staff Name" value={fmt(view.staffName)} />
+              <ViewField label="Visitor Count" value={fmt(view.visitorCount)} />
+              <ViewField label="Wines Shown" value={fmt(view.winesShownCount)} />
+              <ViewField label="Volume per Person (ml)" value={fmt(view.volumePerPersonMl)} />
+              <ViewField label="Total Volume (L)" value={fmtNum(view.totalVolumeL)} />
+              <ViewField label="Ticket Price" value={view.ticketPriceGbp ? `£${fmtNum(view.ticketPriceGbp, 2)}` : "—"} />
+              <ViewField label="Revenue" value={view.revenueGbp ? `£${fmtNum(view.revenueGbp, 2)}` : "—"} />
+              <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
+            </div>
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Log"} Tasting Session</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Date *</Label><Input type="date" value={String(form.sessionDate ?? "")} onChange={e => sf("sessionDate", e.target.value)} /></div>
+            <div><Label>Session Type</Label>
+              <Select value={String(form.sessionType ?? "")} onValueChange={v => sf("sessionType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{Object.entries(SESSION_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Session Name</Label><Input value={String(form.sessionName ?? "")} onChange={e => sf("sessionName", e.target.value)} placeholder="e.g. Saturday afternoon vineyard walk & tasting" /></div>
+            <div><Label>Visitor Count</Label><Input type="number" value={String(form.visitorCount ?? "")} onChange={e => sf("visitorCount", e.target.value)} /></div>
+            <div><Label>Wines Shown</Label><Input type="number" value={String(form.winesShownCount ?? "")} onChange={e => sf("winesShownCount", e.target.value)} /></div>
+            <div><Label>Volume per Person (ml)</Label><Input type="number" value={String(form.volumePerPersonMl ?? "")} onChange={e => sf("volumePerPersonMl", e.target.value)} placeholder="e.g. 150" /></div>
+            <div><Label>Total Volume (L)</Label><Input type="number" step="0.01" value={String(form.totalVolumeL ?? "")} onChange={e => sf("totalVolumeL", e.target.value)} /></div>
+            <div><Label>Staff Name</Label><Input value={String(form.staffName ?? "")} onChange={e => sf("staffName", e.target.value)} /></div>
+            <div><Label>Ticket Price (£)</Label><Input type="number" step="0.01" value={String(form.ticketPriceGbp ?? "")} onChange={e => sf("ticketPriceGbp", e.target.value)} /></div>
+            <div><Label>Revenue (£)</Label><Input type="number" step="0.01" value={String(form.revenueGbp ?? "")} onChange={e => sf("revenueGbp", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.sessionDate}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Winery: Age Verification — Challenge 25 ───────────────────────────────────
+
+function AgeVerificationTab({ farmId }: { farmId: number }) {
+  const crud = useCrud(farmId, "winery-age-verification", "winery-age-verification");
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [editing, setEditing] = useState<number | null>(null);
+  const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const openAdd = (type: "training" | "refusal") => { setEditing(null); setForm({ recordType: type, recordDate: today, idRequested: false, idProduced: false, supervisorNotified: false }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const save = () => { if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number }); else crud.add.mutate(form); setOpen(false); };
+  const now = new Date();
+  const trainings = crud.data.filter(r => r.recordType === "training");
+  const refusals = crud.data.filter(r => r.recordType === "refusal");
+  const expiredTraining = trainings.filter(r => r.trainingExpiryDate && new Date(r.trainingExpiryDate as string) < now);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div><h3 className="font-semibold text-sm">Age Verification — Challenge 25</h3><p className="text-xs text-muted-foreground mt-0.5">Staff training records and refusal log. Both are typically required by premises licence conditions and must be available for inspection.</p></div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => openAdd("refusal")}><Plus className="w-3.5 h-3.5 mr-1" />Log Refusal</Button>
+          <Button size="sm" onClick={() => openAdd("training")}><Plus className="w-3.5 h-3.5 mr-1" />Add Training</Button>
+        </div>
+      </div>
+      {expiredTraining.length > 0 && <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><p><strong>Expired age verification training:</strong> {expiredTraining.map(r => fmt(r.staffName)).join(", ")}. Renewal required before staff may sell alcohol unsupervised.</p></div>}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Staff Trained" value={trainings.length} sub="Active Challenge 25 records" />
+        <StatCard label="Refusals Logged" value={refusals.length} sub="Keep for licence review / inspection" />
+      </div>
+      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "recordDate", label: "Date", render: r => fmtDate(r.recordDate) },
+            { key: "recordType", label: "Type", render: r => r.recordType === "training"
+              ? <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Training</span>
+              : <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">Refusal</span> },
+            { key: "staffName", label: "Staff Name" },
+            { key: "details", label: "Details", render: r => r.recordType === "training"
+              ? <span className="text-xs text-muted-foreground">{fmt(r.trainingProvider)}{r.trainingExpiryDate ? ` — expires ${fmtDate(r.trainingExpiryDate)}` : ""}</span>
+              : <span className="text-xs text-muted-foreground">Est. age {fmt(r.estimatedAge)} — ID {r.idProduced ? "produced" : "not produced"}</span> },
+          ]}
+          rows={crud.data}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+        />
+      )}
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent style={{ maxWidth: "38rem" }}>
+            <DialogHeader><DialogTitle>{view.recordType === "training" ? "Training Record" : "Refusal Record"} — {fmtDate(view.recordDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <ViewField label="Date" value={fmtDate(view.recordDate)} />
+              <ViewField label="Staff Name" value={fmt(view.staffName)} />
+              {view.recordType === "training" ? <>
+                <ViewField label="Training Provider" value={fmt(view.trainingProvider)} />
+                <ViewField label="Certificate Ref" value={fmt(view.trainingCertificateRef)} />
+                <ViewField label="Certificate Expiry" value={fmtDate(view.trainingExpiryDate)} />
+              </> : <>
+                <ViewField label="Refusal Location" value={fmt(view.refusalLocation)} />
+                <ViewField label="Estimated Customer Age" value={fmt(view.estimatedAge)} />
+                <ViewField label="ID Requested" value={view.idRequested ? "Yes" : "No"} />
+                <ViewField label="ID Produced" value={view.idProduced ? "Yes" : "No"} />
+                <ViewField label="Supervisor Notified" value={view.supervisorNotified ? "Yes" : "No"} />
+              </>}
+              <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>
+            </div>
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "36rem" }}>
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit Record" : form.recordType === "training" ? "Add Training Record" : "Log Refusal"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Date *</Label><Input type="date" value={String(form.recordDate ?? "")} onChange={e => sf("recordDate", e.target.value)} /></div>
+            <div><Label>Staff Name</Label><Input value={String(form.staffName ?? "")} onChange={e => sf("staffName", e.target.value)} /></div>
+            {form.recordType === "training" ? <>
+              <div className="col-span-2"><Label>Training Provider</Label><Input value={String(form.trainingProvider ?? "")} onChange={e => sf("trainingProvider", e.target.value)} placeholder="e.g. BIIAB Award in Responsible Alcohol Sale" /></div>
+              <div><Label>Certificate Reference</Label><Input value={String(form.trainingCertificateRef ?? "")} onChange={e => sf("trainingCertificateRef", e.target.value)} /></div>
+              <div><Label>Certificate Expiry</Label><Input type="date" value={String(form.trainingExpiryDate ?? "")} onChange={e => sf("trainingExpiryDate", e.target.value)} /></div>
+            </> : <>
+              <div><Label>Refusal Location</Label>
+                <Select value={String(form.refusalLocation ?? "")} onValueChange={v => sf("refusalLocation", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="shop">Farm Shop</SelectItem>
+                    <SelectItem value="tour">Winery Tour</SelectItem>
+                    <SelectItem value="event">Event / Tasting</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Customer's Estimated Age</Label><Input type="number" value={String(form.estimatedAge ?? "")} onChange={e => sf("estimatedAge", e.target.value)} /></div>
+              <div className="flex items-center gap-2"><Checkbox checked={!!form.idRequested} onCheckedChange={v => sf("idRequested", !!v)} id="idr" /><Label htmlFor="idr">ID Requested</Label></div>
+              <div className="flex items-center gap-2"><Checkbox checked={!!form.idProduced} onCheckedChange={v => sf("idProduced", !!v)} id="idp" /><Label htmlFor="idp">ID Produced</Label></div>
+              <div className="flex items-center gap-2 col-span-2"><Checkbox checked={!!form.supervisorNotified} onCheckedChange={v => sf("supervisorNotified", !!v)} id="sup" /><Label htmlFor="sup">Supervisor Notified</Label></div>
+            </>}
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.recordDate}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -1754,6 +2181,10 @@ const TABS = [
   { id: "operations", label: "Pruning & Canopy", icon: Scissors },
   { id: "harvest", label: "Harvest", icon: Grape },
   { id: "scouting", label: "Disease Scouting", icon: Bug },
+  { id: "licensing", label: "Licensing", icon: FileText },
+  { id: "excise", label: "Excise & Duty", icon: Receipt },
+  { id: "tours", label: "Tastings & Tours", icon: CalendarCheck },
+  { id: "age-check", label: "Age Verification", icon: ShieldCheck },
 ];
 
 export default function ViticulturePage() {
@@ -1800,6 +2231,10 @@ export default function ViticulturePage() {
           {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "licensing" && <LicensingTab farmId={selectedFarmId} />}
+          {tab === "excise" && <ExciseDutyTab farmId={selectedFarmId} />}
+          {tab === "tours" && <TastingsToursTab farmId={selectedFarmId} />}
+          {tab === "age-check" && <AgeVerificationTab farmId={selectedFarmId} />}
         </div>
       </div>
       <RaiseTaskDialog

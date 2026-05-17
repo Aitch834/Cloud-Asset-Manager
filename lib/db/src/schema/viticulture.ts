@@ -149,6 +149,81 @@ export const vineyardHarvestTable = pgTable("vineyard_harvest", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Winery Licensing (Licensing Act 2003) ────────────────────────────────────
+export const wineryLicencesTable = pgTable("winery_licences", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  licenceNumber: text("licence_number"),
+  licenceType: text("licence_type"),
+  localAuthority: text("local_authority"),
+  dpsName: text("dps_name"),
+  dpsPersonalLicenceNumber: text("dps_personal_licence_number"),
+  dpsPersonalLicenceExpiry: date("dps_personal_licence_expiry"),
+  grantedDate: date("granted_date"),
+  reviewDate: date("review_date"),
+  conditions: text("conditions"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Winery Excise & Duty Returns (HMRC Excise Notice 163) ────────────────────
+export const wineryExciseReturnsTable = pgTable("winery_excise_returns", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  hmrcExciseRef: text("hmrc_excise_ref"),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  totalLitresProduced: numeric("total_litres_produced", { precision: 10, scale: 2 }),
+  totalLitresSold: numeric("total_litres_sold", { precision: 10, scale: 2 }),
+  totalLitresTastings: numeric("total_litres_tastings", { precision: 10, scale: 2 }),
+  dutyRatePer100L: numeric("duty_rate_per_100_l", { precision: 8, scale: 2 }),
+  totalDutyPayable: numeric("total_duty_payable", { precision: 10, scale: 2 }),
+  submittedDate: date("submitted_date"),
+  paidDate: date("paid_date"),
+  status: text("status").notNull().default("draft"),
+  smallProducerRelief: boolean("small_producer_relief").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Winery Tasting Sessions & Tours ──────────────────────────────────────────
+export const wineryTastingSessionsTable = pgTable("winery_tasting_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  sessionDate: date("session_date").notNull(),
+  sessionType: text("session_type"),
+  sessionName: text("session_name"),
+  visitorCount: integer("visitor_count"),
+  winesShownCount: integer("wines_shown_count"),
+  volumePerPersonMl: integer("volume_per_person_ml"),
+  totalVolumeL: numeric("total_volume_l", { precision: 8, scale: 2 }),
+  staffName: text("staff_name"),
+  ticketPriceGbp: numeric("ticket_price_gbp", { precision: 8, scale: 2 }),
+  revenueGbp: numeric("revenue_gbp", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Winery Age Verification — Challenge 25 ───────────────────────────────────
+export const wineryAgeVerificationTable = pgTable("winery_age_verification", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  recordType: text("record_type").notNull(),
+  recordDate: date("record_date").notNull(),
+  staffName: text("staff_name"),
+  trainingProvider: text("training_provider"),
+  trainingCertificateRef: text("training_certificate_ref"),
+  trainingExpiryDate: date("training_expiry_date"),
+  refusalLocation: text("refusal_location"),
+  estimatedAge: integer("estimated_age"),
+  idRequested: boolean("id_requested").default(false),
+  idProduced: boolean("id_produced").default(false),
+  supervisorNotified: boolean("supervisor_notified").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Disease & Pest Scouting ──────────────────────────────────────────────────
 export const vineyardScoutingTable = pgTable("vineyard_scouting", {
   id: serial("id").primaryKey(),

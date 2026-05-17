@@ -17,6 +17,10 @@ import {
   organicVitCertificateTable,
   organicVitWineProductionTable,
   farmRecordAttachmentsTable,
+  wineryLicencesTable,
+  wineryExciseReturnsTable,
+  wineryTastingSessionsTable,
+  wineryAgeVerificationTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -695,6 +699,94 @@ router.put("/farms/:farmId/organic-viticulture/wine-production/:id", requireAuth
 router.delete("/farms/:farmId/organic-viticulture/wine-production/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(organicVitWineProductionTable).where(and(eq(organicVitWineProductionTable.id, id), eq(organicVitWineProductionTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Winery: Licensing ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-licences", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(wineryLicencesTable).where(eq(wineryLicencesTable.farmId, farmId)).orderBy(desc(wineryLicencesTable.createdAt));
+  res.json({ records });
+});
+router.post("/farms/:farmId/winery-licences", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(wineryLicencesTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/winery-licences/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(wineryLicencesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(wineryLicencesTable.id, id), eq(wineryLicencesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/winery-licences/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineryLicencesTable).where(and(eq(wineryLicencesTable.id, id), eq(wineryLicencesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Winery: Excise & Duty Returns ────────────────────────────────────────────
+router.get("/farms/:farmId/winery-excise-returns", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(wineryExciseReturnsTable).where(eq(wineryExciseReturnsTable.farmId, farmId)).orderBy(desc(wineryExciseReturnsTable.periodEnd));
+  res.json({ records });
+});
+router.post("/farms/:farmId/winery-excise-returns", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(wineryExciseReturnsTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/winery-excise-returns/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(wineryExciseReturnsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(wineryExciseReturnsTable.id, id), eq(wineryExciseReturnsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/winery-excise-returns/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineryExciseReturnsTable).where(and(eq(wineryExciseReturnsTable.id, id), eq(wineryExciseReturnsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Winery: Tasting Sessions & Tours ─────────────────────────────────────────
+router.get("/farms/:farmId/winery-tasting-sessions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(wineryTastingSessionsTable).where(eq(wineryTastingSessionsTable.farmId, farmId)).orderBy(desc(wineryTastingSessionsTable.sessionDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/winery-tasting-sessions", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(wineryTastingSessionsTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/winery-tasting-sessions/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(wineryTastingSessionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(wineryTastingSessionsTable.id, id), eq(wineryTastingSessionsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/winery-tasting-sessions/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineryTastingSessionsTable).where(and(eq(wineryTastingSessionsTable.id, id), eq(wineryTastingSessionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Winery: Age Verification (Challenge 25) ──────────────────────────────────
+router.get("/farms/:farmId/winery-age-verification", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(wineryAgeVerificationTable).where(eq(wineryAgeVerificationTable.farmId, farmId)).orderBy(desc(wineryAgeVerificationTable.recordDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/winery-age-verification", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await (db.insert(wineryAgeVerificationTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/winery-age-verification/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [record] = await db.update(wineryAgeVerificationTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(wineryAgeVerificationTable.id, id), eq(wineryAgeVerificationTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/winery-age-verification/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineryAgeVerificationTable).where(and(eq(wineryAgeVerificationTable.id, id), eq(wineryAgeVerificationTable.farmId, farmId)));
   res.json({ success: true });
 });
 
