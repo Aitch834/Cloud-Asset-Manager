@@ -332,6 +332,99 @@ export const LOOKUP_DEFINITIONS: Record<string, LookupDefinition> = {
       "Kocide Opti", "Nordox 75 WG", "Trophy WG", "Other",
     ],
   },
+  crop_varieties: {
+    label: "Crop Varieties",
+    description: "Named varieties for each commodity type — used in crop records, drilling logs, grain sales and stock",
+    authority: "AHDB Recommended Lists / NIAB",
+    authorityUrl: "https://ahdb.org.uk/cereals-oilseeds/recommended-lists",
+    reviewFrequency: "Annual",
+    items: [
+      // Winter Wheat
+      { label: "KWS Zyatt", group: "Winter Wheat" },
+      { label: "Skyfall", group: "Winter Wheat" },
+      { label: "Crusoe", group: "Winter Wheat" },
+      { label: "Graham", group: "Winter Wheat" },
+      { label: "Extase", group: "Winter Wheat" },
+      { label: "Kerrin", group: "Winter Wheat" },
+      { label: "Champion", group: "Winter Wheat" },
+      { label: "Gleam", group: "Winter Wheat" },
+      { label: "KWS Kinetic", group: "Winter Wheat" },
+      { label: "Siskin", group: "Winter Wheat" },
+      // Spring Wheat
+      { label: "Mulika", group: "Spring Wheat" },
+      { label: "Tybalt", group: "Spring Wheat" },
+      { label: "Paragon", group: "Spring Wheat" },
+      { label: "KWS Cochise", group: "Spring Wheat" },
+      // Winter Barley
+      { label: "KWS Orwell", group: "Winter Barley" },
+      { label: "Craft", group: "Winter Barley" },
+      { label: "SY Venture", group: "Winter Barley" },
+      { label: "Bazooka", group: "Winter Barley" },
+      { label: "Volume", group: "Winter Barley" },
+      { label: "Glacier", group: "Winter Barley" },
+      // Spring Barley
+      { label: "Laureate", group: "Spring Barley" },
+      { label: "Planet", group: "Spring Barley" },
+      { label: "Propino", group: "Spring Barley" },
+      { label: "Concerto", group: "Spring Barley" },
+      { label: "Moonshine", group: "Spring Barley" },
+      { label: "KWS Irina", group: "Spring Barley" },
+      { label: "Sassy", group: "Spring Barley" },
+      // Winter Oats
+      { label: "Mascani", group: "Winter Oats" },
+      { label: "Bison", group: "Winter Oats" },
+      { label: "Gerald", group: "Winter Oats" },
+      // Spring Oats
+      { label: "Elyann", group: "Spring Oats" },
+      { label: "Husky", group: "Spring Oats" },
+      { label: "Firth", group: "Spring Oats" },
+      { label: "Aileen", group: "Spring Oats" },
+      // Oilseed Rape
+      { label: "Architect", group: "Oilseed Rape" },
+      { label: "Aspire", group: "Oilseed Rape" },
+      { label: "Darling", group: "Oilseed Rape" },
+      { label: "Elgar", group: "Oilseed Rape" },
+      { label: "Festivity", group: "Oilseed Rape" },
+      { label: "Nikita", group: "Oilseed Rape" },
+      { label: "Campus", group: "Oilseed Rape" },
+      // Winter Beans
+      { label: "Tundra", group: "Winter Beans" },
+      { label: "Wizard", group: "Winter Beans" },
+      { label: "Fuego", group: "Winter Beans" },
+      { label: "Lynx", group: "Winter Beans" },
+      // Spring Beans
+      { label: "Fanfare", group: "Spring Beans" },
+      { label: "Vertigo", group: "Spring Beans" },
+      { label: "Fuego", group: "Spring Beans" },
+      // Peas
+      { label: "Gregor", group: "Peas" },
+      { label: "Maverick", group: "Peas" },
+      { label: "Cassius", group: "Peas" },
+      { label: "Bohatyr", group: "Peas" },
+      // Maize
+      { label: "Ambition", group: "Maize" },
+      { label: "Farmflex", group: "Maize" },
+      { label: "KWS Frederico", group: "Maize" },
+      { label: "LG Aapollo", group: "Maize" },
+      { label: "Ronaldinio", group: "Maize" },
+      // Sugar Beet
+      { label: "Alize KWS", group: "Sugar Beet" },
+      { label: "Beata KWS", group: "Sugar Beet" },
+      { label: "Barsita", group: "Sugar Beet" },
+      { label: "Modus", group: "Sugar Beet" },
+      // Linseed
+      { label: "Antares", group: "Linseed" },
+      { label: "Cygnus", group: "Linseed" },
+      // Rye
+      { label: "Palazzo", group: "Rye" },
+      { label: "Helltop", group: "Rye" },
+      // Triticale
+      { label: "Dublet", group: "Triticale" },
+      { label: "Amarillo", group: "Triticale" },
+      // Other
+      { label: "Other / Unknown", group: "Other" },
+    ],
+  },
 };
 
 export async function seedLookupDefaults(): Promise<void> {

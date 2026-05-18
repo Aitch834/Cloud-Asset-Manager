@@ -29,6 +29,7 @@ interface LookupItem {
   id: number;
   value: string;
   label: string;
+  groupLabel: string | null;
   isCustom: boolean;
 }
 
@@ -120,6 +121,19 @@ function LookupListRow({
   const standardItems = items.filter((i) => !i.isCustom);
   const customItems = items.filter((i) => i.isCustom);
 
+  // Build grouped structure for standard items that carry a groupLabel
+  const hasGroups = standardItems.some((i) => i.groupLabel);
+  const standardGroups: { group: string; items: LookupItem[] }[] = [];
+  if (hasGroups) {
+    const seen = new Map<string, LookupItem[]>();
+    for (const item of standardItems) {
+      const key = item.groupLabel ?? "Other";
+      if (!seen.has(key)) seen.set(key, []);
+      seen.get(key)!.push(item);
+    }
+    seen.forEach((groupItems, group) => standardGroups.push({ group, items: groupItems }));
+  }
+
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <button
@@ -166,16 +180,36 @@ function LookupListRow({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                 Standard items
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {standardItems.map((item) => (
-                  <span
-                    key={item.id}
-                    className="text-xs px-2.5 py-1 bg-background border border-border rounded-full text-muted-foreground"
-                  >
-                    {item.label}
-                  </span>
-                ))}
-              </div>
+              {hasGroups ? (
+                <div className="space-y-3">
+                  {standardGroups.map(({ group, items: gItems }) => (
+                    <div key={group}>
+                      <p className="text-xs font-medium text-foreground mb-1.5">{group}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {gItems.map((item) => (
+                          <span
+                            key={item.id}
+                            className="text-xs px-2.5 py-1 bg-background border border-border rounded-full text-muted-foreground"
+                          >
+                            {item.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {standardItems.map((item) => (
+                    <span
+                      key={item.id}
+                      className="text-xs px-2.5 py-1 bg-background border border-border rounded-full text-muted-foreground"
+                    >
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
