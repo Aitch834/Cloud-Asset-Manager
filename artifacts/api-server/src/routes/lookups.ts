@@ -24,7 +24,7 @@ router.get("/lookups/definitions", async (_req: Request, res: Response): Promise
   res.json({ definitions: defs });
 });
 
-router.get("/lookups/summary", requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/lookups/summary", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const tenantId = req.tenantId!;
   const rows = await db
     .select({ lookupKey: lookupItemsTable.lookupKey, tenantId: lookupItemsTable.tenantId })

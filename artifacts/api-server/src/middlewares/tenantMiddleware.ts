@@ -1,4 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import { db, userTenantsTable, tenantsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
@@ -22,8 +23,16 @@ export async function tenantMiddleware(
   next: NextFunction,
 ): Promise<void> {
   if (!req.userId) {
-    next();
-    return;
+    // Try to resolve userId from Clerk session (so tenant context works for
+    // routes that only use requireTenant without an explicit requireAuth).
+    const auth = getAuth(req);
+    const clerkUserId =
+      (auth?.sessionClaims?.userId as string | undefined) ?? auth?.userId;
+    if (!clerkUserId) {
+      next();
+      return;
+    }
+    req.userId = clerkUserId;
   }
 
   const tenantSlug = req.headers["x-tenant-slug"] as string | undefined;

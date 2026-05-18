@@ -272,8 +272,12 @@ export default function LookupListsPage() {
 
   const summaryQ = useQuery<{ definitions: SummaryDef[] }>({
     queryKey: ["lookups-summary", tenantSlug],
-    queryFn: () => fetch(`/api/lookups/summary`).then((r) => r.json()),
-    enabled: !!tenantSlug,
+    queryFn: async () => {
+      const res = await fetch(`/api/lookups/summary`);
+      if (!res.ok) throw new Error(`Failed to load lookup lists (${res.status})`);
+      return res.json();
+    },
+    retry: 1,
   });
 
   const allDefs = summaryQ.data?.definitions ?? [];
