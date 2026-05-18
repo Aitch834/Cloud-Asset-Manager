@@ -11611,6 +11611,191 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Red Tractor Requirement</h3>
 <p>Red Tractor Beef &amp; Lamb and Dairy standards require you to check that commercial transporters hold a valid ATA before loading animals. Recording the ATA number in each relevant movement record demonstrates this check has been carried out — satisfying the standard without the need for a separate log.</p>`,
     },
+    {
+      id: 10072,
+      title: "Accident Book — Four-Stage Investigation Workflow",
+      category: "Health, Safety & Risk",
+      content: `<h2>Accident Book — Four-Stage Investigation Workflow</h2>
+
+<p>The Accident Book uses a four-stage gated workflow to ensure every incident is properly investigated, remediated, and signed off before it is closed. Each stage must be completed in order — the next stage button does not appear until the current stage is complete.</p>
+
+<h3>Stage 1 — Reported</h3>
+<p>The initial incident record is created either from the dashboard or from the mobile app in the field. It captures:</p>
+<ul>
+<li>Incident type (Accident, Near Miss, Dangerous Occurrence, or Occupational Disease)</li>
+<li>Severity (Minor, Over 3-Day, Major Injury, or Fatal) — Over 3-Day, Major, and Fatal automatically set the RIDDOR flag</li>
+<li>Date, time, and location of the incident</li>
+<li>Description of what happened</li>
+<li>Injured person's name, body part affected, and nature of injury</li>
+<li>First aid given and first aider details</li>
+<li>Witness names</li>
+<li>Immediate actions taken</li>
+<li>RIDDOR reportable flag (auto-set or manual)</li>
+<li>Reported by name</li>
+<li>Photo evidence (mobile: up to 10 photos from camera or library)</li>
+<li>GPS co-ordinates (mobile: captured automatically)</li>
+</ul>
+<p>Records at this stage show a grey <strong>Reported</strong> status badge. The <strong>Investigate →</strong> button is available to progress the record.</p>
+
+<h3>Stage 2 — Under Investigation</h3>
+<p>Click <strong>Investigate →</strong> on a Reported record to open the investigation dialog. Record:</p>
+<ul>
+<li>Investigation date</li>
+<li>Investigating officer (name of the person conducting the investigation)</li>
+<li>Investigation notes (root cause analysis, contributing factors, findings)</li>
+</ul>
+<p>Save — the record moves to <strong>Under Investigation</strong> status (amber badge). The <strong>Record Corrective Action →</strong> button appears.</p>
+
+<h3>Stage 3 — Corrective Action Recorded</h3>
+<p>Click <strong>Record Corrective Action →</strong> to open the corrective action dialog. Record:</p>
+<ul>
+<li>Corrective action description (what was done to prevent recurrence)</li>
+<li>Corrective action completed by (name of responsible person)</li>
+<li>Corrective action date (when the action was completed)</li>
+</ul>
+<p>Save — the record moves to <strong>Corrective Action Recorded</strong> status (blue badge). The <strong>Sign Off →</strong> button appears.</p>
+
+<h3>Stage 4 — Signed Off</h3>
+<p>Click <strong>Sign Off →</strong> to open the sign-off dialog. Record:</p>
+<ul>
+<li>Signed off by (manager's name)</li>
+<li>Sign-off date</li>
+</ul>
+<p>Save — the record moves to <strong>Signed Off</strong> status (green badge). The incident is now fully closed.</p>
+
+<h3>RIDDOR Reporting</h3>
+<p>Records flagged as RIDDOR-reportable are highlighted with a purple RIDDOR chip. Major injuries and fatalities must be reported to the HSE immediately (0345 300 9923). Over 3-day injuries must be reported within 15 days of the incident. You can record the HSE reference number against the incident once submitted. See <a href="https://www.hse.gov.uk/riddor/" target="_blank" rel="noopener noreferrer">hse.gov.uk/riddor</a> for current reporting requirements.</p>
+
+<h3>Printing</h3>
+<p>Click <strong>Print</strong> on any record to generate a formatted incident report for your H&amp;S file or insurer. The printout includes all four stages of the workflow with dates, names, and descriptions.</p>`,
+    },
+    {
+      id: 10073,
+      title: "Vet Health Plans — Recording Action Completion and Manager Sign-Off",
+      category: "Livestock",
+      content: `<h2>Vet Health Plans — Recording Action Completion and Manager Sign-Off</h2>
+
+<p>Vet Health Plans in BDE Farm Trac include an action item register. Each action item can be marked complete via a structured four-section dialog that captures what was done, supporting evidence, manager verification, and the schedule for the next occurrence.</p>
+
+<h3>Marking a VHP Action Complete</h3>
+<p>Open <strong>Livestock → Vet Health Plans</strong> and expand the plan. Find the action item you want to complete and click <strong>Mark Complete</strong>. The completion dialog has four sections:</p>
+
+<h4>1. What Was Done</h4>
+<ul>
+<li><strong>Completion date</strong> — when the action was carried out</li>
+<li><strong>Completed by</strong> — name of the person who carried out the action</li>
+<li><strong>Notes</strong> — description of what was done, any observations, or outcomes</li>
+</ul>
+
+<h4>2. Evidence &amp; Supporting Documents</h4>
+<ul>
+<li>Upload supporting evidence such as lab reports, certificates, photographs, or vet certificates directly against the completion record</li>
+<li>Document uploads are stored with the completion and visible in the completion history</li>
+</ul>
+
+<h4>3. Manager Verification</h4>
+<ul>
+<li><strong>Verified by</strong> — name of the manager or responsible person who has reviewed and approved the completed action</li>
+<li><strong>Verified date</strong> — date the verification was carried out</li>
+<li><strong>Verification notes</strong> — any notes from the verifier (optional)</li>
+</ul>
+<p>Manager verification is required by Red Tractor Dairy and Beef &amp; Lamb standards for VHP action completion sign-off. Recording the verifier's name and date provides the two-person audit trail required for assurance scheme inspection.</p>
+
+<h4>4. Schedule Next Occurrence</h4>
+<ul>
+<li>Set the due date for the next occurrence of this action item so it surfaces automatically in the Farm Planner</li>
+<li>The next due date appears as a task card in the Week Ahead Planner when it falls within the upcoming 7-day window</li>
+</ul>
+
+<h3>Completion History</h3>
+<p>Every completion event is stored permanently against the action item. Click <strong>View History</strong> on any action item to open the completion history dialog, which lists all past completions with:</p>
+<ul>
+<li>Completion date and completed by</li>
+<li>Verification details (verified by, verified date, and verification notes)</li>
+<li>Notes from the completion</li>
+</ul>
+<p>The history provides a full audit trail of every time the action has been carried out and independently verified — exactly what a Red Tractor inspector will look for during a VHP review.</p>`,
+    },
+    {
+      id: 10074,
+      title: "Livestock Mortality Records — Four-Stage Disposal Tracking",
+      category: "Livestock",
+      content: `<h2>Livestock Mortality Records — Four-Stage Disposal Tracking</h2>
+
+<p>The Livestock Mortality register uses a four-stage disposal workflow to track each fallen stock record from initial reporting through to documentation complete. This provides the evidence trail required by Red Tractor for fallen stock management.</p>
+
+<h3>The Four Stages</h3>
+<ol>
+<li><strong>Reported</strong> — initial mortality record created (cause of death, species, date, etc.)</li>
+<li><strong>Disposal Booked</strong> — a fallen stock contractor has been contacted and a collection arranged</li>
+<li><strong>Collected</strong> — the animal has been collected by the contractor</li>
+<li><strong>Documentation Complete</strong> — all disposal paperwork has been received and filed (collection certificate, NFAS consignment note, invoice, etc.)</li>
+</ol>
+
+<h3>Progressing Through Stages</h3>
+<p>Each record card in the Mortality register shows a stage badge and a stage-action button. Click the button to advance to the next stage. You can record the following at each progression:</p>
+<ul>
+<li><strong>Disposal Booked</strong> — contractor name, booking reference, scheduled collection date</li>
+<li><strong>Collected</strong> — collection date, vehicle registration, driver name, NFAS or consignment note reference</li>
+<li><strong>Documentation Complete</strong> — invoice reference, invoice amount, payment status, and any notes</li>
+</ul>
+
+<h3>Why This Matters</h3>
+<p>Red Tractor requires fallen stock to be removed promptly and disposal documentation to be retained. The four-stage workflow ensures that:</p>
+<ul>
+<li>Every mortality has a disposal record — records without a completed disposal are easy to identify</li>
+<li>The documentary chain from death through collection to invoice is captured in one place</li>
+<li>Inspectors can verify compliance without having to cross-reference paper records</li>
+</ul>
+
+<h3>BCMS Notification</h3>
+<p>For cattle, BCMS must be notified of the death within 7 days. The BCMS Notification Reference field in the mortality record captures the submission reference. Records where BCMS has been notified show a confirmed badge; records where it has not been notified show a warning. Cattle mortality records without a BCMS reference are highlighted in the compliance audit report.</p>
+
+<h3>Mobile App</h3>
+<p>The mobile app's Animal Mortality Record screen captures the initial report in the field: species, ear tag (RFID scannable), cause of death, disposal method, veterinary attendance, post-mortem details, BCMS notification, and an optional photo attachment (e.g. disposal certificate). Records sync automatically when the device reconnects and appear in the Mortality register at Reported stage.</p>`,
+    },
+    {
+      id: 10075,
+      title: "Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow",
+      category: "Organic Viticulture",
+      content: `<h2>Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow</h2>
+
+<p>The Input Derogations register uses a two-stage workflow that separates the application from the certifier's decision. This keeps your availability search evidence, justification, and application date cleanly separated from the decision outcome — exactly how certifiers and UK Organic Regulations 2020 auditors expect to see derogation records presented.</p>
+
+<h3>Stage 1 — New Case (Application)</h3>
+<p>Click <strong>New Case</strong> on the Input Derogations tab. The form captures application details only:</p>
+<ul>
+<li>Input name (e.g. Copper Hydroxide WP)</li>
+<li>Input type (fungicide, fertiliser, biostimulant, etc.)</li>
+<li>Regulatory basis (e.g. UK Organic Regulations 2020, Schedule 1 Part B)</li>
+<li>Certifying body</li>
+<li>Certifier reference (your certifier's internal case reference, if issued at application stage)</li>
+<li>Availability search date and availability search reference number</li>
+<li>Application date (date you submitted the derogation request to your certifier)</li>
+<li>Vintage year</li>
+<li>Justification — a written explanation of why the approved organic equivalent was not available in sufficient quantity or appropriate form</li>
+</ul>
+<p>The case is saved at <strong>Pending</strong> status. No decision fields are populated at this stage.</p>
+
+<h3>Stage 2 — Record Decision</h3>
+<p>Once you receive a decision from your certifier, find the case card in the register and click <strong>Record Decision →</strong>. The decision dialog captures:</p>
+<ul>
+<li>Decision date (date the certifier issued their decision)</li>
+<li>Status — Approved, Refused, Withdrawn, or Expired</li>
+<li>Expiry date (for Approved cases — when the derogation authorisation expires)</li>
+<li>Approval conditions (any conditions the certifier has attached to an approval, e.g. maximum quantity, application window, mandatory record-keeping)</li>
+</ul>
+<p>Save — the case card updates to show the new status badge and, for Approved cases, the expiry urgency badge (amber at 90 days, red at 30 days).</p>
+
+<h3>Correspondence Log</h3>
+<p>Expand any case card to view and add correspondence entries. Each entry records date, direction (Inbound / Outbound), type (Email, Letter, Phone Call, Portal Submission, Decision Notice, Certificate, or Other), a summary, and a reference number. This builds a complete paper trail from your initial availability search enquiries through to the final decision notice.</p>
+
+<h3>Document Attachments</h3>
+<p>Attach supporting documents directly to the case record — availability search evidence, justification letters, certifier correspondence, and the final approval or refusal notice. Documents are stored against the case and available for download during inspections.</p>
+
+<h3>Mobile App</h3>
+<p>The mobile app's Organic Viticulture Derogations screen provides a read-only view of all active and historical derogation cases. Tap any case to view full details including certifier, dates, expiry urgency, justification, and approval conditions. To add correspondence, upload documents, or progress a case to a decision, use the dashboard at Organic Viticulture → Input Derogations.</p>`,
+    },
   ];
 
   // Overlay published DB articles: replace matching hardcoded entries by ID, append DB-only articles

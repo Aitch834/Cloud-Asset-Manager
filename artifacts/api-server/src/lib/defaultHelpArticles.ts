@@ -230,6 +230,10 @@ const TITLES: [string, string][] = [
   ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
   ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
   ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance (Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production)", "Organic Viticulture"],
+  ["Accident Book — Four-Stage Investigation Workflow", "Health, Safety & Risk"],
+  ["Vet Health Plans — Recording Action Completion and Manager Sign-Off", "Livestock"],
+  ["Livestock Mortality Records — Four-Stage Disposal Tracking", "Livestock"],
+  ["Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow", "Organic Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({
