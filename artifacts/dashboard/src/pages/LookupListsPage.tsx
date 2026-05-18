@@ -14,7 +14,6 @@ import {
   X,
   Search,
   ShieldOff,
-  Wheat,
 } from "lucide-react";
 
 interface SummaryDef {
@@ -34,28 +33,58 @@ interface LookupItem {
   isCustom: boolean;
 }
 
-const MODULE_GROUPS: { id: string; label: string; description: string; match: (key: string) => boolean }[] = [
+const MODULE_GROUPS: {
+  id: string;
+  label: string;
+  description: string;
+  match: (key: string) => boolean;
+}[] = [
   {
     id: "general",
     label: "General",
-    description: "Lists used across all farm activities — inspections, grants, transactions, sprays and more.",
+    description:
+      "Lists used across all farm activities — inspections, grants, transactions, sprays and more.",
     match: (k) => !k.startsWith("vineyard_") && !k.startsWith("organic_"),
   },
   {
     id: "viticulture",
     label: "Viticulture",
-    description: "Vineyard-specific lists for varieties, rootstocks, operations and spray records.",
+    description:
+      "Vineyard-specific lists for varieties, rootstocks, operations and spray records.",
     match: (k) => k.startsWith("vineyard_"),
   },
   {
     id: "organic",
     label: "Organic Production",
-    description: "Lists for organic certification, inputs and copper product records.",
+    description:
+      "Lists for organic certification, inputs and copper product records.",
     match: (k) => k.startsWith("organic_"),
   },
 ];
 
-function SectionHeader({ title, description }: { title: string; description?: string }) {
+const PARENT_CHILD_KEYS: Record<
+  string,
+  { childKey: string; parentUnit: string; childUnit: string }
+> = {
+  commodity_types: {
+    childKey: "crop_varieties",
+    parentUnit: "crops",
+    childUnit: "varieties",
+  },
+  livestock_species: {
+    childKey: "livestock_breeds",
+    parentUnit: "species",
+    childUnit: "breeds",
+  },
+};
+
+function SectionHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
   return (
     <div className="pb-2 border-b border-border mb-4">
       <h3 className="text-base font-bold">{title}</h3>
@@ -66,54 +95,69 @@ function SectionHeader({ title, description }: { title: string; description?: st
   );
 }
 
-function CommodityVarietySubRow({
-  commodity,
-  varieties,
+function ParentChildSubRow({
+  parentValue,
+  children,
+  childKey,
+  childUnit,
   farmId,
   canEdit,
-  onVarietyAdded,
-  onVarietyDeleted,
+  onChildAdded,
+  onChildDeleted,
 }: {
-  commodity: string;
-  varieties: LookupItem[];
+  parentValue: string;
+  children: LookupItem[];
+  childKey: string;
+  childUnit: string;
   farmId: number;
   canEdit: boolean;
-  onVarietyAdded: () => void;
-  onVarietyDeleted: () => void;
+  onChildAdded: () => void;
+  onChildDeleted: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [addValue, setAddValue] = useState("");
   const { toast } = useToast();
 
-  const standardVarieties = varieties.filter((v) => !v.isCustom);
-  const customVarieties = varieties.filter((v) => v.isCustom);
+  const standardItems = children.filter((v) => !v.isCustom);
+  const customItems = children.filter((v) => v.isCustom);
 
   const addMut = useMutation({
     mutationFn: (label: string) =>
-      fetch(`/api/farms/${farmId}/lookups/crop_varieties`, {
+      fetch(`/api/farms/${farmId}/lookups/${childKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, groupLabel: commodity }),
+        body: JSON.stringify({ label, groupLabel: parentValue }),
       }).then((r) => {
-        if (!r.ok) return r.json().then((e: { error?: string }) => Promise.reject(e));
+        if (!r.ok)
+          return r
+            .json()
+            .then((e: { error?: string }) => Promise.reject(e));
         return r.json();
       }),
     onSuccess: () => {
+      const added = addValue.trim();
       setAddValue("");
-      onVarietyAdded();
-      toast({ title: `${addValue.trim() || "Variety"} added to ${commodity}` });
+      onChildAdded();
+      toast({ title: `${added} added to ${parentValue}` });
     },
     onError: (e: { error?: string }) =>
-      toast({ title: e?.error ?? "Failed to add variety", variant: "destructive" }),
+      toast({
+        title: e?.error ?? `Failed to add ${childUnit}`,
+        variant: "destructive",
+      }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (itemId: number) =>
-      fetch(`/api/farms/${farmId}/lookups/crop_varieties/${itemId}`, {
+      fetch(`/api/farms/${farmId}/lookups/${childKey}/${itemId}`, {
         method: "DELETE",
       }).then((r) => r.json()),
-    onSuccess: () => onVarietyDeleted(),
-    onError: () => toast({ title: "Failed to remove variety", variant: "destructive" }),
+    onSuccess: () => onChildDeleted(),
+    onError: () =>
+      toast({
+        title: `Failed to remove ${childUnit}`,
+        variant: "destructive",
+      }),
   });
 
   return (
@@ -124,18 +168,20 @@ function CommodityVarietySubRow({
       >
         <ChevronRight
           size={13}
-          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${
+            isOpen ? "rotate-90" : ""
+          }`}
         />
-        <span className="text-sm font-medium flex-1">{commodity}</span>
+        <span className="text-sm font-medium flex-1">{parentValue}</span>
         <div className="flex items-center gap-1.5 shrink-0">
-          {standardVarieties.length > 0 && (
+          {standardItems.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-              {standardVarieties.length} standard
+              {standardItems.length} standard
             </span>
           )}
-          {customVarieties.length > 0 && (
+          {customItems.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
-              +{customVarieties.length} custom
+              +{customItems.length} custom
             </span>
           )}
         </div>
@@ -143,13 +189,13 @@ function CommodityVarietySubRow({
 
       {isOpen && (
         <div className="border-t border-border bg-muted/10 p-3 space-y-3">
-          {standardVarieties.length > 0 && (
+          {standardItems.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                Standard varieties
+                Standard {childUnit}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {standardVarieties.map((v) => (
+                {standardItems.map((v) => (
                   <span
                     key={v.id}
                     className="text-xs px-2.5 py-1 bg-background border border-border rounded-full text-muted-foreground"
@@ -161,13 +207,13 @@ function CommodityVarietySubRow({
             </div>
           )}
 
-          {customVarieties.length > 0 && (
+          {customItems.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                Your custom varieties
+                Your custom {childUnit}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {customVarieties.map((v) => (
+                {customItems.map((v) => (
                   <span
                     key={v.id}
                     className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-green-50 border border-green-200 rounded-full text-green-900"
@@ -181,7 +227,7 @@ function CommodityVarietySubRow({
                         }}
                         disabled={deleteMut.isPending}
                         className="hover:text-red-600 transition-colors ml-0.5 leading-none"
-                        title="Remove custom variety"
+                        title={`Remove custom ${childUnit.replace(/s$/, "")}`}
                       >
                         <X size={10} />
                       </button>
@@ -192,24 +238,27 @@ function CommodityVarietySubRow({
             </div>
           )}
 
-          {!canEdit && standardVarieties.length === 0 && customVarieties.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No varieties listed for this crop.</p>
+          {canEdit && customItems.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              No custom {childUnit} yet — add your own below.
+            </p>
           )}
 
-          {canEdit && customVarieties.length === 0 && (
+          {!canEdit && standardItems.length === 0 && customItems.length === 0 && (
             <p className="text-xs text-muted-foreground italic">
-              No custom varieties yet — add your own below.
+              No {childUnit} listed for this entry.
             </p>
           )}
 
           {canEdit && (
             <div className="flex gap-2 pt-1">
               <Input
-                placeholder={`Add a ${commodity} variety…`}
+                placeholder={`Add a ${parentValue} ${childUnit.replace(/s$/, "")}…`}
                 value={addValue}
                 onChange={(e) => setAddValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && addValue.trim()) addMut.mutate(addValue.trim());
+                  if (e.key === "Enter" && addValue.trim())
+                    addMut.mutate(addValue.trim());
                 }}
                 className="text-sm h-8"
               />
@@ -234,7 +283,8 @@ function CommodityVarietySubRow({
 
           {!canEdit && (
             <p className="text-xs text-muted-foreground italic">
-              Manager role or above is required to add or remove custom varieties.
+              Manager role or above is required to add or remove custom{" "}
+              {childUnit}.
             </p>
           )}
         </div>
@@ -243,14 +293,20 @@ function CommodityVarietySubRow({
   );
 }
 
-function CommodityTypesRow({
+function ParentChildLookupRow({
   def,
-  varietiesDef,
+  childDef,
+  childKey,
+  parentUnit,
+  childUnit,
   farmId,
   canEdit,
 }: {
   def: SummaryDef;
-  varietiesDef: SummaryDef | undefined;
+  childDef: SummaryDef | undefined;
+  childKey: string;
+  parentUnit: string;
+  childUnit: string;
   farmId: number;
   canEdit: boolean;
 }) {
@@ -258,30 +314,31 @@ function CommodityTypesRow({
   const { tenantSlug } = useAppStore();
   const queryClient = useQueryClient();
 
-  const commoditiesQ = useQuery<{ items: LookupItem[] }>({
-    queryKey: ["lookup-items", "commodity_types"],
-    queryFn: () => fetch("/api/lookups/commodity_types").then((r) => r.json()),
+  const parentQ = useQuery<{ items: LookupItem[] }>({
+    queryKey: ["lookup-items", def.key],
+    queryFn: () => fetch(`/api/lookups/${def.key}`).then((r) => r.json()),
     enabled: isOpen,
   });
 
-  const varietiesQ = useQuery<{ items: LookupItem[] }>({
-    queryKey: ["lookup-items", "crop_varieties"],
-    queryFn: () => fetch("/api/lookups/crop_varieties").then((r) => r.json()),
+  const childrenQ = useQuery<{ items: LookupItem[] }>({
+    queryKey: ["lookup-items", childKey],
+    queryFn: () => fetch(`/api/lookups/${childKey}`).then((r) => r.json()),
     enabled: isOpen,
   });
 
-  const commodities = commoditiesQ.data?.items ?? [];
-  const allVarieties = varietiesQ.data?.items ?? [];
+  const parentItems = parentQ.data?.items ?? [];
+  const allChildren = childrenQ.data?.items ?? [];
 
-  const handleVarietyChange = () => {
-    queryClient.invalidateQueries({ queryKey: ["lookup-items", "crop_varieties"] });
+  const handleChildChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["lookup-items", childKey] });
     queryClient.invalidateQueries({ queryKey: ["lookups-summary", tenantSlug] });
   };
 
-  const isLoading = (commoditiesQ.isLoading || varietiesQ.isLoading) && isOpen;
+  const isLoading = (parentQ.isLoading || childrenQ.isLoading) && isOpen;
 
-  const customVarietyCount = varietiesDef?.customCount ?? 0;
-  const totalVarietyCount = (varietiesDef?.standardCount ?? 0) + customVarietyCount;
+  const customChildCount = childDef?.customCount ?? 0;
+  const totalChildCount =
+    (childDef?.standardCount ?? 0) + customChildCount;
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -291,13 +348,12 @@ function CommodityTypesRow({
       >
         <ChevronRight
           size={15}
-          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${
+            isOpen ? "rotate-90" : ""
+          }`}
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold leading-snug">{def.label}</p>
-            <Wheat size={13} className="text-muted-foreground shrink-0" />
-          </div>
+          <p className="text-sm font-semibold leading-snug">{def.label}</p>
           {def.description && (
             <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-1">
               {def.description}
@@ -306,16 +362,16 @@ function CommodityTypesRow({
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-            {def.standardCount} crops
+            {def.standardCount} {parentUnit}
           </span>
-          {totalVarietyCount > 0 && (
+          {totalChildCount > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-              {totalVarietyCount} varieties
+              {totalChildCount} {childUnit}
             </span>
           )}
-          {customVarietyCount > 0 && (
+          {customChildCount > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
-              +{customVarietyCount} custom
+              +{customChildCount} custom
             </span>
           )}
         </div>
@@ -330,21 +386,25 @@ function CommodityTypesRow({
             </div>
           )}
 
-          {!isLoading && commodities.map((c) => (
-            <CommodityVarietySubRow
-              key={c.id}
-              commodity={c.value}
-              varieties={allVarieties.filter((v) => v.groupLabel === c.value)}
-              farmId={farmId}
-              canEdit={canEdit}
-              onVarietyAdded={handleVarietyChange}
-              onVarietyDeleted={handleVarietyChange}
-            />
-          ))}
+          {!isLoading &&
+            parentItems.map((p) => (
+              <ParentChildSubRow
+                key={p.id}
+                parentValue={p.value}
+                children={allChildren.filter((c) => c.groupLabel === p.value)}
+                childKey={childKey}
+                childUnit={childUnit}
+                farmId={farmId}
+                canEdit={canEdit}
+                onChildAdded={handleChildChange}
+                onChildDeleted={handleChildChange}
+              />
+            ))}
 
           {def.authority && !isLoading && (
             <p className="text-xs text-muted-foreground pt-2 border-t border-border mt-2">
-              Commodity types: {def.authority} · Varieties: AHDB Recommended Lists / NIAB
+              {def.label}: {def.authority}
+              {childDef?.authority ? ` · ${childDef.label}: ${childDef.authority}` : ""}
             </p>
           )}
         </div>
@@ -380,7 +440,10 @@ function LookupListRow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label }),
       }).then((r) => {
-        if (!r.ok) return r.json().then((e: { error?: string }) => Promise.reject(e));
+        if (!r.ok)
+          return r
+            .json()
+            .then((e: { error?: string }) => Promise.reject(e));
         return r.json();
       }),
     onSuccess: () => {
@@ -390,7 +453,10 @@ function LookupListRow({
       toast({ title: "Item added" });
     },
     onError: (e: { error?: string }) =>
-      toast({ title: e?.error ?? "Failed to add item", variant: "destructive" }),
+      toast({
+        title: e?.error ?? "Failed to add item",
+        variant: "destructive",
+      }),
   });
 
   const deleteMut = useMutation({
@@ -402,7 +468,8 @@ function LookupListRow({
       queryClient.invalidateQueries({ queryKey: ["lookup-items", def.key] });
       queryClient.invalidateQueries({ queryKey: ["lookups-summary", farmId] });
     },
-    onError: () => toast({ title: "Failed to remove item", variant: "destructive" }),
+    onError: () =>
+      toast({ title: "Failed to remove item", variant: "destructive" }),
   });
 
   const items = itemsQ.data?.items ?? [];
@@ -418,7 +485,9 @@ function LookupListRow({
       if (!seen.has(key)) seen.set(key, []);
       seen.get(key)!.push(item);
     }
-    seen.forEach((groupItems, group) => standardGroups.push({ group, items: groupItems }));
+    seen.forEach((groupItems, group) =>
+      standardGroups.push({ group, items: groupItems })
+    );
   }
 
   return (
@@ -429,7 +498,9 @@ function LookupListRow({
       >
         <ChevronRight
           size={15}
-          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${
+            isOpen ? "rotate-90" : ""
+          }`}
         />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold leading-snug">{def.label}</p>
@@ -471,7 +542,9 @@ function LookupListRow({
                 <div className="space-y-3">
                   {standardGroups.map(({ group, items: gItems }) => (
                     <div key={group}>
-                      <p className="text-xs font-medium text-foreground mb-1.5">{group}</p>
+                      <p className="text-xs font-medium text-foreground mb-1.5">
+                        {group}
+                      </p>
                       <div className="flex flex-wrap gap-1.5">
                         {gItems.map((item) => (
                           <span
@@ -531,11 +604,13 @@ function LookupListRow({
             </div>
           )}
 
-          {!itemsQ.isLoading && customItems.length === 0 && standardItems.length > 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              No custom items yet — add your own below.
-            </p>
-          )}
+          {!itemsQ.isLoading &&
+            customItems.length === 0 &&
+            standardItems.length > 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                No custom items yet — add your own below.
+              </p>
+            )}
 
           {canEdit && (
             <div className="flex gap-2 pt-1">
@@ -544,7 +619,8 @@ function LookupListRow({
                 value={addValue}
                 onChange={(e) => setAddValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && addValue.trim()) addMut.mutate(addValue.trim());
+                  if (e.key === "Enter" && addValue.trim())
+                    addMut.mutate(addValue.trim());
                 }}
                 className="text-sm h-8"
               />
@@ -595,7 +671,8 @@ export default function LookupListsPage() {
     queryKey: ["lookups-summary", tenantSlug],
     queryFn: async () => {
       const res = await fetch(`/api/lookups/summary`);
-      if (!res.ok) throw new Error(`Failed to load lookup lists (${res.status})`);
+      if (!res.ok)
+        throw new Error(`Failed to load lookup lists (${res.status})`);
       return res.json();
     },
     retry: 1,
@@ -603,17 +680,19 @@ export default function LookupListsPage() {
 
   const allDefs = summaryQ.data?.definitions ?? [];
 
-  const varietiesDef = allDefs.find((d) => d.key === "crop_varieties");
+  const hiddenChildKeys = new Set(
+    Object.values(PARENT_CHILD_KEYS).map((v) => v.childKey)
+  );
 
   const filtered = (
     search.trim()
       ? allDefs.filter(
           (d) =>
             d.label.toLowerCase().includes(search.toLowerCase()) ||
-            d.description?.toLowerCase().includes(search.toLowerCase()),
+            d.description?.toLowerCase().includes(search.toLowerCase())
         )
       : allDefs
-  ).filter((d) => d.key !== "crop_varieties");
+  ).filter((d) => !hiddenChildKeys.has(d.key));
 
   const visibleGroups = MODULE_GROUPS.map((group) => ({
     ...group,
@@ -674,25 +753,38 @@ export default function LookupListsPage() {
         {visibleGroups.map((group) => (
           <Card key={group.id}>
             <CardContent className="p-6 space-y-3">
-              <SectionHeader title={group.label} description={group.description} />
-              {group.defs.map((def) =>
-                def.key === "commodity_types" ? (
-                  <CommodityTypesRow
-                    key={def.key}
-                    def={def}
-                    varietiesDef={varietiesDef}
-                    farmId={farmId!}
-                    canEdit={canEdit}
-                  />
-                ) : (
+              <SectionHeader
+                title={group.label}
+                description={group.description}
+              />
+              {group.defs.map((def) => {
+                const pcConfig = PARENT_CHILD_KEYS[def.key];
+                if (pcConfig) {
+                  const childDef = allDefs.find(
+                    (d) => d.key === pcConfig.childKey
+                  );
+                  return (
+                    <ParentChildLookupRow
+                      key={def.key}
+                      def={def}
+                      childDef={childDef}
+                      childKey={pcConfig.childKey}
+                      parentUnit={pcConfig.parentUnit}
+                      childUnit={pcConfig.childUnit}
+                      farmId={farmId!}
+                      canEdit={canEdit}
+                    />
+                  );
+                }
+                return (
                   <LookupListRow
                     key={def.key}
                     def={def}
                     farmId={farmId!}
                     canEdit={canEdit}
                   />
-                )
-              )}
+                );
+              })}
             </CardContent>
           </Card>
         ))}
