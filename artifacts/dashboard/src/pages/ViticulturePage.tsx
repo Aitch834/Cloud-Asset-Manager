@@ -24,6 +24,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { useToast } from "@/hooks/use-toast";
 import { VineyardBlockBoundaryMapDialog } from "@/components/viticulture/VineyardBlockBoundaryMapDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLookupStrings } from "@/hooks/use-lookup";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -325,6 +326,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
   const [form, setForm] = useState<VineReg>({});
   const [viewing, setViewing] = useState<VineReg | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<VineReg | null>(null);
+  const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
 
   const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
   const openEdit = (r: VineReg) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -436,7 +438,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
                 <Label>Registered Variety *</Label>
                 <Select value={String(form.registeredVariety ?? "")} onValueChange={v => sf("registeredVariety", v)}>
                   <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
-                  <SelectContent>{UK_GRAPE_VARIETIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  <SelectContent>{varieties.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
@@ -509,6 +511,9 @@ function plantingStatusBadge(status: unknown) {
 }
 
 function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unknown) => void }) {
+  const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
+  const rootstocks = useLookupStrings("vineyard_rootstocks", UK_ROOTSTOCKS);
+  const trainingSystems = useLookupStrings("vineyard_training_systems", ["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"]);
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -516,7 +521,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
           <Label>Variety *</Label>
           <Select value={String(form.variety ?? "")} onValueChange={v => sf("variety", v)}>
             <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
-            <SelectContent>{UK_GRAPE_VARIETIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+            <SelectContent>{varieties.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div><Label>Clone</Label><Input value={String(form.clone ?? "")} onChange={e => sf("clone", e.target.value)} placeholder="e.g. Chardonnay 96" /></div>
@@ -526,7 +531,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
           <Label>Rootstock</Label>
           <Select value={String(form.rootstock ?? "")} onValueChange={v => sf("rootstock", v)}>
             <SelectTrigger><SelectValue placeholder="Select rootstock…" /></SelectTrigger>
-            <SelectContent>{UK_ROOTSTOCKS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+            <SelectContent>{rootstocks.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div><Label>Planting Year</Label><Input type="number" min="1900" max={new Date().getFullYear()} value={String(form.plantingYear ?? "")} onChange={e => sf("plantingYear", e.target.value)} placeholder="e.g. 2018" /></div>
@@ -546,7 +551,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
           <Select value={String(form.trainingSystem ?? "")} onValueChange={v => sf("trainingSystem", v)}>
             <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
             <SelectContent>
-              {["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              {trainingSystems.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -1131,6 +1136,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [viewing, setViewing] = useState<Operation | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const operationTypes = useLookupStrings("vineyard_operation_types", OPERATION_TYPES);
 
   const openAdd = () => { setForm({ operationDate: today, operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Operation) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -1265,7 +1271,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
               <Label>Operation Type *</Label>
               <Select value={String(form.operationType ?? "")} onValueChange={v => sf("operationType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
-                <SelectContent>{OPERATION_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>{operationTypes.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             {isPruning && (
@@ -2572,6 +2578,11 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
     staleTime: 120_000,
   });
   const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
+  const sprayTypes = useLookupStrings("spray_product_categories", SPRAY_PRODUCT_TYPES);
+  const sprayMethods = useLookupStrings("vineyard_spray_application_methods", SPRAY_APPLICATION_METHODS);
+  const rateUnits = useLookupStrings("vineyard_spray_rate_units", ["L/ha", "mL/ha", "kg/ha", "g/ha", "Other"]);
+  const qtyUnits = useLookupStrings("vineyard_spray_quantity_units", ["L", "mL", "kg", "g", "Other"]);
+  const weatherOptions = useLookupStrings("vineyard_weather_conditions", ["Clear and calm", "Overcast, dry, calm", "Light breeze (< 3 mph)", "Moderate breeze (3–5 mph)", "Other"]);
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -2688,27 +2699,45 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
               <Label>Product Type</Label>
               <Select value={String(form.productType ?? "")} onValueChange={v => sfv("productType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>{SPRAY_PRODUCT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectContent>{sprayTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label>Application Method</Label>
               <Select value={String(form.applicationMethod ?? "")} onValueChange={v => sfv("applicationMethod", v)}>
                 <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                <SelectContent>{SPRAY_APPLICATION_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{sprayMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label>Rate per Hectare</Label><Input type="number" step="0.001" value={String(form.ratePerHectare ?? "")} onChange={sf("ratePerHectare")} /></div>
-            <div><Label>Rate Unit</Label><Input value={String(form.rateUnit ?? "")} onChange={sf("rateUnit")} placeholder="e.g. L/ha, g/ha" /></div>
+            <div>
+              <Label>Rate Unit</Label>
+              <Select value={String(form.rateUnit ?? "")} onValueChange={v => sfv("rateUnit", v)}>
+                <SelectTrigger><SelectValue placeholder="Select unit…" /></SelectTrigger>
+                <SelectContent>{rateUnits.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Total Qty Applied</Label><Input type="number" step="0.001" value={String(form.totalQuantityApplied ?? "")} onChange={sf("totalQuantityApplied")} /></div>
-            <div><Label>Quantity Unit</Label><Input value={String(form.quantityUnit ?? "")} onChange={sf("quantityUnit")} placeholder="e.g. L, g, kg" /></div>
+            <div>
+              <Label>Quantity Unit</Label>
+              <Select value={String(form.quantityUnit ?? "")} onValueChange={v => sfv("quantityUnit", v)}>
+                <SelectTrigger><SelectValue placeholder="Select unit…" /></SelectTrigger>
+                <SelectContent>{qtyUnits.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Area Treated (ha)</Label><Input type="number" step="0.0001" value={String(form.areaTreatedHa ?? "")} onChange={sf("areaTreatedHa")} /></div>
             <div><Label>Water Volume (L/ha)</Label><Input type="number" value={String(form.waterVolumeLPerHa ?? "")} onChange={sf("waterVolumeLPerHa")} /></div>
             <div><Label>Re-entry Period (hrs)</Label><Input type="number" value={String(form.reentryPeriodHours ?? "")} onChange={sf("reentryPeriodHours")} /></div>
             <div><Label>Harvest Interval (days)</Label><Input type="number" value={String(form.harvestIntervalDays ?? "")} onChange={sf("harvestIntervalDays")} /></div>
             <div><Label>Wind Speed (mph)</Label><Input type="number" step="0.1" value={String(form.windSpeedMph ?? "")} onChange={sf("windSpeedMph")} /></div>
             <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureCelsius ?? "")} onChange={sf("temperatureCelsius")} /></div>
-            <div className="col-span-2"><Label>Weather Conditions</Label><Input value={String(form.weatherConditions ?? "")} onChange={sf("weatherConditions")} placeholder="e.g. Overcast, dry, no wind" /></div>
+            <div className="col-span-2">
+              <Label>Weather Conditions</Label>
+              <Select value={String(form.weatherConditions ?? "")} onValueChange={v => sfv("weatherConditions", v)}>
+                <SelectTrigger><SelectValue placeholder="Select conditions…" /></SelectTrigger>
+                <SelectContent>{weatherOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Operator</Label>
               <StaffSelect value={String(form.operatorName ?? "")} onChange={v => sfv("operatorName", v)} staffNames={staffNames} loading={staffLoading} />
@@ -2744,6 +2773,8 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+  const analysisTypes = useLookupStrings("vineyard_soil_analysis_types", SOIL_ANALYSIS_TYPES);
+  const labOptions = useLookupStrings("vineyard_laboratories", ["NRM Group", "Lancrop Laboratories", "ADAS Analytical Services", "Eurofins Agro UK", "Other"]);
 
   const openAdd = () => { setEditing(null); setForm({ analysisDate: today }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
@@ -2835,10 +2866,16 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
               <Label>Analysis Type</Label>
               <Select value={String(form.analysisType ?? "")} onValueChange={v => sfv("analysisType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>{SOIL_ANALYSIS_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectContent>{analysisTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Laboratory Name</Label><Input value={String(form.labName ?? "")} onChange={sf("labName")} placeholder="e.g. NRM, Lancrop" /></div>
+            <div>
+              <Label>Laboratory Name</Label>
+              <Select value={String(form.labName ?? "")} onValueChange={v => sfv("labName", v)}>
+                <SelectTrigger><SelectValue placeholder="Select laboratory…" /></SelectTrigger>
+                <SelectContent>{labOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Sample Reference</Label><Input value={String(form.sampleReference ?? "")} onChange={sf("sampleReference")} /></div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide col-span-2 pt-1">Nutrient Values</p>
             <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={sf("ph")} /></div>

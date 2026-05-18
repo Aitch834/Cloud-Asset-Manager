@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useLookupStrings } from "@/hooks/use-lookup";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -198,6 +199,8 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
   });
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
+  const landUseTypes = useLookupStrings("organic_land_use_types", ["Conventional arable", "Conventional grassland", "Set-aside / fallow", "Woodland / forestry", "Previously certified organic", "Other"]);
 
   const records = data?.records ?? [];
 
@@ -258,12 +261,24 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
                 <SelectContent>{BLOCK_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.replace("-", " ").replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Certifying Body</Label><Input value={form.certifyingBody ?? ""} onChange={sf("certifyingBody")} placeholder="e.g. Soil Association" /></div>
+            <div>
+              <Label>Certifying Body</Label>
+              <Select value={form.certifyingBody ?? ""} onValueChange={v => setForm(f => ({ ...f, certifyingBody: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select certifying body…" /></SelectTrigger>
+                <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Conversion Start Date</Label><Input type="date" value={form.conversionStartDate ?? ""} onChange={sf("conversionStartDate")} /></div>
               <div><Label>Fully Organic Date</Label><Input type="date" value={form.fullyOrganicDate ?? ""} onChange={sf("fullyOrganicDate")} /></div>
             </div>
-            <div><Label>Pre-conversion Land Use</Label><Input value={form.preConversionLandUse ?? ""} onChange={sf("preConversionLandUse")} placeholder="e.g. Conventional arable" /></div>
+            <div>
+              <Label>Pre-conversion Land Use</Label>
+              <Select value={form.preConversionLandUse ?? ""} onValueChange={v => setForm(f => ({ ...f, preConversionLandUse: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select land use…" /></SelectTrigger>
+                <SelectContent>{landUseTypes.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Synthetic Input History</Label><Textarea value={form.syntheticHistory ?? ""} onChange={sf("syntheticHistory")} placeholder="Note any synthetic pesticide/fertiliser history relevant to conversion" rows={2} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
@@ -304,6 +319,7 @@ function InputLogTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const inputUnits = useLookupStrings("organic_input_units", ["kg/ha", "g/ha", "L/ha", "mL/ha", "kg", "g", "L", "mL", "t/ha", "Other"]);
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-input-log", farmId],
@@ -425,7 +441,13 @@ function InputLogTab({ farmId }: { farmId: number }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Quantity</Label><Input value={form.quantity ?? ""} onChange={sf("quantity")} placeholder="e.g. 3.0" /></div>
-              <div><Label>Unit</Label><Input value={form.unit ?? ""} onChange={sf("unit")} placeholder="e.g. kg/ha" /></div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={form.unit ?? ""} onValueChange={v => setForm(f => ({ ...f, unit: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select unit…" /></SelectTrigger>
+                  <SelectContent>{inputUnits.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <div><Label>Supplier</Label><Input value={form.supplier ?? ""} onChange={sf("supplier")} /></div>
             <div>
@@ -475,6 +497,8 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const copperProducts = useLookupStrings("organic_copper_products", ["Bordeaux Mixture WP", "Copper Hydroxide WP", "Copper Oxychloride WP", "Copper Sulfate (tribasic)", "Nordox 75 WG", "Trophy WG", "Other"]);
+  const sprayMethods = useLookupStrings("vineyard_spray_application_methods", ["Knapsack Sprayer", "Tractor-mounted Boom Sprayer", "Air-blast / Vineyard Sprayer", "Lean-to / Facing Sprayer", "Drone Application", "Hand-held Lance", "Other"]);
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-copper-log", farmId],
@@ -603,7 +627,13 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Application Date *</Label><Input type="date" value={form.applicationDate ?? ""} onChange={sf("applicationDate")} /></div>
-              <div><Label>Product Name *</Label><Input value={form.productName ?? ""} onChange={sf("productName")} placeholder="e.g. Bordeaux Mixture 20WG" /></div>
+              <div>
+                <Label>Product Name *</Label>
+                <Select value={form.productName ?? ""} onValueChange={v => setForm(f => ({ ...f, productName: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select copper product…" /></SelectTrigger>
+                  <SelectContent>{copperProducts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Block Name</Label><Input value={form.blockName ?? ""} onChange={sf("blockName")} placeholder="Whole vineyard or specific block" /></div>
@@ -624,7 +654,13 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
               <div><Label>Copper kg Applied *</Label><Input type="number" value={form.copperKgApplied ?? ""} onChange={sf("copperKgApplied")} placeholder="Actual kg Cu applied" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Application Method</Label><Input value={form.applicationMethod ?? ""} onChange={sf("applicationMethod")} placeholder="e.g. Tractor sprayer" /></div>
+              <div>
+                <Label>Application Method</Label>
+                <Select value={form.applicationMethod ?? ""} onValueChange={v => setForm(f => ({ ...f, applicationMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select method…" /></SelectTrigger>
+                  <SelectContent>{sprayMethods.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div><Label>Operator</Label><Input value={form.operatorName ?? ""} onChange={sf("operatorName")} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
@@ -683,6 +719,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
 
   // Correspondence
   const [showAddCorr, setShowAddCorr] = useState(false);
@@ -910,9 +947,23 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div><Label>Regulatory Basis</Label><Input value={form.regulatoryBasis ?? ""} onChange={sf("regulatoryBasis")} placeholder="e.g. UK Organic Regs 2020, Sch. 1 Part B" /></div>
+            <div>
+              <Label>Regulatory Basis</Label>
+              <Select value={form.regulatoryBasis ?? ""} onValueChange={v => setForm(f => ({ ...f, regulatoryBasis: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select regulatory basis…" /></SelectTrigger>
+                <SelectContent>
+                  {["UK Organic Regs 2020, Sch. 1 Part A", "UK Organic Regs 2020, Sch. 1 Part B", "UK Organic Regs 2020, Annex II", "Certifier derogation guidance", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Certifier</Label><Input value={form.certifier ?? ""} onChange={sf("certifier")} placeholder="e.g. Soil Association" /></div>
+              <div>
+              <Label>Certifier</Label>
+              <Select value={form.certifier ?? ""} onValueChange={v => setForm(f => ({ ...f, certifier: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select certifying body…" /></SelectTrigger>
+                <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
               <div><Label>Certifier Reference</Label><Input value={form.certifierRef ?? ""} onChange={sf("certifierRef")} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1035,6 +1086,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-certs", farmId],
@@ -1140,7 +1192,13 @@ function CertificatesTab({ farmId }: { farmId: number }) {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Certifying Body *</Label><Input value={form.certifyingBody ?? ""} onChange={sf("certifyingBody")} placeholder="e.g. Soil Association" /></div>
+            <div>
+              <Label>Certifying Body *</Label>
+              <Select value={form.certifyingBody ?? ""} onValueChange={v => setForm(f => ({ ...f, certifyingBody: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select certifying body…" /></SelectTrigger>
+                <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Certificate Number</Label><Input value={form.certificateNumber ?? ""} onChange={sf("certificateNumber")} /></div>
               <div>
