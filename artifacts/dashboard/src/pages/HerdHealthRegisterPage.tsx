@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Printer, Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Printer, Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { printProReport } from "@/lib/print-report";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ function SourceBadge({ source }: { source: string }) {
 }
 
 // ─── Timeline Entry ───────────────────────────────────────────────────────────
-function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: any) => void; onDelete: (e: any) => void }) {
+function TimelineEntry({ entry, onEdit, onDelete, onRaiseTask }: { entry: any; onEdit: (e: any) => void; onDelete: (e: any) => void; onRaiseTask?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const m = SOURCE_META[entry.source] ?? SOURCE_META["clinical_event"];
   const isOverdue = entry.followUpRequired && !entry.followUpCompleted && entry.followUpDate && new Date(entry.followUpDate) < new Date();
@@ -188,8 +189,16 @@ function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: an
                 </div>
               )}
               {entry.followUpRequired && (
-                <div style={{ marginTop: 8, padding: "6px 10px", background: isOverdue ? "#fef2f2" : "#fff7ed", border: `1px solid ${isOverdue ? "#fecaca" : "#fed7aa"}`, borderRadius: 6, fontSize: "0.78rem", color: isOverdue ? "#991b1b" : "#c2410c" }}>
-                  Follow-up required by {fmt(entry.followUpDate)} · {entry.followUpCompleted ? "Completed" : isOverdue ? "OVERDUE" : "Pending"}
+                <div style={{ marginTop: 8, padding: "6px 10px", background: isOverdue ? "#fef2f2" : "#fff7ed", border: `1px solid ${isOverdue ? "#fecaca" : "#fed7aa"}`, borderRadius: 6, fontSize: "0.78rem", color: isOverdue ? "#991b1b" : "#c2410c", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span>Follow-up required by {fmt(entry.followUpDate)} · {entry.followUpCompleted ? "Completed" : isOverdue ? "OVERDUE" : "Pending"}</span>
+                  {!entry.followUpCompleted && onRaiseTask && (
+                    <button
+                      onClick={onRaiseTask}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "#c2410c", background: "rgba(194,65,12,0.08)", border: "1px solid #fed7aa", borderRadius: 5, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      <ClipboardList size={11} />Raise Task
+                    </button>
+                  )}
                 </div>
               )}
               {entry.recordedBy && <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 6, marginBottom: 0 }}>Recorded by: {entry.recordedBy}</p>}
@@ -363,6 +372,7 @@ export default function HerdHealthRegisterPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<any | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<any | null>(null);
   const [filterSource, setFilterSource] = useState<string>("__all__");
   const [filterHerd, setFilterHerd] = useState<string>("__all__");
   const [filterFrom, setFilterFrom] = useState<string>("");
@@ -564,6 +574,7 @@ export default function HerdHealthRegisterPage() {
                     entry={entry}
                     onEdit={(raw) => { setEditRecord(raw); setAddOpen(true); }}
                     onDelete={(raw) => setDeleteRecord(raw)}
+                    onRaiseTask={() => setRaiseTaskFor(entry)}
                   />
                 ))}
               </div>
@@ -586,6 +597,16 @@ export default function HerdHealthRegisterPage() {
             farmId={farmId}
             onClose={() => setDeleteRecord(null)}
             onDeleted={invalidate}
+          />
+        )}
+
+        {raiseTaskFor && (
+          <RaiseTaskDialog
+            farmId={farmId}
+            open={!!raiseTaskFor}
+            onClose={() => setRaiseTaskFor(null)}
+            defaultTitle={`Vet Follow-up — ${raiseTaskFor.title ?? "Health Event"}`}
+            defaultDescription={`Follow-up required by ${raiseTaskFor.followUpDate ? new Date(raiseTaskFor.followUpDate).toLocaleDateString("en-GB") : "—"}${raiseTaskFor.herdLabel ? ` · ${raiseTaskFor.herdLabel}` : ""}${raiseTaskFor.detail ? ` · ${raiseTaskFor.detail}` : ""}`}
           />
         )}
       </div>

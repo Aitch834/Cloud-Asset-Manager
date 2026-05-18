@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -467,6 +467,7 @@ function HealthTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: vaccRows = [], isLoading: vLoading } = useQuery({ queryKey: ["sheep-vacc", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-vaccination-programmes`), { credentials: "include" }).then(r => r.json()) });
   const { data: diseaseRows = [], isLoading: dLoading } = useQuery({ queryKey: ["sheep-disease", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-disease-monitoring`), { credentials: "include" }).then(r => r.json()) });
@@ -578,9 +579,25 @@ function HealthTab({ farmId }: { farmId: number }) {
               {[["Date", fmtDate(viewing.observationDate)], ["Condition", fmt(viewing.condition)], ["Animals Affected", fmt(viewing.numberOfAnimalsAffected)], ["Severity", fmt(viewing.severity)], ["Action Taken", fmt(viewing.actionTaken)], ["Vet Consulted", viewing.vetConsulted ? "Yes" : "No"], ["Vet Name", fmt(viewing.vetName)], ["Treatment Product", fmt(viewing.treatmentProduct)], ["Outcome", fmt(viewing.outcome)], ["Reportable Disease", viewing.reportableDisease ? "Yes" : "No"], ["AHRBI Notified", viewing.ahrbiNotified ? "Yes" : "No"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
               {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
             </div>}
-            <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+              {viewing?.reportableDisease && (
+                <Button size="sm" variant="outline" className="text-red-700 border-red-200 hover:bg-red-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}>
+                  <ClipboardList className="w-3.5 h-3.5 mr-1" />Raise APHA Task
+                </Button>
+              )}
+            </DialogFooter>
           </DialogContent>
         </Dialog>
+        {raiseTaskFor && (
+          <RaiseTaskDialog
+            farmId={farmId}
+            open={!!raiseTaskFor}
+            onClose={() => setRaiseTaskFor(null)}
+            defaultTitle={`Notifiable Disease — APHA Notification — ${raiseTaskFor.condition ?? "Suspected case"}`}
+            defaultDescription={`Observation: ${fmtDate(raiseTaskFor.observationDate)} · Animals affected: ${raiseTaskFor.numberOfAnimalsAffected ?? "—"} · Severity: ${raiseTaskFor.severity ?? "—"}. Contact APHA immediately on 03000 200 301 (24 hr). Do not move animals until an APHA vet authorises movement. Failure to report is a criminal offence under the Animal Health Act 1981.`}
+          />
+        )}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Disease Record</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3">
@@ -612,6 +629,16 @@ function HealthTab({ farmId }: { farmId: number }) {
                 <div className="flex items-center gap-2"><Checkbox checked={form.reportableDisease === "true"} onCheckedChange={v => sf("reportableDisease", v ? "true" : "false")} id="rd" /><Label htmlFor="rd">Reportable disease</Label></div>
                 <div className="flex items-center gap-2"><Checkbox checked={form.ahrbiNotified === "true"} onCheckedChange={v => sf("ahrbiNotified", v ? "true" : "false")} id="ahrb" /><Label htmlFor="ahrb">AHRBI notified</Label></div>
               </div>
+              {form.reportableDisease === "true" && (
+                <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800 space-y-1.5">
+                  <p className="font-semibold flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />Notifiable disease — statutory reporting obligation</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li>You must notify APHA <strong>immediately</strong>. Failure to report is a criminal offence under the Animal Health Act 1981.</li>
+                    <li>Do not move animals on or off the holding until authorised by an APHA vet.</li>
+                    <li>APHA report line: <strong>03000 200 301</strong> (England) — 24 hours, 7 days.</li>
+                  </ul>
+                </div>
+              )}
               <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => saveDisease.mutate({ ...form })} disabled={saveDisease.isPending}>{editing ? "Save" : "Add"}</Button></DialogFooter>

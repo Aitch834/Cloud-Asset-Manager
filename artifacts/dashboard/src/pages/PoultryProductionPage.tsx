@@ -1649,6 +1649,12 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Swab Testing</p>
               <div className="flex items-center gap-2"><Checkbox id="swabs" checked={Boolean(form.swabsTaken)} onCheckedChange={v => setForm(f => ({ ...f, swabsTaken: Boolean(v) }))} /><Label htmlFor="swabs">Swabs taken?</Label></div>
               {form.swabsTaken && <div><Label>Swab Results</Label><Input value={String(form.swabResults ?? "")} onChange={e => setForm(f => ({ ...f, swabResults: e.target.value }))} /></div>}
+              {form.swabsTaken && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                  <p className="font-semibold">Do not restock until negative swab results received.</p>
+                  <p className="mt-0.5">Salmonella and Campylobacter results must be confirmed clear before new birds enter this house. Retain result documentation for FSA and Red Lion / Red Tractor audit.</p>
+                </div>
+              )}
             </div>
 
             <div><Label>Notes</Label><Input value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
@@ -1800,6 +1806,12 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
             <div><Label>Lighting (hours)</Label><Input type="number" step="0.5" value={String(form.lightingHours ?? "")} onChange={e => setForm(f => ({ ...f, lightingHours: e.target.value }))} /></div>
             <div className="flex items-center gap-2 mt-5 col-span-3"><Checkbox id="alarm" checked={Boolean(form.alarmActivated)} onCheckedChange={v => setForm(f => ({ ...f, alarmActivated: Boolean(v) }))} /><Label htmlFor="alarm">Alarm activated?</Label></div>
             <div className="col-span-3"><Label>Alarm Details</Label><Input value={String(form.alarmDetails ?? "")} onChange={e => setForm(f => ({ ...f, alarmDetails: e.target.value }))} /></div>
+            {form.alarmActivated && (
+              <div className="col-span-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                <p className="font-semibold">Environmental alarm — investigate cause and record corrective action.</p>
+                <p className="mt-0.5">Persistent alarms for temperature, humidity, CO₂, or ammonia must be investigated and resolved promptly. Raise a follow-up task if the cause has not been remedied. Retain this record for Red Tractor welfare audit.</p>
+              </div>
+            )}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
