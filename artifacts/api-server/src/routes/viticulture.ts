@@ -822,7 +822,7 @@ router.delete("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTen
 
 router.get("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(vineyardSoilAnalysisTable).where(eq(vineyardSoilAnalysisTable.farmId, farmId)).orderBy(desc(vineyardSoilAnalysisTable.analysisDate));
+  const records = await db.select().from(vineyardSoilAnalysisTable).where(eq(vineyardSoilAnalysisTable.farmId, farmId)).orderBy(desc(vineyardSoilAnalysisTable.createdAt));
   res.json({ records });
 });
 

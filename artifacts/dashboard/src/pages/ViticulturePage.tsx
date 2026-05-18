@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
-  Droplet, FlaskConical,
+  Droplet, FlaskConical, ChevronRight,
 } from "lucide-react";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -2759,124 +2759,281 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
 
 // ─── Soil & Leaf Analysis Tab ──────────────────────────────────────────────────
 
+type SoilSampleStatus = "pending_collection" | "collected" | "awaiting_results" | "complete";
+
 const SOIL_ANALYSIS_TYPES = [
   "Soil Analysis", "Petiole (Leaf) Analysis", "Must Analysis", "Tissue Analysis",
 ];
 
-export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
-  const crud = useCrud(farmId, "vineyard-soil-analysis", "vineyard-soil-analysis");
+const SAMPLE_STATUS_CONFIG: Record<SoilSampleStatus, { label: string; badge: string; step: number }> = {
+  pending_collection: { label: "Awaiting Collection",  badge: "bg-amber-100 text-amber-800 border-amber-200",    step: 0 },
+  collected:          { label: "Sample Collected",      badge: "bg-sky-100 text-sky-800 border-sky-200",          step: 1 },
+  awaiting_results:   { label: "Awaiting Lab Results",  badge: "bg-purple-100 text-purple-800 border-purple-200", step: 2 },
+  complete:           { label: "Results Received",      badge: "bg-green-100 text-green-800 border-green-200",    step: 3 },
+};
 
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, unknown>>({});
-  const [editing, setEditing] = useState<number | null>(null);
-  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
-  const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
-  const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+const STEPPER_LABELS = ["Requested", "Collected", "Dispatched", "Results In"];
+
+function SoilStepper({ status }: { status: string }) {
+  const currentStep = SAMPLE_STATUS_CONFIG[status as SoilSampleStatus]?.step ?? 3;
+  return (
+    <div className="flex items-start gap-0 w-full mb-2">
+      {STEPPER_LABELS.map((label, i) => (
+        <div key={i} className="flex items-start flex-1 last:flex-none">
+          <div className="flex flex-col items-center gap-1 min-w-0">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+              i < currentStep
+                ? "bg-green-500 border-green-500 text-white"
+                : i === currentStep
+                ? "bg-primary border-primary text-primary-foreground"
+                : "bg-white border-muted-foreground/25 text-muted-foreground/40"
+            }`}>
+              {i < currentStep ? <CheckCircle2 className="w-4 h-4" /> : <span>{i + 1}</span>}
+            </div>
+            <span className={`text-[10px] font-medium text-center leading-tight ${i <= currentStep ? "text-foreground" : "text-muted-foreground/40"}`}>
+              {label}
+            </span>
+          </div>
+          {i < STEPPER_LABELS.length - 1 && (
+            <div className={`flex-1 h-0.5 mx-1 mt-3.5 ${i < currentStep ? "bg-green-500" : "bg-muted-foreground/15"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+  const { data: records, isLoading, add, edit, remove } = useCrud(farmId, "vineyard-soil-analysis", "vineyard-soil-analysis");
   const analysisTypes = useLookupStrings("vineyard_soil_analysis_types", SOIL_ANALYSIS_TYPES);
   const labOptions = useLookupStrings("vineyard_laboratories", ["NRM Group", "Lancrop Laboratories", "ADAS Analytical Services", "Eurofins Agro UK", "Other"]);
 
-  const openAdd = () => { setEditing(null); setForm({ analysisDate: today }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
-  const save = () => {
-    if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number });
-    else crud.add.mutate(form);
-    setOpen(false);
+  type DialogMode = "request" | "collect" | "dispatch" | "results" | "view";
+  const [mode, setMode] = useState<DialogMode | null>(null);
+  const [active, setActive] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+
+  const close = () => { setMode(null); setActive(null); setForm({}); };
+
+  const awaitingCount = (records as Record<string, unknown>[]).filter(r => r.status === "awaiting_results").length;
+  const pendingCount = (records as Record<string, unknown>[]).filter(r => r.status === "pending_collection").length;
+
+  const openRequest = () => { setActive(null); setForm({ requestDate: today }); setMode("request"); };
+  const openCollect = (r: Record<string, unknown>) => { setActive(r); setForm({ collectionDate: today }); setMode("collect"); };
+  const openDispatch = (r: Record<string, unknown>) => {
+    setActive(r);
+    setForm({ dispatchDate: today, labName: r.labName ?? "", sampleReference: r.sampleReference ?? "" });
+    setMode("dispatch");
   };
+  const openResults = (r: Record<string, unknown>) => {
+    setActive(r);
+    setForm({
+      resultsReceivedDate: r.resultsReceivedDate ?? today,
+      analysisDate: r.analysisDate ?? today,
+      ph: r.ph ?? "", organicMatterPct: r.organicMatterPct ?? "",
+      phosphorusMgL: r.phosphorusMgL ?? "", potassiumMgL: r.potassiumMgL ?? "",
+      magnesiumMgL: r.magnesiumMgL ?? "", calciumMgL: r.calciumMgL ?? "",
+      ironMgL: r.ironMgL ?? "", manganeseMgL: r.manganeseMgL ?? "",
+      boronMgL: r.boronMgL ?? "", nitrogenMgL: r.nitrogenMgL ?? "",
+      sulphurMgL: r.sulphurMgL ?? "", cecCmolKg: r.cecCmolKg ?? "",
+      recommendations: r.recommendations ?? "", notes: r.notes ?? "",
+    });
+    setMode("results");
+  };
+  const openView = (r: Record<string, unknown>) => { setActive(r); setMode("view"); };
+  const openNextAction = (r: Record<string, unknown>) => {
+    const s = (r.status as SoilSampleStatus) ?? "complete";
+    if (s === "pending_collection") openCollect(r);
+    else if (s === "collected") openDispatch(r);
+    else openResults(r);
+  };
+  const nextActionLabel = (s: string) => {
+    if (s === "pending_collection") return "Record Collection";
+    if (s === "collected") return "Mark Dispatched";
+    if (s === "awaiting_results") return "Enter Results";
+    return "Edit Results";
+  };
+
+  const saveRequest = () => { add.mutate({ ...form, status: "pending_collection" } as any); close(); };
+  const saveCollect = () => { edit.mutate({ id: active!.id as number, ...form, status: "collected" } as any); close(); };
+  const saveDispatch = () => { edit.mutate({ id: active!.id as number, ...form, status: "awaiting_results" } as any); close(); };
+  const saveResults = () => { edit.mutate({ id: active!.id as number, ...form, status: "complete" } as any); close(); };
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold text-sm">Soil &amp; Leaf Analysis</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Routine soil and petiole (leaf) analysis per block. Expected by WineGB Good Viticulture Practice guidelines and organic certifiers. Attach lab report PDFs using the document upload on each record.
+            Multi-stage workflow: request a sample → field collection → dispatch to lab → record results. Attach lab report PDFs to completed records.
           </p>
         </div>
-        <Button size="sm" onClick={openAdd} className="shrink-0"><Plus className="w-3.5 h-3.5 mr-1" />Add Analysis</Button>
+        <Button size="sm" onClick={openRequest} className="shrink-0">
+          <Plus className="w-3.5 h-3.5 mr-1" />Request Analysis
+        </Button>
       </div>
-      {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+
+      {/* Status banners */}
+      {(awaitingCount > 0 || pendingCount > 0) && (
+        <div className="space-y-2">
+          {awaitingCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span><strong>{awaitingCount}</strong> sample{awaitingCount !== 1 ? "s" : ""} awaiting lab results — check for incoming reports.</span>
+            </div>
+          )}
+          {pendingCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span><strong>{pendingCount}</strong> sample{pendingCount !== 1 ? "s" : ""} waiting to be collected from the field.</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table */}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
-            { key: "analysisDate", label: "Date", render: r => fmtDate(r.analysisDate) },
+            { key: "status", label: "Status", render: r => {
+              const cfg = SAMPLE_STATUS_CONFIG[(r.status as SoilSampleStatus) ?? "complete"];
+              return <span className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${cfg?.badge ?? ""}`}>{cfg?.label ?? "—"}</span>;
+            }},
+            { key: "requestDate", label: "Requested", render: r => fmtDate(r.requestDate ?? r.analysisDate) },
             { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
             { key: "analysisType", label: "Type" },
             { key: "labName", label: "Lab" },
-            { key: "sampleReference", label: "Sample Ref" },
-            { key: "ph", label: "pH", render: r => fmtNum(r.ph, 2) },
-            { key: "phosphorusMgL", label: "P (mg/L)", render: r => fmtNum(r.phosphorusMgL) },
-            { key: "potassiumMgL", label: "K (mg/L)", render: r => fmtNum(r.potassiumMgL) },
-            { key: "magnesiumMgL", label: "Mg (mg/L)", render: r => fmtNum(r.magnesiumMgL) },
+            { key: "analysisDate", label: "Results Date", render: r => r.status === "complete" ? fmtDate(r.analysisDate) : "—" },
+            { key: "_action", label: "", render: r => {
+              const s = (r.status as SoilSampleStatus) ?? "complete";
+              return (
+                <Button
+                  size="sm"
+                  variant={s === "complete" ? "ghost" : "outline"}
+                  className={`h-7 text-xs whitespace-nowrap ${s !== "complete" ? "border-primary text-primary hover:bg-primary/5" : ""}`}
+                  onClick={e => { e.stopPropagation(); openNextAction(r); }}
+                >
+                  {nextActionLabel(s)}<ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              );
+            }},
           ]}
-          rows={crud.data}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          rows={records}
+          onView={openView}
+          onDelete={r => remove.mutate(r.id as number)}
         />
       )}
-      {view && (
-        <Dialog open onOpenChange={() => setView(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Analysis Results — {fmtDate(view.analysisDate)}</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <ViewField label="Date" value={fmtDate(view.analysisDate)} />
-              <ViewField label="Block" value={fmt(blockName(view.blockId))} />
-              <ViewField label="Analysis Type" value={fmt(view.analysisType)} />
-              <ViewField label="Laboratory" value={fmt(view.labName)} />
-              <ViewField label="Sample Reference" value={fmt(view.sampleReference)} />
-              <div className="col-span-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1 pb-0.5">Nutrient Results</p></div>
-              <ViewField label="pH" value={fmtNum(view.ph, 2)} />
-              <ViewField label="Organic Matter (%)" value={fmtNum(view.organicMatterPct, 2)} />
-              <ViewField label="Phosphorus — P (mg/L)" value={fmtNum(view.phosphorusMgL)} />
-              <ViewField label="Potassium — K (mg/L)" value={fmtNum(view.potassiumMgL)} />
-              <ViewField label="Magnesium — Mg (mg/L)" value={fmtNum(view.magnesiumMgL)} />
-              <ViewField label="Calcium — Ca (mg/L)" value={fmtNum(view.calciumMgL)} />
-              <ViewField label="Iron — Fe (mg/L)" value={fmtNum(view.ironMgL)} />
-              <ViewField label="Manganese — Mn (mg/L)" value={fmtNum(view.manganeseMgL)} />
-              <ViewField label="Boron — B (mg/L)" value={fmtNum(view.boronMgL)} />
-              <ViewField label="Nitrogen — N (mg/L)" value={fmtNum(view.nitrogenMgL)} />
-              <ViewField label="Sulphur — S (mg/L)" value={fmtNum(view.sulphurMgL)} />
-              <ViewField label="CEC (cmol/kg)" value={fmtNum(view.cecCmolKg, 2)} />
-              {!!view.recommendations && <div className="col-span-2"><ViewField label="Lab Recommendations" value={fmt(view.recommendations)} /></div>}
-              {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
-            </div>
-            {typeof view.id === "number" && (
-              <div className="border-t pt-3 mt-1">
-                <RecordAttachments farmId={farmId} recordType="vineyard-soil-analysis" recordId={view.id} />
-              </div>
-            )}
-            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
-        <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Analysis Record</DialogTitle></DialogHeader>
+
+      {/* ── Request Dialog ──────────────────────────────────────────── */}
+      <Dialog open={mode === "request"} onOpenChange={o => !o && close()}>
+        <DialogContent style={{ maxWidth: "32rem" }}>
+          <DialogHeader>
+            <DialogTitle>Request Soil / Leaf Analysis</DialogTitle>
+            <DialogDescription>Raise a sample request — a field worker will collect the sample and it will be dispatched to the lab.</DialogDescription>
+          </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Analysis Date *</Label><Input type="date" max={today} value={String(form.analysisDate ?? "")} onChange={sf("analysisDate")} /></div>
+            <div><Label>Request Date</Label><Input type="date" max={today} value={String(form.requestDate ?? today)} onChange={sf("requestDate")} /></div>
             <div>
               <Label>Block</Label>
               <Select value={form.blockId ? String(form.blockId) : "__none__"} onValueChange={v => sfv("blockId", v === "__none__" ? null : Number(v))}>
                 <SelectTrigger><SelectValue placeholder="Select block" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— None / Farm-wide —</SelectItem>
-                  {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String((b as Record<string, unknown>).blockName ?? b.id)}</SelectItem>)}
+                  {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String((b as any).blockName ?? b.id)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Analysis Type</Label>
+              <Label>Analysis Type *</Label>
               <Select value={String(form.analysisType ?? "")} onValueChange={v => sfv("analysisType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>{analysisTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div><Label>Requested By</Label><Input placeholder="Name of manager / agronomist" value={String(form.requestedBy ?? "")} onChange={sf("requestedBy")} /></div>
+            <div className="col-span-2"><Label>Instructions for Collector</Label><Textarea placeholder="Where to sample, depth, method, any special notes…" value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>Cancel</Button>
+            <Button onClick={saveRequest} disabled={!form.analysisType || add.isPending}>
+              {add.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Create Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Collect Dialog ──────────────────────────────────────────── */}
+      <Dialog open={mode === "collect"} onOpenChange={o => !o && close()}>
+        <DialogContent style={{ maxWidth: "32rem" }}>
+          <DialogHeader>
+            <DialogTitle>Record Sample Collection</DialogTitle>
+            <DialogDescription>{active && <>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}</>}</DialogDescription>
+          </DialogHeader>
+          <SoilStepper status="pending_collection" />
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Collection Date *</Label><Input type="date" max={today} value={String(form.collectionDate ?? today)} onChange={sf("collectionDate")} /></div>
+            <div><Label>Collected By *</Label><Input placeholder="Field worker name" value={String(form.collectedBy ?? "")} onChange={sf("collectedBy")} /></div>
+            <div><Label>GPS Latitude</Label><Input type="number" step="any" placeholder="51.5074" value={String(form.collectionGpsLat ?? "")} onChange={sf("collectionGpsLat")} /></div>
+            <div><Label>GPS Longitude</Label><Input type="number" step="any" placeholder="-1.2278" value={String(form.collectionGpsLng ?? "")} onChange={sf("collectionGpsLng")} /></div>
+            <div className="col-span-2"><Label>Collection Notes</Label><Textarea placeholder="Exact location, sample depth, soil conditions…" value={String(form.collectionNotes ?? "")} onChange={sf("collectionNotes")} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>Cancel</Button>
+            <Button onClick={saveCollect} disabled={!form.collectionDate || !form.collectedBy || edit.isPending}>
+              {edit.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Mark as Collected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dispatch Dialog ─────────────────────────────────────────── */}
+      <Dialog open={mode === "dispatch"} onOpenChange={o => !o && close()}>
+        <DialogContent style={{ maxWidth: "32rem" }}>
+          <DialogHeader>
+            <DialogTitle>Mark Sample as Dispatched to Lab</DialogTitle>
+            <DialogDescription>{active && <>{fmt(blockName(active.blockId))} — collected {fmtDate(active.collectionDate)}</>}</DialogDescription>
+          </DialogHeader>
+          <SoilStepper status="collected" />
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Dispatch Date *</Label><Input type="date" max={today} value={String(form.dispatchDate ?? today)} onChange={sf("dispatchDate")} /></div>
             <div>
-              <Label>Laboratory Name</Label>
+              <Label>Laboratory</Label>
               <Select value={String(form.labName ?? "")} onValueChange={v => sfv("labName", v)}>
-                <SelectTrigger><SelectValue placeholder="Select laboratory…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select laboratory" /></SelectTrigger>
                 <SelectContent>{labOptions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="col-span-2"><Label>Sample Reference</Label><Input value={String(form.sampleReference ?? "")} onChange={sf("sampleReference")} /></div>
+            <div className="col-span-2"><Label>Sample Reference / Barcode</Label><Input placeholder="Lab submission reference or barcode number" value={String(form.sampleReference ?? "")} onChange={sf("sampleReference")} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>Cancel</Button>
+            <Button onClick={saveDispatch} disabled={!form.dispatchDate || edit.isPending}>
+              {edit.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Mark as Dispatched
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Results Dialog ──────────────────────────────────────────── */}
+      <Dialog open={mode === "results"} onOpenChange={o => !o && close()}>
+        <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{active?.status === "complete" ? "Edit Lab Results" : "Record Lab Results"}</DialogTitle>
+            <DialogDescription>
+              {active && <>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}{active.sampleReference ? ` · Ref: ${active.sampleReference}` : ""}</>}
+            </DialogDescription>
+          </DialogHeader>
+          {active?.status !== "complete" && <SoilStepper status="awaiting_results" />}
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Results Received Date *</Label><Input type="date" max={today} value={String(form.resultsReceivedDate ?? today)} onChange={sf("resultsReceivedDate")} /></div>
+            <div><Label>Analysis Date (on report)</Label><Input type="date" max={today} value={String(form.analysisDate ?? today)} onChange={sf("analysisDate")} /></div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide col-span-2 pt-1">Nutrient Values</p>
             <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={sf("ph")} /></div>
             <div><Label>Organic Matter (%)</Label><Input type="number" step="0.01" value={String(form.organicMatterPct ?? "")} onChange={sf("organicMatterPct")} /></div>
@@ -2894,13 +3051,112 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.analysisDate}>
-              {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save
+            <Button variant="outline" onClick={close}>Cancel</Button>
+            <Button onClick={saveResults} disabled={!form.resultsReceivedDate || edit.isPending}>
+              {edit.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              {active?.status === "complete" ? "Save Changes" : "Save Results"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── View Dialog ─────────────────────────────────────────────── */}
+      {active && mode === "view" && (
+        <Dialog open onOpenChange={close}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}</DialogTitle>
+            </DialogHeader>
+            <SoilStepper status={(active.status as string) ?? "complete"} />
+
+            <div className="space-y-4 text-sm">
+              {/* Stage 1: Request */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Sample Request</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ViewField label="Requested On" value={fmtDate(active.requestDate ?? active.analysisDate)} />
+                  <ViewField label="Requested By" value={fmt(active.requestedBy)} />
+                  <ViewField label="Block" value={fmt(blockName(active.blockId))} />
+                  <ViewField label="Analysis Type" value={fmt(active.analysisType)} />
+                  {!!active.notes && <div className="col-span-2"><ViewField label="Instructions" value={fmt(active.notes)} /></div>}
+                </div>
+              </div>
+
+              {/* Stage 2: Collection */}
+              {["collected", "awaiting_results", "complete"].includes(active.status as string) && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Sample Collection</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ViewField label="Collected On" value={fmtDate(active.collectionDate)} />
+                    <ViewField label="Collected By" value={fmt(active.collectedBy)} />
+                    {!!(active.collectionGpsLat || active.collectionGpsLng) && (
+                      <ViewField label="GPS Coordinates" value={`${fmt(active.collectionGpsLat)}, ${fmt(active.collectionGpsLng)}`} />
+                    )}
+                    {!!active.collectionNotes && <div className="col-span-2"><ViewField label="Collection Notes" value={fmt(active.collectionNotes)} /></div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Stage 3: Dispatch */}
+              {["awaiting_results", "complete"].includes(active.status as string) && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Dispatch to Lab</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ViewField label="Dispatched On" value={fmtDate(active.dispatchDate)} />
+                    <ViewField label="Laboratory" value={fmt(active.labName)} />
+                    <ViewField label="Sample Reference" value={fmt(active.sampleReference)} />
+                  </div>
+                </div>
+              )}
+
+              {/* Stage 4: Results */}
+              {active.status === "complete" && (
+                <div className="border-t pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lab Results</p>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { close(); setTimeout(() => openResults(active), 80); }}>
+                      <Pencil className="w-3 h-3 mr-1" />Edit Results
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ViewField label="Results Received" value={fmtDate(active.resultsReceivedDate ?? active.analysisDate)} />
+                    <ViewField label="Analysis Date" value={fmtDate(active.analysisDate)} />
+                    <ViewField label="pH" value={fmtNum(active.ph, 2)} />
+                    <ViewField label="Organic Matter (%)" value={fmtNum(active.organicMatterPct, 2)} />
+                    <ViewField label="Phosphorus — P (mg/L)" value={fmtNum(active.phosphorusMgL)} />
+                    <ViewField label="Potassium — K (mg/L)" value={fmtNum(active.potassiumMgL)} />
+                    <ViewField label="Magnesium — Mg (mg/L)" value={fmtNum(active.magnesiumMgL)} />
+                    <ViewField label="Calcium — Ca (mg/L)" value={fmtNum(active.calciumMgL)} />
+                    <ViewField label="Iron — Fe (mg/L)" value={fmtNum(active.ironMgL)} />
+                    <ViewField label="Manganese — Mn (mg/L)" value={fmtNum(active.manganeseMgL)} />
+                    <ViewField label="Boron — B (mg/L)" value={fmtNum(active.boronMgL)} />
+                    <ViewField label="Nitrogen — N (mg/L)" value={fmtNum(active.nitrogenMgL)} />
+                    <ViewField label="Sulphur — S (mg/L)" value={fmtNum(active.sulphurMgL)} />
+                    <ViewField label="CEC (cmol/kg)" value={fmtNum(active.cecCmolKg, 2)} />
+                    {!!active.recommendations && <div className="col-span-2"><ViewField label="Lab Recommendations" value={fmt(active.recommendations)} /></div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Advance action for non-complete records */}
+              {active.status !== "complete" && (
+                <div className="border-t pt-3 flex justify-end">
+                  <Button onClick={() => { close(); setTimeout(() => openNextAction(active), 80); }}>
+                    <ChevronRight className="w-4 h-4 mr-1" />{nextActionLabel(active.status as string)}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {typeof active.id === "number" && (
+              <div className="border-t pt-3 mt-1">
+                <RecordAttachments farmId={farmId} recordType="vineyard-soil-analysis" recordId={active.id} />
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={close}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -257,10 +257,30 @@ export const vineyardSoilAnalysisTable = pgTable("vineyard_soil_analysis", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
-  analysisDate: date("analysis_date").notNull(),
+
+  // Workflow status: pending_collection | collected | awaiting_results | complete
+  status: text("status").notNull().default("complete"),
+
+  // Stage 1 — Sample request
+  requestDate: date("request_date"),
+  requestedBy: text("requested_by"),
   analysisType: text("analysis_type"),
+
+  // Stage 2 — Field collection
+  collectionDate: date("collection_date"),
+  collectedBy: text("collected_by"),
+  collectionNotes: text("collection_notes"),
+  collectionGpsLat: numeric("collection_gps_lat", { precision: 10, scale: 6 }),
+  collectionGpsLng: numeric("collection_gps_lng", { precision: 10, scale: 6 }),
+
+  // Stage 3 — Dispatch to lab
+  dispatchDate: date("dispatch_date"),
   labName: text("lab_name"),
   sampleReference: text("sample_reference"),
+
+  // Stage 4 — Lab results (analysisDate = date on the report, nullable until results in)
+  resultsReceivedDate: date("results_received_date"),
+  analysisDate: date("analysis_date"),
   ph: numeric("ph", { precision: 4, scale: 2 }),
   organicMatterPct: numeric("organic_matter_pct", { precision: 5, scale: 2 }),
   phosphorusMgL: numeric("phosphorus_mg_l", { precision: 8, scale: 2 }),
@@ -275,6 +295,7 @@ export const vineyardSoilAnalysisTable = pgTable("vineyard_soil_analysis", {
   cecCmolKg: numeric("cec_cmol_kg", { precision: 8, scale: 2 }),
   recommendations: text("recommendations"),
   notes: text("notes"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
