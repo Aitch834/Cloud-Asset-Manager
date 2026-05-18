@@ -94,7 +94,7 @@ router.post("/farms/:farmId/lookups/:key", requireAuth, requireTenant, async (re
     res.status(404).json({ error: "Unknown lookup key" });
     return;
   }
-  const { label } = req.body as { label?: string };
+  const { label, groupLabel } = req.body as { label?: string; groupLabel?: string };
   if (!label?.trim()) {
     res.status(400).json({ error: "label is required" });
     return;
@@ -119,6 +119,7 @@ router.post("/farms/:farmId/lookups/:key", requireAuth, requireTenant, async (re
     lookupKey: key,
     value,
     label: value,
+    groupLabel: groupLabel?.trim() || null,
     isBdeManaged: false,
     tenantId: req.tenantId!,
     displayOrder: 9999,

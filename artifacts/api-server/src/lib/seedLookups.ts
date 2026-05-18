@@ -92,7 +92,7 @@ export const LOOKUP_DEFINITIONS: Record<string, LookupDefinition> = {
   },
   commodity_types: {
     label: "Commodity Types",
-    description: "Crop and commodity types for haulage and trade records. Named varieties for each crop are managed in the Crop Varieties list directly below.",
+    description: "Manage crop and commodity types. Expand to view and add named varieties for each crop type.",
     authority: "AHDB",
     authorityUrl: "https://ahdb.org.uk/cereals-oilseeds",
     reviewFrequency: "Annual",

@@ -14,6 +14,7 @@ import {
   X,
   Search,
   ShieldOff,
+  Wheat,
 } from "lucide-react";
 
 interface SummaryDef {
@@ -60,6 +61,293 @@ function SectionHeader({ title, description }: { title: string; description?: st
       <h3 className="text-base font-bold">{title}</h3>
       {description && (
         <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+      )}
+    </div>
+  );
+}
+
+function CommodityVarietySubRow({
+  commodity,
+  varieties,
+  farmId,
+  canEdit,
+  onVarietyAdded,
+  onVarietyDeleted,
+}: {
+  commodity: string;
+  varieties: LookupItem[];
+  farmId: number;
+  canEdit: boolean;
+  onVarietyAdded: () => void;
+  onVarietyDeleted: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [addValue, setAddValue] = useState("");
+  const { toast } = useToast();
+
+  const standardVarieties = varieties.filter((v) => !v.isCustom);
+  const customVarieties = varieties.filter((v) => v.isCustom);
+
+  const addMut = useMutation({
+    mutationFn: (label: string) =>
+      fetch(`/api/farms/${farmId}/lookups/crop_varieties`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, groupLabel: commodity }),
+      }).then((r) => {
+        if (!r.ok) return r.json().then((e: { error?: string }) => Promise.reject(e));
+        return r.json();
+      }),
+    onSuccess: () => {
+      setAddValue("");
+      onVarietyAdded();
+      toast({ title: `${addValue.trim() || "Variety"} added to ${commodity}` });
+    },
+    onError: (e: { error?: string }) =>
+      toast({ title: e?.error ?? "Failed to add variety", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (itemId: number) =>
+      fetch(`/api/farms/${farmId}/lookups/crop_varieties/${itemId}`, {
+        method: "DELETE",
+      }).then((r) => r.json()),
+    onSuccess: () => onVarietyDeleted(),
+    onError: () => toast({ title: "Failed to remove variety", variant: "destructive" }),
+  });
+
+  return (
+    <div className="border border-border rounded-md overflow-hidden">
+      <button
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
+        onClick={() => setIsOpen((o) => !o)}
+      >
+        <ChevronRight
+          size={13}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
+        />
+        <span className="text-sm font-medium flex-1">{commodity}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {standardVarieties.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+              {standardVarieties.length} standard
+            </span>
+          )}
+          {customVarieties.length > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+              +{customVarieties.length} custom
+            </span>
+          )}
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-border bg-muted/10 p-3 space-y-3">
+          {standardVarieties.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                Standard varieties
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {standardVarieties.map((v) => (
+                  <span
+                    key={v.id}
+                    className="text-xs px-2.5 py-1 bg-background border border-border rounded-full text-muted-foreground"
+                  >
+                    {v.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {customVarieties.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                Your custom varieties
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {customVarieties.map((v) => (
+                  <span
+                    key={v.id}
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-green-50 border border-green-200 rounded-full text-green-900"
+                  >
+                    {v.label}
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMut.mutate(v.id);
+                        }}
+                        disabled={deleteMut.isPending}
+                        className="hover:text-red-600 transition-colors ml-0.5 leading-none"
+                        title="Remove custom variety"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!canEdit && standardVarieties.length === 0 && customVarieties.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">No varieties listed for this crop.</p>
+          )}
+
+          {canEdit && customVarieties.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              No custom varieties yet — add your own below.
+            </p>
+          )}
+
+          {canEdit && (
+            <div className="flex gap-2 pt-1">
+              <Input
+                placeholder={`Add a ${commodity} variety…`}
+                value={addValue}
+                onChange={(e) => setAddValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && addValue.trim()) addMut.mutate(addValue.trim());
+                }}
+                className="text-sm h-8"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!addValue.trim() || addMut.isPending}
+                onClick={() => addMut.mutate(addValue.trim())}
+                className="h-8 px-3 shrink-0"
+              >
+                {addMut.isPending ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <>
+                    <Plus size={12} className="mr-1" />
+                    Add
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {!canEdit && (
+            <p className="text-xs text-muted-foreground italic">
+              Manager role or above is required to add or remove custom varieties.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommodityTypesRow({
+  def,
+  varietiesDef,
+  farmId,
+  canEdit,
+}: {
+  def: SummaryDef;
+  varietiesDef: SummaryDef | undefined;
+  farmId: number;
+  canEdit: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { tenantSlug } = useAppStore();
+  const queryClient = useQueryClient();
+
+  const commoditiesQ = useQuery<{ items: LookupItem[] }>({
+    queryKey: ["lookup-items", "commodity_types"],
+    queryFn: () => fetch("/api/lookups/commodity_types").then((r) => r.json()),
+    enabled: isOpen,
+  });
+
+  const varietiesQ = useQuery<{ items: LookupItem[] }>({
+    queryKey: ["lookup-items", "crop_varieties"],
+    queryFn: () => fetch("/api/lookups/crop_varieties").then((r) => r.json()),
+    enabled: isOpen,
+  });
+
+  const commodities = commoditiesQ.data?.items ?? [];
+  const allVarieties = varietiesQ.data?.items ?? [];
+
+  const handleVarietyChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["lookup-items", "crop_varieties"] });
+    queryClient.invalidateQueries({ queryKey: ["lookups-summary", tenantSlug] });
+  };
+
+  const isLoading = (commoditiesQ.isLoading || varietiesQ.isLoading) && isOpen;
+
+  const customVarietyCount = varietiesDef?.customCount ?? 0;
+  const totalVarietyCount = (varietiesDef?.standardCount ?? 0) + customVarietyCount;
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        className="w-full flex items-center gap-3 p-4 text-left hover:bg-muted/40 transition-colors"
+        onClick={() => setIsOpen((o) => !o)}
+      >
+        <ChevronRight
+          size={15}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold leading-snug">{def.label}</p>
+            <Wheat size={13} className="text-muted-foreground shrink-0" />
+          </div>
+          {def.description && (
+            <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-1">
+              {def.description}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+            {def.standardCount} crops
+          </span>
+          {totalVarietyCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+              {totalVarietyCount} varieties
+            </span>
+          )}
+          {customVarietyCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+              +{customVarietyCount} custom
+            </span>
+          )}
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-border bg-muted/10 p-4 space-y-2">
+          {isLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 size={13} className="animate-spin" />
+              Loading…
+            </div>
+          )}
+
+          {!isLoading && commodities.map((c) => (
+            <CommodityVarietySubRow
+              key={c.id}
+              commodity={c.value}
+              varieties={allVarieties.filter((v) => v.groupLabel === c.value)}
+              farmId={farmId}
+              canEdit={canEdit}
+              onVarietyAdded={handleVarietyChange}
+              onVarietyDeleted={handleVarietyChange}
+            />
+          ))}
+
+          {def.authority && !isLoading && (
+            <p className="text-xs text-muted-foreground pt-2 border-t border-border mt-2">
+              Commodity types: {def.authority} · Varieties: AHDB Recommended Lists / NIAB
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -121,7 +409,6 @@ function LookupListRow({
   const standardItems = items.filter((i) => !i.isCustom);
   const customItems = items.filter((i) => i.isCustom);
 
-  // Build grouped structure for standard items that carry a groupLabel
   const hasGroups = standardItems.some((i) => i.groupLabel);
   const standardGroups: { group: string; items: LookupItem[] }[] = [];
   if (hasGroups) {
@@ -316,13 +603,17 @@ export default function LookupListsPage() {
 
   const allDefs = summaryQ.data?.definitions ?? [];
 
-  const filtered = search.trim()
-    ? allDefs.filter(
-        (d) =>
-          d.label.toLowerCase().includes(search.toLowerCase()) ||
-          d.description?.toLowerCase().includes(search.toLowerCase()),
-      )
-    : allDefs;
+  const varietiesDef = allDefs.find((d) => d.key === "crop_varieties");
+
+  const filtered = (
+    search.trim()
+      ? allDefs.filter(
+          (d) =>
+            d.label.toLowerCase().includes(search.toLowerCase()) ||
+            d.description?.toLowerCase().includes(search.toLowerCase()),
+        )
+      : allDefs
+  ).filter((d) => d.key !== "crop_varieties");
 
   const visibleGroups = MODULE_GROUPS.map((group) => ({
     ...group,
@@ -384,14 +675,24 @@ export default function LookupListsPage() {
           <Card key={group.id}>
             <CardContent className="p-6 space-y-3">
               <SectionHeader title={group.label} description={group.description} />
-              {group.defs.map((def) => (
-                <LookupListRow
-                  key={def.key}
-                  def={def}
-                  farmId={farmId!}
-                  canEdit={canEdit}
-                />
-              ))}
+              {group.defs.map((def) =>
+                def.key === "commodity_types" ? (
+                  <CommodityTypesRow
+                    key={def.key}
+                    def={def}
+                    varietiesDef={varietiesDef}
+                    farmId={farmId!}
+                    canEdit={canEdit}
+                  />
+                ) : (
+                  <LookupListRow
+                    key={def.key}
+                    def={def}
+                    farmId={farmId!}
+                    canEdit={canEdit}
+                  />
+                )
+              )}
             </CardContent>
           </Card>
         ))}
