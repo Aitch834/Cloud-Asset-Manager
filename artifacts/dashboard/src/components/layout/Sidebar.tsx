@@ -273,7 +273,8 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
 
   return (
     <>
-      <div className="p-5 flex items-center gap-3 flex-shrink-0">
+      <div className="flex-shrink-0 bg-white/[0.07] border-b border-white/[0.06]">
+      <div className="p-5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
           <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-6 h-6 object-contain" />
         </div>
@@ -289,7 +290,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         </div>
       </div>
 
-      <div className="px-3 py-2 flex-shrink-0">
+      <div className="px-3 py-2">
         <button
           className="w-full block"
           onClick={() => {
@@ -306,6 +307,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
             <ChevronDown className="w-4 h-4 text-white/50 group-hover:text-white/70 transition-colors" />
           </div>
         </button>
+      </div>
       </div>
 
       <nav ref={navRef} className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
@@ -374,26 +376,24 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         </div>
       )}
 
-      <div className="mx-3 my-1 flex-shrink-0">
-        <div className="h-px bg-white/10 rounded-full" />
-      </div>
-
-      <div className="p-3 space-y-0 flex-shrink-0">
-        {filteredBottomNav.map((item) => (
-          <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
-              <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
-              {item.name}
-            </div>
-          </Link>
-        ))}
-        <button 
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer text-sm"
-        >
-          <LogOut className="w-4 h-4 opacity-50" />
-          Sign Out
-        </button>
+      <div className="flex-shrink-0 bg-white/[0.07] border-t border-white/[0.06]">
+        <div className="p-3 space-y-0">
+          {filteredBottomNav.map((item) => (
+            <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
+                <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
+                {item.name}
+              </div>
+            </Link>
+          ))}
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer text-sm"
+          >
+            <LogOut className="w-4 h-4 opacity-50" />
+            Sign Out
+          </button>
+        </div>
       </div>
     </>
   );
