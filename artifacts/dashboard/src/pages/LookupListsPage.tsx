@@ -264,16 +264,16 @@ function LookupListRow({
 }
 
 export default function LookupListsPage() {
-  const { farmId } = useAppStore();
+  const { farmId, tenantSlug } = useAppStore();
   const { isAtLeast } = useUserRole();
   const [search, setSearch] = useState("");
 
   const canEdit = isAtLeast("manager");
 
   const summaryQ = useQuery<{ definitions: SummaryDef[] }>({
-    queryKey: ["lookups-summary", farmId],
+    queryKey: ["lookups-summary", tenantSlug],
     queryFn: () => fetch(`/api/lookups/summary`).then((r) => r.json()),
-    enabled: !!farmId,
+    enabled: !!tenantSlug,
   });
 
   const allDefs = summaryQ.data?.definitions ?? [];
