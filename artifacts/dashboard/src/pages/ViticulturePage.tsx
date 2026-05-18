@@ -1329,6 +1329,13 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const [raiseTaskFor, setRaiseTaskFor] = useState<Harvest | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
+  const { data: wineryContactsData } = useQuery<{ records: Record<string, unknown>[] }>({
+    queryKey: ["vineyard-winery-contacts", farmId],
+    queryFn: async () => { const r = await fetch(api(`farms/${farmId}/vineyard-harvest/winery-contacts`)); return r.json(); },
+    staleTime: 60_000,
+  });
+  const wineryContacts = wineryContactsData?.records ?? [];
+
   const openAdd = () => { setForm({ harvestDate: today, vintageYear: new Date().getFullYear(), operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Harvest) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
@@ -1422,7 +1429,12 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
               <ViewField label="TA (g/L)" value={fmtNum(viewing.titratableAcidityGl, 1)} />
               <ViewField label="Potential Alcohol %" value={fmtNum(viewing.potentialAlcohol, 1)} />
               <ViewField label="Botrytis Present" value={!!viewing.botrytisPresent ? <Badge variant="destructive">Yes {viewing.botrytisPercentage ? `— ${viewing.botrytisPercentage}%` : ""}</Badge> : "No"} />
-              <ViewField label="Destination Winery" value={fmt(viewing.destinationWinery)} />
+              <ViewField label="Destination" value={
+                viewing.destinationWineryType === "own-holding" ? "Own winery (on-holding)" :
+                viewing.destinationWineryType === "contract-processor" ? `Contract processor: ${fmt(viewing.destinationWinery)}` :
+                viewing.destinationWineryType === "grape-sale" ? `Grape sale: ${fmt(viewing.destinationWinery)}` :
+                fmt(viewing.destinationWinery)
+              } />
               <ViewField label="Operator" value={fmt(viewing.operatorName)} />
               {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
             </div>
@@ -1445,8 +1457,16 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
           farmId={farmId}
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
-          defaultTitle={`Harvest — ${fmt(raiseTaskFor.vintageYear)} · ${fmt(blockName(raiseTaskFor.blockId))}`}
-          defaultDescription={`Date: ${fmtDate(raiseTaskFor.harvestDate)} · Yield: ${fmtNum(raiseTaskFor.yieldKg, 1)} kg · Brix: ${fmtNum(raiseTaskFor.brix, 1)}° · Condition: ${fmt(raiseTaskFor.grapeCondition)}`}
+          defaultTitle={
+            raiseTaskFor.botrytisPresent
+              ? `Botrytis at Harvest — ${fmt(raiseTaskFor.vintageYear)} · ${fmt(blockName(raiseTaskFor.blockId))}`
+              : `Harvest — ${fmt(raiseTaskFor.vintageYear)} · ${fmt(blockName(raiseTaskFor.blockId))}`
+          }
+          defaultDescription={
+            raiseTaskFor.botrytisPresent
+              ? `${raiseTaskFor.botrytisPercentage ? `${raiseTaskFor.botrytisPercentage}% botrytis` : "Botrytis"} recorded at harvest on ${fmtDate(raiseTaskFor.harvestDate)} — ${fmt(blockName(raiseTaskFor.blockId))} block. Actions: assess must, confirm SO₂ protocol with winemaker, verify GI / PDO eligibility before vintage declaration, notify destination winery.`
+              : `Date: ${fmtDate(raiseTaskFor.harvestDate)} · Yield: ${fmtNum(raiseTaskFor.yieldKg, 1)} kg · Brix: ${fmtNum(raiseTaskFor.brix, 1)}° · Condition: ${fmt(raiseTaskFor.grapeCondition)}`
+          }
           module="Viticulture"
         />
       )}
@@ -1501,14 +1521,64 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
                   <SelectContent>{["Excellent", "Good", "Fair", "Poor"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Destination Winery</Label><Input value={String(form.destinationWinery ?? "")} onChange={e => sf("destinationWinery", e.target.value)} /></div>
+              <div>
+                <Label>Destination Type</Label>
+                <Select
+                  value={String(form.destinationWineryType ?? "")}
+                  onValueChange={v => {
+                    sf("destinationWineryType", v);
+                    if (v === "own-holding") { sf("destinationWinery", "Own winery (on-holding)"); sf("destinationWineryContactId", null); }
+                    else { sf("destinationWinery", ""); sf("destinationWineryContactId", null); }
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="own-holding">Own winery (on-holding)</SelectItem>
+                    <SelectItem value="contract-processor">Contract winery / processor</SelectItem>
+                    <SelectItem value="grape-sale">Grape sale to buyer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {(form.destinationWineryType === "contract-processor" || form.destinationWineryType === "grape-sale") && (
+              <div>
+                <Label>{form.destinationWineryType === "grape-sale" ? "Grape Buyer" : "Contract Winery"}</Label>
+                <Select
+                  value={form.destinationWineryContactId ? String(form.destinationWineryContactId) : ""}
+                  onValueChange={v => {
+                    const contact = wineryContacts.find(c => String(c.id) === v);
+                    sf("destinationWineryContactId", Number(v));
+                    sf("destinationWinery", contact ? String(contact.name) : "");
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select from trade contacts…" /></SelectTrigger>
+                  <SelectContent>
+                    {wineryContacts.length === 0 && <SelectItem value="__none__" disabled>No contacts found — add them in Suppliers & Stock</SelectItem>}
+                    {wineryContacts.map(c => (
+                      <SelectItem key={String(c.id)} value={String(c.id)}>
+                        {String(c.name)}{c.supplierType ? ` · ${String(c.supplierType)}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Checkbox checked={!!form.botrytisPresent} onCheckedChange={v => sf("botrytisPresent", !!v)} id="bot" />
               <Label htmlFor="bot">Botrytis present at harvest</Label>
             </div>
             {!!form.botrytisPresent && (
-              <div><Label>Botrytis Percentage (%)</Label><Input type="number" min="0" max="100" value={String(form.botrytisPercentage ?? "")} onChange={e => sf("botrytisPercentage", e.target.value)} /></div>
+              <>
+                <div><Label>Botrytis Percentage (%)</Label><Input type="number" min="0" max="100" value={String(form.botrytisPercentage ?? "")} onChange={e => sf("botrytisPercentage", e.target.value)} /></div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
+                  <p className="font-semibold">Botrytis at harvest — please review before dispatch:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li><span className="font-medium">SO₂ management:</span> botrytis-affected must requires higher initial SO₂ addition and closer monitoring throughout fermentation.</li>
+                    <li><span className="font-medium">GI / PDO eligibility:</span> significant botrytis may affect vintage declaration eligibility — check your scheme rules before lodging a claim.</li>
+                    <li><span className="font-medium">Notify your winemaker</span> before grape intake so they can adjust must treatment protocols accordingly.</li>
+                  </ul>
+                </div>
+              </>
             )}
             <div><Label>Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>

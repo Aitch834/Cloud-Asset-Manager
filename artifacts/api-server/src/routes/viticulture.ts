@@ -23,6 +23,7 @@ import {
   wineryAgeVerificationTable,
   vineyardSprayDiaryTable,
   vineyardSoilAnalysisTable,
+  suppliersTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -455,6 +456,20 @@ router.delete("/farms/:farmId/vineyard-harvest/:id", requireAuth, requireTenant,
   const id = Number(req.params.id);
   await db.delete(vineyardHarvestTable).where(and(eq(vineyardHarvestTable.id, id), eq(vineyardHarvestTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// Winery contacts lookup for harvest destination picker (viticulture-gated)
+router.get("/farms/:farmId/vineyard-harvest/winery-contacts", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select({
+    id: suppliersTable.id,
+    name: suppliersTable.name,
+    supplierType: suppliersTable.supplierType,
+    contactName: suppliersTable.contactName,
+  }).from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true)))
+    .orderBy(suppliersTable.name);
+  res.json({ records });
 });
 
 // ─── Disease & Pest Scouting ──────────────────────────────────────────────────
