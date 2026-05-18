@@ -234,6 +234,7 @@ export const livestockMortalityTable = pgTable("livestock_mortality", {
   invoiceRef: text("invoice_ref"),
   invoiceAmount: text("invoice_amount"),
   invoicePaidDate: text("invoice_paid_date"),
+  status: text("status").notNull().default("reported"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -283,6 +284,8 @@ export const vetHealthPlanActionCompletionsTable = pgTable("vet_health_plan_acti
   notes: text("notes"),
   attachmentUrl: text("attachment_url"),
   attachmentName: text("attachment_name"),
+  verifiedBy: text("verified_by"),
+  verifiedDate: timestamp("verified_date", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

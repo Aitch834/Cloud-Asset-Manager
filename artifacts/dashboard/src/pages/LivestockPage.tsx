@@ -104,6 +104,8 @@ interface VetHealthPlanActionCompletion {
   notes: string | null;
   attachmentUrl: string | null;
   attachmentName: string | null;
+  verifiedBy: string | null;
+  verifiedDate: string | null;
   createdAt: string;
 }
 
@@ -1100,6 +1102,12 @@ function CompletionHistoryDialog({ farmId, action, onClose }: { farmId: number; 
                     <Paperclip className="w-3 h-3" />{c.attachmentName || "View evidence"}
                   </a>
                 )}
+                {(c.verifiedBy || c.verifiedDate) && (
+                  <p className="ml-6 mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    Verified by {c.verifiedBy ?? "—"}{c.verifiedDate ? ` on ${new Date(c.verifiedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -1119,6 +1127,8 @@ function MarkCompleteDialog({ farmId, action, onClose }: { farmId: number; actio
   const [notes, setNotes] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
+  const [verifiedBy, setVerifiedBy] = useState("");
+  const [verifiedDate, setVerifiedDate] = useState("");
   const [updateNextDue, setUpdateNextDue] = useState(action.frequency !== "one_off" && action.frequency !== "as_required");
   const [nextDueDateVal, setNextDueDateVal] = useState(() => calcNextDueFromFrequency(action.frequency));
 
@@ -1130,13 +1140,29 @@ function MarkCompleteDialog({ farmId, action, onClose }: { farmId: number; actio
     },
   });
 
+  const aStatus = actionStatus(action);
+  const isOverdue = aStatus === "overdue";
+  const isDueSoon = aStatus === "due-soon";
+  const freqLabel = ACTION_FREQUENCIES[action.frequency] ?? action.frequency;
+  const nextDueFormatted = action.nextDueDate
+    ? new Date(action.nextDueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
   const completeMut = useMutation({
     mutationFn: async () => {
-      const body = { completedDate, completedBy: completedBy || null, notes: notes || null, attachmentUrl: attachmentUrl || null, attachmentName: attachmentName || null };
-      const res = await fetch(`/api/farms/${farmId}/vet-health-plan-actions/${action.id}/completions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const body = {
+        completedDate, completedBy: completedBy || null, notes: notes || null,
+        attachmentUrl: attachmentUrl || null, attachmentName: attachmentName || null,
+        verifiedBy: verifiedBy || null, verifiedDate: verifiedDate || null,
+      };
+      const res = await fetch(`/api/farms/${farmId}/vet-health-plan-actions/${action.id}/completions`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
       if (!res.ok) throw new Error("Failed to save");
       if (updateNextDue && nextDueDateVal) {
-        await fetch(`/api/farms/${farmId}/vet-health-plan-actions/${action.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nextDueDate: nextDueDateVal }) });
+        await fetch(`/api/farms/${farmId}/vet-health-plan-actions/${action.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nextDueDate: nextDueDateVal }),
+        });
       }
     },
     onSuccess: () => {
@@ -1148,45 +1174,84 @@ function MarkCompleteDialog({ farmId, action, onClose }: { farmId: number; actio
 
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-emerald-600" /> Mark as Complete</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardCheck className="w-4 h-4 text-emerald-600" /> Record Completion
+          </DialogTitle>
           <DialogDescription className="text-sm">{action.description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div><Label>Date Completed</Label><Input type="date" value={completedDate} onChange={e => setCompletedDate(e.target.value)} /></div>
-            <div><Label>Completed By</Label><Input value={completedBy} onChange={e => setCompletedBy(e.target.value)} placeholder="Name of person" /></div>
+
+        {/* Context: overdue / due-soon / frequency */}
+        {(isOverdue || isDueSoon || nextDueFormatted) && (
+          <div className={`rounded-lg px-3 py-2 text-sm flex items-center gap-2 border
+            ${isOverdue ? "bg-red-50 text-red-800 border-red-200" : isDueSoon ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-blue-50 text-blue-800 border-blue-200"}`}>
+            {isOverdue && <span className="font-semibold">Overdue</span>}
+            {isDueSoon && <span className="font-semibold">Due soon</span>}
+            {nextDueFormatted && <span>— was due {nextDueFormatted}</span>}
+            <span className="ml-auto text-xs opacity-70">{freqLabel}</span>
           </div>
-          <div><Label>Notes / Evidence Description</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="What was done, results, observations…" rows={3} /></div>
-          <div>
-            <Label>Evidence Attachment (optional)</Label>
+        )}
+
+        <div className="space-y-5 mt-1">
+          {/* Section 1: What was done */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What Was Done</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Date Completed</Label><Input type="date" value={completedDate} onChange={e => setCompletedDate(e.target.value)} className="mt-1" /></div>
+              <div><Label>Carried Out By</Label><Input value={completedBy} onChange={e => setCompletedBy(e.target.value)} placeholder="Name of person" className="mt-1" /></div>
+            </div>
+            <div>
+              <Label>Notes &amp; Observations</Label>
+              <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="What was done, results, observations, any concerns…" rows={3} className="mt-1" />
+            </div>
+          </div>
+
+          {/* Section 2: Evidence */}
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</p>
             {attachmentUrl ? (
-              <div className="flex items-center gap-2 mt-1 p-2 border border-emerald-200 bg-emerald-50 rounded-md">
+              <div className="flex items-center gap-2 p-2 border border-emerald-200 bg-emerald-50 rounded-md">
                 <Paperclip className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-sm text-emerald-800 truncate">{attachmentName}</span>
-                <button className="ml-auto text-muted-foreground hover:text-red-500" onClick={() => { setAttachmentUrl(""); setAttachmentName(""); }}><XCircle className="h-4 w-4" /></button>
+                <span className="text-sm text-emerald-800 truncate flex-1">{attachmentName}</span>
+                <button className="text-muted-foreground hover:text-red-500" onClick={() => { setAttachmentUrl(""); setAttachmentName(""); }}>
+                  <XCircle className="h-4 w-4" />
+                </button>
               </div>
             ) : (
-              <label className="mt-1 flex items-center gap-2 cursor-pointer border border-dashed border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30">
+              <label className="flex items-center gap-2 cursor-pointer border border-dashed border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30">
                 <Upload className="h-4 w-4" />
                 {isUploading ? "Uploading…" : "Upload photo, invoice or certificate"}
                 <input type="file" accept="image/*,.pdf" className="sr-only" disabled={isUploading} onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
               </label>
             )}
           </div>
+
+          {/* Section 3: Manager Sign-off */}
+          <div className="space-y-3 border-t pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Manager Sign-off <span className="normal-case font-normal">(optional)</span></p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Verified By</Label><Input value={verifiedBy} onChange={e => setVerifiedBy(e.target.value)} placeholder="Manager name" className="mt-1" /></div>
+              <div><Label>Verification Date</Label><Input type="date" value={verifiedDate} onChange={e => setVerifiedDate(e.target.value)} className="mt-1" /></div>
+            </div>
+          </div>
+
+          {/* Section 4: Schedule next occurrence */}
           {action.frequency !== "one_off" && action.frequency !== "as_required" && (
-            <div className="border border-border/60 rounded-lg p-3 bg-muted/20">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="border border-border/60 rounded-lg p-3 bg-muted/20 space-y-2 border-t pt-4">
+              <div className="flex items-center gap-2">
                 <input type="checkbox" id="updateDue" checked={updateNextDue} onChange={e => setUpdateNextDue(e.target.checked)} className="rounded" />
-                <label htmlFor="updateDue" className="text-sm font-medium cursor-pointer">
-                  <RotateCcw className="w-3.5 h-3.5 inline mr-1 text-primary" />Update next due date
+                <label htmlFor="updateDue" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                  Schedule next occurrence
                 </label>
+                <span className="ml-auto text-xs text-muted-foreground">{freqLabel}</span>
               </div>
               {updateNextDue && (
                 <div>
                   <Label className="text-xs">Next Due Date</Label>
                   <Input type="date" value={nextDueDateVal} onChange={e => setNextDueDateVal(e.target.value)} className="mt-1" />
+                  <p className="text-xs text-muted-foreground mt-1">Auto-calculated from today ({freqLabel.toLowerCase()}) — adjust if needed.</p>
                 </div>
               )}
             </div>

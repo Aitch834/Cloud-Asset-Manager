@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import {
-  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2, ClipboardList,
+  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2, ClipboardList, ArrowRight,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -69,6 +69,12 @@ interface AccidentRecord {
   signedOffBy: string | null;
   signOffDate: string | null;
   notes: string | null;
+  status: string;
+  investigationDate: string | null;
+  investigatedBy: string | null;
+  investigationNotes: string | null;
+  correctiveActionDate: string | null;
+  correctiveActionBy: string | null;
   createdAt: string;
   photos: Photo[];
 }
@@ -145,6 +151,7 @@ const EMPTY_FORM = {
   signedOffBy: "",
   signOffDate: "",
   notes: "",
+  status: "reported",
 };
 
 const fmt = (d: string | null | undefined) =>
@@ -166,20 +173,26 @@ function RiddorBadge({ record }: { record: AccidentRecord }) {
   );
 }
 
-function RecordCard({ record, farmId, onEdit, onDelete, onRaiseTask }: { record: AccidentRecord; farmId: number; onEdit: () => void; onDelete: () => void; onRaiseTask: () => void }) {
+function RecordCard({ record, farmId, onEdit, onDelete, onRaiseTask, onInvestigate, onCorrectiveAction, onSignOff }: {
+  record: AccidentRecord; farmId: number; onEdit: () => void; onDelete: () => void; onRaiseTask: () => void;
+  onInvestigate?: () => void; onCorrectiveAction?: () => void; onSignOff?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const status = record.status ?? "reported";
+  const borderColor = (record.riddorReportable && !record.riddorReference) ? "#fca5a5" : status === "closed" ? "#bbf7d0" : "#e5e7eb";
 
   return (
-    <div style={{ border: "1px solid " + (record.riddorReportable && !record.riddorReference ? "#fca5a5" : "#e5e7eb"), borderRadius: 10, background: "#fff", overflow: "hidden" }}>
+    <div style={{ border: `1px solid ${borderColor}`, borderRadius: 10, background: "#fff", overflow: "hidden" }}>
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "14px 16px", gap: 12, cursor: "pointer" }}
         onClick={() => setExpanded(e => !e)}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
             <span style={{ fontWeight: 700, color: "#111827", fontSize: "0.9375rem" }}>
               {fmt(record.incidentDate)}{record.incidentTime ? ` at ${record.incidentTime}` : ""}
             </span>
             <RiddorBadge record={record} />
+            <AccidentStatusBadge status={status} />
           </div>
           <p style={{ fontSize: "0.875rem", color: "#374151", fontWeight: 500 }}>{record.personName} <span style={{ color: "#9ca3af", fontWeight: 400 }}>({record.personType}{record.jobTitle ? ` — ${record.jobTitle}` : ""})</span></p>
           <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: 2 }}>
@@ -187,7 +200,23 @@ function RecordCard({ record, farmId, onEdit, onDelete, onRaiseTask }: { record:
             <strong>Incident:</strong> {record.natureOfIncident.length > 90 ? record.natureOfIncident.slice(0, 90) + "…" : record.natureOfIncident}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
+          {/* Stage action buttons */}
+          {status === "reported" && onInvestigate && (
+            <button onClick={onInvestigate} style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, cursor: "pointer", padding: "4px 10px", color: "#92400e", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+              <ArrowRight size={12} /> Investigate
+            </button>
+          )}
+          {status === "under_investigation" && onCorrectiveAction && (
+            <button onClick={onCorrectiveAction} style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer", padding: "4px 10px", color: "#1d4ed8", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+              <ArrowRight size={12} /> Record Action
+            </button>
+          )}
+          {(status === "under_investigation" || status === "corrective_action_taken") && onSignOff && (
+            <button onClick={onSignOff} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, cursor: "pointer", padding: "4px 10px", color: "#166534", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+              <CheckCircle2 size={12} /> Sign Off
+            </button>
+          )}
           <button onClick={onEdit} style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: "#374151", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
             <Pencil size={12} /> Edit
           </button>
@@ -219,7 +248,10 @@ function RecordCard({ record, farmId, onEdit, onDelete, onRaiseTask }: { record:
               <DetailRow label="Date Reported to HSE" value={record.riddorReportedDate ? fmt(record.riddorReportedDate) : null} />
             </>}
             <DetailRow label="Witnesses" value={record.witnesses} span />
-            <DetailRow label="Corrective Action Taken" value={record.correctiveAction} span />
+            {record.investigatedBy && <DetailRow label="Investigated By" value={`${record.investigatedBy}${record.investigationDate ? ` on ${fmt(record.investigationDate)}` : ""}`} />}
+            {record.investigationNotes && <DetailRow label="Investigation Notes" value={record.investigationNotes} span />}
+            {record.correctiveAction && <DetailRow label="Corrective Action Taken" value={record.correctiveAction} span />}
+            {record.correctiveActionBy && <DetailRow label="Corrective Action By" value={`${record.correctiveActionBy}${record.correctiveActionDate ? ` on ${fmt(record.correctiveActionDate)}` : ""}`} />}
             <DetailRow label="Signed Off By" value={record.signedOffBy ? `${record.signedOffBy}${record.signOffDate ? ` on ${fmt(record.signOffDate)}` : ""}` : null} />
             <DetailRow label="Notes" value={record.notes} span />
           </div>
@@ -237,6 +269,175 @@ function DetailRow({ label, value, span }: { label: string; value: string | null
       <span style={{ color: "#9ca3af", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
       <p style={{ marginTop: 2, color: "#111827", whiteSpace: "pre-wrap" }}>{value}</p>
     </div>
+  );
+}
+
+// ─── Accident Book Workflow Status ────────────────────────────────────────────
+
+const ACCIDENT_STATUS_CFG: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  reported:                { label: "Reported",               bg: "#fffbeb", color: "#92400e", border: "#fde68a" },
+  under_investigation:     { label: "Under Investigation",    bg: "#fefce8", color: "#713f12", border: "#fef08a" },
+  corrective_action_taken: { label: "Action Taken",           bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  closed:                  { label: "Closed",                 bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
+};
+
+function AccidentStatusBadge({ status }: { status: string }) {
+  const cfg = ACCIDENT_STATUS_CFG[status] ?? ACCIDENT_STATUS_CFG.reported;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 10, fontSize: "0.7rem", fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Stage 2: Investigate Dialog ─────────────────────────────────────────────
+
+function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [investigationDate, setInvestigationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [investigatedBy, setInvestigatedBy] = useState("");
+  const [investigationNotes, setInvestigationNotes] = useState(record.investigationNotes ?? "");
+  const [riddorCategory, setRiddorCategory] = useState(record.riddorCategory ?? "");
+  const [riddorReference, setRiddorReference] = useState(record.riddorReference ?? "");
+  const [riddorReportedDate, setRiddorReportedDate] = useState(record.riddorReportedDate ?? "");
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/accident-book/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        investigationDate, investigatedBy: investigatedBy || null,
+        investigationNotes: investigationNotes || null,
+        riddorCategory: riddorCategory || null, riddorReference: riddorReference || null,
+        riddorReportedDate: riddorReportedDate || null,
+        status: "under_investigation",
+      }),
+    }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 520 }}>
+        <DialogHeader>
+          <DialogTitle>Record Investigation</DialogTitle>
+          <DialogDescription>{record.personName} — {fmt(record.incidentDate)}</DialogDescription>
+        </DialogHeader>
+        <div style={{ display: "grid", gap: 14, marginTop: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><Label>Investigation Date *</Label><Input type="date" className="mt-1" value={investigationDate} onChange={e => setInvestigationDate(e.target.value)} /></div>
+            <div><Label>Investigated By *</Label><Input className="mt-1" value={investigatedBy} onChange={e => setInvestigatedBy(e.target.value)} placeholder="Manager / investigator name" /></div>
+          </div>
+          <div><Label>Investigation Notes</Label><Textarea className="mt-1" rows={3} value={investigationNotes} onChange={e => setInvestigationNotes(e.target.value)} placeholder="Findings, root cause, contributing factors…" /></div>
+          {record.riddorReportable && (
+            <div style={{ padding: "12px 14px", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8 }}>
+              <p style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#991b1b", marginBottom: 10 }}>RIDDOR — Complete within deadline</p>
+              <div style={{ display: "grid", gap: 10 }}>
+                <div>
+                  <Label>RIDDOR Category</Label>
+                  <Select value={riddorCategory} onValueChange={setRiddorCategory}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select category…" /></SelectTrigger>
+                    <SelectContent>{RIDDOR_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div><Label>HSE Reference No.</Label><Input className="mt-1" value={riddorReference} onChange={e => setRiddorReference(e.target.value)} placeholder="From riddor.hse.gov.uk" /></div>
+                  <div><Label>Date Reported to HSE</Label><Input type="date" className="mt-1" value={riddorReportedDate} onChange={e => setRiddorReportedDate(e.target.value)} /></div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter style={{ marginTop: 12 }}>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !investigatedBy.trim()}>
+            {mut.isPending ? <><Loader2 size={14} className="animate-spin mr-1" /> Saving…</> : <>Save Investigation <ArrowRight size={14} className="ml-1" /></>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Stage 3: Corrective Action Dialog ────────────────────────────────────────
+
+function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [correctiveAction, setCorrectiveAction] = useState(record.correctiveAction ?? "");
+  const [correctiveActionDate, setCorrectiveActionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [correctiveActionBy, setCorrectiveActionBy] = useState("");
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/accident-book/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        correctiveAction: correctiveAction || null,
+        correctiveActionDate: correctiveActionDate || null,
+        correctiveActionBy: correctiveActionBy || null,
+        status: "corrective_action_taken",
+      }),
+    }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 480 }}>
+        <DialogHeader>
+          <DialogTitle>Record Corrective Action</DialogTitle>
+          <DialogDescription>{record.personName} — {fmt(record.incidentDate)}</DialogDescription>
+        </DialogHeader>
+        <div style={{ display: "grid", gap: 14, marginTop: 8 }}>
+          <div><Label>Corrective Action Taken *</Label><Textarea className="mt-1" rows={3} value={correctiveAction} onChange={e => setCorrectiveAction(e.target.value)} placeholder="What steps were taken to prevent recurrence?" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><Label>Date Action Taken</Label><Input type="date" className="mt-1" value={correctiveActionDate} onChange={e => setCorrectiveActionDate(e.target.value)} /></div>
+            <div><Label>Action Taken By</Label><Input className="mt-1" value={correctiveActionBy} onChange={e => setCorrectiveActionBy(e.target.value)} placeholder="Name" /></div>
+          </div>
+        </div>
+        <DialogFooter style={{ marginTop: 12 }}>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !correctiveAction.trim()}>
+            {mut.isPending ? <><Loader2 size={14} className="animate-spin mr-1" /> Saving…</> : <>Save Action <ArrowRight size={14} className="ml-1" /></>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Stage 4: Sign-Off Dialog ─────────────────────────────────────────────────
+
+function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [signedOffBy, setSignedOffBy] = useState(record.signedOffBy ?? "");
+  const [signOffDate, setSignOffDate] = useState(new Date().toISOString().slice(0, 10));
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/accident-book/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signedOffBy: signedOffBy || null, signOffDate: signOffDate || null, status: "closed" }),
+    }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 400 }}>
+        <DialogHeader>
+          <DialogTitle>Sign Off Record</DialogTitle>
+          <DialogDescription>{record.personName} — {fmt(record.incidentDate)}</DialogDescription>
+        </DialogHeader>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
+          <div><Label>Signed Off By *</Label><Input className="mt-1" value={signedOffBy} onChange={e => setSignedOffBy(e.target.value)} placeholder="Manager's name" autoFocus /></div>
+          <div><Label>Sign-Off Date</Label><Input type="date" className="mt-1" value={signOffDate} onChange={e => setSignOffDate(e.target.value)} /></div>
+        </div>
+        <DialogFooter style={{ marginTop: 12 }}>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !signedOffBy.trim()} style={{ background: "#16a34a", color: "#fff" }}>
+            {mut.isPending ? <><Loader2 size={14} className="animate-spin mr-1" /> Saving…</> : <><CheckCircle2 size={14} className="mr-1" /> Sign Off Record</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -266,6 +467,9 @@ export default function AccidentBookPage() {
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [allYears, setAllYears] = useState(false);
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
+  const [investigateRecord, setInvestigateRecord] = useState<AccidentRecord | null>(null);
+  const [correctiveActionRecord, setCorrectiveActionRecord] = useState<AccidentRecord | null>(null);
+  const [signOffRecord, setSignOffRecord] = useState<AccidentRecord | null>(null);
 
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_FORM, incidentDate: new Date().toISOString().slice(0, 10) }); setAddOpen(true); }
   function openEdit(r: AccidentRecord) {
@@ -280,6 +484,7 @@ export default function AccidentBookPage() {
       riddorReference: r.riddorReference ?? "", riddorReportedDate: r.riddorReportedDate ?? "",
       witnesses: r.witnesses ?? "", correctiveAction: r.correctiveAction ?? "",
       signedOffBy: r.signedOffBy ?? "", signOffDate: r.signOffDate ?? "", notes: r.notes ?? "",
+      status: r.status ?? "reported",
     });
     setAddOpen(true);
   }
@@ -463,7 +668,7 @@ export default function AccidentBookPage() {
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
                 {filtered.map(record => (
-                  <RecordCard key={record.id} record={record} farmId={farmId!} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} onRaiseTask={() => setRaiseTaskFor(record)} />
+                  <RecordCard key={record.id} record={record} farmId={farmId!} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} onRaiseTask={() => setRaiseTaskFor(record)} onInvestigate={() => setInvestigateRecord(record)} onCorrectiveAction={() => setCorrectiveActionRecord(record)} onSignOff={() => setSignOffRecord(record)} />
                 ))}
               </div>
             )}
@@ -578,14 +783,22 @@ export default function AccidentBookPage() {
                 </div>
 
                 {/* Section: Follow-up */}
-                <SectionHeading>Follow-Up &amp; Sign-Off</SectionHeading>
+                <SectionHeading>Follow-Up</SectionHeading>
                 <div><Label>Witnesses</Label><Input className="mt-1" value={form.witnesses} onChange={e => setForm(f => ({ ...f, witnesses: e.target.value }))} placeholder="Names of any witnesses" /></div>
-                <div><Label>Corrective Action Taken</Label><Textarea className="mt-1" rows={2} value={form.correctiveAction} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} placeholder="What steps were taken to prevent recurrence?" /></div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div><Label>Signed Off By (Manager)</Label><Input className="mt-1" value={form.signedOffBy} onChange={e => setForm(f => ({ ...f, signedOffBy: e.target.value }))} placeholder="Manager's name" /></div>
-                  <div><Label>Sign-Off Date</Label><Input type="date" className="mt-1" value={form.signOffDate} onChange={e => setForm(f => ({ ...f, signOffDate: e.target.value }))} /></div>
-                </div>
                 <div><Label>Additional Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+
+                {/* Corrective action / sign-off only in edit mode — use stage buttons for new records */}
+                {editItem && (
+                  <>
+                    <SectionHeading>Corrective Action &amp; Sign-Off</SectionHeading>
+                    <p style={{ fontSize: "0.8rem", color: "#9ca3af", marginTop: -8 }}>Use the "Investigate", "Record Action" and "Sign Off" buttons on the record card to progress through stages. Edit these fields here only to correct existing data.</p>
+                    <div><Label>Corrective Action Taken</Label><Textarea className="mt-1" rows={2} value={form.correctiveAction} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} placeholder="What steps were taken to prevent recurrence?" /></div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div><Label>Signed Off By (Manager)</Label><Input className="mt-1" value={form.signedOffBy} onChange={e => setForm(f => ({ ...f, signedOffBy: e.target.value }))} placeholder="Manager's name" /></div>
+                      <div><Label>Sign-Off Date</Label><Input type="date" className="mt-1" value={form.signOffDate} onChange={e => setForm(f => ({ ...f, signOffDate: e.target.value }))} /></div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <DialogFooter>
@@ -600,6 +813,10 @@ export default function AccidentBookPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {investigateRecord && <InvestigateDialog farmId={farmId!} record={investigateRecord} onClose={() => setInvestigateRecord(null)} />}
+        {correctiveActionRecord && <RecordCorrectiveActionDialog farmId={farmId!} record={correctiveActionRecord} onClose={() => setCorrectiveActionRecord(null)} />}
+        {signOffRecord && <SignOffDialog farmId={farmId!} record={signOffRecord} onClose={() => setSignOffRecord(null)} />}
 
         <RaiseTaskDialog
           farmId={farmId!}

@@ -10,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
   Plus, Search, Loader2, Pencil, Trash2, AlertTriangle,
-  CheckCircle2, FileText, Eye, Paperclip,
+  CheckCircle2, FileText, Eye, Paperclip, ArrowRight, XCircle,
 } from "lucide-react";
+
+// ─── Interfaces ──────────────────────────────────────────────────────────────
 
 interface MortalityRecord {
   id: number;
@@ -40,6 +42,7 @@ interface MortalityRecord {
   invoiceRef: string | null;
   invoiceAmount: string | null;
   invoicePaidDate: string | null;
+  status: string;
   createdAt: string;
 }
 
@@ -63,18 +66,6 @@ interface VetHealthPlan {
   vetName: string;
   practiceName: string | null;
   practicePhone: string | null;
-  practiceAddress: string | null;
-  planDate: string;
-  reviewDate: string | null;
-  healthPriorities: string | null;
-  vaccinationProtocol: string | null;
-  biosecurityMeasures: string | null;
-  wormingProtocol: string | null;
-  flukeTreatment: string | null;
-  mastitisPrevention: string | null;
-  notes: string | null;
-  isActive: boolean;
-  createdAt: string;
 }
 
 interface Animal {
@@ -87,6 +78,8 @@ interface Animal {
   breed: string | null;
   status: string;
 }
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const CAUSE_LABELS: Record<string, string> = {
   disease: "Disease / Illness", injury: "Injury / Trauma", metabolic: "Metabolic Disorder",
@@ -110,15 +103,22 @@ const CONTRACTOR_TYPES: Record<string, string> = {
   "other": "Other",
 };
 
-const EMPTY_MORTALITY = {
-  animalId: "" as string,
-  contractorId: "" as string,
-  tagNumber: "", species: "", breed: "", dateOfDeath: new Date().toISOString().slice(0, 10),
-  causeOfDeath: "", disposalMethod: "", disposalOperator: "", disposalRef: "",
-  veterinaryAttended: false, vetName: "", postMortemCarriedOut: false, postMortemFindings: "",
-  bcmsNotified: false, bcmsNotificationRef: "", notes: "",
-  invoiceStatus: "none", invoiceRef: "", invoiceAmount: "", invoicePaidDate: "",
+const STATUS_CONFIG: Record<string, { label: string; color: string; step: number }> = {
+  reported:          { label: "Awaiting Disposal",  color: "bg-orange-50 text-orange-700 border-orange-200", step: 1 },
+  disposal_arranged: { label: "Disposal Arranged",  color: "bg-amber-50 text-amber-700 border-amber-200",   step: 2 },
+  disposed:          { label: "Collected",           color: "bg-blue-50 text-blue-700 border-blue-200",      step: 3 },
+  closed:            { label: "Closed",              color: "bg-green-50 text-green-700 border-green-200",   step: 4 },
 };
+
+const STAGE_LABELS = ["Death Reported", "Disposal Arranged", "Collected", "Closed"];
+
+const EMPTY_STAGE1 = {
+  animalId: "", tagNumber: "", species: "", breed: "",
+  dateOfDeath: new Date().toISOString().slice(0, 10),
+  causeOfDeath: "", disposalMethod: "", notes: "",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -126,104 +126,407 @@ function formatDate(val: string | null | undefined): string {
   catch { return val; }
 }
 
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.reported;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Record Stepper ───────────────────────────────────────────────────────────
+
+function RecordStepper({ status }: { status: string }) {
+  const currentStep = STATUS_CONFIG[status]?.step ?? 1;
+  return (
+    <div className="flex items-start gap-0 mb-5">
+      {STAGE_LABELS.map((label, i) => {
+        const step = i + 1;
+        const done = step < currentStep;
+        const active = step === currentStep;
+        return (
+          <div key={label} className="flex items-start flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2
+                ${done ? "bg-green-500 border-green-500 text-white" : active ? "bg-primary border-primary text-primary-foreground" : "bg-white border-gray-300 text-gray-400"}`}>
+                {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : step}
+              </div>
+              <span className={`text-xs mt-1 text-center leading-tight max-w-[60px]
+                ${active ? "font-semibold text-primary" : done ? "text-green-600" : "text-gray-400"}`}>{label}</span>
+            </div>
+            {i < STAGE_LABELS.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1 mt-3 ${done ? "bg-green-400" : "bg-gray-200"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Stage 2: Arrange Disposal Dialog ────────────────────────────────────────
+
+function ArrangeDisposalDialog({ farmId, record, contractors, onClose }: {
+  farmId: number; record: MortalityRecord; contractors: FallenStockContractor[]; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/mortality-records`;
+  const [contractorId, setContractorId] = useState(record.contractorId ? String(record.contractorId) : "");
+  const [disposalOperator, setDisposalOperator] = useState(record.disposalOperator ?? "");
+  const [bcmsNotified, setBcmsNotified] = useState(record.bcmsNotified);
+  const [bcmsNotificationRef, setBcmsNotificationRef] = useState(record.bcmsNotificationRef ?? "");
+  const isCattle = record.species?.toLowerCase().includes("cattle") || record.species?.toLowerCase().includes("bovine");
+  const selectedContractor = contractors.find(c => String(c.id) === contractorId);
+
+  function handleContractorSelect(v: string) {
+    if (v === "__none__") { setContractorId(""); setDisposalOperator(""); return; }
+    const c = contractors.find(x => String(x.id) === v);
+    if (c) { setContractorId(v); setDisposalOperator(c.name); }
+  }
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`${base}/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contractorId: contractorId ? Number(contractorId) : null,
+        disposalOperator: disposalOperator || null,
+        bcmsNotified, bcmsNotificationRef: bcmsNotificationRef || null,
+        status: "disposal_arranged",
+      }),
+    }).then(r => { if (!r.ok) throw new Error("Failed"); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-amber-600" /> Arrange Disposal
+          </DialogTitle>
+          <DialogDescription>Step 2 of 4 — confirm disposal contractor and statutory notification.</DialogDescription>
+        </DialogHeader>
+        <RecordStepper status="disposal_arranged" />
+        <div className="space-y-4">
+          <div>
+            <Label>Disposal Contractor / Operator</Label>
+            {contractors.length > 0 ? (
+              <Select value={contractorId || "__none__"} onValueChange={handleContractorSelect}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select registered contractor…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not yet selected —</SelectItem>
+                  {contractors.map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name} <span className="text-gray-400">({CONTRACTOR_TYPES[c.operatorType] ?? c.operatorType})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input className="mt-1" value={disposalOperator} onChange={e => setDisposalOperator(e.target.value)} placeholder="Operator name" />
+            )}
+            {selectedContractor && (
+              <div className="mt-1.5 rounded bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-800 flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                <span>APHA Approval No: <strong className="font-mono">{selectedContractor.approvalNumber}</strong></span>
+                {selectedContractor.phone && <span>· {selectedContractor.phone}</span>}
+              </div>
+            )}
+          </div>
+
+          <div className={`border rounded-lg p-3 space-y-2 ${isCattle ? "bg-amber-50/60 border-amber-200" : "bg-gray-50"}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+              {isCattle ? "BCMS Notification — Required for Cattle" : "Statutory Notification"}
+            </p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={bcmsNotified} onChange={e => setBcmsNotified(e.target.checked)} className="rounded" />
+              {isCattle ? "Notified to BCMS within 7 days of death" : "Other statutory notification completed"}
+            </label>
+            {!bcmsNotified && isCattle && (
+              <p className="text-xs text-amber-700 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Cattle deaths must be reported to BCMS within 7 days.
+              </p>
+            )}
+            {bcmsNotified && (
+              <div>
+                <Label className="text-xs">{isCattle ? "BCMS Notification Reference" : "Notification Reference"}</Label>
+                <Input className="mt-1" value={bcmsNotificationRef} onChange={e => setBcmsNotificationRef(e.target.value)} placeholder={isCattle ? "BCMS submission reference" : "Notification reference"} />
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
+            {mut.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Saving…</> : <>Mark Disposal Arranged <ArrowRight className="w-4 h-4 ml-1" /></>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Stage 3: Log Collection Dialog ──────────────────────────────────────────
+
+function LogCollectionDialog({ farmId, record, onClose }: {
+  farmId: number; record: MortalityRecord; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/mortality-records`;
+  const [disposalRef, setDisposalRef] = useState(record.disposalRef ?? "");
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`${base}/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disposalRef: disposalRef || null, status: "disposed" }),
+    }).then(r => { if (!r.ok) throw new Error("Failed"); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+  });
+
+  const contractorLabel = record.contractorName || record.disposalOperator || "Contractor";
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ArrowRight className="w-4 h-4 text-blue-600" /> Log Collection
+          </DialogTitle>
+          <DialogDescription>Step 3 of 4 — record the collection reference from the contractor.</DialogDescription>
+        </DialogHeader>
+        <RecordStepper status="disposed" />
+        <div className="space-y-4">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+            <strong>{contractorLabel}</strong> has collected the animal.
+            Record the reference number from the collection note or NFAS certificate.
+          </div>
+          <div>
+            <Label>Disposal Reference / Collection Certificate No.</Label>
+            <Input className="mt-1" value={disposalRef} onChange={e => setDisposalRef(e.target.value)}
+              placeholder="e.g. NFAS-2024-00412 or collection note ref" autoFocus />
+            <p className="text-xs text-gray-500 mt-1">
+              This is the NFAS certificate, knacker's receipt, or collection note reference. Required for Red Tractor and organic inspections.
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !disposalRef.trim()}>
+            {mut.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Saving…</> : <>Mark Collected <ArrowRight className="w-4 h-4 ml-1" /></>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Stage 4: Close Record Dialog ────────────────────────────────────────────
+
+function CloseRecordDialog({ farmId, record, vetOptions, onClose }: {
+  farmId: number; record: MortalityRecord;
+  vetOptions: { label: string; value: string }[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/mortality-records`;
+  const [veterinaryAttended, setVeterinaryAttended] = useState(record.veterinaryAttended);
+  const [vetName, setVetName] = useState(record.vetName ?? "");
+  const [useOtherVet, setUseOtherVet] = useState(false);
+  const [postMortemCarriedOut, setPostMortemCarriedOut] = useState(record.postMortemCarriedOut);
+  const [postMortemFindings, setPostMortemFindings] = useState(record.postMortemFindings ?? "");
+  const [invoiceStatus, setInvoiceStatus] = useState(record.invoiceStatus ?? "none");
+  const [invoiceRef, setInvoiceRef] = useState(record.invoiceRef ?? "");
+  const [invoiceAmount, setInvoiceAmount] = useState(record.invoiceAmount ?? "");
+  const [invoicePaidDate, setInvoicePaidDate] = useState(record.invoicePaidDate ?? "");
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`${base}/${record.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        veterinaryAttended, vetName: vetName || null,
+        postMortemCarriedOut, postMortemFindings: postMortemFindings || null,
+        invoiceStatus, invoiceRef: invoiceRef || null,
+        invoiceAmount: invoiceAmount || null, invoicePaidDate: invoicePaidDate || null,
+        status: "closed",
+      }),
+    }).then(r => { if (!r.ok) throw new Error("Failed"); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600" /> Close Record
+          </DialogTitle>
+          <DialogDescription>Step 4 of 4 — record vet/post-mortem findings and invoice status.</DialogDescription>
+        </DialogHeader>
+        <RecordStepper status="closed" />
+        <div className="space-y-4">
+          <div className="border rounded-lg p-3 space-y-3 bg-slate-50/60">
+            <p className="text-sm font-semibold text-gray-700">Veterinary</p>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={veterinaryAttended} onChange={e => setVeterinaryAttended(e.target.checked)} className="rounded" />
+                Vet attended
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={postMortemCarriedOut} onChange={e => setPostMortemCarriedOut(e.target.checked)} className="rounded" />
+                Post-mortem carried out
+              </label>
+            </div>
+            {veterinaryAttended && (
+              <div>
+                <Label className="text-xs">Attending Vet / Practice</Label>
+                {vetOptions.length > 0 ? (
+                  <>
+                    <Select
+                      value={(!useOtherVet && vetOptions.find(v => v.value === vetName)) ? vetName : (useOtherVet ? "__other__" : "__none__")}
+                      onValueChange={v => {
+                        if (v === "__none__") { setUseOtherVet(false); setVetName(""); }
+                        else if (v === "__other__") { setUseOtherVet(true); setVetName(""); }
+                        else { setUseOtherVet(false); setVetName(v); }
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select vet…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Select vet —</SelectItem>
+                        {vetOptions.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                        <SelectItem value="__other__">Other / manual entry…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {useOtherVet && <Input className="mt-2" value={vetName} onChange={e => setVetName(e.target.value)} placeholder="e.g. Mr A. Jones BVSc — Shire Vets" autoFocus />}
+                  </>
+                ) : (
+                  <Input className="mt-1" value={vetName} onChange={e => setVetName(e.target.value)} placeholder="Vet name / practice" />
+                )}
+              </div>
+            )}
+            {postMortemCarriedOut && (
+              <div>
+                <Label className="text-xs">Post-mortem Findings</Label>
+                <Textarea className="mt-1" value={postMortemFindings} onChange={e => setPostMortemFindings(e.target.value)} placeholder="Summary of PM findings…" rows={2} />
+              </div>
+            )}
+            {!veterinaryAttended && !postMortemCarriedOut && (
+              <p className="text-xs text-gray-400 italic">Tick above if a vet attended or a post-mortem was carried out.</p>
+            )}
+          </div>
+
+          <div className="border rounded-lg p-3 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Collection Invoice</p>
+            <div>
+              <Label className="text-xs">Invoice status</Label>
+              <Select value={invoiceStatus} onValueChange={setInvoiceStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No invoice expected</SelectItem>
+                  <SelectItem value="awaiting">Awaiting invoice from collector</SelectItem>
+                  <SelectItem value="received">Invoice received — payment pending</SelectItem>
+                  <SelectItem value="paid">Invoice received and paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {invoiceStatus !== "none" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs">Invoice reference</Label><Input className="mt-1" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} placeholder="e.g. INV-2024-0041" /></div>
+                <div><Label className="text-xs">Amount (£)</Label><Input className="mt-1" value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} placeholder="e.g. 45.00" /></div>
+                {invoiceStatus === "paid" && (
+                  <div><Label className="text-xs">Date paid</Label><Input type="date" className="mt-1" value={invoicePaidDate} onChange={e => setInvoicePaidDate(e.target.value)} /></div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending} className="bg-green-600 hover:bg-green-700">
+            {mut.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Saving…</> : <><CheckCircle2 className="w-4 h-4 mr-1" /> Close Record</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+const EMPTY_FULL = {
+  animalId: "" as string, contractorId: "" as string,
+  tagNumber: "", species: "", breed: "",
+  dateOfDeath: new Date().toISOString().slice(0, 10),
+  causeOfDeath: "", disposalMethod: "", disposalOperator: "", disposalRef: "",
+  veterinaryAttended: false, vetName: "", postMortemCarriedOut: false, postMortemFindings: "",
+  bcmsNotified: false, bcmsNotificationRef: "", notes: "",
+  invoiceStatus: "none", invoiceRef: "", invoiceAmount: "", invoicePaidDate: "",
+  status: "reported",
+};
+
 export function MortalitySection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/mortality-records`;
+
   const { data, isLoading } = useQuery<{ records: MortalityRecord[] }>({
     queryKey: ["mortality", farmId],
     queryFn: () => fetch(base).then(r => r.json()),
   });
   const records = data?.records ?? [];
 
-  const { data: animalsForMortality } = useQuery<{ records: Animal[] }>({
+  const { data: animalsData } = useQuery<{ records: Animal[] }>({
     queryKey: ["animals", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/animals`).then(r => r.json()),
   });
-  const animals: Animal[] = animalsForMortality?.records ?? [];
-  const activeAnimals = animals.filter(a => a.status === "active");
+  const activeAnimals = (animalsData?.records ?? []).filter(a => a.status === "active");
 
-  const { data: contractors = [] } = useQuery<FallenStockContractor[]>({
+  const { data: contractorsRaw = [] } = useQuery<FallenStockContractor[]>({
     queryKey: ["fallen-stock-contractors", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`).then(r => r.json()),
   });
-  const activeContractors = Array.isArray(contractors) ? contractors.filter(c => c.isActive) : [];
+  const activeContractors = Array.isArray(contractorsRaw) ? contractorsRaw.filter(c => c.isActive) : [];
 
   const { data: vetPlansData } = useQuery({
     queryKey: ["mortality-vet-plans", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`).then(r => r.json()).then(d => d.records ?? []),
   });
   const vetPlans: VetHealthPlan[] = Array.isArray(vetPlansData) ? vetPlansData : [];
-
   const knownVets = vetPlans.reduce<{ label: string; value: string }[]>((acc, p) => {
     const value = [p.vetName, p.practiceName].filter(Boolean).join(" — ");
     if (!acc.find(v => v.value === value)) acc.push({ label: value + (p.practicePhone ? ` · ${p.practicePhone}` : ""), value });
     return acc;
   }, []);
 
-  const { data: mortalityAttachCountsRaw = [] } = useQuery<Array<{ recordType: string; recordId: number; count: number }>>({
+  const { data: attachCountsRaw = [] } = useQuery<Array<{ recordType: string; recordId: number; count: number }>>({
     queryKey: ["record-attachment-counts", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
     staleTime: 30000,
   });
-  const mortalityAttachMap = Object.fromEntries(
-    mortalityAttachCountsRaw.filter(c => c.recordType === "mortality").map(c => [c.recordId, c.count])
+  const attachMap = Object.fromEntries(
+    attachCountsRaw.filter(c => c.recordType === "mortality").map(c => [c.recordId, c.count])
   );
 
   const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<MortalityRecord | null>(null);
-  const [viewMortality, setViewMortality] = useState<MortalityRecord | null>(null);
-  const [form, setForm] = useState(EMPTY_MORTALITY);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "reported" | "disposal_arranged" | "disposed" | "closed">("all");
+  const [viewRecord, setViewRecord] = useState<MortalityRecord | null>(null);
+  const [arrangingDisposal, setArrangingDisposal] = useState<MortalityRecord | null>(null);
+  const [loggingCollection, setLoggingCollection] = useState<MortalityRecord | null>(null);
+  const [closingRecord, setClosingRecord] = useState<MortalityRecord | null>(null);
+  const [showFullEdit, setShowFullEdit] = useState(false);
+  const [editRecord, setEditRecord] = useState<MortalityRecord | null>(null);
+  const [fullForm, setFullForm] = useState(EMPTY_FULL);
   const [useOtherVet, setUseOtherVet] = useState(false);
-  const [invoiceFilter, setInvoiceFilter] = useState<"all" | "awaiting" | "received" | "unpaid">("all");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
+  function setField(k: string, v: string | boolean) { setFullForm(f => ({ ...f, [k]: v })); }
 
-  function handleAnimalSelect(animalId: string) {
-    const a = activeAnimals.find(x => String(x.id) === animalId);
-    if (a) {
-      setForm(f => ({
-        ...f,
-        animalId,
-        tagNumber: a.earTagNumber ?? a.tagNumber ?? "",
-        species: a.species,
-        breed: a.breed ?? "",
-      }));
-    }
-  }
-
-  function handleContractorSelect(contractorId: string) {
-    if (contractorId === "__none__") { setForm(f => ({ ...f, contractorId: "", disposalOperator: "", disposalRef: "" })); return; }
-    const c = activeContractors.find(x => String(x.id) === contractorId);
-    if (c) setForm(f => ({ ...f, contractorId, disposalOperator: c.name, disposalRef: f.disposalRef || "" }));
-  }
-
-  const selectedContractor = activeContractors.find(c => String(c.id) === form.contractorId);
-
-  const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["mortality", farmId] });
-      qc.invalidateQueries({ queryKey: ["animals", farmId] });
-      setShowForm(false); setForm(EMPTY_MORTALITY); setUseOtherVet(false);
-    },
-  });
-  const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_MORTALITY & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_MORTALITY); setUseOtherVet(false); },
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setDeleteId(null); },
-  });
-
-  function openEdit(r: MortalityRecord) {
-    setEditing(r);
+  function openFullEdit(r: MortalityRecord) {
+    setEditRecord(r);
     const existingVet = r.vetName ?? "";
-    const isKnownVet = knownVets.some(v => v.value === existingVet);
-    setUseOtherVet(existingVet !== "" && !isKnownVet);
-    setForm({
+    setUseOtherVet(existingVet !== "" && !knownVets.some(v => v.value === existingVet));
+    setFullForm({
       animalId: r.animalId ? String(r.animalId) : "",
       contractorId: r.contractorId ? String(r.contractorId) : "",
       tagNumber: r.tagNumber ?? "", species: r.species, breed: r.breed ?? "",
@@ -233,22 +536,57 @@ export function MortalitySection({ farmId }: { farmId: number }) {
       vetName: existingVet, postMortemCarriedOut: r.postMortemCarriedOut,
       postMortemFindings: r.postMortemFindings ?? "", bcmsNotified: r.bcmsNotified,
       bcmsNotificationRef: r.bcmsNotificationRef ?? "", notes: r.notes ?? "",
-      invoiceStatus: r.invoiceStatus ?? "none",
-      invoiceRef: r.invoiceRef ?? "",
-      invoiceAmount: r.invoiceAmount ?? "",
-      invoicePaidDate: r.invoicePaidDate ?? "",
+      invoiceStatus: r.invoiceStatus ?? "none", invoiceRef: r.invoiceRef ?? "",
+      invoiceAmount: r.invoiceAmount ?? "", invoicePaidDate: r.invoicePaidDate ?? "",
+      status: r.status ?? "reported",
     });
-    setShowForm(true);
+    setShowFullEdit(true);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function openNewRecord() {
+    setEditRecord(null);
+    setFullForm({ ...EMPTY_FULL, dateOfDeath: new Date().toISOString().slice(0, 10) });
+    setUseOtherVet(false);
+    setShowFullEdit(true);
+  }
+
+  function handleAnimalSelect(animalId: string) {
+    const a = activeAnimals.find(x => String(x.id) === animalId);
+    if (a) setFullForm(f => ({ ...f, animalId, tagNumber: a.earTagNumber ?? a.tagNumber ?? "", species: a.species, breed: a.breed ?? "" }));
+  }
+
+  function handleContractorSelect(contractorId: string) {
+    if (contractorId === "__none__") { setFullForm(f => ({ ...f, contractorId: "", disposalOperator: "" })); return; }
+    const c = activeContractors.find(x => String(x.id) === contractorId);
+    if (c) setFullForm(f => ({ ...f, contractorId, disposalOperator: c.name }));
+  }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_FULL) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["animals", farmId] }); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof EMPTY_FULL & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditRecord(null); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setDeleteId(null); },
+  });
+
+  function handleFullSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.animalId) return;
-    if (editing) updateMut.mutate({ ...form, id: editing.id });
-    else createMut.mutate(form);
+    if (!fullForm.animalId) return;
+    if (editRecord) updateMut.mutate({ ...fullForm, id: editRecord.id });
+    else createMut.mutate(fullForm);
   }
 
-  const selectedAnimal = activeAnimals.find(a => String(a.id) === form.animalId) ?? null;
+  const selectedContractor = activeContractors.find(c => String(c.id) === fullForm.contractorId);
+  const selectedAnimal = activeAnimals.find(a => String(a.id) === fullForm.animalId) ?? null;
+
+  const awaitingDisposal = records.filter(r => r.status === "reported").length;
+  const awaitingCollection = records.filter(r => r.status === "disposal_arranged").length;
+  const awaitingCloseOut = records.filter(r => r.status === "disposed").length;
 
   const filtered = records.filter(r => {
     const matchesSearch =
@@ -256,21 +594,50 @@ export function MortalitySection({ farmId }: { farmId: number }) {
       r.species.toLowerCase().includes(search.toLowerCase()) ||
       r.causeOfDeath.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
-    if (invoiceFilter === "awaiting") return r.invoiceStatus === "awaiting";
-    if (invoiceFilter === "received") return r.invoiceStatus === "received";
-    if (invoiceFilter === "unpaid") return r.invoiceStatus === "awaiting" || r.invoiceStatus === "received";
+    if (statusFilter !== "all") return r.status === statusFilter;
     return true;
   });
 
+  const STATUS_FILTER_TABS: { key: typeof statusFilter; label: string; count?: number }[] = [
+    { key: "all", label: "All Records" },
+    { key: "reported", label: "Awaiting Disposal", count: awaitingDisposal },
+    { key: "disposal_arranged", label: "Disposal Arranged", count: awaitingCollection },
+    { key: "disposed", label: "Collected", count: awaitingCloseOut },
+    { key: "closed", label: "Closed" },
+  ];
+
   return (
     <>
+      {/* Alert banners */}
+      {awaitingDisposal > 0 && (
+        <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg mb-4 text-sm text-orange-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <strong>{awaitingDisposal} record{awaitingDisposal > 1 ? "s" : ""} awaiting disposal</strong> — arrange collection immediately.
+            Cattle deaths must be notified to BCMS within 7 days.
+          </div>
+        </div>
+      )}
+      {awaitingCollection > 0 && (
+        <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <strong>{awaitingCollection} record{awaitingCollection > 1 ? "s" : ""} awaiting contractor collection</strong> — log the disposal reference when the contractor collects.
+        </div>
+      )}
+      {awaitingCloseOut > 0 && (
+        <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4 text-sm text-blue-800">
+          <FileText className="h-4 w-4 shrink-0 mt-0.5" />
+          <strong>{awaitingCloseOut} collected record{awaitingCloseOut > 1 ? "s" : ""} awaiting close-out</strong> — record vet findings and invoice details to close.
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4 gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by tag, species or cause…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_MORTALITY); setUseOtherVet(false); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Record
+        <Button onClick={openNewRecord}>
+          <Plus className="h-4 w-4 mr-1" /> Report Death
         </Button>
       </div>
 
@@ -278,22 +645,15 @@ export function MortalitySection({ farmId }: { farmId: number }) {
         <strong>Legal requirement:</strong> Keep mortality records for a minimum of 3 years. Cattle deaths must be notified to BCMS within 7 days. Retain disposal certificates.
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="text-xs text-muted-foreground font-medium">Invoice filter:</span>
-        {(["all", "unpaid", "awaiting", "received"] as const).map(f => {
-          const labels: Record<string, string> = { all: "All records", unpaid: "Unpaid (awaiting + received)", awaiting: "Awaiting invoice", received: "Invoice received — unpaid" };
-          const active = invoiceFilter === f;
-          const colours: Record<string, string> = { all: "bg-gray-100 text-gray-700 border-gray-200", unpaid: "bg-orange-100 text-orange-700 border-orange-300", awaiting: "bg-amber-100 text-amber-700 border-amber-300", received: "bg-blue-100 text-blue-700 border-blue-300" };
-          return (
-            <button key={f} onClick={() => setInvoiceFilter(f)}
-              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${colours[f]} ${active ? "ring-2 ring-offset-1 ring-current" : "opacity-60 hover:opacity-100"}`}>
-              {labels[f]}
-            </button>
-          );
-        })}
-        {invoiceFilter !== "all" && (
-          <span className="text-xs text-muted-foreground ml-1">— {filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
-        )}
+      {/* Status filter tabs */}
+      <div className="flex flex-wrap gap-1 mb-4">
+        {STATUS_FILTER_TABS.map(t => (
+          <button key={t.key} onClick={() => setStatusFilter(t.key)}
+            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all
+              ${statusFilter === t.key ? "bg-primary text-primary-foreground border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"}`}>
+            {t.label}{t.count !== undefined && t.count > 0 ? ` (${t.count})` : ""}
+          </button>
+        ))}
       </div>
 
       {isLoading ? (
@@ -301,7 +661,7 @@ export function MortalitySection({ farmId }: { farmId: number }) {
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-16 text-center">
           <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{search || invoiceFilter !== "all" ? "No matching records found." : "No mortality records yet."}</p>
+          <p className="text-muted-foreground">{search || statusFilter !== "all" ? "No matching records found." : "No mortality records yet."}</p>
         </CardContent></Card>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -311,48 +671,47 @@ export function MortalitySection({ farmId }: { farmId: number }) {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tag / Species</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cause</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Disposal</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">BCMS</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Vet</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Next Action</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {filtered.map(r => (
                 <tr key={r.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{formatDate(r.dateOfDeath)}</td>
+                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{formatDate(r.dateOfDeath)}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{r.tagNumber || <span className="text-muted-foreground italic">No tag</span>}</div>
                     <div className="text-xs text-muted-foreground capitalize">{r.species}{r.breed ? ` · ${r.breed}` : ""}</div>
                   </td>
                   <td className="px-4 py-3 text-xs">{CAUSE_LABELS[r.causeOfDeath] ?? r.causeOfDeath}</td>
-                  <td className="px-4 py-3 text-xs">{DISPOSAL_LABELS[r.disposalMethod] ?? r.disposalMethod}</td>
+                  <td className="px-4 py-3"><StatusBadge status={r.status ?? "reported"} /></td>
                   <td className="px-4 py-3">
-                    {r.invoiceStatus === "none" || !r.invoiceStatus
-                      ? <span className="inline-flex items-center gap-1 text-xs text-gray-400 px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50">No invoice</span>
-                      : r.invoiceStatus === "awaiting"
-                        ? <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200"><AlertTriangle className="h-3 w-3" /> Awaiting</span>
-                        : r.invoiceStatus === "received"
-                          ? <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200"><FileText className="h-3 w-3" /> Received</span>
-                          : <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200"><CheckCircle2 className="h-3 w-3" /> Paid</span>}
-                    {r.invoiceRef && <div className="text-xs text-muted-foreground mt-0.5">{r.invoiceRef}</div>}
+                    {r.status === "reported" && (
+                      <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50 h-7 text-xs" onClick={() => setArrangingDisposal(r)}>
+                        Arrange Disposal <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    )}
+                    {r.status === "disposal_arranged" && (
+                      <Button size="sm" variant="outline" className="text-blue-700 border-blue-300 hover:bg-blue-50 h-7 text-xs" onClick={() => setLoggingCollection(r)}>
+                        Log Collection <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    )}
+                    {r.status === "disposed" && (
+                      <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50 h-7 text-xs" onClick={() => setClosingRecord(r)}>
+                        Close Record <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    )}
                   </td>
-                  <td className="px-4 py-3">
-                    {r.bcmsNotified
-                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" /> Notified</span>
-                      : <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><AlertTriangle className="h-3 w-3" /> Pending</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{r.veterinaryAttended ? r.vetName || "Yes" : "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {(mortalityAttachMap[r.id] ?? 0) > 0 && (
+                      {(attachMap[r.id] ?? 0) > 0 && (
                         <span className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                          <Paperclip className="w-3 h-3" />{mortalityAttachMap[r.id]}
+                          <Paperclip className="w-3 h-3" />{attachMap[r.id]}
                         </span>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => setViewMortality(r)}><Eye className="h-3 w-3" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)}><Eye className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => openFullEdit(r)}><Pencil className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
                     </div>
                   </td>
@@ -363,75 +722,114 @@ export function MortalitySection({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      {viewMortality && (
-        <Dialog open onOpenChange={() => setViewMortality(null)}>
-          <DialogContent style={{ maxWidth: 520 }}>
+      {/* View Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
             <DialogHeader><DialogTitle>Mortality Record</DialogTitle></DialogHeader>
-            <div className="space-y-3 text-sm py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Date of Death</p><p>{formatDate(viewMortality.dateOfDeath)}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Tag Number</p><p className="font-mono text-xs">{viewMortality.tagNumber || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Species</p><p className="capitalize">{viewMortality.species}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Breed</p><p>{viewMortality.breed || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Cause of Death</p><p>{CAUSE_LABELS[viewMortality.causeOfDeath] ?? viewMortality.causeOfDeath}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Method</p><p>{DISPOSAL_LABELS[viewMortality.disposalMethod] ?? viewMortality.disposalMethod}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Operator</p><p>{viewMortality.disposalOperator || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Ref</p><p className="font-mono text-xs">{viewMortality.disposalRef || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">BCMS Notified</p><p>{viewMortality.bcmsNotified ? "Yes" : "Pending"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet Attended</p><p>{viewMortality.veterinaryAttended ? (viewMortality.vetName || "Yes") : "No"}</p></div>
+            <div className="space-y-4 text-sm py-2">
+              <RecordStepper status={viewRecord.status ?? "reported"} />
+
+              <div className="border rounded-lg p-3 space-y-2 bg-gray-50/60">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage 1 — Death Reported</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><p className="text-xs text-gray-400 mb-0.5">Date of Death</p><p>{formatDate(viewRecord.dateOfDeath)}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Tag Number</p><p className="font-mono text-xs">{viewRecord.tagNumber || "—"}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Species / Breed</p><p className="capitalize">{viewRecord.species}{viewRecord.breed ? ` — ${viewRecord.breed}` : ""}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Cause of Death</p><p>{CAUSE_LABELS[viewRecord.causeOfDeath] ?? viewRecord.causeOfDeath}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Planned Disposal</p><p>{DISPOSAL_LABELS[viewRecord.disposalMethod] ?? viewRecord.disposalMethod ?? "—"}</p></div>
+                  {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-gray-400 mb-0.5">Notes</p><p className="text-gray-700">{viewRecord.notes}</p></div>}
+                </div>
               </div>
-              {(() => {
-                const s = viewMortality.invoiceStatus;
-                if (s === "none" || !s) return null;
-                return (
-                  <div className="border rounded-lg p-3 bg-slate-50">
-                    <p className="text-xs text-gray-500 uppercase font-medium mb-2">Collection Invoice</p>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Status</p>
-                        {s === "awaiting" && <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200"><AlertTriangle className="h-3 w-3" /> Awaiting invoice</span>}
-                        {s === "received" && <span className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200"><FileText className="h-3 w-3" /> Received — unpaid</span>}
-                        {s === "paid" && <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200"><CheckCircle2 className="h-3 w-3" /> Paid</span>}
-                      </div>
-                      {viewMortality.invoiceRef && <div><p className="text-xs text-gray-400 mb-0.5">Invoice ref</p><p className="font-mono text-xs">{viewMortality.invoiceRef}</p></div>}
-                      {viewMortality.invoiceAmount && <div><p className="text-xs text-gray-400 mb-0.5">Amount</p><p>£{viewMortality.invoiceAmount}</p></div>}
-                      {viewMortality.invoicePaidDate && <div><p className="text-xs text-gray-400 mb-0.5">Date paid</p><p>{formatDate(viewMortality.invoicePaidDate)}</p></div>}
+
+              {(["disposal_arranged", "disposed", "closed"] as string[]).includes(viewRecord.status) && (
+                <div className="border rounded-lg p-3 space-y-2 bg-amber-50/40">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage 2 — Disposal Arranged</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><p className="text-xs text-gray-400 mb-0.5">Contractor</p><p>{viewRecord.contractorName || viewRecord.disposalOperator || "—"}</p></div>
+                    {viewRecord.contractorApprovalNumber && <div><p className="text-xs text-gray-400 mb-0.5">APHA Approval No.</p><p className="font-mono text-xs">{viewRecord.contractorApprovalNumber}</p></div>}
+                    <div><p className="text-xs text-gray-400 mb-0.5">BCMS Notified</p>
+                      {viewRecord.bcmsNotified
+                        ? <span className="inline-flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="w-3 h-3" /> Yes{viewRecord.bcmsNotificationRef ? ` — ${viewRecord.bcmsNotificationRef}` : ""}</span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-gray-400">Not notified</span>}
                     </div>
                   </div>
-                );
-              })()}
-              {viewMortality.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewMortality.notes}</p></div>}
+                </div>
+              )}
+
+              {(["disposed", "closed"] as string[]).includes(viewRecord.status) && (
+                <div className="border rounded-lg p-3 space-y-2 bg-blue-50/40">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage 3 — Collected</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><p className="text-xs text-gray-400 mb-0.5">Disposal Reference</p><p className="font-mono text-xs">{viewRecord.disposalRef || "—"}</p></div>
+                  </div>
+                </div>
+              )}
+
+              {viewRecord.status === "closed" && (
+                <div className="border rounded-lg p-3 space-y-2 bg-green-50/40">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage 4 — Closed</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><p className="text-xs text-gray-400 mb-0.5">Vet Attended</p><p>{viewRecord.veterinaryAttended ? (viewRecord.vetName || "Yes") : "No"}</p></div>
+                    <div><p className="text-xs text-gray-400 mb-0.5">Post-mortem</p><p>{viewRecord.postMortemCarriedOut ? "Yes" : "No"}</p></div>
+                    {viewRecord.postMortemFindings && <div className="col-span-2"><p className="text-xs text-gray-400 mb-0.5">PM Findings</p><p>{viewRecord.postMortemFindings}</p></div>}
+                    {viewRecord.invoiceStatus !== "none" && <>
+                      <div><p className="text-xs text-gray-400 mb-0.5">Invoice</p>
+                        {viewRecord.invoiceStatus === "awaiting" && <span className="text-xs text-amber-700">Awaiting</span>}
+                        {viewRecord.invoiceStatus === "received" && <span className="text-xs text-blue-700">Received</span>}
+                        {viewRecord.invoiceStatus === "paid" && <span className="text-xs text-green-700">Paid</span>}
+                      </div>
+                      {viewRecord.invoiceRef && <div><p className="text-xs text-gray-400 mb-0.5">Invoice Ref</p><p className="font-mono text-xs">{viewRecord.invoiceRef}</p></div>}
+                      {viewRecord.invoiceAmount && <div><p className="text-xs text-gray-400 mb-0.5">Amount</p><p>£{viewRecord.invoiceAmount}</p></div>}
+                    </>}
+                  </div>
+                </div>
+              )}
+
               <div className="border-t pt-3">
-                <RecordAttachments farmId={farmId} recordType="mortality" recordId={viewMortality.id} />
+                <RecordAttachments farmId={farmId} recordType="mortality" recordId={viewRecord.id} />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { openEdit(viewMortality); setViewMortality(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
-              <Button variant="ghost" onClick={() => setViewMortality(null)}>Close</Button>
+              {viewRecord.status !== "closed" && (
+                <Button variant="default" size="sm" onClick={() => {
+                  if (viewRecord.status === "reported") { setArrangingDisposal(viewRecord); setViewRecord(null); }
+                  else if (viewRecord.status === "disposal_arranged") { setLoggingCollection(viewRecord); setViewRecord(null); }
+                  else if (viewRecord.status === "disposed") { setClosingRecord(viewRecord); setViewRecord(null); }
+                }}>
+                  {viewRecord.status === "reported" && <>Arrange Disposal <ArrowRight className="w-3.5 h-3.5 ml-1" /></>}
+                  {viewRecord.status === "disposal_arranged" && <>Log Collection <ArrowRight className="w-3.5 h-3.5 ml-1" /></>}
+                  {viewRecord.status === "disposed" && <>Close Record <ArrowRight className="w-3.5 h-3.5 ml-1" /></>}
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => { openFullEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); setUseOtherVet(false); } }}>
+      {/* Full Edit / New Record Dialog */}
+      {showFullEdit && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowFullEdit(false); setEditRecord(null); setUseOtherVet(false); } }}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Mortality Record" : "Log Animal Mortality"}</DialogTitle>
+              <DialogTitle>{editRecord ? "Edit Mortality Record" : "Report Animal Death"}</DialogTitle>
               <DialogDescription>Required for Red Tractor and BCMS compliance. Retain for 3 years.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+            <form onSubmit={handleFullSubmit} className="space-y-4 mt-2 max-h-[75vh] overflow-y-auto pr-1">
+              {/* Animal */}
               <div>
                 <Label>Animal from Register <span className="text-red-500">*</span></Label>
                 {activeAnimals.length === 0 ? (
                   <div className="mt-1 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800 flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>No active animals are registered on this farm. Go to the <strong>Individual Animals</strong> tab to register animals before logging mortality.</span>
+                    No active animals registered. Add animals in the Individual Animals tab first.
                   </div>
                 ) : (
                   <>
-                    <Select value={form.animalId || "__unset__"} onValueChange={handleAnimalSelect}>
-                      <SelectTrigger className={!form.animalId ? "border-red-300" : ""}><SelectValue placeholder="Select registered animal…" /></SelectTrigger>
+                    <Select value={fullForm.animalId || "__unset__"} onValueChange={handleAnimalSelect}>
+                      <SelectTrigger className={!fullForm.animalId ? "border-red-300 mt-1" : "mt-1"}><SelectValue placeholder="Select registered animal…" /></SelectTrigger>
                       <SelectContent>
                         {activeAnimals.map(a => (
                           <SelectItem key={a.id} value={String(a.id)}>
@@ -440,123 +838,105 @@ export function MortalitySection({ farmId }: { farmId: number }) {
                         ))}
                       </SelectContent>
                     </Select>
-                    {!form.animalId && <p className="text-xs text-red-600 mt-1">An animal from the register is required.</p>}
-                    {selectedAnimal && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {selectedAnimal.earTagNumber ?? selectedAnimal.tagNumber} — tag, species and breed auto-filled from register</p>}
+                    {selectedAnimal && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Tag, species and breed auto-filled.</p>}
                   </>
                 )}
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div>
-                  <Label>Ear Tag / Tag Number</Label>
-                  <Input value={form.tagNumber} readOnly className="bg-muted/40 text-muted-foreground" placeholder="Auto-filled from register" />
-                </div>
-                <div>
-                  <Label>Species</Label>
-                  <Input value={form.species} readOnly className="bg-muted/40 text-muted-foreground capitalize" placeholder="Auto-filled from register" />
-                </div>
-                <div>
-                  <Label>Breed</Label>
-                  <Input value={form.breed} readOnly className="bg-muted/40 text-muted-foreground" placeholder="Auto-filled from register" />
-                </div>
-                <div><Label>Date of Death *</Label><Input type="date" value={form.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Ear Tag / Tag Number</Label><Input value={fullForm.tagNumber} readOnly className="bg-muted/40 text-muted-foreground mt-1" placeholder="Auto-filled" /></div>
+                <div><Label>Species</Label><Input value={fullForm.species} readOnly className="bg-muted/40 text-muted-foreground mt-1 capitalize" placeholder="Auto-filled" /></div>
+                <div><Label>Breed</Label><Input value={fullForm.breed} readOnly className="bg-muted/40 text-muted-foreground mt-1" placeholder="Auto-filled" /></div>
+                <div><Label>Date of Death *</Label><Input type="date" value={fullForm.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required className="mt-1" /></div>
                 <div><Label>Cause of Death *</Label>
-                  <Select value={form.causeOfDeath || undefined} onValueChange={v => setField("causeOfDeath", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select cause" /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CAUSE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
+                  <Select value={fullForm.causeOfDeath || undefined} onValueChange={v => setField("causeOfDeath", v)}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select cause" /></SelectTrigger>
+                    <SelectContent>{Object.entries(CAUSE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div><Label>Disposal Method *</Label>
-                  <Select value={form.disposalMethod || undefined} onValueChange={v => setField("disposalMethod", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(DISPOSAL_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
+                  <Select value={fullForm.disposalMethod || undefined} onValueChange={v => setField("disposalMethod", v)}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>{Object.entries(DISPOSAL_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
 
                 <div className="col-span-2">
                   <Label>Disposal Operator / Collector</Label>
                   {activeContractors.length > 0 ? (
-                    <Select value={form.contractorId || "__none__"} onValueChange={handleContractorSelect}>
-                      <SelectTrigger><SelectValue placeholder="Select registered contractor…" /></SelectTrigger>
+                    <Select value={fullForm.contractorId || "__none__"} onValueChange={handleContractorSelect}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select registered contractor…" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">— Select contractor —</SelectItem>
                         {activeContractors.map(c => (
-                          <SelectItem key={c.id} value={String(c.id)}>
-                            {c.name} <span className="text-gray-400">({CONTRACTOR_TYPES[c.operatorType] ?? c.operatorType})</span>
-                          </SelectItem>
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name} ({CONTRACTOR_TYPES[c.operatorType] ?? c.operatorType})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="Operator name — add them in Fallen Stock Collectors tab" />
+                    <Input value={fullForm.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} className="mt-1" placeholder="Operator name" />
                   )}
                   {selectedContractor && (
                     <div className="mt-1.5 rounded bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-800 flex items-center gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />
                       <span>APHA Approval No: <strong className="font-mono">{selectedContractor.approvalNumber}</strong></span>
-                      {selectedContractor.phone && <span>· {selectedContractor.phone}</span>}
                     </div>
                   )}
                 </div>
-
-                <div className="col-span-2"><Label>Disposal Reference / Certificate No.</Label><Input value={form.disposalRef} onChange={e => setField("disposalRef", e.target.value)} placeholder="NFAS certificate no. or collection note ref" /></div>
+                <div className="col-span-2"><Label>Disposal Reference / Certificate No.</Label><Input value={fullForm.disposalRef} onChange={e => setField("disposalRef", e.target.value)} className="mt-1" placeholder="NFAS certificate no. or collection note ref" /></div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={form.veterinaryAttended} onChange={e => setField("veterinaryAttended", e.target.checked)} className="rounded" />
+                  <input type="checkbox" checked={fullForm.veterinaryAttended} onChange={e => setField("veterinaryAttended", e.target.checked)} className="rounded" />
                   Veterinary attended
                 </label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={form.postMortemCarriedOut} onChange={e => setField("postMortemCarriedOut", e.target.checked)} className="rounded" />
+                  <input type="checkbox" checked={fullForm.postMortemCarriedOut} onChange={e => setField("postMortemCarriedOut", e.target.checked)} className="rounded" />
                   Post-mortem carried out
                 </label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={form.bcmsNotified} onChange={e => setField("bcmsNotified", e.target.checked)} className="rounded" />
+                  <input type="checkbox" checked={fullForm.bcmsNotified} onChange={e => setField("bcmsNotified", e.target.checked)} className="rounded" />
                   BCMS notified
                 </label>
               </div>
-              {form.veterinaryAttended && (
+
+              {fullForm.veterinaryAttended && (
                 <div>
                   <Label>Attending Vet / Practice</Label>
                   {knownVets.length > 0 ? (
                     <>
                       <Select
-                        value={(!useOtherVet && knownVets.find(v => v.value === form.vetName)) ? form.vetName : (useOtherVet ? "__other__" : "__none__")}
+                        value={(!useOtherVet && knownVets.find(v => v.value === fullForm.vetName)) ? fullForm.vetName : (useOtherVet ? "__other__" : "__none__")}
                         onValueChange={v => {
                           if (v === "__none__") { setUseOtherVet(false); setField("vetName", ""); }
                           else if (v === "__other__") { setUseOtherVet(true); setField("vetName", ""); }
                           else { setUseOtherVet(false); setField("vetName", v); }
                         }}
                       >
-                        <SelectTrigger><SelectValue placeholder="Select from your vet register…" /></SelectTrigger>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select from your vet register…" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">— Select vet —</SelectItem>
                           {knownVets.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
                           <SelectItem value="__other__">Other / manual entry…</SelectItem>
                         </SelectContent>
                       </Select>
-                      {useOtherVet && (
-                        <Input className="mt-2" value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc — Shire Vets" autoFocus />
-                      )}
+                      {useOtherVet && <Input className="mt-2" value={fullForm.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc — Shire Vets" />}
                     </>
                   ) : (
-                    <Input value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc — add vets in Vet Health Plans" />
+                    <Input value={fullForm.vetName} onChange={e => setField("vetName", e.target.value)} className="mt-1" placeholder="Vet name / practice" />
                   )}
                 </div>
               )}
-              {form.postMortemCarriedOut && <div><Label>Post-mortem Findings</Label><Textarea value={form.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} placeholder="Summary of PM findings..." rows={2} /></div>}
-              {form.bcmsNotified && <div><Label>BCMS Notification Reference</Label><Input value={form.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} placeholder="BCMS submission reference" /></div>}
-              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Additional circumstances or observations..." rows={2} /></div>
+              {fullForm.postMortemCarriedOut && <div><Label>Post-mortem Findings</Label><Textarea value={fullForm.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} className="mt-1" rows={2} /></div>}
+              {fullForm.bcmsNotified && <div><Label>BCMS Notification Reference</Label><Input value={fullForm.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} className="mt-1" placeholder="BCMS submission reference" /></div>}
+              <div><Label>Notes</Label><Textarea value={fullForm.notes} onChange={e => setField("notes", e.target.value)} className="mt-1" rows={2} /></div>
 
               <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
                 <p className="text-sm font-medium text-gray-700">Collection Invoice</p>
                 <div>
                   <Label className="text-xs">Invoice status</Label>
-                  <Select value={form.invoiceStatus} onValueChange={v => setField("invoiceStatus", v)}>
+                  <Select value={fullForm.invoiceStatus} onValueChange={v => setField("invoiceStatus", v)}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No invoice expected</SelectItem>
@@ -566,30 +946,34 @@ export function MortalitySection({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                {form.invoiceStatus !== "none" && (
+                {fullForm.invoiceStatus !== "none" && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Invoice reference / number</Label>
-                      <Input className="mt-1" value={form.invoiceRef} onChange={e => setField("invoiceRef", e.target.value)} placeholder="e.g. INV-2024-0041" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Amount (£)</Label>
-                      <Input className="mt-1" value={form.invoiceAmount} onChange={e => setField("invoiceAmount", e.target.value)} placeholder="e.g. 45.00" />
-                    </div>
-                    {form.invoiceStatus === "paid" && (
-                      <div>
-                        <Label className="text-xs">Date paid</Label>
-                        <Input type="date" className="mt-1" value={form.invoicePaidDate} onChange={e => setField("invoicePaidDate", e.target.value)} />
-                      </div>
+                    <div><Label className="text-xs">Invoice reference</Label><Input className="mt-1" value={fullForm.invoiceRef} onChange={e => setField("invoiceRef", e.target.value)} placeholder="e.g. INV-2024-0041" /></div>
+                    <div><Label className="text-xs">Amount (£)</Label><Input className="mt-1" value={fullForm.invoiceAmount} onChange={e => setField("invoiceAmount", e.target.value)} placeholder="e.g. 45.00" /></div>
+                    {fullForm.invoiceStatus === "paid" && (
+                      <div><Label className="text-xs">Date paid</Label><Input type="date" className="mt-1" value={fullForm.invoicePaidDate} onChange={e => setField("invoicePaidDate", e.target.value)} /></div>
                     )}
                   </div>
                 )}
               </div>
 
+              {editRecord && (
+                <div className="border rounded-lg p-3 bg-slate-50">
+                  <Label className="text-xs">Record Status</Label>
+                  <Select value={fullForm.status} onValueChange={v => setField("status", v)}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(STATUS_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400 mt-1">Use the stage buttons in the table for normal workflow progression. Change status here only to correct an error.</p>
+                </div>
+              )}
+
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); setUseOtherVet(false); }}>Cancel</Button>
-                <Button type="submit" disabled={createMut.isPending || updateMut.isPending || !form.animalId}>
-                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update Record" : "Save Record"}
+                <Button type="button" variant="outline" onClick={() => { setShowFullEdit(false); setEditRecord(null); setUseOtherVet(false); }}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending || !fullForm.animalId}>
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editRecord ? "Update Record" : "Save Record"}
                 </Button>
               </DialogFooter>
             </form>
@@ -597,6 +981,18 @@ export function MortalitySection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
+      {/* Stage dialogs */}
+      {arrangingDisposal && (
+        <ArrangeDisposalDialog farmId={farmId} record={arrangingDisposal} contractors={activeContractors} onClose={() => setArrangingDisposal(null)} />
+      )}
+      {loggingCollection && (
+        <LogCollectionDialog farmId={farmId} record={loggingCollection} onClose={() => setLoggingCollection(null)} />
+      )}
+      {closingRecord && (
+        <CloseRecordDialog farmId={farmId} record={closingRecord} vetOptions={knownVets} onClose={() => setClosingRecord(null)} />
+      )}
+
+      {/* Delete confirmation */}
       {deleteId !== null && (
         <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent className="max-w-sm">

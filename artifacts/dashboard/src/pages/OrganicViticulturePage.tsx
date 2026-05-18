@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, Loader2, Pencil, Trash2, AlertTriangle,
+  Plus, Loader2, Pencil, Trash2, AlertTriangle, ArrowRight,
   Leaf, ShieldCheck, FlaskConical, FileText,
   Eye, Info, Package, CheckCircle2, Clock, Grape,
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
@@ -710,6 +710,74 @@ type CorrespondenceItem = {
   reference?: string | null; notes?: string | null;
 };
 
+function RecordDecisionDialog({ farmId, derogCase, onClose }: { farmId: number; derogCase: DerogCase; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [status, setStatus] = useState("approved");
+  const [decisionDate, setDecisionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [certifierRef, setCertifierRef] = useState(derogCase.certifierRef ?? "");
+  const [approvalConditions, setApprovalConditions] = useState(derogCase.approvalConditions ?? "");
+  const [expiryDate, setExpiryDate] = useState(derogCase.expiryDate ?? "");
+
+  const mut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/input-derogations/${derogCase.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, decisionDate: decisionDate || null, certifierRef: certifierRef || null, approvalConditions: approvalConditions || null, expiryDate: expiryDate || null }),
+    }).then(r => { if (!r.ok) throw new Error("Failed"); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-vit-derogations", farmId] });
+      toast({ title: "Decision recorded" });
+      onClose();
+    },
+    onError: () => toast({ title: "Error saving decision", variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ArrowRight className="h-4 w-4 text-amber-600" /> Record Certifier Decision
+          </DialogTitle>
+          <DialogDescription>
+            {derogCase.inputName} — decision from {derogCase.certifier ?? "certifying body"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Decision *</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="refused">Refused</SelectItem>
+                  <SelectItem value="withdrawn">Withdrawn (by applicant)</SelectItem>
+                  <SelectItem value="expired">Expired — no decision received</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Decision Date *</Label><Input type="date" className="mt-1" value={decisionDate} onChange={e => setDecisionDate(e.target.value)} /></div>
+          </div>
+          <div><Label>Certifier Reference No.</Label><Input className="mt-1" value={certifierRef} onChange={e => setCertifierRef(e.target.value)} placeholder="Reference from certifying body" /></div>
+          {status === "approved" && (
+            <>
+              <div><Label>Approval Conditions</Label><Textarea className="mt-1" value={approvalConditions} onChange={e => setApprovalConditions(e.target.value)} rows={2} placeholder="Any conditions attached to the approval…" /></div>
+              <div><Label>Expiry Date</Label><Input type="date" className="mt-1" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} /></div>
+            </>
+          )}
+        </div>
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !decisionDate}>
+            {mut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving…</> : "Record Decision"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function InputDerogationsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -719,6 +787,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const [recordDecisionFor, setRecordDecisionFor] = useState<DerogCase | null>(null);
   const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
 
   // Correspondence
@@ -863,7 +932,12 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                       </div>
                       {c.regulatoryBasis && <p className="text-xs text-gray-500 mt-1"><span className="font-medium">Regulatory basis:</span> {c.regulatoryBasis}</p>}
                     </div>
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex gap-1 shrink-0 items-center">
+                      {(c.status === "pending" || !c.status) && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 border-amber-300 hover:bg-amber-50 gap-1" onClick={e => { e.stopPropagation(); setRecordDecisionFor(c); }}>
+                          Record Decision <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      )}
                       {c.expiryDate && (
                         <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Viticulture Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
                           <ClipboardList className="h-4 w-4 text-amber-600" />
@@ -964,29 +1038,35 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                 <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-              <div><Label>Certifier Reference</Label><Input value={form.certifierRef ?? ""} onChange={sf("certifierRef")} /></div>
+            {editing && <div><Label>Certifier Reference</Label><Input value={form.certifierRef ?? ""} onChange={sf("certifierRef")} /></div>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Availability Search Date</Label><Input type="date" value={form.availabilitySearchDate ?? ""} onChange={sf("availabilitySearchDate")} /></div>
               <div><Label>Availability Search Ref</Label><Input value={form.availabilitySearchRef ?? ""} onChange={sf("availabilitySearchRef")} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Application Date</Label><Input type="date" value={form.applicationDate ?? ""} onChange={sf("applicationDate")} /></div>
-              <div><Label>Decision Date</Label><Input type="date" value={form.decisionDate ?? ""} onChange={sf("decisionDate")} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Status</Label>
-                <Select value={form.status ?? "pending"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{DEROGATION_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
-                </Select>
+            {editing ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Application Date</Label><Input type="date" value={form.applicationDate ?? ""} onChange={sf("applicationDate")} /></div>
+                <div><Label>Decision Date</Label><Input type="date" value={form.decisionDate ?? ""} onChange={sf("decisionDate")} /></div>
               </div>
-              <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate ?? ""} onChange={sf("expiryDate")} /></div>
-            </div>
+            ) : (
+              <div><Label>Application Date</Label><Input type="date" value={form.applicationDate ?? ""} onChange={sf("applicationDate")} /></div>
+            )}
+            {editing && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status ?? "pending"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{DEROGATION_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate ?? ""} onChange={sf("expiryDate")} /></div>
+              </div>
+            )}
             <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={sf("vintageYear")} placeholder="e.g. 2025" /></div>
             <div><Label>Justification</Label><Textarea value={form.justification ?? ""} onChange={sf("justification")} placeholder="Why the organic alternative was unavailable" rows={3} /></div>
-            <div><Label>Approval Conditions</Label><Textarea value={form.approvalConditions ?? ""} onChange={sf("approvalConditions")} rows={2} /></div>
+            {editing && <div><Label>Approval Conditions</Label><Textarea value={form.approvalConditions ?? ""} onChange={sf("approvalConditions")} rows={2} /></div>}
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
           {editing && (
@@ -1070,6 +1150,13 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
           module="Organic Viticulture"
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
+        />
+      )}
+      {recordDecisionFor && (
+        <RecordDecisionDialog
+          farmId={farmId}
+          derogCase={recordDecisionFor}
+          onClose={() => setRecordDecisionFor(null)}
         />
       )}
     </div>
