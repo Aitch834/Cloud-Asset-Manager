@@ -36,6 +36,7 @@ import BusinessReportsPage from "@/pages/BusinessReportsPage";
 import FieldOperationsPage from "@/pages/FieldOperationsPage";
 import FieldInspectionsPage from "@/pages/FieldInspectionsPage";
 import FarmSettingsPage from "@/pages/FarmSettings";
+import LookupListsPage from "@/pages/LookupListsPage";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
 import DepartmentsPage from "@/pages/DepartmentsPage";
@@ -350,6 +351,7 @@ function ProtectedContent() {
         <Route path="/departments" component={DepartmentsPage} />
         <Route path="/settings/access" component={AdvisorsAccessPage} />
         <Route path="/settings/farm" component={FarmSettingsPage} />
+        <Route path="/settings/lookups" component={LookupListsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/account" component={AccountSettings} />
         <Route path="/dairy" component={DairyPage} />
@@ -464,6 +466,7 @@ function DevBypassContent() {
         <Route path="/departments" component={DepartmentsPage} />
         <Route path="/settings/access" component={AdvisorsAccessPage} />
         <Route path="/settings/farm" component={FarmSettingsPage} />
+        <Route path="/settings/lookups" component={LookupListsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/account" component={AccountSettings} />
         <Route path="/dairy" component={DairyPage} />

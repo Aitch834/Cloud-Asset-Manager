@@ -51,6 +51,7 @@ import {
   BookOpen,
   TrendingUp,
   ClipboardList,
+  List,
   Layers,
   Stethoscope,
   Zap,
@@ -181,6 +182,7 @@ const bottomNav: NavItem[] = [
   { name: "Help Centre", href: "/help", icon: HelpCircle },
   { name: "Support", href: "/support", icon: LifeBuoy },
   { name: "Farm Settings", href: "/settings/farm", icon: MapPin, minRole: "manager" },
+  { name: "Lookup Lists", href: "/settings/lookups", icon: List, minRole: "manager" },
   { name: "Account & Notifications", href: "/account", icon: Smartphone },
   { name: "Settings", href: "/settings", icon: Settings, minRole: "manager" },
 ];

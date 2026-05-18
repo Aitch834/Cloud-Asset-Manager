@@ -24,6 +24,37 @@ router.get("/lookups/definitions", async (_req: Request, res: Response): Promise
   res.json({ definitions: defs });
 });
 
+router.get("/lookups/summary", requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const tenantId = req.tenantId!;
+  const rows = await db
+    .select({ lookupKey: lookupItemsTable.lookupKey, tenantId: lookupItemsTable.tenantId })
+    .from(lookupItemsTable)
+    .where(
+      and(
+        eq(lookupItemsTable.isActive, true),
+        or(isNull(lookupItemsTable.tenantId), eq(lookupItemsTable.tenantId, tenantId)),
+      ),
+    );
+
+  const counts: Record<string, { standard: number; custom: number }> = {};
+  for (const r of rows) {
+    if (!counts[r.lookupKey]) counts[r.lookupKey] = { standard: 0, custom: 0 };
+    if (r.tenantId === null) counts[r.lookupKey].standard++;
+    else counts[r.lookupKey].custom++;
+  }
+
+  const definitions = Object.entries(LOOKUP_DEFINITIONS).map(([key, def]) => ({
+    key,
+    label: def.label,
+    description: def.description,
+    authority: def.authority,
+    standardCount: counts[key]?.standard ?? 0,
+    customCount: counts[key]?.custom ?? 0,
+  }));
+
+  res.json({ definitions });
+});
+
 router.get("/lookups/:key", requireTenant, async (req: Request, res: Response): Promise<void> => {
   const { key } = req.params as { key: string };
   if (!LOOKUP_DEFINITIONS[key]) {
