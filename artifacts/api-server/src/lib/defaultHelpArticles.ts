@@ -234,6 +234,12 @@ const TITLES: [string, string][] = [
   ["Vet Health Plans — Recording Action Completion and Manager Sign-Off", "Livestock"],
   ["Livestock Mortality Records — Four-Stage Disposal Tracking", "Livestock"],
   ["Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow", "Organic Viticulture"],
+  ["Sheep Disease Monitoring — Reportable Disease Flag and APHA Advisory", "Sheep Production"],
+  ["Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries", "Livestock"],
+  ["Poultry Cleanout Swab Testing — Food Safety Advisory and Do Not Restock Guidance", "Poultry Production"],
+  ["Poultry Environmental Alarm Advisory — Corrective Action Before Next Flush Cycle", "Poultry Production"],
+  ["Harvest Destination Type — Own Holding, Contract Processor and Grape Sale Selector", "Viticulture"],
+  ["Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition", "Viticulture"],
 ];
 
 export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, category], idx) => ({

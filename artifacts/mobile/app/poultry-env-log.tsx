@@ -189,6 +189,14 @@ export default function PoultryEnvLogScreen() {
           {alarmActivated && (
             <Input label="Alarm Details" placeholder="Type of alarm, duration, action taken…" value={alarmDetails} onChangeText={setAlarmDetails} multiline numberOfLines={2} />
           )}
+          {alarmActivated && (
+            <View style={styles.advisoryAmber}>
+              <Feather name="alert-triangle" size={14} color="#92400e" />
+              <Text style={styles.advisoryAmberText}>
+                Environmental advisory: investigate and document the cause of this alarm before the next flush cycle. Record the corrective action in the Alarm Details field above and follow up via the Task Board if further intervention is required.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.sectionLabel}>
             <Feather name="edit-3" size={14} color={colors.textSecondary} />
@@ -218,4 +226,6 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
   toggleInfo: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 },
   toggleLabel: { fontFamily: fonts.medium, fontSize: fontSize.md, color: colors.text, flex: 1 },
+  advisoryAmber: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fffbeb", borderRadius: radius.md, borderWidth: 1, borderColor: "#f59e0b", padding: spacing.md, marginBottom: spacing.sm },
+  advisoryAmberText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", flex: 1, lineHeight: 18 },
 });

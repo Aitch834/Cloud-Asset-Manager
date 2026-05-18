@@ -39,6 +39,31 @@ const HARVEST_METHODS = [
 
 const GRAPE_CONDITIONS = ["Excellent", "Good", "Fair", "Poor"];
 
+const DESTINATION_TYPES = [
+  { key: "own-holding" as const, label: "Own Holding" },
+  { key: "contract-processor" as const, label: "Contract Processor" },
+  { key: "grape-sale" as const, label: "Grape Sale" },
+];
+
+type DestinationType = "" | "own-holding" | "contract-processor" | "grape-sale";
+
+function DestinationTypePicker({ value, onChange }: { value: DestinationType; onChange: (v: DestinationType) => void }) {
+  const colorMap: Record<string, string> = { "own-holding": "#7c3aed", "contract-processor": "#2563eb", "grape-sale": "#d97706" };
+  return (
+    <View style={styles.chipRow}>
+      {DESTINATION_TYPES.map(d => (
+        <Pressable
+          key={d.key}
+          style={[styles.chip, value === d.key && { backgroundColor: colorMap[d.key], borderColor: colorMap[d.key] }]}
+          onPress={() => { Haptics.selectionAsync(); onChange(d.key); }}
+        >
+          <Text style={[styles.chipText, value === d.key && { color: "#fff" }]}>{d.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function MethodPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <View style={styles.methodGrid}>
@@ -100,7 +125,8 @@ export default function VineHarvestScreen() {
   const [grapeCondition, setGrapeCondition] = useState("");
   const [botrytisPresent, setBotrytisPresent] = useState(false);
   const [botrytisPercentage, setBotrytisPercentage] = useState("");
-  const [destinationWinery, setDestinationWinery] = useState("");
+  const [destinationType, setDestinationType] = useState<DestinationType>("");
+  const [destinationContact, setDestinationContact] = useState("");
   const [notes, setNotes] = useState("");
   const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
@@ -130,7 +156,8 @@ export default function VineHarvestScreen() {
       grapeCondition: grapeCondition || undefined,
       botrytisPresent,
       botrytisPercentage: botrytisPresent && botrytisPercentage ? Number(botrytisPercentage) : undefined,
-      destinationWinery: destinationWinery.trim() || undefined,
+      destinationType: destinationType || undefined,
+      destinationWinery: destinationContact.trim() || undefined,
       operatorName: operatorName.trim() || undefined,
       notes: notes.trim() || undefined,
       createdAt: new Date().toISOString(),
@@ -254,14 +281,24 @@ export default function VineHarvestScreen() {
             <>
               <Text style={styles.fieldLabel}>Botrytis Percentage (%)</Text>
               <Input placeholder="e.g. 15" value={botrytisPercentage} onChangeText={setBotrytisPercentage} keyboardType="numeric" />
+              <View style={styles.advisoryAmber}>
+                <Feather name="alert-triangle" size={14} color="#92400e" />
+                <Text style={styles.advisoryAmberText}>
+                  Botrytis advisory: record the affected percentage. If botrytis exceeds 30% you will be prompted to raise a task for winemaker review before processing.
+                </Text>
+              </View>
             </>
           )}
         </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Destination & Operator</Text>
-          <Text style={styles.fieldLabel}>Destination Winery</Text>
-          <Input placeholder="e.g. Chapel Down, own winery" value={destinationWinery} onChangeText={setDestinationWinery} />
+          <Text style={styles.fieldLabel}>Destination Type</Text>
+          <DestinationTypePicker value={destinationType} onChange={setDestinationType} />
+          <Text style={styles.fieldLabel}>
+            {destinationType === "contract-processor" ? "Processor / Winery Name" : destinationType === "grape-sale" ? "Buyer / Trade Contact" : "Destination Contact (optional)"}
+          </Text>
+          <Input placeholder={destinationType === "own-holding" ? "e.g. Own winery, home processing" : "e.g. Chapel Down, local co-op"} value={destinationContact} onChangeText={setDestinationContact} />
           <Text style={styles.fieldLabel}>Operator / Harvest Manager</Text>
           <StaffMemberPicker members={members} selected={selectedOperator} onSelect={setSelectedOperator} loading={false} error={null} />
           {!selectedOperator && (
@@ -313,4 +350,6 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   toggleRowWarning: { borderColor: colors.error, backgroundColor: "#fef2f2" },
   toggleLabel: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.text, flex: 1 },
+  advisoryAmber: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fffbeb", borderRadius: radius.sm, borderWidth: 1, borderColor: "#f59e0b", padding: spacing.sm },
+  advisoryAmberText: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: "#92400e", flex: 1, lineHeight: 16 },
 });
