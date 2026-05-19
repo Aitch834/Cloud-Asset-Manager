@@ -11825,6 +11825,204 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Mobile App</h3>
 <p>The mobile app's Organic Viticulture Derogations screen provides a read-only view of all active and historical derogation cases. Tap any case to view full details including certifier, dates, expiry urgency, justification, and approval conditions. To add correspondence, upload documents, or progress a case to a decision, use the dashboard at Organic Viticulture → Input Derogations.</p>`,
     },
+    {
+      id: 10076,
+      title: "BVD Testing Register — Bovine Viral Diarrhoea",
+      category: "Livestock",
+      content: `<h2>BVD Testing Register</h2>
+
+<p>Bovine Viral Diarrhoea (BVD) is a significant viral disease in cattle causing reproductive failure, immunosuppression, and calf mortality. Red Tractor Beef &amp; Lamb and Dairy standards require participating farms to demonstrate active management of BVD status through a structured testing programme.</p>
+
+<h3>Recording a BVD Test</h3>
+<p>Navigate to <strong>Livestock → BVD Testing</strong> and click <strong>Add Test Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Test Date</strong> — date the sample was taken</li>
+<li><strong>Herd / Group</strong> — which herd or group was tested, selected from your Herd Register</li>
+<li><strong>Test Type</strong> — Blood Sample / Serology ELISA, Ear Notch Tissue Tag (PI screening), Bulk Milk ELISA, or Colostrum Antibody</li>
+<li><strong>Animals Tested</strong> — number of animals included in the sample</li>
+<li><strong>Laboratory</strong> — name of the testing laboratory (SRUC, APHA, Idexx, Biobest, or other)</li>
+<li><strong>Result</strong> — Negative (BVD free / naïve), Positive (PI animal detected or active circulation), Low Positive (bulk milk — low exposure), or Inconclusive</li>
+<li><strong>Action Taken</strong> — free text for actions following a positive or inconclusive result (e.g. PI animal removal, biosecurity review, retest date)</li>
+<li><strong>Certificate Reference</strong> — lab report or CHeCS certificate reference number</li>
+</ul>
+
+<h3>Herd BVD Status</h3>
+<p>The BVD Testing tab maintains a running herd status — Not Tested, Negative, Exposed / Low Positive, or Positive — derived from the most recent test result. The status badge is displayed on the herd card in the Herds &amp; Flocks tab so compliance position is visible at a glance without opening the BVD register.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor requires evidence of BVD surveillance appropriate to the herd's CHeCS accreditation status and sector. Herds without current negative evidence should have a documented management plan on file. The BVD Testing register provides the auditable test history required during an assessor visit. Records should be retained for a minimum of three years.</p>`,
+    },
+    {
+      id: 10077,
+      title: "Johne's Disease Monitoring Register",
+      category: "Livestock",
+      content: `<h2>Johne's Disease Monitoring Register</h2>
+
+<p>Johne's Disease (Paratuberculosis, caused by <em>Mycobacterium avium</em> subsp. <em>paratuberculosis</em>) is a chronic, progressive wasting disease in ruminants. Red Tractor Dairy standards require participating herds to have an active Johne's monitoring and control programme in place, evidenced by structured test records.</p>
+
+<h3>Recording a Monitoring Test</h3>
+<p>Navigate to <strong>Livestock → Johne's Disease</strong> and click <strong>Add Monitoring Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Test Date</strong> — date the sample was taken or results received</li>
+<li><strong>Herd</strong> — herd under surveillance, selected from your Herd Register</li>
+<li><strong>Test Method</strong> — Blood ELISA (individual or pooled), Milk ELISA (individual or pooled), or Faecal PCR (individual or pooled)</li>
+<li><strong>Animals Tested</strong> — number of animals included in the sampling round</li>
+<li><strong>Laboratory</strong> — testing laboratory (SRUC, APHA, Biobest, Idexx, or other)</li>
+<li><strong>Result Category</strong> — Negative / Low Risk, Low Positive / Monitor, High Positive / Action, or Inconclusive</li>
+<li><strong>Herd Risk Level</strong> — update the herd's overall Johne's risk level following the test round: Low, Medium, or High (per CHECS / NMR / AHDB guidance)</li>
+<li><strong>Action Taken</strong> — interventions applied (e.g. culled positives, calf segregation protocol, colostrum management change, restricted grazing, vet review)</li>
+<li><strong>Lab Reference</strong> — laboratory report or NMR JD Premium certificate reference</li>
+</ul>
+
+<h3>Herd Risk Status</h3>
+<p>The Johne's register displays the most recent risk level against each herd — Low, Medium, or High — as a colour-coded badge. An overall herd risk trend is maintained across successive monitoring rounds, giving an at-a-glance record of whether the herd's position is improving or worsening over time.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Dairy requires herds to be enrolled in a recognised Johne's monitoring programme (NMR JD Premium, CHECS, or vet-supervised equivalent) with annual testing as a minimum. Testing records and any risk classifications issued by the programme must be available for inspection. The monitoring register provides the structured test history required by the standard.</p>`,
+    },
+    {
+      id: 10078,
+      title: "Casualty / Emergency Slaughter Records",
+      category: "Livestock",
+      content: `<h2>Casualty / Emergency Slaughter Records</h2>
+
+<p>Red Tractor requires a written record of every on-farm emergency killing. This applies to any situation where an animal must be slaughtered on the holding rather than transported to an abattoir — typically because it is suffering and cannot be moved without causing further pain or distress. Records must be retained for a minimum of three years.</p>
+
+<h3>Legal Certificate Requirement</h3>
+<p>The person performing the slaughter must hold a current certificate of competence under the Welfare of Animals (Slaughter or Killing) Regulations 1995 (WASK) for cattle and sheep, or the Welfare of Animals at Time of Killing (WATOK) Regulations 2015 for pigs. The certificate reference and holder's name must be recorded on every casualty slaughter event. If a vet performs the slaughter by barbiturate injection under a veterinary licence, the vet's name and RCVS number should be recorded instead.</p>
+
+<h3>Recording a Casualty Slaughter Event — Dashboard</h3>
+<p>Navigate to <strong>Livestock → Casualty Slaughter</strong> and click <strong>Add Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Event Date</strong> — date of slaughter</li>
+<li><strong>Species</strong> — cattle, sheep, pig, goat, deer, or other</li>
+<li><strong>Ear Tag / ID</strong> — individual animal identifier</li>
+<li><strong>Age / Description</strong> — brief description of the animal</li>
+<li><strong>Reason for Emergency Slaughter</strong> — clinical or circumstantial reason requiring on-farm killing (e.g. compound fracture, downer cow unable to rise, severe bloat unresponsive to treatment)</li>
+<li><strong>Method</strong> — captive bolt, free bullet, or barbiturate injection (vet administered)</li>
+<li><strong>Performed By</strong> — name of the certificate holder carrying out the slaughter</li>
+<li><strong>WASK / WATOK Certificate Reference</strong> — certificate number or issue date</li>
+<li><strong>Witness</strong> — name of any witness present</li>
+<li><strong>Vet Involved</strong> — toggle and vet name if a vet was called or consulted</li>
+</ul>
+
+<h3>Carcase Disposal</h3>
+<p>Casualty carcases must be disposed of through an approved route under the Animal By-Products (Enforcement) (England) Regulations 2011. The record captures the disposal method (licensed fallen stock contractor, hunt kennel / knacker, licensed incineration, rendering, or on-farm burial with EA permit), collection date, and waste transfer note or NFAS reference number. Retain the disposal contractor's documentation alongside the slaughter record.</p>
+
+<h3>Mobile App</h3>
+<p>The mobile app includes a <strong>Casualty / Emergency Slaughter</strong> record screen accessible from the Record tab. It is designed for use in the field at the time of the event — species selection, RFID ear tag scan, reason, method chips, WASK/WATOK reference, carcase disposal details, and a photo attachment for the disposal certificate or WASK card. GPS coordinates are captured automatically. Records save offline and sync to the Casualty Slaughter register on the dashboard when connectivity is restored.</p>`,
+    },
+    {
+      id: 10079,
+      title: "Campylobacter Monitoring — Poultry NCP",
+      category: "Poultry Production",
+      content: `<h2>Campylobacter Monitoring — Poultry National Control Programme</h2>
+
+<p>Campylobacter is the most common cause of foodborne illness in the UK. The Campylobacter National Control Programme (NCP), overseen by the Food Standards Agency (FSA), sets targets for the proportion of broiler flocks that test positive at slaughter. Red Tractor Poultry standards require broiler producers to record Campylobacter monitoring results for every flock entering the slaughter chain.</p>
+
+<h3>Recording Campylobacter Monitoring Results</h3>
+<p>Navigate to <strong>Poultry Production → Campylobacter Monitoring</strong> and click <strong>Add Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Flock</strong> — the poultry flock being monitored, selected from your Herd &amp; Flock Register</li>
+<li><strong>Placement Date</strong> — date chicks were placed in the house</li>
+<li><strong>Slaughter Date</strong> — date the flock entered the food chain</li>
+<li><strong>Slaughter House</strong> — name of the abattoir or processing plant</li>
+<li><strong>Test Type</strong> — Neck Skin Pooled Swab (the standard FSA / NCP method), Boot Swab (pre-harvest on-farm test), or Caecal Content</li>
+<li><strong>Sample Reference</strong> — laboratory batch or FSA NCP submission reference</li>
+<li><strong>Result</strong> — Negative (&lt;1,000 cfu/g), Low Positive (1,000–10,000 cfu/g), Positive (&gt;10,000 cfu/g), or Inconclusive</li>
+<li><strong>Intervention Actions</strong> — biosecurity or management interventions applied following a positive result (e.g. thinning biosecurity review, house entry protocol change, boot swab programme, fly control, water hygiene)</li>
+</ul>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Poultry requires producers to maintain Campylobacter test records for all broiler flocks, to review positive results against the FSA published benchmark, and to implement and document corrective actions where results are consistently above the national target. The monitoring register provides an auditable flock-by-flock history that maps directly to the Campylobacter section of the Red Tractor Poultry audit checklist.</p>`,
+    },
+    {
+      id: 10080,
+      title: "Pig Salmonella Monitoring — NSMP",
+      category: "Pig Production",
+      content: `<h2>Pig Salmonella Monitoring — National Salmonella Monitoring Programme</h2>
+
+<p>The National Pig Salmonella Monitoring Programme (NSMP) requires all pig producers supplying the food chain to test quarterly for Salmonella antibodies through blood serology sampling. Red Tractor Pigs standards mandate participation in the NSMP and require monitoring records to be available for inspection.</p>
+
+<h3>Recording an NSMP Sampling Round</h3>
+<p>Navigate to <strong>Pig Production → Salmonella Monitoring</strong> and click <strong>Add Sampling Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Sampling Date</strong> — date blood samples were taken from the finishing group</li>
+<li><strong>Herd / Group</strong> — pig group sampled, selected from your Herd Register</li>
+<li><strong>Number of Samples</strong> — number of pigs bled in this sampling round</li>
+<li><strong>Laboratory</strong> — APHA Weybridge or approved NSMP-participating private laboratory</li>
+<li><strong>Result Category</strong> — Category 1 (low seroprevalence — no action required), Category 2 (moderate — monitoring and management review), or Category 3 (high — mandatory written action plan and investigation)</li>
+<li><strong>Seroprevalence %</strong> — the percentage of samples with a positive titre at the defined threshold</li>
+<li><strong>Submission Reference</strong> — NSMP submission or laboratory report reference</li>
+<li><strong>Action Taken</strong> — interventions for Category 2 or 3 results (e.g. feed hygiene review, rodent control, biosecurity audit, vet consultation)</li>
+</ul>
+
+<h3>Herd Salmonella Status</h3>
+<p>The monitoring register displays the current NSMP category against each herd — Category 1, 2, or 3 — colour-coded green, amber, or red. A Category 3 result triggers a compliance alert on the dashboard and in the Week Ahead Planner, prompting a written action plan to be produced and recorded.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Pigs standards require quarterly NSMP sampling for all finished pigs and retention of result certificates. Category 3 results must be accompanied by a documented corrective action plan reviewed by the farm vet. The monitoring register provides the structured quarterly record required by the scheme.</p>`,
+    },
+    {
+      id: 10081,
+      title: "IPM Plan — Integrated Pest Management",
+      category: "Sprays & Inputs",
+      content: `<h2>IPM Plan — Integrated Pest Management</h2>
+
+<p>An Integrated Pest Management (IPM) Plan is a written, farm-level strategy that demonstrates how pest and disease control decisions are made using a combination of cultural, biological, and chemical methods — with chemical intervention reserved for when monitoring thresholds are exceeded. Red Tractor Combinable Crops and Horticulture standards require a current written IPM Plan to be in place and available for inspection.</p>
+
+<h3>What the IPM Plan Must Cover</h3>
+<p>Red Tractor requires the plan to address at minimum:</p>
+<ul>
+<li><strong>Pest and disease threshold monitoring</strong> — how and when you monitor crops for key pest, disease, and weed pressure (e.g. aphid counts, disease severity assessments, weed mapping)</li>
+<li><strong>Action thresholds</strong> — at what level of pressure a spray intervention is justified (AHDB, BASF, or bespoke farm thresholds)</li>
+<li><strong>Non-chemical control measures</strong> — rotation, variety selection, cultivation practice, resistant varieties, biological controls, cover crops, and habitat management for beneficial insects</li>
+<li><strong>Spray intervention rationale</strong> — how spray decisions are justified against threshold data and alternatives considered</li>
+<li><strong>Review and update frequency</strong> — how often the plan is reviewed (annually as a minimum)</li>
+</ul>
+
+<h3>Recording the IPM Plan</h3>
+<p>Navigate to <strong>Sprays &amp; Inputs → IPM Plan</strong>. The plan is structured into five sections covering the areas above, each with a free-text editor for your farm-specific arrangements. Document control fields record the author, last review date, and next review due date. The plan version is tracked automatically on each save.</p>
+<p>Click <strong>Print Plan</strong> to generate a formatted A4 compliance document with your farm name, review date, and version number — suitable for presenting to a Red Tractor assessor or attaching to your Compliance Documents Register.</p>
+
+<h3>Spray Application Rationale</h3>
+<p>Individual spray application records link back to the IPM Plan via a <strong>Spray Rationale</strong> field where you can record the monitoring trigger or threshold evidence that justified that specific application — closing the loop between the written plan and the individual spray record for a complete audit trail.</p>`,
+    },
+    {
+      id: 10082,
+      title: "LERAP Assessments — Local Environmental Risk Assessments for Pesticides",
+      category: "Sprays & Inputs",
+      content: `<h2>LERAP Assessments</h2>
+
+<p>A Local Environmental Risk Assessment for Pesticides (LERAP) must be carried out before applying any Category A or Category B pesticide product within the buffer zone distance printed on the product label adjacent to a watercourse, ditch, or drain. A LERAP can allow you to reduce the standard buffer zone distance if specific conditions are met, or it may confirm that the full buffer must be maintained. Red Tractor requires LERAP assessments to be recorded and retained for all qualifying applications.</p>
+
+<h3>Category A and Category B Products</h3>
+<ul>
+<li><strong>Category A</strong> — products that must always maintain the full label buffer zone. No reduction is permitted regardless of conditions.</li>
+<li><strong>Category B</strong> — products where a LERAP can be carried out to justify a reduced buffer zone, subject to the CRD star-rating system and sprayer NSTS status.</li>
+</ul>
+
+<h3>Recording a LERAP Assessment</h3>
+<p>Navigate to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> and click <strong>Add Assessment</strong>. The form captures:</p>
+<ul>
+<li><strong>Assessment Date</strong> — date the risk assessment was carried out (must be before or on the application date)</li>
+<li><strong>Field</strong> — field to which the assessment applies, selected from your Field Register</li>
+<li><strong>Product</strong> — the pesticide product being assessed, with its CRD LERAP category (A or B) pre-filled from the product label data</li>
+<li><strong>Watercourse Type</strong> — static water body, flowing water, or dry ditch / drain</li>
+<li><strong>Label Buffer Zone</strong> — the standard buffer distance printed on the product label (m)</li>
+<li><strong>LERAP Star Rating</strong> — one-star, two-star, or three-star product rating from the CRD LERAP scheme (Category B only)</li>
+<li><strong>Sprayer NSTS Status</strong> — whether the sprayer used holds a current NSTS test certificate (required for any buffer reduction)</li>
+<li><strong>Buffer Zone Decision</strong> — the outcome of the assessment: maintain full label buffer, or reduced buffer with distance recorded (m)</li>
+<li><strong>Assessor Name</strong> — person carrying out the assessment (pre-filled from your logged-in user)</li>
+<li><strong>Notes</strong> — any relevant site conditions (e.g. presence of aquatic plants, bankside vegetation, wind direction at time of application)</li>
+</ul>
+
+<h3>Linking LERAP to Spray Records</h3>
+<p>When adding a spray application record for a field adjacent to a watercourse, a <strong>LERAP Assessment</strong> picker appears. Selecting an existing assessment links it to the spray record — the assessed buffer distance is displayed on the spray record and in the print-ready spray application certificate, providing the complete evidence chain from assessment to application required by Red Tractor and HSE.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor requires completed LERAP assessments to be retained alongside the spray records for the applications they cover — the assessor name, date, assessment decision, and buffer zone applied must all be on file. Assessments should be reviewed annually or whenever the field boundary, watercourse, or product changes. Records must be retained for a minimum of three years.</p>`,
+    },
   ];
 
   // Overlay published DB articles: replace matching hardcoded entries by ID, append DB-only articles
