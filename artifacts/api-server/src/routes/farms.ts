@@ -20039,6 +20039,29 @@ router.post("/farms/:farmId/accident-book", requireAuth, requireTenant, requireM
   if (!farmId) return;
   const [record] = await db.insert(accidentBookTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
+  const isRiddor = req.body.riddorReportable === true || req.body.riddorReportable === "true";
+  if (isRiddor) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const personName = String(req.body.personName ?? "A person");
+        const location = String(req.body.incidentLocation ?? "location not specified");
+        const riddorCat = req.body.riddorCategory ? ` Category: ${String(req.body.riddorCategory).substring(0, 80)}.` : "";
+        const msg = `BDE Farm Trac [RIDDOR ACCIDENT]: A RIDDOR-reportable incident involving ${personName} has been logged at ${farm.name} (${location}).${riddorCat} Report to HSE at riddor.hse.gov.uk. Review in H&S → Accident Book.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.put("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
