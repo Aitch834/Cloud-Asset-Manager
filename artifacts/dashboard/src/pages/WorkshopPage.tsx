@@ -2332,9 +2332,29 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     select: (d: any) => d.records ?? [],
   });
-  const jobs: any[] = jobsQ.data ?? [];
+  const allJobs: any[] = jobsQ.data ?? [];
   const equipment: any[] = equipQ.data ?? [];
   const equipMap = useMemo(() => new Map(equipment.map((e: any) => [e.id, e.name ?? assetNumber(e)])), [equipment]);
+
+  const availableYears = useMemo(() => {
+    const ys = new Set<number>();
+    allJobs.forEach((j: any) => {
+      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
+      if (ds) ys.add(new Date(ds).getFullYear());
+    });
+    return [...ys].sort((a, b) => b - a);
+  }, [allJobs]);
+
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
+
+  const jobs: any[] = useMemo(() => {
+    if (selectedYear === "all") return allJobs;
+    return allJobs.filter((j: any) => {
+      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
+      return ds ? new Date(ds).getFullYear() === selectedYear : false;
+    });
+  }, [allJobs, selectedYear]);
 
   const equipCostMap = useMemo(() => {
     const m = new Map<number, { name: string; labour: number; parts: number }>();
@@ -2382,7 +2402,7 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
 
   if (jobsQ.isLoading) return <div className="py-16 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading workshop data…</div>;
 
-  if (jobs.length === 0) return (
+  if (allJobs.length === 0) return (
     <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
       <Wrench className="w-10 h-10 mx-auto mb-3 text-gray-300" />
       <p className="font-medium text-gray-600">No job cards yet</p>
@@ -2392,6 +2412,30 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
+      {/* Year filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Year</span>
+        {availableYears.map(y => (
+          <button key={y} onClick={() => setSelectedYear(y)}
+            style={{ padding: "4px 14px", borderRadius: 20, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.12s",
+              background: selectedYear === y ? "#f59e0b" : "#fff",
+              color: selectedYear === y ? "#fff" : "#374151",
+              borderColor: selectedYear === y ? "#f59e0b" : "#e5e7eb" }}>
+            {y}
+          </button>
+        ))}
+        <button onClick={() => setSelectedYear("all")}
+          style={{ padding: "4px 14px", borderRadius: 20, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.12s",
+            background: selectedYear === "all" ? "#6b7280" : "#fff",
+            color: selectedYear === "all" ? "#fff" : "#374151",
+            borderColor: selectedYear === "all" ? "#6b7280" : "#e5e7eb" }}>
+          All years
+        </button>
+        {selectedYear !== "all" && jobs.length === 0 && (
+          <span className="text-xs text-gray-400 ml-2">No jobs in {selectedYear}</span>
+        )}
+      </div>
+
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Job Cost</p>
