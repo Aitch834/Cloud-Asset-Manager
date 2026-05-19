@@ -307,6 +307,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
         <div>
           <p className="font-semibold mb-1">Complementary record — not a replacement</p>
           <p className="text-green-700">BDE Farm Trac stores your certification reference details alongside your operational records. Your official certification is managed directly with your certifier's portal (Soil Association, OF&amp;G, etc.).</p>
+          <p className="text-green-700 mt-1.5">The certifier and certificate number recorded here are your <strong>primary organic certification reference</strong>. When recording herd conversions in Organic Livestock or Dairy, vineyard block status in Organic Viticulture, or any other sector-specific organic record, use the same certifying body to keep all your organic records consistent.</p>
           <div className="flex gap-3 mt-2 flex-wrap">
             <a href="https://www.soilassociation.org/certification" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-700 underline underline-offset-2 hover:text-green-900"><ExternalLink className="w-3 h-3" />Soil Association Portal</a>
             <a href="https://www.ofgorganic.org" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-700 underline underline-offset-2 hover:text-green-900"><ExternalLink className="w-3 h-3" />OF&amp;G Portal</a>
@@ -1222,9 +1223,20 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
 
   return (
     <>
-      <div className="mb-4 flex gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
-        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-        <p>Restricted inputs are products not normally permitted under organic standards but used in exceptional circumstances with certifier approval or notification. Always consult your certifier before use.</p>
+      <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm space-y-2">
+        <div className="flex gap-2 items-center text-amber-900">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <p className="font-semibold">Restricted inputs — arable, horticultural &amp; general farm land only</p>
+        </div>
+        <p className="text-amber-800">Use this log for restricted products applied to <strong>arable crops, general organic land, or shared farm infrastructure</strong> — substances not normally permitted but used in exceptional circumstances with certifier approval or notification.</p>
+        <div className="text-amber-700 space-y-1 text-xs border-t border-amber-200 pt-2">
+          <p className="font-medium mb-0.5">Record restricted &amp; derogated inputs in the correct place to avoid duplication:</p>
+          <p>→ <strong>Vineyard restricted products</strong> — use <em>Organic Viticulture → Organic Inputs</em> (set approval status to Restricted or Derogation)</p>
+          <p>→ <strong>Vineyard formal derogation cases</strong> — use <em>Organic Viticulture → Input Derogations</em></p>
+          <p>→ <strong>Livestock / dairy feed ingredient derogations</strong> — use <em>Organic Livestock → Feed Derogations</em></p>
+          <p>→ <strong>Fresh produce inputs</strong> — use <em>Organic Fresh Produce → Input Log</em></p>
+        </div>
+        <p className="text-amber-700 text-xs">Always consult your certifier before using any restricted product. Keep this log as your audit trail for annual inspection.</p>
       </div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-2">
@@ -1564,9 +1576,18 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   return (
     <>
-      <div className="mb-4 flex gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
-        <Info className="w-4 h-4 mt-0.5 shrink-0" />
-        <p>Record every input used on organic land — fertilisers, crop protection, seed treatments, feed supplements, and cleaning products. This demonstrates to your certifier that all products comply with organic standards.</p>
+      <div className="mb-4 p-4 rounded-xl bg-green-50 border border-green-200 text-sm space-y-2">
+        <div className="flex gap-2 items-center text-green-900">
+          <Info className="w-4 h-4 shrink-0" />
+          <p className="font-semibold">Input register — arable, horticultural &amp; general farm inputs</p>
+        </div>
+        <p className="text-green-800">Record all permitted, restricted, and derogated inputs applied to <strong>arable crops, general organic land, or shared farm infrastructure</strong> — fertilisers, crop protection, seed treatments, and cleaning products. This is your evidence register for annual certifier inspection.</p>
+        <div className="text-green-700 space-y-1 text-xs border-t border-green-200 pt-2">
+          <p className="font-medium mb-0.5">Other sectors have their own dedicated input logs — record in the correct place to avoid duplication:</p>
+          <p>→ <strong>Vineyard inputs</strong> (including restricted &amp; derogated products) — use <em>Organic Viticulture → Organic Inputs</em></p>
+          <p>→ <strong>Fresh produce inputs</strong> — use <em>Organic Fresh Produce → Input Log</em></p>
+          <p>→ <strong>Livestock &amp; dairy feed records</strong> — use <em>Organic Livestock → Feed Records</em></p>
+        </div>
       </div>
 
       <div className="flex justify-between items-center mb-6">

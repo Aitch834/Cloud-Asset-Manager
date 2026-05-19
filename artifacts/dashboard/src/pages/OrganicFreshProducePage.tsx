@@ -857,9 +857,13 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border bg-green-50 border-green-200 px-4 py-3 text-sm text-green-800 flex gap-2">
-        <Info className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Record every input applied to organic blocks — fertilisers, crop protection, seed treatments, and cleaning products. This is your evidence register for annual certification inspection.</span>
+      <div className="rounded-md border bg-green-50 border-green-200 px-4 py-3 text-sm text-green-800 space-y-1.5">
+        <div className="flex gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="font-semibold">Input log — fresh produce &amp; horticultural organic inputs only</span>
+        </div>
+        <p className="text-green-700">Record every input applied to organic horticultural blocks — fertilisers, crop protection, seed treatments, and cleaning products. This is your evidence register for annual certification inspection.</p>
+        <p className="text-green-700 text-xs border-t border-green-200 pt-1.5">For other enterprise types: arable and general farm inputs belong in <em>Organic Compliance → Input Register</em>; vineyard inputs belong in <em>Organic Viticulture → Organic Inputs</em>; livestock feed records belong in <em>Organic Livestock → Feed Records</em>. Recording the same input in multiple places causes duplication in your audit trail.</p>
       </div>
 
       <div className="flex justify-between items-center flex-wrap gap-2">

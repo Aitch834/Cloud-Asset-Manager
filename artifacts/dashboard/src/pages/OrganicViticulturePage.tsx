@@ -267,6 +267,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
                 <SelectTrigger><SelectValue placeholder="Select certifying body…" /></SelectTrigger>
                 <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">Use the same certifying body as your primary record in Organic Compliance → Certification.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Conversion Start Date</Label><Input type="date" value={form.conversionStartDate ?? ""} onChange={sf("conversionStartDate")} /></div>
@@ -371,9 +372,12 @@ function InputLogTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">Log all organic-approved inputs applied in the vineyard — copper, sulphur, plant preparations, fertilisers, and any inputs requiring certifier approval.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Input</Button>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm text-gray-600">Log all organic-approved inputs applied in the vineyard — copper, sulphur, plant preparations, fertilisers, and any inputs requiring certifier approval.</p>
+          <p className="text-xs text-gray-500">Set <strong>Approval Status</strong> to <em>Restricted</em> for products needing certifier notification, or <em>Derogation</em> for products used under a formal derogation approval. For the full derogation case file (availability search, correspondence, decision), use the <strong>Input Derogations</strong> tab. <em>Do not record arable or general farm inputs here — use Organic Compliance → Input Register.</em></p>
+        </div>
+        <Button size="sm" className="shrink-0" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Input</Button>
       </div>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
@@ -899,8 +903,9 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
         <p className="text-sm text-gray-600">Manage UK Organic Regs 2020 Sch. 1 / Annex II input derogation cases — availability searches, certifier correspondence, and decisions.</p>
         <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />New Case</Button>
       </div>
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
-        <strong>Derogation requirement:</strong> Where an approved organic input is not available in sufficient quantity, farmers may apply to their certifying body for a time-limited derogation to use a non-organic equivalent. An availability search must be completed and documented before application.
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 space-y-1.5">
+        <p><strong>Derogation requirement:</strong> Where an approved organic input is not available in sufficient quantity, farmers may apply to their certifying body for a time-limited derogation to use a non-organic equivalent. An availability search must be completed and documented before application.</p>
+        <p className="text-amber-800 text-xs border-t border-amber-200 pt-1.5">This tab is for <strong>vineyard input derogation cases only</strong>. For livestock and dairy feed ingredient derogations (e.g. non-organic protein sources), use <em>Organic Livestock → Feed Derogations</em>. For restricted products that don't require a formal case, log them directly in the <em>Organic Inputs</em> tab with status set to Restricted.</p>
       </div>
 
       {isLoading ? (

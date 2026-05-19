@@ -899,6 +899,7 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
                   placeholder="Please specify certifying body…"
                 />
               )}
+              <p className="text-xs text-muted-foreground pt-0.5">Use the same certifying body as your primary record in Organic Compliance → Certification.</p>
             </div>
             <div className="space-y-1">
               <Label>Certification Ref</Label>
