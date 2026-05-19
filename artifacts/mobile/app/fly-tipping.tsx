@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -83,6 +84,7 @@ export default function FlyTippingScreen() {
   const [insuranceClaimRef, setInsuranceClaimRef] = useState("");
   const [saving, setSaving] = useState(false);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
 
   function toggleType(t: string) {
     Haptics.selectionAsync();
@@ -142,9 +144,12 @@ export default function FlyTippingScreen() {
       await triggerSync();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Incident Recorded", "Fly-tipping incident has been saved.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      const hazardNote = isHazardous ? " [HAZARDOUS WASTE]" : "";
+      const typeSummary = selectedTypes.slice(0, 3).join(", ") + (selectedTypes.length > 3 ? "…" : "");
+      setTaskSheet({
+        title: `Fly-Tipping Incident${hazardNote} — ${locationDescription.trim().slice(0, 60)}`,
+        description: `Waste types: ${typeSummary} · Quantity: ${estimatedQuantity.trim() || "unknown"} · Clearance: ${clearanceStatus}${isHazardous ? " · HAZARDOUS — contact EA on 0800 80 70 60" : ""}`,
+      });
     } catch (err) {
       Alert.alert("Error", "Failed to save the incident. Please try again.");
     } finally {
@@ -538,6 +543,18 @@ export default function FlyTippingScreen() {
           style={{ marginTop: spacing.xs }}
         />
       </ScrollView>
+
+      {taskSheet && (
+        <RaiseTaskSheet
+          visible={!!taskSheet}
+          farmId={currentFarm?.id ?? ""}
+          defaultTitle={taskSheet.title}
+          defaultDescription={taskSheet.description}
+          module="land-management"
+          onRaised={() => { setTaskSheet(null); router.back(); }}
+          onSkip={() => { setTaskSheet(null); router.back(); }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

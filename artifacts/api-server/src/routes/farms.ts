@@ -5702,6 +5702,27 @@ router.post("/farms/:farmId/fly-tipping", requireAuth, requireTenant, async (req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(flyTippingIncidentsTable).values({ ...req.body, farmId }).returning();
+  // Fire-and-forget: SMS managers when hazardous fly-tipping is reported
+  if (req.body.isHazardous === true || req.body.isHazardous === "true") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const location = String(req.body.locationDescription ?? "location not specified");
+        const msg = `BDE Farm Trac [HAZARDOUS FLY-TIPPING]: Hazardous waste discovered at ${farm.name} — ${location}. Do NOT touch or move. Contact Environment Agency: 0800 80 70 60. Log in to Land Management → Fly-Tipping.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Fly-tipping SMS]", err); }
+    })();
+  }
   res.json({ record });
 });
 
@@ -18597,6 +18618,29 @@ router.post("/farms/:farmId/equipment-defect-reports", requireAuth, requireTenan
   const equipmentName = req.body.equipmentName || req.body.equipmentName || "Unknown";
   const defectDescription = req.body.defectDescription || req.body.defectDescription || "";
   const [record] = await db.insert(equipmentDefectReportsTable).values({ ...req.body, farmId, defectRef, reportedDate: new Date(reportedDate), equipmentName, defectDescription }).returning();
+  // Fire-and-forget: SMS managers when a high or critical severity defect is reported
+  const sev = String(req.body.severity ?? "");
+  if (sev === "high" || sev === "critical") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const reporter = String(req.body.reportedBy ?? "A team member");
+        const sevLabel = sev === "critical" ? "CRITICAL" : "High";
+        const msg = `BDE Farm Trac [${sevLabel} DEFECT]: ${reporter} has reported a ${sevLabel.toLowerCase()} severity defect on ${equipmentName} at ${farm.name}. Ref: ${defectRef}. Review in Equipment → Defect Reports.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Equipment Defect SMS]", err); }
+    })();
+  }
   res.status(201).json({ record });
 });
 
@@ -18930,6 +18974,29 @@ router.post("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenan
     lastInspectionDate: inspectionDate,
     ...(nextInspectionDue ? { nextInspectionDue } : {}),
   }).where(and(eq(slurryStoresTable.id, Number(storeId)), eq(slurryStoresTable.farmId, farmId)));
+  // Fire-and-forget: SMS managers when a slurry store inspection fails (SSAFO compliance risk)
+  if (outcome === "Fail") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (!farm) return;
+        const { userTenantsTable } = await import("@workspace/db");
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const storeName = String(req.body.storeName ?? storeId ?? "a slurry store");
+        const defects = deficiencies ? ` Deficiencies: ${String(deficiencies).substring(0, 100)}.` : "";
+        const leakNote = (leaksOrDamageFound === true || leaksOrDamageFound === "true") ? " LEAKS OR STRUCTURAL DAMAGE FOUND." : "";
+        const msg = `BDE Farm Trac [SLURRY STORE FAIL]: ${storeName} at ${farm.name} has FAILED its SSAFO inspection.${leakNote}${defects} Urgent action required — review in Environmental → Slurry Stores.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Slurry Inspection SMS]", err); }
+    })();
+  }
   res.json(row);
 });
 
@@ -21780,6 +21847,28 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
         animalIds: req.body.affectedAnimalIds ?? null,
         diseaseIncidentId: record.id,
       });
+    }
+    // Fire-and-forget: SMS managers when a notifiable disease is suspected
+    if (String(req.body.incidentType ?? "") === "notifiable-disease") {
+      void (async () => {
+        try {
+          const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+          if (!farm) return;
+          const { userTenantsTable } = await import("@workspace/db");
+          const managers = await db
+            .select({ phone: usersTable.phoneNumber })
+            .from(userTenantsTable)
+            .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+            .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+          const disease = String(req.body.notifiableDisease ?? req.body.suspectedDiagnosis ?? "Suspected notifiable disease");
+          const species = String(req.body.species ?? "unknown species");
+          const msg = `BDE Farm Trac [NOTIFIABLE DISEASE]: Suspected ${disease} reported in ${species} at ${farm.name}. APHA MUST be notified immediately on 03000 200 301. Do not move any animals. Log in to Biosecurity → Disease Incidents.`;
+          const seen = new Set<string>();
+          for (const m of managers) {
+            if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+          }
+        } catch (err) { console.error("[Notifiable Disease SMS]", err); }
+      })();
     }
     res.status(201).json({ record });
   });
