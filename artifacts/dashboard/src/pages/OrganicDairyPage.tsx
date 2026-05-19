@@ -576,27 +576,6 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
               <Input type="date" value={form.actualMilkCertDate ?? ""} onChange={f("actualMilkCertDate")} />
             </div>
             <div className="space-y-1">
-              <Label>Certifier</Label>
-              <Select
-                value={CERTIFIERS.includes(form.certifier ?? "") ? (form.certifier ?? "") : (form.certifier ? "Other" : "")}
-                onValueChange={(v) => setForm((p) => ({ ...p, certifier: v }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Select certifier…" /></SelectTrigger>
-                <SelectContent>
-                  {CERTIFIERS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {(form.certifier === "Other" || (!!form.certifier && !CERTIFIERS.slice(0, -1).includes(form.certifier))) && (
-                <Input
-                  className="mt-1"
-                  value={form.certifier === "Other" ? "" : (form.certifier ?? "")}
-                  onChange={(e) => setForm((p) => ({ ...p, certifier: e.target.value || "Other" }))}
-                  placeholder="Please specify certifying body…"
-                />
-              )}
-              <p className="text-xs text-muted-foreground pt-0.5">Use the same certifying body as your primary record in Organic Compliance → Certification.</p>
-            </div>
-            <div className="space-y-1">
               <Label>Certification Ref</Label>
               <Input value={form.certificationRef ?? ""} onChange={f("certificationRef")} />
             </div>

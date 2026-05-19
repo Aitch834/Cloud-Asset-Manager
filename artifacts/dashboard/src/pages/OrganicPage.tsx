@@ -118,19 +118,19 @@ function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
 </body></html>`);
 }
 
-function printRestrictedInputsLog(records: RestrictedInput[], farmName: string) {
+function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const rows = records.map(r => `<tr>
-    <td style="white-space:nowrap">${r.dateApplied ? new Date(r.dateApplied).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="white-space:nowrap">${r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "—"}</td>
     <td style="font-weight:600">${r.productName}</td>
-    <td>${r.productCategory || "—"}</td>
+    <td>${r.inputType || "—"}</td>
     <td>${r.fieldName || "—"}</td>
     <td>${r.appliedBy || "—"}</td>
     <td>${r.supplier || "—"}</td>
     <td>${r.poReference || "—"}</td>
     <td>${r.grnReference || "—"}</td>
-    <td>${r.justification}</td>
-    <td>${r.approvalReference || "—"}</td>
+    <td>${r.justification || "—"}</td>
+    <td>${r.certifierApprovalRef || "—"}</td>
     <td>${r.certifierNotified ? "Yes" : "No"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Restricted Inputs Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
@@ -184,13 +184,6 @@ interface InspectionRecord {
   inspectionDate: string; outcome: string; certificateReference: string | null;
   nextDueDate: string | null; nonConformances: string | null; actions: string | null; notes: string | null;
   documentPath: string | null; documentName: string | null;
-}
-interface RestrictedInput {
-  id: number; farmId: number; fieldId: number | null; fieldName: string | null;
-  productName: string; productCategory: string | null; dateApplied: string;
-  appliedBy: string | null; justification: string; approvalReference: string | null;
-  certifierNotified: boolean; notes: string | null;
-  supplier: string | null; poReference: string | null; grnReference: string | null;
 }
 interface FarmField { id: number; name: string; areaHectares: string | null; }
 
@@ -954,37 +947,6 @@ const ANNEX_I_INPUTS: SubstanceOption[] = [
   { substance: "Sodium Hypochlorite (disinfection of equipment only)", autoType: "Cleaning & Disinfection" },
 ];
 
-const ANNEX_II_INPUTS: SubstanceOption[] = [
-  { substance: "Copper Hydroxide", autoType: "Crop Protection / Pesticide" },
-  { substance: "Copper Oxychloride", autoType: "Crop Protection / Pesticide" },
-  { substance: "Copper Sulphate / Bordeaux Mixture", autoType: "Crop Protection / Pesticide" },
-  { substance: "Cupric Oxide", autoType: "Crop Protection / Pesticide" },
-  { substance: "Pyrethrin (from Chrysanthemum cinerariaefolium)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Spinosad (restricted — certifier notification required)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Azadirachtin / Neem Extract", autoType: "Crop Protection / Pesticide" },
-  { substance: "Quassia (Quassia amara extract)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Bacillus thuringiensis (Bt)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Bacillus subtilis", autoType: "Crop Protection / Pesticide" },
-  { substance: "Beauveria bassiana", autoType: "Crop Protection / Pesticide" },
-  { substance: "Metarhizium anisopliae / brunneum", autoType: "Crop Protection / Pesticide" },
-  { substance: "Pythium oligandrum", autoType: "Crop Protection / Pesticide" },
-  { substance: "Phlebiopsis gigantea", autoType: "Crop Protection / Pesticide" },
-  { substance: "Trichoderma spp.", autoType: "Crop Protection / Pesticide" },
-  { substance: "Entomopathogenic Nematodes", autoType: "Crop Protection / Pesticide" },
-  { substance: "Iron Phosphate (slug pellets)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Kaolin (particle film)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Diatomaceous Earth / Kieselgur", autoType: "Crop Protection / Pesticide" },
-  { substance: "Potassium Bicarbonate", autoType: "Crop Protection / Pesticide" },
-  { substance: "Sulphur (wettable / dust)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Calcium Polysulphide / Lime Sulphur", autoType: "Crop Protection / Pesticide" },
-  { substance: "Calcium Hydroxide (fungicide application)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Soft Soap / Potassium Soap", autoType: "Crop Protection / Pesticide" },
-  { substance: "Rapeseed Oil / Plant Oil", autoType: "Crop Protection / Pesticide" },
-  { substance: "Paraffin Oil (mineral, restricted use)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Pheromones (mating disruption traps only)", autoType: "Crop Protection / Pesticide" },
-  { substance: "Phytotherapeutic / Homeopathic Product", autoType: "Veterinary Treatment" },
-];
-
 function SubstancePicker({
   options,
   value,
@@ -1041,15 +1003,13 @@ function SubstancePicker({
 
 // ─── Restricted Inputs Tab ───────────────────────────────────────────────────
 
-const EMPTY_INPUT = { fieldId: null as number | null, fieldName: "", productName: "", productCategory: "", dateApplied: new Date().toISOString().slice(0, 10), appliedBy: "", justification: "", approvalReference: "", certifierNotified: false, notes: "", supplier: "", poReference: "", grnReference: "" };
-const INPUT_CATEGORIES = ["Fertiliser / Soil Amendment", "Crop Protection / Pesticide", "Growth Regulator", "Cleaning / Disinfectant", "Veterinary Treatment", "Other"];
-
 interface OrganicInput {
   id: number; farmId: number; productName: string; inputType: string | null;
   supplier: string | null; poReference: string | null; grnReference: string | null;
   approvalStatus: string; certifierApprovalRef: string | null;
   cropYear: number | null; dateOfUse: string | null; quantityAmount: string | null;
   quantityUnit: string | null; fieldId: number | null; fieldName: string | null;
+  justification: string | null; certifierNotified: boolean; appliedBy: string | null;
   notes: string | null; createdAt: string;
 }
 
@@ -1125,316 +1085,80 @@ function SupplierCombobox({ suppliers, value, valueId, onChange }: {
 }
 
 function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [formOpen, setFormOpen] = useState(false);
-  const [viewRecord, setViewRecord] = useState<RestrictedInput | null>(null);
-  const [editing, setEditing] = useState<RestrictedInput | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState(EMPTY_INPUT);
-  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
-  const [supplierIdFilter, setSupplierIdFilter] = useState<number | null>(null);
-  const [poIdFilter, setPoIdFilter] = useState<number | null>(null);
-
-  const { data, isLoading } = useQuery<{ records: RestrictedInput[] }>({
-    queryKey: ["organic-restricted", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/organic/restricted-inputs`).then(r => r.json()),
+  const { data, isLoading } = useQuery<{ records: OrganicInput[] }>({
+    queryKey: ["organic-inputs", farmId, "all"],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic/inputs`).then(r => r.json()),
   });
   const allRecords = data?.records ?? [];
-  const records = yearFilter === "all"
-    ? allRecords
-    : allRecords.filter(r => r.dateApplied && new Date(r.dateApplied).getFullYear() === yearFilter);
-
-  const { data: fieldsData } = useQuery<{ records: FarmField[] }>({
-    queryKey: ["farm-fields-lookup", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.ok ? r.json() : { records: [] }),
-  });
-  const farmFields: FarmField[] = (fieldsData?.records ?? []).map(f => ({ id: f.id, name: f.name, areaHectares: f.areaHectares }));
-
-  const { data: suppliersData } = useQuery<Supplier[]>({
-    queryKey: ["suppliers-list", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
-  });
-  const suppliers: Supplier[] = suppliersData ?? [];
-
-  const { data: posData } = useQuery<PurchaseOrder[]>({
-    queryKey: ["purchase-orders", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
-  });
-  const allPOs: PurchaseOrder[] = posData ?? [];
-
-  const { data: grnsData } = useQuery<StockDelivery[]>({
-    queryKey: ["stock-deliveries", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries`).then(r => r.json()).then(d => d.records ?? []),
-  });
-  const allGRNs: StockDelivery[] = grnsData ?? [];
-
-  const filteredPOs = useMemo(
-    () => supplierIdFilter ? allPOs.filter(p => p.supplierId === supplierIdFilter) : allPOs,
-    [allPOs, supplierIdFilter]
-  );
-  const filteredGRNs = useMemo(
-    () => poIdFilter ? allGRNs.filter(g => g.poId === poIdFilter)
-      : supplierIdFilter ? allGRNs.filter(g => g.supplierId === supplierIdFilter)
-      : allGRNs,
-    [allGRNs, poIdFilter, supplierIdFilter]
-  );
-
-  const createM = useMutation({
-    mutationFn: (body: typeof EMPTY_INPUT) => fetch(`/api/farms/${farmId}/organic/restricted-inputs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-restricted", farmId] }); setFormOpen(false); setForm(EMPTY_INPUT); toast({ title: "Restricted input recorded" }); },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-  });
-  const updateM = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: typeof EMPTY_INPUT }) => fetch(`/api/farms/${farmId}/organic/restricted-inputs/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-restricted", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_INPUT); toast({ title: "Record updated" }); },
-    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-  });
-  const deleteM = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/restricted-inputs/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-restricted", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
-  });
-
-  function openEdit(r: RestrictedInput) {
-    setEditing(r);
-    setForm({ fieldId: r.fieldId ?? null, fieldName: r.fieldName ?? "", productName: r.productName, productCategory: r.productCategory ?? "", dateApplied: r.dateApplied?.slice(0, 10) ?? "", appliedBy: r.appliedBy ?? "", justification: r.justification, approvalReference: r.approvalReference ?? "", certifierNotified: r.certifierNotified, notes: r.notes ?? "", supplier: r.supplier ?? "", poReference: r.poReference ?? "", grnReference: r.grnReference ?? "" });
-    const matchedSupplier = suppliers.find(s => s.name === (r.supplier ?? ""));
-    setSupplierIdFilter(matchedSupplier?.id ?? null);
-    const matchedPO = allPOs.find(p => p.poNumber === (r.poReference ?? ""));
-    setPoIdFilter(matchedPO?.id ?? null);
-    setFormOpen(true);
-  }
-
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY_INPUT);
-    setSupplierIdFilter(null);
-    setPoIdFilter(null);
-    setFormOpen(true);
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (editing) { updateM.mutate({ id: editing.id, body: form }); }
-    else { createM.mutate(form); }
-  }
+  const records = allRecords.filter(r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation");
 
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
 
   return (
     <>
-      <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm space-y-2">
+      <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm space-y-1.5">
         <div className="flex gap-2 items-center text-amber-900">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <p className="font-semibold">Restricted inputs — arable, horticultural &amp; general farm land only</p>
+          <Info className="w-4 h-4 shrink-0" />
+          <p className="font-semibold">Restricted &amp; derogation inputs — read-only audit view</p>
         </div>
-        <p className="text-amber-800">Use this log for restricted products applied to <strong>arable crops, general organic land, or shared farm infrastructure</strong> — substances not normally permitted but used in exceptional circumstances with certifier approval or notification.</p>
-        <div className="text-amber-700 space-y-1 text-xs border-t border-amber-200 pt-2">
-          <p className="font-medium mb-0.5">Record restricted &amp; derogated inputs in the correct place to avoid duplication:</p>
-          <p>→ <strong>Vineyard restricted products</strong> — use <em>Organic Viticulture → Organic Inputs</em> (set approval status to Restricted or Derogation)</p>
-          <p>→ <strong>Vineyard formal derogation cases</strong> — use <em>Organic Viticulture → Input Derogations</em></p>
-          <p>→ <strong>Livestock / dairy feed ingredient derogations</strong> — use <em>Organic Livestock → Feed Derogations</em></p>
-          <p>→ <strong>Fresh produce inputs</strong> — use <em>Organic Fresh Produce → Input Log</em></p>
-        </div>
-        <p className="text-amber-700 text-xs">Always consult your certifier before using any restricted product. Keep this log as your audit trail for annual inspection.</p>
+        <p className="text-amber-800">This view shows all inputs from the <strong>Input Register</strong> that have Restricted or Derogation status — for easy inspection and printing. To add or edit a restricted input, use the <strong>Input Register</strong> tab and set the approval status accordingly.</p>
       </div>
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
-          <select
-            className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
-            value={yearFilter}
-            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
-          >
-            <option value="all">All years</option>
-            {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          {records.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
-              <Printer className="w-4 h-4" />Print Log
-            </Button>
-          )}
+
+      {records.length > 0 && (
+        <div className="flex justify-end mb-4">
+          <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
+            <Printer className="w-4 h-4" />Print Restricted Inputs Log
+          </Button>
         </div>
-        <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Record Restricted Input</Button>
-      </div>
+      )}
 
       {records.length === 0 ? (
         <Card className="p-8 text-center">
           <FlaskConical className="w-10 h-10 mx-auto mb-3 text-amber-500 opacity-50" />
-          <p className="font-semibold mb-1">No restricted inputs recorded</p>
-          <p className="text-sm text-foreground/60">If you've had to use a restricted product on organic land, log it here with your justification and any certifier approval reference.</p>
+          <p className="font-semibold mb-1">No restricted or derogation inputs recorded</p>
+          <p className="text-sm text-foreground/60">When you add an input in the Input Register with Restricted or Derogation status, it will appear here for audit review.</p>
         </Card>
       ) : (
         <div className="space-y-3">
           {records.map(r => (
             <Card key={r.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <FlaskConical className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span className="font-semibold">{r.productName}</span>
-                    {r.productCategory && <span className="text-xs text-foreground/60 bg-secondary px-2 py-0.5 rounded-full">{r.productCategory}</span>}
-                    {r.certifierNotified ? (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Certifier notified</span>
-                    ) : (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">Certifier not yet notified</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-foreground/60 space-y-0.5">
-                    <p>Applied: {fmt(r.dateApplied)}{r.fieldName ? ` · ${r.fieldName}` : ""}{r.appliedBy ? ` · By: ${r.appliedBy}` : ""}</p>
-                    <p><span className="font-medium text-foreground/80">Justification:</span> {r.justification}</p>
-                    {r.approvalReference && <p>Approval ref: {r.approvalReference}</p>}
-                    {(r.supplier || r.poReference) && (
-                      <p className="flex items-center gap-2 flex-wrap">
-                        {r.supplier && <span>Supplier: {r.supplier}</span>}
-                        {r.poReference && <span>· PO: {r.poReference}</span>}
-                        {r.grnReference && <span>· GRN: {r.grnReference}</span>}
-                      </p>
-                    )}
-                  </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <FlaskConical className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="font-semibold">{r.productName}</span>
+                  {r.inputType && <span className="text-xs text-foreground/60 bg-secondary px-2 py-0.5 rounded-full">{r.inputType}</span>}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${APPROVAL_STATUS_COLORS[r.approvalStatus] ?? APPROVAL_STATUS_COLORS.permitted}`}>{APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</span>
+                  {r.certifierNotified ? (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Certifier notified</span>
+                  ) : (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">Certifier not yet notified</span>
+                  )}
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
+                <div className="text-sm text-foreground/60 space-y-0.5">
+                  <p className="flex items-center gap-3 flex-wrap">
+                    {r.dateOfUse && <span>Applied: {fmt(r.dateOfUse)}</span>}
+                    {r.fieldName && <span>Field: {r.fieldName}</span>}
+                    {r.appliedBy && <span>By: {r.appliedBy}</span>}
+                  </p>
+                  {r.justification && <p><span className="font-medium text-foreground/80">Justification:</span> {r.justification}</p>}
+                  {r.certifierApprovalRef && <p>Certifier approval ref: {r.certifierApprovalRef}</p>}
+                  {(r.supplier || r.poReference) && (
+                    <p className="flex items-center gap-2 flex-wrap">
+                      {r.supplier && <span>Supplier: {r.supplier}</span>}
+                      {r.poReference && <span>· PO: {r.poReference}</span>}
+                      {r.grnReference && <span>· GRN: {r.grnReference}</span>}
+                    </p>
+                  )}
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
-
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Restricted Input</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{String(viewRecord.productName ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{String(viewRecord.productCategory ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date Applied</p><p className="font-medium">{fmt(viewRecord.dateApplied)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Area</p><p className="font-medium">{String(viewRecord.fieldName ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Applied By</p><p className="font-medium">{String(viewRecord.appliedBy ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Reference</p><p className="font-medium">{String(viewRecord.approvalReference ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : "No"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{String(viewRecord.supplier ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{String(viewRecord.poReference ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{String(viewRecord.grnReference ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{String(viewRecord.justification ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
-              <Button onClick={() => setViewRecord(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Record" : "Record Restricted Input"}</DialogTitle>
-            <DialogDescription>Document the exceptional use of a restricted product on organic land.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Substance / Product Name *</Label>
-              <SubstancePicker
-                options={ANNEX_II_INPUTS}
-                value={form.productName}
-                onSelect={(substance, autoType) => setForm(f => ({
-                  ...f,
-                  productName: substance,
-                  productCategory: autoType || f.productCategory,
-                }))}
-                placeholder="e.g. Copper oxychloride, product trade name"
-              />
-            </div>
-            <div><Label>Category</Label>
-              <select className={INPUT_CLS} value={form.productCategory} onChange={e => setForm(f => ({ ...f, productCategory: e.target.value }))}>
-                <option value="">Select…</option>
-                {INPUT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Date Applied *</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} required value={form.dateApplied} onChange={e => setForm(f => ({ ...f, dateApplied: e.target.value }))} /></div>
-              <div>
-                <Label>Field / Area</Label>
-                <FieldPicker
-                  farmFields={farmFields}
-                  fieldId={form.fieldId}
-                  fieldName={form.fieldName}
-                  onFieldChange={(id, name) => setForm(f => ({ ...f, fieldId: id, fieldName: name }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Applied By</Label><Input className={INPUT_CLS} value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} /></div>
-              <div><Label>Approval Reference</Label><Input className={INPUT_CLS} placeholder="Certifier approval ref" value={form.approvalReference} onChange={e => setForm(f => ({ ...f, approvalReference: e.target.value }))} /></div>
-            </div>
-            <div>
-              <Label>Supplier</Label>
-              <SupplierCombobox
-                suppliers={suppliers}
-                value={form.supplier}
-                valueId={supplierIdFilter}
-                onChange={(id, name) => {
-                  setSupplierIdFilter(id);
-                  setPoIdFilter(null);
-                  setForm(f => ({ ...f, supplier: name, poReference: "", grnReference: "" }));
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Purchase Order</Label>
-                <select className={INPUT_CLS} value={form.poReference} onChange={e => {
-                  const poNum = e.target.value;
-                  const po = allPOs.find(p => p.poNumber === poNum);
-                  setPoIdFilter(po?.id ?? null);
-                  setForm(f => ({ ...f, poReference: poNum, grnReference: "" }));
-                }}>
-                  <option value="">— None —</option>
-                  {filteredPOs.map(p => (
-                    <option key={p.id} value={p.poNumber}>{p.poNumber}{p.orderDate ? ` · ${fmt(p.orderDate)}` : ""}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>GRN / Delivery Note</Label>
-                <select className={INPUT_CLS} value={form.grnReference} onChange={e => setForm(f => ({ ...f, grnReference: e.target.value }))}>
-                  <option value="">— None —</option>
-                  {filteredGRNs.filter(g => g.grnNumber).map(g => (
-                    <option key={g.id} value={g.grnNumber!}>{g.grnNumber}{g.deliveryDate ? ` · ${fmt(g.deliveryDate)}` : ""}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div><Label>Justification *</Label><Textarea required value={form.justification} onChange={e => setForm(f => ({ ...f, justification: e.target.value }))} rows={3} placeholder="Explain the exceptional circumstances that required this input…" /></div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="notified" checked={form.certifierNotified} onChange={e => setForm(f => ({ ...f, certifierNotified: e.target.checked }))} className="rounded border-border" />
-              <Label htmlFor="notified">Certifier has been notified of this use</Label>
-            </div>
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
-              <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.productName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Delete Record</DialogTitle><DialogDescription>Delete this restricted input record? This cannot be undone.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={deleteM.isPending} onClick={() => deleteId && deleteM.mutate(deleteId)}>{deleteM.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
+
 
 
 // ─── Input Register Tab ───────────────────────────────────────────────────────
@@ -1453,6 +1177,9 @@ const EMPTY_ORG_INPUT = {
   dateOfUse: new Date().toISOString().slice(0, 10),
   quantityAmount: "",
   quantityUnit: "kg",
+  justification: "",
+  certifierNotified: false,
+  appliedBy: "",
   notes: "",
 };
 
@@ -1545,6 +1272,9 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       dateOfUse: r.dateOfUse?.slice(0, 10) ?? "",
       quantityAmount: r.quantityAmount ?? "",
       quantityUnit: r.quantityUnit ?? "kg",
+      justification: r.justification ?? "",
+      certifierNotified: r.certifierNotified,
+      appliedBy: r.appliedBy ?? "",
       notes: r.notes ?? "",
     });
     const matchedSupplier = suppliers.find(s => s.name === (r.supplier ?? ""));
@@ -1682,6 +1412,9 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date of Use</p><p className="font-medium">{fmt(viewRecord.dateOfUse)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Area</p><p className="font-medium">{viewRecord.fieldName || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p><p className="font-medium">{viewRecord.quantityAmount ? `${viewRecord.quantityAmount}${viewRecord.quantityUnit ? " " + viewRecord.quantityUnit : ""}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Applied By</p><p className="font-medium">{viewRecord.appliedBy || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : "No"}</p></div>
+              {viewRecord.justification && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{viewRecord.justification}</p></div>}
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes || "—"}</p></div>
             </div>
             <DialogFooter>
@@ -1798,6 +1531,16 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                 </div>
               </div>
             </div>
+            {form.approvalStatus !== "permitted" && (
+              <>
+                <div><Label>Justification *</Label><Textarea required value={form.justification} onChange={e => setForm(f => ({ ...f, justification: e.target.value }))} rows={2} placeholder="Explain why this restricted/derogated input is necessary…" /></div>
+                <div><Label>Applied By</Label><Input className={INPUT_CLS} value={form.appliedBy} onChange={e => setForm(f => ({ ...f, appliedBy: e.target.value }))} /></div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="certNotifiedInput" checked={form.certifierNotified} onChange={e => setForm(f => ({ ...f, certifierNotified: e.target.checked }))} className="rounded border-border" />
+                  <Label htmlFor="certNotifiedInput">Certifier has been notified of this use</Label>
+                </div>
+              </>
+            )}
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>

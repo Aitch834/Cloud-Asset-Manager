@@ -261,14 +261,6 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
                 <SelectContent>{BLOCK_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.replace("-", " ").replace(/\b\w/g, c => c.toUpperCase())}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Certifying Body</Label>
-              <Select value={form.certifyingBody ?? ""} onValueChange={v => setForm(f => ({ ...f, certifyingBody: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select certifying body…" /></SelectTrigger>
-                <SelectContent>{certifyingBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">Use the same certifying body as your primary record in Organic Compliance → Certification.</p>
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Conversion Start Date</Label><Input type="date" value={form.conversionStartDate ?? ""} onChange={sf("conversionStartDate")} /></div>
               <div><Label>Fully Organic Date</Label><Input type="date" value={form.fullyOrganicDate ?? ""} onChange={sf("fullyOrganicDate")} /></div>

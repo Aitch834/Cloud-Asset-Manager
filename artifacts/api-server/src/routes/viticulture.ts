@@ -16,6 +16,7 @@ import {
   organicVitDerogationCorrespondenceTable,
   organicVitCertificateTable,
   organicVitWineProductionTable,
+  organicCertificationTable,
   farmRecordAttachmentsTable,
   wineryLicencesTable,
   wineryExciseReturnsTable,
@@ -551,7 +552,9 @@ router.get("/farms/:farmId/organic-viticulture/block-status", requireAuth, requi
 });
 router.post("/farms/:farmId/organic-viticulture/block-status", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(organicVitBlockStatusTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [certRow] = await db.select({ certifier: organicCertificationTable.certifier }).from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
+  const [record] = await (db.insert(organicVitBlockStatusTable) as any).values({ ...body, farmId, certifyingBody: (body as any).certifyingBody || certRow?.certifier || null }).returning();
   res.status(201).json({ record });
 });
 router.put("/farms/:farmId/organic-viticulture/block-status/:id", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

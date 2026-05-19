@@ -50,24 +50,6 @@ export const organicInspectionTable = pgTable("organic_inspection", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const organicRestrictedInputTable = pgTable("organic_restricted_input", {
-  id: serial("id").primaryKey(),
-  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  fieldId: integer("field_id").references(() => fieldsTable.id),
-  fieldName: text("field_name"),
-  productName: text("product_name").notNull(),
-  productCategory: text("product_category"),
-  dateApplied: date("date_applied").notNull(),
-  appliedBy: text("applied_by"),
-  justification: text("justification").notNull(),
-  approvalReference: text("approval_reference"),
-  certifierNotified: boolean("certifier_notified").notNull().default(false),
-  notes: text("notes"),
-  supplier: text("supplier"),
-  poReference: text("po_reference"),
-  grnReference: text("grn_reference"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
 
 export const organicInputsTable = pgTable("organic_inputs", {
   id: serial("id").primaryKey(),
@@ -85,6 +67,9 @@ export const organicInputsTable = pgTable("organic_inputs", {
   quantityUnit: text("quantity_unit"),
   fieldId: integer("field_id").references(() => fieldsTable.id),
   fieldName: text("field_name"),
+  justification: text("justification"),
+  certifierNotified: boolean("certifier_notified").notNull().default(false),
+  appliedBy: text("applied_by"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
