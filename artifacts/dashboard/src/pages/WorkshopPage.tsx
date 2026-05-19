@@ -2324,7 +2324,7 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
     queryKey: ["workshop-jobs", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
-    select: (d: any) => d.records ?? [],
+    select: (d: any) => (d.jobs ?? []).map((j: any) => ({ ...j.job, equipmentName: j.equipmentName, assetNumber: j.assetNumber, customerName: j.customerName })),
   });
   const equipQ = useQuery({
     queryKey: ["equipment", farmId],
