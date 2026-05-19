@@ -344,6 +344,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "casualty-slaughter",
+    title: "Casualty / Emergency Slaughter",
+    description: "Record on-farm emergency killing — method, WASK/WATOK certificate reference, carcase disposal and vet involvement",
+    icon: "alert-triangle",
+    color: "#dc2626",
+    bgColor: "#fee2e2",
+    route: "/casualty-slaughter",
+    moduleKeys: ["livestock-management"],
+    requiresSectors: ["livestock"],
+  },
+  {
     id: "feed-record",
     title: "Feed Record",
     description: "Log feed deliveries with supplier, batch number and quantity for Red Tractor traceability",

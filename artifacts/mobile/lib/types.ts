@@ -581,6 +581,31 @@ export interface AnimalMortality {
   synced: boolean;
 }
 
+export interface CasualtySlaughter {
+  id: string;
+  farmId: string;
+  eventDate: string;
+  species: string;
+  animalEarTag: string;
+  ageOrDescription: string;
+  reasonForSlaughter: string;
+  method: string;
+  performedBy: string;
+  waskWatokCertRef: string;
+  witnessName: string;
+  veterinaryInvolved: boolean;
+  vetName: string;
+  carcaseDisposalMethod: string;
+  carcaseCollectionDate: string;
+  carcaseDisposalRef: string;
+  notes: string;
+  documentUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface FeedRecord {
   id: string;
   farmId: string;

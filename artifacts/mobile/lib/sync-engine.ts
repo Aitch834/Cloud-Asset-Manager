@@ -332,6 +332,7 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_biofuel_delivery_records: `/farms/${farmId}/biofuel/deliveries`,
     bde_field_operations: `/farms/${farmId}/field-operations`,
     bde_mortality_records: `/farms/${farmId}/mortality-records`,
+    bde_casualty_slaughter_records: `/farms/${farmId}/casualty-slaughter`,
     bde_feed_records: `/farms/${farmId}/feed-records`,
     bde_water_quality_records: `/farms/${farmId}/water-records`,
     bde_environmental_events: `/farms/${farmId}/environmental-management-events`,

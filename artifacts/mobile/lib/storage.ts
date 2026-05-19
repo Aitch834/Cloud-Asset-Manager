@@ -210,4 +210,5 @@ export const STORAGE_KEYS = {
   TB_TEST_RECORDS: "bde_tb_tests",
   WELFARE_OUTCOME_RECORDS: "bde_welfare_outcome_assessments",
   PPE_ISSUE_RECORDS: "bde_ppe_issue_records",
+  CASUALTY_SLAUGHTER_RECORDS: "bde_casualty_slaughter_records",
 } as const;
