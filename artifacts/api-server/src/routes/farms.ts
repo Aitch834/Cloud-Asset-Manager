@@ -13847,6 +13847,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     organicVitDerogRows,
     organicVitCertRows,
     organicVitBlockRows,
+    puwerReviewRows, equipInsuranceRows,
+    feedContingencyReviewRows, shopHygieneReinspRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14288,6 +14290,22 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: organicVitBlockStatusTable.id, blockName: organicVitBlockStatusTable.blockName, fullyOrganicDate: organicVitBlockStatusTable.fullyOrganicDate, status: organicVitBlockStatusTable.status })
       .from(organicVitBlockStatusTable)
       .where(and(eq(organicVitBlockStatusTable.farmId, farmId), isNotNull(organicVitBlockStatusTable.fullyOrganicDate), gte(organicVitBlockStatusTable.fullyOrganicDate, overdueStart.toISOString().split("T")[0]), lt(organicVitBlockStatusTable.fullyOrganicDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, puwerNextReviewDate: equipmentTable.puwerNextReviewDate, puwerOutcome: equipmentTable.puwerOutcome, isActive: equipmentTable.isActive })
+      .from(equipmentTable)
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentTable.puwerNextReviewDate), gte(equipmentTable.puwerNextReviewDate, overdueStart.toISOString().split("T")[0]), lt(equipmentTable.puwerNextReviewDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, insuranceRenewalDate: equipmentTable.insuranceRenewalDate, insurerName: equipmentTable.insurerName, isActive: equipmentTable.isActive })
+      .from(equipmentTable)
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentTable.insuranceRenewalDate), gte(equipmentTable.insuranceRenewalDate, overdueStart.toISOString().split("T")[0]), lt(equipmentTable.insuranceRenewalDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: feedContingencyPlansTable.id, nextReviewDate: feedContingencyPlansTable.nextReviewDate, versionNumber: feedContingencyPlansTable.versionNumber })
+      .from(feedContingencyPlansTable)
+      .where(and(eq(feedContingencyPlansTable.farmId, farmId), isNotNull(feedContingencyPlansTable.nextReviewDate), gte(feedContingencyPlansTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(feedContingencyPlansTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: farmShopHygieneInspectionsTable.id, relatesTo: farmShopHygieneInspectionsTable.relatesTo, inspectionType: farmShopHygieneInspectionsTable.inspectionType, reinspectionRequired: farmShopHygieneInspectionsTable.reinspectionRequired, reinspectionDate: farmShopHygieneInspectionsTable.reinspectionDate })
+      .from(farmShopHygieneInspectionsTable)
+      .where(and(eq(farmShopHygieneInspectionsTable.farmId, farmId), eq(farmShopHygieneInspectionsTable.reinspectionRequired, true), isNotNull(farmShopHygieneInspectionsTable.reinspectionDate), gte(farmShopHygieneInspectionsTable.reinspectionDate, overdueStart.toISOString().split("T")[0]), lt(farmShopHygieneInspectionsTable.reinspectionDate, rangeEnd.toISOString().split("T")[0]))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -15008,6 +15026,22 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of organicVitBlockRows) {
     if (!r.fullyOrganicDate) continue;
     tasks.push({ id: `org-vit-block-${r.id}`, type: "organic_vit_block_conversion", title: `Vineyard Block Conversion Complete — ${r.blockName}`, description: `Block '${r.blockName}' is due to complete its organic conversion period. Confirm certification with your certifying body and update the block status in Organic Viticulture → Block Conversion.`, dueDate: new Date(r.fullyOrganicDate + "T00:00:00Z").toISOString(), module: "Organic Viticulture", href: "/organic-viticulture?tab=block-conversion", colour: "green" });
+  }
+  for (const r of puwerReviewRows) {
+    if (!r.puwerNextReviewDate || r.isActive === false) continue;
+    tasks.push({ id: `puwer-${r.id}`, type: "puwer_review", title: `PUWER Assessment Review Due — ${r.name}`, description: `The PUWER (Work Equipment) assessment for '${r.name}' (${r.type}) is due for review. Carry out the assessment and update the record in Workshop → Equipment.`, dueDate: toISO(r.puwerNextReviewDate)!, module: "Workshop & Equipment", href: `/workshop?tab=equipment&open=${r.id}`, colour: "orange" });
+  }
+  for (const r of equipInsuranceRows) {
+    if (!r.insuranceRenewalDate || r.isActive === false) continue;
+    tasks.push({ id: `equip-ins-${r.id}`, type: "equipment_insurance_renewal", title: `Equipment Insurance Renewal — ${r.name}`, description: `Insurance for '${r.name}' (${r.type})${r.insurerName ? ` with ${r.insurerName}` : ""} is due for renewal. Arrange cover and update the record in Workshop → Equipment.`, dueDate: toISO(r.insuranceRenewalDate)!, module: "Workshop & Equipment", href: `/workshop?tab=equipment&open=${r.id}`, colour: "blue" });
+  }
+  for (const r of feedContingencyReviewRows) {
+    if (!r.nextReviewDate) continue;
+    tasks.push({ id: `feedcontplan-${r.id}`, type: "feed_contingency_plan_review", title: "Feed Contingency Plan Review Due", description: `The feed contingency plan${r.versionNumber ? ` (v${r.versionNumber})` : ""} is due for review. Update supplier contacts, stock targets, and emergency procedures in Feed Management → Contingency Plan.`, dueDate: toISO(r.nextReviewDate)!, module: "Feed Management", href: `/feed?tab=contingency`, colour: "amber" });
+  }
+  for (const r of shopHygieneReinspRows) {
+    if (!r.reinspectionDate || !r.reinspectionRequired) continue;
+    tasks.push({ id: `shop-hyg-reinsp-${r.id}`, type: "farm_shop_hygiene_reinspection", title: `Farm Shop Hygiene Re-inspection Due${r.relatesTo ? ` — ${r.relatesTo}` : ""}`, description: `A hygiene re-inspection is required${r.relatesTo ? ` for ${r.relatesTo}` : ""}. Ensure corrective actions from the previous ${r.inspectionType || "hygiene"} inspection have been completed before the re-inspection date. Update in Diversification → Hygiene Inspections.`, dueDate: toISO(r.reinspectionDate)!, module: "Diversification", href: `/diversification?tab=hygiene`, colour: "red" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
