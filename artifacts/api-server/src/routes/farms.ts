@@ -13789,7 +13789,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   const [
     pestRows, cleaningRows, biosecPlanRows,
     certRows, trainingRows, inspectionRows,
-    correctiveRows, riskRows,
+    correctiveRows, riskRows, ppeRiskRows,
     maintRows, calibRows,
     insuranceRows, rtwRows,
     medicineWithdrawalRows, vetHealthPlanRows,
@@ -13880,6 +13880,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
       .from(riskAssessmentsTable)
       .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart as any), lt(riskAssessmentsTable.reviewDate, rangeEnd as any))),
+
+    db.select({ id: ppeRiskAssessmentsTable.id, ppeType: ppeRiskAssessmentsTable.ppeType, hazardIdentified: ppeRiskAssessmentsTable.hazardIdentified, reviewDate: ppeRiskAssessmentsTable.reviewDate, isActive: ppeRiskAssessmentsTable.isActive })
+      .from(ppeRiskAssessmentsTable)
+      .where(and(eq(ppeRiskAssessmentsTable.farmId, farmId), isNotNull(ppeRiskAssessmentsTable.reviewDate), gte(ppeRiskAssessmentsTable.reviewDate, overdueStart as any), lt(ppeRiskAssessmentsTable.reviewDate, rangeEnd as any))),
 
     db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
       .from(equipmentMaintenanceLogsTable)
@@ -14324,6 +14328,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of riskRows) {
     if (!r.reviewDate || r.status === "archived") continue;
     tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: `/risks?tab=risk&open=${r.id}`, colour: "amber" });
+  }
+  for (const r of ppeRiskRows) {
+    if (!r.reviewDate || r.isActive === false) continue;
+    tasks.push({ id: `ppe-risk-${r.id}`, type: "ppe_risk_review", title: `PPE Risk Assessment Review — ${r.ppeType}`, description: `The PPE risk assessment for '${r.ppeType}' (hazard: ${r.hazardIdentified}) is due for review. Update in Staff → PPE Register.`, dueDate: toISO(r.reviewDate)!, module: "Staff & Training", href: `/staff?tab=ppe`, colour: "amber" });
   }
   for (const r of coshhReviewRows) {
     if (!r.reviewDate) continue;
