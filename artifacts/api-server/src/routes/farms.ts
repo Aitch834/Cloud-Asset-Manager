@@ -14055,6 +14055,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     organicVitBlockRows,
     puwerReviewRows, equipInsuranceRows,
     feedContingencyReviewRows, shopHygieneReinspRows,
+    bvdNextTestRows, johnesNextTestRows, salmNextSamplingRows,
+    ipmReviewRows, lerapExpiryRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14512,6 +14514,31 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: farmShopHygieneInspectionsTable.id, relatesTo: farmShopHygieneInspectionsTable.relatesTo, inspectionType: farmShopHygieneInspectionsTable.inspectionType, reinspectionRequired: farmShopHygieneInspectionsTable.reinspectionRequired, reinspectionDate: farmShopHygieneInspectionsTable.reinspectionDate })
       .from(farmShopHygieneInspectionsTable)
       .where(and(eq(farmShopHygieneInspectionsTable.farmId, farmId), eq(farmShopHygieneInspectionsTable.reinspectionRequired, true), isNotNull(farmShopHygieneInspectionsTable.reinspectionDate), gte(farmShopHygieneInspectionsTable.reinspectionDate, overdueStart.toISOString().split("T")[0]), lt(farmShopHygieneInspectionsTable.reinspectionDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── BVD Testing: next test due ────────────────────────────────────────────
+    db.select({ id: bvdTestingRecordsTable.id, nextTestDue: bvdTestingRecordsTable.nextTestDue, testType: bvdTestingRecordsTable.testType, result: bvdTestingRecordsTable.result })
+      .from(bvdTestingRecordsTable)
+      .where(and(eq(bvdTestingRecordsTable.farmId, farmId), isNotNull(bvdTestingRecordsTable.nextTestDue), gte(bvdTestingRecordsTable.nextTestDue, overdueStart.toISOString().split("T")[0]), lt(bvdTestingRecordsTable.nextTestDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Johne's Disease Monitoring: next test due ─────────────────────────────
+    db.select({ id: johnesMonitoringRecordsTable.id, nextTestDue: johnesMonitoringRecordsTable.nextTestDue, testType: johnesMonitoringRecordsTable.testType, riskLevel: johnesMonitoringRecordsTable.riskLevel })
+      .from(johnesMonitoringRecordsTable)
+      .where(and(eq(johnesMonitoringRecordsTable.farmId, farmId), isNotNull(johnesMonitoringRecordsTable.nextTestDue), gte(johnesMonitoringRecordsTable.nextTestDue, overdueStart.toISOString().split("T")[0]), lt(johnesMonitoringRecordsTable.nextTestDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Pig Salmonella NSMP: next sampling due ────────────────────────────────
+    db.select({ id: salmMonitoringTable.id, nextSamplingDue: salmMonitoringTable.nextSamplingDue, salmonellaCategory: salmMonitoringTable.salmonellaCategory, sampleType: salmMonitoringTable.sampleType })
+      .from(salmMonitoringTable)
+      .where(and(eq(salmMonitoringTable.farmId, farmId), isNotNull(salmMonitoringTable.nextSamplingDue), gte(salmMonitoringTable.nextSamplingDue, overdueStart.toISOString().split("T")[0]), lt(salmMonitoringTable.nextSamplingDue, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── IPM Plan: annual review due ───────────────────────────────────────────
+    db.select({ id: ipmPlansTable.id, reviewDate: ipmPlansTable.reviewDate, planYear: ipmPlansTable.planYear, preparedBy: ipmPlansTable.preparedBy })
+      .from(ipmPlansTable)
+      .where(and(eq(ipmPlansTable.farmId, farmId), isNotNull(ipmPlansTable.reviewDate), gte(ipmPlansTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(ipmPlansTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── LERAP Assessments: valid until ────────────────────────────────────────
+    db.select({ id: lerapAssessmentsTable.id, validUntil: lerapAssessmentsTable.validUntil, watercourseDescription: lerapAssessmentsTable.watercourseDescription, outcome: lerapAssessmentsTable.outcome })
+      .from(lerapAssessmentsTable)
+      .where(and(eq(lerapAssessmentsTable.farmId, farmId), isNotNull(lerapAssessmentsTable.validUntil), gte(lerapAssessmentsTable.validUntil, overdueStart.toISOString().split("T")[0]), lt(lerapAssessmentsTable.validUntil, rangeEnd.toISOString().split("T")[0]))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -15248,6 +15275,40 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of shopHygieneReinspRows) {
     if (!r.reinspectionDate || !r.reinspectionRequired) continue;
     tasks.push({ id: `shop-hyg-reinsp-${r.id}`, type: "farm_shop_hygiene_reinspection", title: `Farm Shop Hygiene Re-inspection Due${r.relatesTo ? ` — ${r.relatesTo}` : ""}`, description: `A hygiene re-inspection is required${r.relatesTo ? ` for ${r.relatesTo}` : ""}. Ensure corrective actions from the previous ${r.inspectionType || "hygiene"} inspection have been completed before the re-inspection date. Update in Diversification → Hygiene Inspections.`, dueDate: toISO(r.reinspectionDate)!, module: "Diversification", href: `/diversification?tab=hygiene`, colour: "red" });
+  }
+
+  // ── BVD Testing: next test due ────────────────────────────────────────────
+  for (const r of bvdNextTestRows) {
+    if (!r.nextTestDue) continue;
+    const testLabel = r.testType ? r.testType.replace(/_/g, " ") : "BVD test";
+    tasks.push({ id: `bvd-next-${r.id}`, type: "bvd_next_test", title: "BVD Next Test Due", description: `A follow-up ${testLabel} is due${r.result ? ` (last result: ${r.result.replace(/_/g, " ")})` : ""}. Record the result in Livestock → BVD Testing.`, dueDate: toISO(r.nextTestDue)!, module: "Livestock", href: `/livestock?tab=bvd`, colour: "orange" });
+  }
+
+  // ── Johne's Disease Monitoring: next test due ─────────────────────────────
+  for (const r of johnesNextTestRows) {
+    if (!r.nextTestDue) continue;
+    const riskLabel = r.riskLevel ? ` (current risk: ${r.riskLevel.replace(/_/g, " ")})` : "";
+    tasks.push({ id: `johnes-next-${r.id}`, type: "johnes_next_test", title: "Johne's Disease Monitoring Due", description: `A Johne's monitoring round is due${riskLabel}. Arrange sampling and record results in Livestock → Johne's Disease.`, dueDate: toISO(r.nextTestDue)!, module: "Livestock", href: `/livestock?tab=johnes`, colour: "orange" });
+  }
+
+  // ── Pig Salmonella NSMP: next quarterly sampling due ─────────────────────
+  for (const r of salmNextSamplingRows) {
+    if (!r.nextSamplingDue) continue;
+    const catLabel = r.salmonellaCategory ? ` — currently Category ${r.salmonellaCategory}` : "";
+    tasks.push({ id: `salm-next-${r.id}`, type: "salmonella_next_sampling", title: `Pig Salmonella NSMP Sampling Due${catLabel}`, description: `A quarterly NSMP blood serology sampling round is due. Arrange sampling with your APHA-approved laboratory and record the result in Pig Production → Salmonella Monitoring.`, dueDate: toISO(r.nextSamplingDue)!, module: "Pig Production", href: `/pig-production?tab=salmonella`, colour: "amber" });
+  }
+
+  // ── IPM Plan: annual review due ───────────────────────────────────────────
+  for (const r of ipmReviewRows) {
+    if (!r.reviewDate) continue;
+    tasks.push({ id: `ipm-review-${r.id}`, type: "ipm_plan_review", title: `IPM Plan Review Due${r.planYear ? ` — ${r.planYear} Plan` : ""}`, description: `Your Integrated Pest Management plan${r.planYear ? ` for ${r.planYear}` : ""} is due for annual review. Update the plan in Sprays & Inputs → IPM Plan and re-approve to maintain Red Tractor Crops compliance.`, dueDate: toISO(r.reviewDate)!, module: "Sprays & Inputs", href: `/sprays?tab=ipm`, colour: "cyan" });
+  }
+
+  // ── LERAP Assessments: valid until ────────────────────────────────────────
+  for (const r of lerapExpiryRows) {
+    if (!r.validUntil) continue;
+    const locationLabel = r.watercourseDescription ? ` — ${r.watercourseDescription}` : "";
+    tasks.push({ id: `lerap-exp-${r.id}`, type: "lerap_expiry", title: `LERAP Assessment Expiring${locationLabel}`, description: `A LERAP assessment${r.watercourseDescription ? ` for ${r.watercourseDescription}` : ""} is approaching its validity date. Review and renew the assessment in Sprays & Inputs → LERAP Assessments before applying any qualifying products near this watercourse.`, dueDate: toISO(r.validUntil)!, module: "Sprays & Inputs", href: `/sprays?tab=lerap`, colour: "cyan" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────
