@@ -283,7 +283,7 @@ export default function SprayPage() {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap">("applications");
 
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -310,12 +310,16 @@ export default function SprayPage() {
           <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Register</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</TabButton>
+          <TabButton active={tab === "ipm"} onClick={() => setTab("ipm")}>IPM Plan</TabButton>
+          <TabButton active={tab === "lerap"} onClick={() => setTab("lerap")}>LERAP</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
         {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}
         {tab === "analytics" && <SprayAnalyticsTab applications={applications} products={products} fields={fields} />}
+        {tab === "ipm" && <IpmPlanTab farmId={farmId!} />}
+        {tab === "lerap" && <LerapTab farmId={farmId!} products={products} fields={fields} />}
       </div>
     </AppLayout>
   );
@@ -1720,6 +1724,407 @@ function EmptyState({ icon, title, subtitle }: { icon: React.ReactNode; title: s
       <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}>{icon}</div>
       <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>{title}</p>
       <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 400 }}>{subtitle}</p>
+    </div>
+  );
+}
+
+// ─── IPM Plan Tab ─────────────────────────────────────────────────────────────
+const IPM_STATUSES = [
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "under_review", label: "Under Review" },
+  { value: "archived", label: "Archived" },
+];
+
+const THRESHOLD_PESTS = [
+  "Aphids (cereal)", "Black-grass", "Brome grass", "Cabbage stem flea beetle",
+  "Canopy disease (septoria)", "Eyespot", "Fusarium", "Light leaf spot",
+  "Orange blossom midge", "Pollen beetle", "Ramularia", "Rhynchosporium",
+  "Slugs", "Stem canker (sclerotinia)", "Take-all", "Tan spot", "Yellow rust",
+];
+
+function IpmPlanTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [planOpen, setPlanOpen] = useState(false);
+  const [threshOpen, setThreshOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [editingThresh, setEditingThresh] = useState<any>(null);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [planForm, setPlanForm] = useState<any>({});
+  const [threshForm, setThreshForm] = useState<any>({});
+  const setP = (k: string, v: any) => setPlanForm((f: any) => ({ ...f, [k]: v }));
+  const setT = (k: string, v: any) => setThreshForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: plans = [], isLoading } = useQuery({
+    queryKey: ["ipm-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: thresholds = [] } = useQuery({
+    queryKey: ["ipm-thresholds", farmId, selectedPlan?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && !!selectedPlan,
+  });
+
+  async function savePlan() {
+    const url = editingPlan ? `/api/farms/${farmId}/ipm-plans/${editingPlan.id}` : `/api/farms/${farmId}/ipm-plans`;
+    const res = await fetch(url, { method: editingPlan ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(planForm) });
+    if (!res.ok) { toast({ title: "Error saving plan", variant: "destructive" }); return; }
+    qc.invalidateQueries({ queryKey: ["ipm-plans", farmId] });
+    setPlanOpen(false);
+    toast({ title: editingPlan ? "Plan updated" : "IPM Plan created" });
+  }
+
+  async function deletePlan(id: number) {
+    if (!confirm("Delete this IPM Plan? All threshold entries will also be deleted.")) return;
+    await fetch(`/api/farms/${farmId}/ipm-plans/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["ipm-plans", farmId] });
+    if (selectedPlan?.id === id) setSelectedPlan(null);
+    toast({ title: "IPM Plan deleted" });
+  }
+
+  async function saveThreshold() {
+    const url = editingThresh ? `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds/${editingThresh.id}` : `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds`;
+    await fetch(url, { method: editingThresh ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...threshForm, ipmPlanId: selectedPlan.id }) });
+    qc.invalidateQueries({ queryKey: ["ipm-thresholds", farmId, selectedPlan?.id] });
+    setThreshOpen(false);
+  }
+
+  async function deleteThreshold(id: number) {
+    await fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["ipm-thresholds", farmId, selectedPlan?.id] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Integrated Pest Management (IPM) Plan</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a written IPM plan covering monitoring, thresholds, and non-chemical control. Create a plan per crop year and add pest/weed thresholds below.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ status: "active", pestMonitoringFrequency: "weekly" }); setPlanOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" />New IPM Plan</Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Plan list */}
+        <div className="lg:col-span-1 border rounded-lg overflow-hidden">
+          <div className="bg-gray-50 px-3 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wide">Plans</div>
+          {isLoading ? <div className="p-4 text-sm text-gray-400">Loading…</div> : plans.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-400">No IPM plans yet</div>
+          ) : (
+            <div className="divide-y">
+              {plans.map((p: any) => (
+                <button key={p.id} className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors ${selectedPlan?.id === p.id ? "bg-green-50 border-l-2 border-green-600" : ""}`} onClick={() => setSelectedPlan(p)}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{p.planYear ?? "—"} IPM Plan</span>
+                    <span className={`inline-flex px-1.5 py-0.5 rounded text-xs ${p.status === "active" ? "bg-green-100 text-green-700" : p.status === "draft" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>{IPM_STATUSES.find(s => s.value === p.status)?.label ?? p.status}</span>
+                  </div>
+                  {p.agronomistName && <div className="text-xs text-gray-500 mt-0.5">Agronomist: {p.agronomistName}</div>}
+                  <div className="text-xs text-gray-400 mt-0.5">Valid: {fmtDate(p.validFrom)} – {fmtDate(p.validTo)}</div>
+                  <div className="flex gap-1 mt-1" onClick={e => e.stopPropagation()}>
+                    <button className="text-xs text-blue-600 hover:underline" onClick={() => { setEditingPlan(p); setPlanForm({ ...p }); setPlanOpen(true); }}>Edit</button>
+                    <span className="text-gray-300">|</span>
+                    <button className="text-xs text-red-600 hover:underline" onClick={() => deletePlan(p.id)}>Delete</button>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Plan detail */}
+        <div className="lg:col-span-2">
+          {!selectedPlan ? (
+            <div className="border-2 border-dashed rounded-lg p-8 text-center text-sm text-gray-400">
+              Select a plan to view its pest monitoring thresholds and control measures
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-gray-50 px-3 py-2 border-b flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{selectedPlan.planYear} — Thresholds &amp; Control Measures</span>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditingThresh(null); setThreshForm({ monitoringMethod: "field_walk", actionTaken: "none" }); setThreshOpen(true); }}><Plus className="w-3 h-3 mr-1" />Add Pest/Weed</Button>
+              </div>
+              {thresholds.length === 0 ? (
+                <div className="p-6 text-center text-sm text-gray-400">No threshold entries yet. Add pests, weeds, or diseases to monitor.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-gray-500 bg-gray-50"><tr>{["Pest / Weed / Disease","Monitoring Method","Economic Threshold","Non-Chemical Control","Chemical Threshold","Resistance Group",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                    <tbody className="divide-y">
+                      {thresholds.map((t: any) => (
+                        <tr key={t.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium">{t.pestOrWeedName}</td>
+                          <td className="px-3 py-2 text-xs">{t.monitoringMethod?.replace(/_/g, " ") ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">{t.economicThreshold ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs max-w-[120px] truncate" title={t.nonChemicalControl}>{t.nonChemicalControl ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">{t.chemicalThreshold ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">{t.resistanceManagementGroup ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingThresh(t); setThreshForm({ ...t }); setThreshOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteThreshold(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Plan detail overview */}
+              {selectedPlan.overallStrategy && (
+                <div className="px-3 py-3 border-t bg-gray-50">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Overall IPM Strategy</p>
+                  <p className="text-sm text-gray-700">{selectedPlan.overallStrategy}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Plan dialog */}
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingPlan ? "Edit" : "New"} IPM Plan</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Crop Year *</Label><Input placeholder="e.g. 2024/25" value={planForm.planYear || ""} onChange={e => setP("planYear", e.target.value)} /></div>
+            <div><Label>Status</Label>
+              <Select value={planForm.status || "active"} onValueChange={v => setP("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{IPM_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Valid From</Label><Input type="date" value={planForm.validFrom || ""} onChange={e => setP("validFrom", e.target.value)} /></div>
+            <div><Label>Valid To</Label><Input type="date" value={planForm.validTo || ""} onChange={e => setP("validTo", e.target.value)} /></div>
+            <div><Label>Agronomist Name</Label><Input value={planForm.agronomistName || ""} onChange={e => setP("agronomistName", e.target.value)} /></div>
+            <div><Label>BASIS Number</Label><Input value={planForm.basisNumber || ""} onChange={e => setP("basisNumber", e.target.value)} /></div>
+            <div><Label>Pest Monitoring Frequency</Label>
+              <Select value={planForm.pestMonitoringFrequency || "weekly"} onValueChange={v => setP("pestMonitoringFrequency", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["daily","twice_weekly","weekly","fortnightly","monthly","as_needed"].map(f => <SelectItem key={f} value={f}>{f.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Review Date</Label><Input type="date" value={planForm.reviewDate || ""} onChange={e => setP("reviewDate", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Overall IPM Strategy</Label><Textarea rows={3} value={planForm.overallStrategy || ""} onChange={e => setP("overallStrategy", e.target.value)} placeholder="Describe your overall approach to integrated pest management…" /></div>
+            <div className="col-span-2"><Label>Rotation / Cultural Controls</Label><Textarea rows={2} value={planForm.rotationAndCulturalControls || ""} onChange={e => setP("rotationAndCulturalControls", e.target.value)} placeholder="Crop rotation, variety selection, seed rates, drilling dates…" /></div>
+            <div className="col-span-2"><Label>Biological Controls Used</Label><Textarea rows={2} value={planForm.biologicalControls || ""} onChange={e => setP("biologicalControls", e.target.value)} placeholder="Beneficial insects, biocontrol agents, habitat management…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={planForm.notes || ""} onChange={e => setP("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPlanOpen(false)}>Cancel</Button>
+            <Button onClick={savePlan}>{editingPlan ? "Save Changes" : "Create Plan"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Threshold dialog */}
+      <Dialog open={threshOpen} onOpenChange={setThreshOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingThresh ? "Edit" : "Add"} Threshold Entry</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Pest / Weed / Disease *</Label>
+              <Select value={threshForm.pestOrWeedName || "__custom__"} onValueChange={v => { if (v !== "__custom__") setT("pestOrWeedName", v); }}>
+                <SelectTrigger><SelectValue placeholder="Select or type below" /></SelectTrigger>
+                <SelectContent>{THRESHOLD_PESTS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="__custom__">— Other (type below)</SelectItem></SelectContent>
+              </Select>
+              <Input className="mt-1" placeholder="Or type pest / weed name" value={threshForm.pestOrWeedName || ""} onChange={e => setT("pestOrWeedName", e.target.value)} />
+            </div>
+            <div><Label>Monitoring Method</Label>
+              <Select value={threshForm.monitoringMethod || "field_walk"} onValueChange={v => setT("monitoringMethod", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["field_walk","suction_trap","pheromone_trap","sticky_yellow_trap","weather_model","lab_test","other"].map(m => <SelectItem key={m} value={m}>{m.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Monitoring Frequency</Label><Input value={threshForm.monitoringFrequency || ""} onChange={e => setT("monitoringFrequency", e.target.value)} placeholder="e.g. Weekly from GS31" /></div>
+            <div><Label>Economic (Decision) Threshold</Label><Input value={threshForm.economicThreshold || ""} onChange={e => setT("economicThreshold", e.target.value)} placeholder="e.g. 5 aphids/tiller at GS37-45" /></div>
+            <div><Label>Chemical Threshold</Label><Input value={threshForm.chemicalThreshold || ""} onChange={e => setT("chemicalThreshold", e.target.value)} placeholder="e.g. 1 plant/m² black-grass" /></div>
+            <div className="col-span-2"><Label>Non-Chemical Control Measures</Label><Textarea rows={2} value={threshForm.nonChemicalControl || ""} onChange={e => setT("nonChemicalControl", e.target.value)} placeholder="Variety choice, drilling date, delayed drilling, rotation, biocontrol…" /></div>
+            <div><Label>Resistance Management Group</Label><Input value={threshForm.resistanceManagementGroup || ""} onChange={e => setT("resistanceManagementGroup", e.target.value)} placeholder="e.g. SDHI (Group 7)" /></div>
+            <div><Label>Action Taken</Label>
+              <Select value={threshForm.actionTaken || "none"} onValueChange={v => setT("actionTaken", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["none","monitoring_only","cultural_control","biological_control","chemical_control","combination"].map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={threshForm.notes || ""} onChange={e => setT("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThreshOpen(false)}>Cancel</Button>
+            <Button onClick={saveThreshold}>{editingThresh ? "Save Changes" : "Add Entry"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── LERAP Assessment Tab ──────────────────────────────────────────────────────
+const LERAP_STEPS = [
+  { value: "1", label: "Step 1 — Notify only (no buffer required)" },
+  { value: "2", label: "Step 2 — Standard buffer applies" },
+  { value: "3", label: "Step 3 — LERAP assessment performed" },
+];
+const LERAP_OUTCOMES = [
+  { value: "full_buffer_maintained", label: "Full standard buffer maintained" },
+  { value: "reduced_buffer", label: "Reduced buffer achieved via LERAP" },
+  { value: "no_spray", label: "No spray — risk too high" },
+  { value: "pending", label: "Pending review" },
+];
+const WATERCOURSE_TYPES = [
+  { value: "river", label: "River / stream" },
+  { value: "ditch", label: "Ditch (flow or dry)" },
+  { value: "pond", label: "Pond / lake" },
+  { value: "drain", label: "Drain" },
+  { value: "coastal", label: "Coastal water" },
+];
+
+function LerapTab({ farmId, products, fields }: { farmId: number; products: any[]; fields: any[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["lerap-assessments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lerap-assessments`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? `/api/farms/${farmId}/lerap-assessments/${editing.id}` : `/api/farms/${farmId}/lerap-assessments`;
+    const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    if (!res.ok) { toast({ title: "Error saving assessment", variant: "destructive" }); return; }
+    qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] });
+    setOpen(false);
+    toast({ title: editing ? "Assessment updated" : "LERAP assessment recorded" });
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this LERAP assessment?")) return;
+    await fetch(`/api/farms/${farmId}/lerap-assessments/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] });
+    toast({ title: "Assessment deleted" });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const getFieldName = (id: number | null) => id ? (fields.find(f => f.id === id)?.name ?? `Field #${id}`) : "—";
+  const getProductName = (id: number | null) => id ? (products.find(p => p.id === id)?.name ?? `Product #${id}`) : "—";
+  const outcomeBadge = (o: string) => {
+    const colours: Record<string, string> = { full_buffer_maintained: "bg-green-100 text-green-800", reduced_buffer: "bg-blue-100 text-blue-800", no_spray: "bg-red-100 text-red-800", pending: "bg-amber-100 text-amber-800" };
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colours[o] ?? "bg-gray-100 text-gray-700"}`}>{LERAP_OUTCOMES.find(x => x.value === o)?.label?.split("—")[1]?.trim() ?? o}</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">LERAP Assessments Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Local Environmental Risk Assessment for Pesticides. Required when spraying products with a LERAP label near surface water. Red Tractor requires evidence of completed assessments and maintained buffer zones.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Assessment</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <ShieldAlert className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <p className="font-medium text-gray-600">No LERAP assessments recorded</p>
+          <p className="text-sm text-gray-400 mt-1">Record a LERAP assessment for each field/product combination near surface water.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Date","Field","Product","Step","Watercourse","Standard Buffer (m)","LERAP Buffer (m)","Outcome","Valid Until","Assessor",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.assessmentDate)}</td>
+                  <td className="px-3 py-2">{getFieldName(r.fieldId)}</td>
+                  <td className="px-3 py-2">{getProductName(r.productId)}</td>
+                  <td className="px-3 py-2">Step {r.step ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.watercourseDescription ?? "—"}</td>
+                  <td className="px-3 py-2">{r.standardBufferM != null ? `${r.standardBufferM}m` : "—"}</td>
+                  <td className="px-3 py-2">{r.lerapBufferM != null ? <span className={r.lerapBufferM < r.standardBufferM ? "text-blue-700 font-medium" : ""}>{r.lerapBufferM}m</span> : "—"}</td>
+                  <td className="px-3 py-2">{r.outcome ? outcomeBadge(r.outcome) : "—"}</td>
+                  <td className="px-3 py-2">{fmtDate(r.validUntil)}</td>
+                  <td className="px-3 py-2">{r.assessorName ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} LERAP Assessment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate || ""} onChange={e => set("assessmentDate", e.target.value)} /></div>
+            <div><Label>LERAP Step</Label>
+              <Select value={form.step || "3"} onValueChange={v => set("step", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LERAP_STEPS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Field</Label>
+              <Select value={String(form.fieldId || "__none__")} onValueChange={v => set("fieldId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{fields.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Product</Label>
+              <Select value={String(form.productId || "__none__")} onValueChange={v => set("productId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Watercourse Description</Label><Input value={form.watercourseDescription || ""} onChange={e => set("watercourseDescription", e.target.value)} placeholder="e.g. River Severn (main channel), drainage ditch on eastern boundary" /></div>
+            <div><Label>Watercourse Type</Label>
+              <Select value={form.watercourseType || "__none__"} onValueChange={v => set("watercourseType", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{WATERCOURSE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Standard Buffer (m)</Label><Input type="number" step="0.5" min="0" value={form.standardBufferM ?? ""} onChange={e => set("standardBufferM", e.target.value)} placeholder="From product label" /></div>
+            <div><Label>LERAP Buffer Achieved (m)</Label><Input type="number" step="0.5" min="0" value={form.lerapBufferM ?? ""} onChange={e => set("lerapBufferM", e.target.value)} placeholder="After LERAP assessment" /></div>
+            <div><Label>Crop Type</Label><Input value={form.cropType || ""} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Winter wheat" /></div>
+            <div><Label>Soil Type</Label><Input value={form.soilType || ""} onChange={e => set("soilType", e.target.value)} placeholder="e.g. Sandy loam, clay" /></div>
+            <div><Label>Outcome *</Label>
+              <Select value={form.outcome || "pending"} onValueChange={v => set("outcome", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LERAP_OUTCOMES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Valid Until</Label><Input type="date" value={form.validUntil || ""} onChange={e => set("validUntil", e.target.value)} /></div>
+            <div><Label>Assessor Name</Label><Input value={form.assessorName || ""} onChange={e => set("assessorName", e.target.value)} /></div>
+            <div><Label>Document Reference</Label><Input value={form.documentRef || ""} onChange={e => set("documentRef", e.target.value)} placeholder="LERAP record ref / file number" /></div>
+            <div className="col-span-2"><Label>Reduction Justification</Label><Textarea rows={2} value={form.reductionJustification || ""} onChange={e => set("reductionJustification", e.target.value)} placeholder="Why buffer was reduced — equipment type, weather conditions, field characteristics…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Record Assessment"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

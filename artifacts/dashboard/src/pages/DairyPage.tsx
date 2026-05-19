@@ -64,7 +64,7 @@ function BcsBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : low ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct";
+type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes";
 
 export default function DairyPage() {
   const { farmId } = useAppStore();
@@ -88,6 +88,7 @@ export default function DairyPage() {
           <TabButton active={tab === "mobility"} onClick={() => setTab("mobility")}>Mobility Scoring</TabButton>
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "dct"} onClick={() => setTab("dct")}>Dry Cow Therapy</TabButton>
+          <TabButton active={tab === "johnes"} onClick={() => setTab("johnes")}>Johne's Monitoring</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -98,6 +99,7 @@ export default function DairyPage() {
           {tab === "mobility" && <MobilityTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "dct" && <DctTab farmId={farmId} />}
+          {tab === "johnes" && <JohnesTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>
@@ -4330,6 +4332,173 @@ ${productRows ? `<h3>Antibiotic Products Used</h3><table><tr><th>Product</th><th
               {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               {editing ? "Save Changes" : "Add DCT Record"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Johne's Disease Monitoring Tab ──────────────────────────────────────────
+const JOHNES_TYPES = [
+  { value: "bulk_milk_elisa", label: "Bulk Milk ELISA" },
+  { value: "individual_milk_elisa", label: "Individual Milk ELISA" },
+  { value: "individual_blood_elisa", label: "Individual Blood ELISA" },
+  { value: "faecal_pcr", label: "Faecal PCR (individual)" },
+  { value: "pooled_faecal_pcr", label: "Pooled Faecal PCR" },
+  { value: "post_mortem", label: "Post-mortem confirmation" },
+];
+const JOHNES_RISK = [
+  { value: "1_very_low", label: "1 — Very Low Risk" },
+  { value: "2_low", label: "2 — Low Risk" },
+  { value: "3_moderate", label: "3 — Moderate Risk" },
+  { value: "4_high", label: "4 — High Risk" },
+];
+const JOHNES_SCHEMES = [
+  { value: "johnes_management_in_milk", label: "Johne's Management in Milk (AHDB)" },
+  { value: "farm_health_connect", label: "Farm Health Connect" },
+  { value: "voluntary", label: "Voluntary / Vet-led" },
+  { value: "other", label: "Other" },
+];
+
+function JohnesTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["johnes-monitoring", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/johnes-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: herds = [] } = useQuery({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ testType: "bulk_milk_elisa", jmmEnrolled: false, vetSignOff: false }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? api(`farms/${farmId}/johnes-monitoring/${editing.id}`) : api(`farms/${farmId}/johnes-monitoring`);
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
+    setOpen(false);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this Johne's monitoring record?")) return;
+    await fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const riskLabel = (v: string | null) => JOHNES_RISK.find(r => r.value === v)?.label ?? v ?? "—";
+  const typeLabel = (v: string) => JOHNES_TYPES.find(t => t.value === v)?.label ?? v;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Johne's Disease Monitoring Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor Dairy requires a documented Johne's monitoring programme. Record each test with result and risk level classification.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <p className="font-medium text-gray-600">No Johne's monitoring records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Add your first test result to start tracking your herd's Johne's status.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>
+                {["Test Date","Test Type","Herd","Risk Level","Animals Tested","Positive","Bulk Milk OD","Next Test Due","Actions"].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.testDate)}</td>
+                  <td className="px-3 py-2">{typeLabel(r.testType)}</td>
+                  <td className="px-3 py-2">{r.herdId ? (herds.find((h: any) => h.id === r.herdId)?.name ?? `Herd #${r.herdId}`) : "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.riskLevel ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${r.riskLevel.startsWith("4") ? "bg-red-100 text-red-800" : r.riskLevel.startsWith("3") ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>{riskLabel(r.riskLevel)}</span> : "—"}
+                  </td>
+                  <td className="px-3 py-2">{r.animalsTestedCount ?? "—"}</td>
+                  <td className="px-3 py-2">{r.positiveAnimalsCount ?? 0}</td>
+                  <td className="px-3 py-2">{r.bulkMilkOd ?? "—"}</td>
+                  <td className="px-3 py-2">{fmtDate(r.nextTestDue)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Johne's Monitoring Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Test Date *</Label><Input type="date" value={form.testDate || ""} onChange={e => set("testDate", e.target.value)} /></div>
+            <div><Label>Test Type *</Label>
+              <Select value={form.testType || ""} onValueChange={v => set("testType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{JOHNES_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Herd</Label>
+              <Select value={String(form.herdId || "__none__")} onValueChange={v => set("herdId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select herd (optional)" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— All herds</SelectItem>{herds.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Risk Level</Label>
+              <Select value={form.riskLevel || "__none__"} onValueChange={v => set("riskLevel", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not classified</SelectItem>{JOHNES_RISK.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="e.g. SRUC, APHA Starcross" /></div>
+            <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab submission reference" /></div>
+            <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value)} /></div>
+            <div><Label>Positive Animals</Label><Input type="number" min="0" value={form.positiveAnimalsCount ?? 0} onChange={e => set("positiveAnimalsCount", e.target.value)} /></div>
+            <div><Label>Bulk Milk OD</Label><Input type="number" step="0.001" value={form.bulkMilkOd ?? ""} onChange={e => set("bulkMilkOd", e.target.value)} placeholder="Optical density reading" /></div>
+            <div><Label>Monitoring Scheme</Label>
+              <Select value={form.scheme || "__none__"} onValueChange={v => set("scheme", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— None</SelectItem>{JOHNES_SCHEMES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
+            <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} /></div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" id="jmm" checked={!!form.jmmEnrolled} onChange={e => set("jmmEnrolled", e.target.checked)} className="rounded" />
+              <Label htmlFor="jmm">Enrolled in JMM Scheme</Label>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" id="vetso" checked={!!form.vetSignOff} onChange={e => set("vetSignOff", e.target.checked)} className="rounded" />
+              <Label htmlFor="vetso">Vet sign-off obtained</Label>
+            </div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Management actions, culling decisions, biosecurity changes…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -333,6 +333,14 @@ import {
   labourLeaveEntitlementTable,
   labourHourlyRatesTable,
   labourActualAttendanceTable,
+  bvdTestingRecordsTable,
+  johnesMonitoringRecordsTable,
+  casualtySlaughterRecordsTable,
+  campylobacterMonitoringTable,
+  salmMonitoringTable,
+  ipmPlansTable,
+  ipmThresholdEntriesTable,
+  lerapAssessmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory } from "../lib/alertingJob";
@@ -24869,6 +24877,493 @@ router.delete("/farms/:farmId/labour/actual-attendance/:id", requireAuth, requir
   const id = parseInt(req.params.id as string);
   await db.delete(labourActualAttendanceTable).where(and(eq(labourActualAttendanceTable.id, id), eq(labourActualAttendanceTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── BVD Testing Register ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/bvd-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(bvdTestingRecordsTable).where(eq(bvdTestingRecordsTable.farmId, farmId)).orderBy(desc(bvdTestingRecordsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/bvd-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.testDate || !b.testType || !b.result) { res.status(400).json({ error: "testDate, testType and result are required" }); return; }
+  const [record] = await db.insert(bvdTestingRecordsTable).values({
+    farmId,
+    herdId: b.herdId != null ? Number(b.herdId) : null,
+    testDate: String(b.testDate),
+    testType: String(b.testType),
+    labName: b.labName ? String(b.labName) : null,
+    labRef: b.labRef ? String(b.labRef) : null,
+    animalsTestedCount: b.animalsTestedCount != null ? Number(b.animalsTestedCount) : null,
+    piAnimalsFound: b.piAnimalsFound != null ? Number(b.piAnimalsFound) : 0,
+    result: String(b.result),
+    accreditationStatus: b.accreditationStatus ? String(b.accreditationStatus) : null,
+    monitoringScheme: b.monitoringScheme ? String(b.monitoringScheme) : null,
+    schemeMembershipNumber: b.schemeMembershipNumber ? String(b.schemeMembershipNumber) : null,
+    vetName: b.vetName ? String(b.vetName) : null,
+    actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
+    nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/bvd-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","piAnimalsFound","result","accreditationStatus","monitoringScheme","schemeMembershipNumber","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.animalsTestedCount !== undefined && b.animalsTestedCount !== null) updates.animalsTestedCount = Number(b.animalsTestedCount);
+  if (b.piAnimalsFound !== undefined && b.piAnimalsFound !== null) updates.piAnimalsFound = Number(b.piAnimalsFound);
+  if (b.herdId !== undefined && b.herdId !== null) updates.herdId = Number(b.herdId);
+  const [record] = await db.update(bvdTestingRecordsTable).set(updates).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/bvd-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(bvdTestingRecordsTable).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/bvd-tests/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(bvdTestingRecordsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Johne's Disease Monitoring Register ─────────────────────────────────────
+router.get("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(johnesMonitoringRecordsTable).where(eq(johnesMonitoringRecordsTable.farmId, farmId)).orderBy(desc(johnesMonitoringRecordsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.testDate || !b.testType) { res.status(400).json({ error: "testDate and testType are required" }); return; }
+  const [record] = await db.insert(johnesMonitoringRecordsTable).values({
+    farmId,
+    herdId: b.herdId != null ? Number(b.herdId) : null,
+    testDate: String(b.testDate),
+    testType: String(b.testType),
+    labName: b.labName ? String(b.labName) : null,
+    labRef: b.labRef ? String(b.labRef) : null,
+    animalsTestedCount: b.animalsTestedCount != null ? Number(b.animalsTestedCount) : null,
+    riskLevel: b.riskLevel ? String(b.riskLevel) : null,
+    bulkMilkOd: b.bulkMilkOd != null ? String(b.bulkMilkOd) : null,
+    positiveAnimalsCount: b.positiveAnimalsCount != null ? Number(b.positiveAnimalsCount) : 0,
+    jmmEnrolled: b.jmmEnrolled === true || b.jmmEnrolled === "true",
+    scheme: b.scheme ? String(b.scheme) : null,
+    vetSignOff: b.vetSignOff === true || b.vetSignOff === "true",
+    vetName: b.vetName ? String(b.vetName) : null,
+    actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
+    nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","riskLevel","bulkMilkOd","positiveAnimalsCount","jmmEnrolled","scheme","vetSignOff","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.jmmEnrolled !== undefined) updates.jmmEnrolled = b.jmmEnrolled === true || b.jmmEnrolled === "true";
+  if (b.vetSignOff !== undefined) updates.vetSignOff = b.vetSignOff === true || b.vetSignOff === "true";
+  const [record] = await db.update(johnesMonitoringRecordsTable).set(updates).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(johnesMonitoringRecordsTable).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/johnes-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(johnesMonitoringRecordsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Casualty / Emergency Slaughter Records ───────────────────────────────────
+router.get("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(casualtySlaughterRecordsTable).where(eq(casualtySlaughterRecordsTable.farmId, farmId)).orderBy(desc(casualtySlaughterRecordsTable.eventDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.eventDate || !b.species || !b.reasonForSlaughter || !b.method || !b.performedBy) { res.status(400).json({ error: "eventDate, species, reasonForSlaughter, method and performedBy are required" }); return; }
+  const [record] = await db.insert(casualtySlaughterRecordsTable).values({
+    farmId,
+    herdId: b.herdId != null ? Number(b.herdId) : null,
+    eventDate: String(b.eventDate),
+    animalEarTag: b.animalEarTag ? String(b.animalEarTag) : null,
+    species: String(b.species),
+    breed: b.breed ? String(b.breed) : null,
+    ageOrDescription: b.ageOrDescription ? String(b.ageOrDescription) : null,
+    reasonForSlaughter: String(b.reasonForSlaughter),
+    method: String(b.method),
+    performedBy: String(b.performedBy),
+    performedByMemberId: b.performedByMemberId != null ? Number(b.performedByMemberId) : null,
+    waskWatokCertRef: b.waskWatokCertRef ? String(b.waskWatokCertRef) : null,
+    witnessName: b.witnessName ? String(b.witnessName) : null,
+    veterinaryInvolved: b.veterinaryInvolved === true || b.veterinaryInvolved === "true",
+    vetName: b.vetName ? String(b.vetName) : null,
+    carcaseDisposalMethod: b.carcaseDisposalMethod ? String(b.carcaseDisposalMethod) : null,
+    carcaseDisposalContractorId: b.carcaseDisposalContractorId != null ? Number(b.carcaseDisposalContractorId) : null,
+    carcaseCollectionDate: b.carcaseCollectionDate ? String(b.carcaseCollectionDate) : null,
+    carcaseDisposalRef: b.carcaseDisposalRef ? String(b.carcaseDisposalRef) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/casualty-slaughter/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["herdId","eventDate","animalEarTag","species","breed","ageOrDescription","reasonForSlaughter","method","performedBy","performedByMemberId","waskWatokCertRef","witnessName","veterinaryInvolved","vetName","carcaseDisposalMethod","carcaseDisposalContractorId","carcaseCollectionDate","carcaseDisposalRef","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.veterinaryInvolved !== undefined) updates.veterinaryInvolved = b.veterinaryInvolved === true || b.veterinaryInvolved === "true";
+  const [record] = await db.update(casualtySlaughterRecordsTable).set(updates).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/casualty-slaughter/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(casualtySlaughterRecordsTable).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/casualty-slaughter/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(casualtySlaughterRecordsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Campylobacter Monitoring Programme ───────────────────────────────────────
+router.get("/farms/:farmId/campylobacter-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(campylobacterMonitoringTable).where(eq(campylobacterMonitoringTable.farmId, farmId)).orderBy(desc(campylobacterMonitoringTable.sampleDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/campylobacter-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.sampleDate || !b.sampleType || !b.result) { res.status(400).json({ error: "sampleDate, sampleType and result are required" }); return; }
+  const [record] = await db.insert(campylobacterMonitoringTable).values({
+    farmId,
+    houseId: b.houseId != null ? Number(b.houseId) : null,
+    flockId: b.flockId != null ? Number(b.flockId) : null,
+    sampleDate: String(b.sampleDate),
+    sampleType: String(b.sampleType),
+    samplesTaken: b.samplesTaken != null ? Number(b.samplesTaken) : null,
+    labName: b.labName ? String(b.labName) : null,
+    labRef: b.labRef ? String(b.labRef) : null,
+    result: String(b.result),
+    ceuCount: b.ceuCount != null ? String(b.ceuCount) : null,
+    resultCategory: b.resultCategory ? String(b.resultCategory) : null,
+    fsa_band: b.fsa_band ? String(b.fsa_band) : null,
+    zapTriggered: b.zapTriggered === true || b.zapTriggered === "true",
+    zapReference: b.zapReference ? String(b.zapReference) : null,
+    actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
+    nextSampleDue: b.nextSampleDue ? String(b.nextSampleDue) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/campylobacter-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["houseId","flockId","sampleDate","sampleType","samplesTaken","labName","labRef","result","ceuCount","resultCategory","fsa_band","zapTriggered","zapReference","actionsTaken","nextSampleDue","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.zapTriggered !== undefined) updates.zapTriggered = b.zapTriggered === true || b.zapTriggered === "true";
+  const [record] = await db.update(campylobacterMonitoringTable).set(updates).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/campylobacter-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(campylobacterMonitoringTable).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/campylobacter-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(campylobacterMonitoringTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Pig Salmonella Monitoring Register ──────────────────────────────────────
+router.get("/farms/:farmId/pig-salmonella-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(salmMonitoringTable).where(eq(salmMonitoringTable.farmId, farmId)).orderBy(desc(salmMonitoringTable.samplingPeriodStart));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/pig-salmonella-monitoring", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.samplingPeriodStart || !b.sampleType) { res.status(400).json({ error: "samplingPeriodStart and sampleType are required" }); return; }
+  const [record] = await db.insert(salmMonitoringTable).values({
+    farmId,
+    pigFlockId: b.pigFlockId != null ? Number(b.pigFlockId) : null,
+    samplingPeriodStart: String(b.samplingPeriodStart),
+    samplingPeriodEnd: b.samplingPeriodEnd ? String(b.samplingPeriodEnd) : null,
+    sampleType: String(b.sampleType),
+    sampleCount: b.sampleCount != null ? Number(b.sampleCount) : null,
+    labName: b.labName ? String(b.labName) : null,
+    labRef: b.labRef ? String(b.labRef) : null,
+    positiveCount: b.positiveCount != null ? Number(b.positiveCount) : 0,
+    seroprevalence: b.seroprevalence != null ? String(b.seroprevalence) : null,
+    salmonellaCategory: b.salmonellaCategory != null ? Number(b.salmonellaCategory) : null,
+    previousCategory: b.previousCategory != null ? Number(b.previousCategory) : null,
+    categoryChange: b.categoryChange ? String(b.categoryChange) : null,
+    actionRequired: b.actionRequired === true || b.actionRequired === "true",
+    actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
+    nextSamplingDue: b.nextSamplingDue ? String(b.nextSamplingDue) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/pig-salmonella-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["pigFlockId","samplingPeriodStart","samplingPeriodEnd","sampleType","sampleCount","labName","labRef","positiveCount","seroprevalence","salmonellaCategory","previousCategory","categoryChange","actionRequired","actionsTaken","nextSamplingDue","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.actionRequired !== undefined) updates.actionRequired = b.actionRequired === true || b.actionRequired === "true";
+  const [record] = await db.update(salmMonitoringTable).set(updates).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/pig-salmonella-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(salmMonitoringTable).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/pig-salmonella-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(salmMonitoringTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── IPM Plans ────────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/ipm-plans", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const plans = await db.select().from(ipmPlansTable).where(eq(ipmPlansTable.farmId, farmId)).orderBy(desc(ipmPlansTable.planYear));
+  const planIds = plans.map(p => p.id);
+  const thresholds = planIds.length > 0 ? await db.select().from(ipmThresholdEntriesTable).where(and(eq(ipmThresholdEntriesTable.farmId, farmId), inArray(ipmThresholdEntriesTable.planId, planIds))).orderBy(asc(ipmThresholdEntriesTable.id)) : [];
+  res.json({ plans, thresholds });
+});
+
+router.post("/farms/:farmId/ipm-plans", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.planYear) { res.status(400).json({ error: "planYear is required" }); return; }
+  const [plan] = await db.insert(ipmPlansTable).values({
+    farmId,
+    planYear: Number(b.planYear),
+    reviewDate: b.reviewDate ? String(b.reviewDate) : null,
+    preparedBy: b.preparedBy ? String(b.preparedBy) : null,
+    approvedBy: b.approvedBy ? String(b.approvedBy) : null,
+    approvedDate: b.approvedDate ? String(b.approvedDate) : null,
+    cropRotationNotes: b.cropRotationNotes ? String(b.cropRotationNotes) : null,
+    monitoringFrequency: b.monitoringFrequency ? String(b.monitoringFrequency) : null,
+    monitoringMethods: b.monitoringMethods ? String(b.monitoringMethods) : null,
+    nonChemicalMethods: b.nonChemicalMethods ? String(b.nonChemicalMethods) : null,
+    resistanceManagementNotes: b.resistanceManagementNotes ? String(b.resistanceManagementNotes) : null,
+    economicThresholds: b.economicThresholds ? String(b.economicThresholds) : null,
+    sprayDecisionRationale: b.sprayDecisionRationale ? String(b.sprayDecisionRationale) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ plan });
+});
+
+router.put("/farms/:farmId/ipm-plans/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const fields = ["planYear","reviewDate","preparedBy","approvedBy","approvedDate","cropRotationNotes","monitoringFrequency","monitoringMethods","nonChemicalMethods","resistanceManagementNotes","economicThresholds","sprayDecisionRationale","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [plan] = await db.update(ipmPlansTable).set(updates).where(and(eq(ipmPlansTable.id, id), eq(ipmPlansTable.farmId, farmId))).returning();
+  if (!plan) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ plan });
+});
+
+router.delete("/farms/:farmId/ipm-plans/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(ipmThresholdEntriesTable).where(and(eq(ipmThresholdEntriesTable.planId, id), eq(ipmThresholdEntriesTable.farmId, farmId)));
+  await db.delete(ipmPlansTable).where(and(eq(ipmPlansTable.id, id), eq(ipmPlansTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/ipm-plans/:id/document", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [plan] = await db.update(ipmPlansTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(ipmPlansTable.id, id), eq(ipmPlansTable.farmId, farmId))).returning();
+  if (!plan) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ plan });
+});
+
+router.post("/farms/:farmId/ipm-plans/:planId/thresholds", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const planId = parseInt(req.params.planId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.pestOrDisease) { res.status(400).json({ error: "pestOrDisease is required" }); return; }
+  const [entry] = await db.insert(ipmThresholdEntriesTable).values({
+    planId, farmId,
+    pestOrDisease: String(b.pestOrDisease),
+    targetCrop: b.targetCrop ? String(b.targetCrop) : null,
+    monitoringMethod: b.monitoringMethod ? String(b.monitoringMethod) : null,
+    actionThreshold: b.actionThreshold ? String(b.actionThreshold) : null,
+    nonChemicalOption: b.nonChemicalOption ? String(b.nonChemicalOption) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ entry });
+});
+
+router.put("/farms/:farmId/ipm-plans/:planId/thresholds/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["pestOrDisease","targetCrop","monitoringMethod","actionThreshold","nonChemicalOption","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [entry] = await db.update(ipmThresholdEntriesTable).set(updates).where(and(eq(ipmThresholdEntriesTable.id, id), eq(ipmThresholdEntriesTable.farmId, farmId))).returning();
+  if (!entry) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ entry });
+});
+
+router.delete("/farms/:farmId/ipm-plans/:planId/thresholds/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(ipmThresholdEntriesTable).where(and(eq(ipmThresholdEntriesTable.id, id), eq(ipmThresholdEntriesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── LERAP Assessments ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(lerapAssessmentsTable).where(eq(lerapAssessmentsTable.farmId, farmId)).orderBy(desc(lerapAssessmentsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.assessmentDate) { res.status(400).json({ error: "assessmentDate is required" }); return; }
+  const [record] = await db.insert(lerapAssessmentsTable).values({
+    farmId,
+    fieldId: b.fieldId != null ? Number(b.fieldId) : null,
+    productId: b.productId != null ? Number(b.productId) : null,
+    assessmentDate: String(b.assessmentDate),
+    assessorName: b.assessorName ? String(b.assessorName) : null,
+    step: b.step ? String(b.step) : "1",
+    watercourseDescription: b.watercourseDescription ? String(b.watercourseDescription) : null,
+    watercourseType: b.watercourseType ? String(b.watercourseType) : null,
+    standardBufferM: b.standardBufferM != null ? String(b.standardBufferM) : null,
+    lerapBufferM: b.lerapBufferM != null ? String(b.lerapBufferM) : null,
+    outcome: b.outcome ? String(b.outcome) : null,
+    reductionJustification: b.reductionJustification ? String(b.reductionJustification) : null,
+    cropType: b.cropType ? String(b.cropType) : null,
+    soilType: b.soilType ? String(b.soilType) : null,
+    validUntil: b.validUntil ? String(b.validUntil) : null,
+    documentRef: b.documentRef ? String(b.documentRef) : null,
+    notes: b.notes ? String(b.notes) : null,
+    documentPath: b.documentPath ? String(b.documentPath) : null,
+    documentName: b.documentName ? String(b.documentName) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  const [record] = await db.update(lerapAssessmentsTable).set(updates).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(lerapAssessmentsTable).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/lerap-assessments/:id/document", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(lerapAssessmentsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
 });
 
 export default router;

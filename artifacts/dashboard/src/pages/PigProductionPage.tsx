@@ -2273,11 +2273,11 @@ async function generatePigAuditPDF(farmId: number) {
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records";
+type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -2303,6 +2303,7 @@ export default function PigProductionPage() {
             <TabButton active={tab === "farrowing"} onClick={() => setTab("farrowing")}><Baby className="w-3.5 h-3.5 mr-1" />Farrowing</TabButton>
             <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
             <TabButton active={tab === "kill-records"} onClick={() => setTab("kill-records")}><Scale className="w-3.5 h-3.5 mr-1" />Kill Records</TabButton>
+            <TabButton active={tab === "salmonella"} onClick={() => setTab("salmonella")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Salmonella</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-2 shrink-0">
             {generating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileDown className="w-4 h-4 mr-1" />}
@@ -2322,8 +2323,167 @@ export default function PigProductionPage() {
           {tab === "farrowing" && <FarrowingRecordsTab farmId={farmId} />}
           {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
           {tab === "kill-records" && <KillRecordsTab farmId={farmId} />}
+          {tab === "salmonella" && <SalmonellaMonitoringTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
+  );
+}
+
+// ─── Salmonella Monitoring Tab ────────────────────────────────────────────────
+const SALM_SAMPLE_TYPES = [
+  { value: "blood_serology", label: "Blood Serology (ELISA)" },
+  { value: "meat_juice_elisa", label: "Meat Juice ELISA (post-slaughter)" },
+  { value: "faecal_pooled", label: "Pooled Faecal Sample" },
+  { value: "environmental", label: "Environmental Swab" },
+];
+const SALM_CATEGORIES = [1, 2, 3, 4, 5];
+
+function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["pig-salmonella-monitoring", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-salmonella-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: flocksData } = useQuery({
+    queryKey: ["pig-flocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-flocks`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const flocks: any[] = Array.isArray(flocksData) ? flocksData : (flocksData?.records ?? []);
+
+  function openAdd() { setEditing(null); setForm({ sampleType: "meat_juice_elisa", actionRequired: false }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? api(`farms/${farmId}/pig-salmonella-monitoring/${editing.id}`) : api(`farms/${farmId}/pig-salmonella-monitoring`);
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] });
+    setOpen(false);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this Salmonella monitoring record?")) return;
+    await fetch(api(`farms/${farmId}/pig-salmonella-monitoring/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const catBadge = (cat: number | null) => {
+    if (!cat) return <span className="text-gray-400">—</span>;
+    const colours = ["", "bg-green-100 text-green-800", "bg-green-100 text-green-800", "bg-amber-100 text-amber-800", "bg-red-100 text-red-800", "bg-red-200 text-red-900"];
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colours[cat]}`}>Category {cat}</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Salmonella Monitoring Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">National Salmonella Monitoring Programme (NSMP) requires quarterly testing of finishing pigs. Red Tractor Pigs requires documented monitoring with serological category results.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Monitoring Record</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <p className="font-medium text-gray-600">No Salmonella monitoring records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Record quarterly NSMP sampling results here. Category 1–2 is the Red Tractor target.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Sampling Period","Flock","Sample Type","Samples","Positive","Seroprevalence","Category","Change","Action Required",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.samplingPeriodStart)}{r.samplingPeriodEnd ? `–${fmtDate(r.samplingPeriodEnd)}` : ""}</td>
+                  <td className="px-3 py-2">{flocks.find((f: any) => f.id === r.pigFlockId)?.flockName ?? "—"}</td>
+                  <td className="px-3 py-2">{SALM_SAMPLE_TYPES.find(t => t.value === r.sampleType)?.label ?? r.sampleType}</td>
+                  <td className="px-3 py-2">{r.sampleCount ?? "—"}</td>
+                  <td className="px-3 py-2">{r.positiveCount ?? 0}</td>
+                  <td className="px-3 py-2">{r.seroprevalence != null ? `${r.seroprevalence}%` : "—"}</td>
+                  <td className="px-3 py-2">{catBadge(r.salmonellaCategory)}</td>
+                  <td className="px-3 py-2">{r.categoryChange ? <span className={`text-xs font-medium ${r.categoryChange === "improved" ? "text-green-700" : r.categoryChange === "worsened" ? "text-red-700" : "text-gray-500"}`}>{r.categoryChange.charAt(0).toUpperCase() + r.categoryChange.slice(1)}</span> : "—"}</td>
+                  <td className="px-3 py-2">{r.actionRequired ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Salmonella Monitoring Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Sampling Period Start *</Label><Input type="date" value={form.samplingPeriodStart || ""} onChange={e => set("samplingPeriodStart", e.target.value)} /></div>
+            <div><Label>Sampling Period End</Label><Input type="date" value={form.samplingPeriodEnd || ""} onChange={e => set("samplingPeriodEnd", e.target.value)} /></div>
+            <div><Label>Pig Flock</Label>
+              <Select value={String(form.pigFlockId || "__none__")} onValueChange={v => set("pigFlockId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— All flocks</SelectItem>{flocks.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.flockName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Sample Type *</Label>
+              <Select value={form.sampleType || "meat_juice_elisa"} onValueChange={v => set("sampleType", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{SALM_SAMPLE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Sample Count</Label><Input type="number" min="0" value={form.sampleCount ?? ""} onChange={e => set("sampleCount", e.target.value)} /></div>
+            <div><Label>Positive Count</Label><Input type="number" min="0" value={form.positiveCount ?? 0} onChange={e => set("positiveCount", e.target.value)} /></div>
+            <div><Label>Seroprevalence (%)</Label><Input type="number" step="0.1" min="0" max="100" value={form.seroprevalence ?? ""} onChange={e => set("seroprevalence", e.target.value)} /></div>
+            <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} /></div>
+            <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
+            <div><Label>Salmonella Category (1–5)</Label>
+              <Select value={String(form.salmonellaCategory || "__none__")} onValueChange={v => set("salmonellaCategory", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not yet determined</SelectItem>{SALM_CATEGORIES.map(c => <SelectItem key={c} value={String(c)}>Category {c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Previous Category</Label>
+              <Select value={String(form.previousCategory || "__none__")} onValueChange={v => set("previousCategory", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Previous period" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— N/A</SelectItem>{SALM_CATEGORIES.map(c => <SelectItem key={c} value={String(c)}>Category {c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Category Change</Label>
+              <Select value={form.categoryChange || "__none__"} onValueChange={v => set("categoryChange", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select change" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— N/A</SelectItem><SelectItem value="improved">Improved</SelectItem><SelectItem value="unchanged">Unchanged</SelectItem><SelectItem value="worsened">Worsened</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" id="actreq" checked={!!form.actionRequired} onChange={e => set("actionRequired", e.target.checked)} className="rounded" />
+              <Label htmlFor="actreq">Action Required</Label>
+            </div>
+            <div><Label>Next Sampling Due</Label><Input type="date" value={form.nextSamplingDue || ""} onChange={e => set("nextSamplingDue", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Cleaning, biosecurity, feed changes, vet review…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

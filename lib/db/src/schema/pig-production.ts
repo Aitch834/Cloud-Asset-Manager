@@ -235,3 +235,31 @@ export const pigRedTractorChecklistTable = pgTable("pig_red_tractor_checklists",
   documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Salmonella Monitoring Register ──────────────────────────────────────────
+export const salmMonitoringTable = pgTable("pig_salmonella_monitoring", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  pigFlockId: integer("pig_flock_id").references(() => pigFlocksTable.id),
+  samplingPeriodStart: date("sampling_period_start").notNull(),
+  samplingPeriodEnd: date("sampling_period_end"),
+  sampleType: text("sample_type").notNull(), // "blood_serology" | "meat_juice_elisa" | "faecal_pooled" | "environmental"
+  sampleCount: integer("sample_count"),
+  labName: text("lab_name"),
+  labRef: text("lab_ref"),
+  positiveCount: integer("positive_count").default(0),
+  seroprevalence: numeric("seroprevalence", { precision: 5, scale: 1 }), // % positive
+  salmonellaCategory: integer("salmonella_category"), // 1–5 (National Salmonella Monitoring Programme)
+  previousCategory: integer("previous_category"),
+  categoryChange: text("category_change"), // "improved" | "unchanged" | "worsened"
+  actionRequired: boolean("action_required").default(false),
+  actionsTaken: text("actions_taken"),
+  nextSamplingDue: date("next_sampling_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type SalmMonitoringRecord = typeof salmMonitoringTable.$inferSelect;
+export type NewSalmMonitoringRecord = typeof salmMonitoringTable.$inferInsert;

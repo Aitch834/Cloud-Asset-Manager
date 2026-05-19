@@ -289,3 +289,31 @@ export const poultrySchemeRecordsTable = pgTable("poultry_scheme_records", {
   documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Campylobacter Monitoring Programme ───────────────────────────────────────
+export const campylobacterMonitoringTable = pgTable("campylobacter_monitoring", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  houseId: integer("house_id").references(() => poultryHousesTable.id),
+  flockId: integer("flock_id").references(() => poultryFlocksTable.id),
+  sampleDate: date("sample_date").notNull(),
+  sampleType: text("sample_type").notNull(), // "boot_swab" | "neck_skin" | "caecal_content" | "environmental"
+  samplesTaken: integer("samples_taken"),
+  labName: text("lab_name"),
+  labRef: text("lab_ref"),
+  result: text("result").notNull(), // "negative" | "positive" | "pending"
+  ceuCount: numeric("ceu_count", { precision: 10, scale: 2 }), // campylobacter enumeration units per gram
+  resultCategory: text("result_category"), // "highest" (>1000) | "high" (100-1000) | "lower" (<100)
+  fsa_band: text("fsa_band"), // "a_very_low" | "b_low" | "c_intermediate" | "d_high" | "e_very_high"
+  zapTriggered: boolean("zap_triggered").default(false), // Zoonoses Action Plan triggered
+  zapReference: text("zap_reference"),
+  actionsTaken: text("actions_taken"),
+  nextSampleDue: date("next_sample_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CampylobacterMonitoringRecord = typeof campylobacterMonitoringTable.$inferSelect;
+export type NewCampylobacterMonitoringRecord = typeof campylobacterMonitoringTable.$inferInsert;

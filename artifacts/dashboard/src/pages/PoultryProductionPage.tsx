@@ -2933,11 +2933,11 @@ async function generateAuditPDF(farmId: number) {
   doc.save(`poultry-audit-report-farm${safeFarmId}-${today.replace(/\//g, "-")}.pdf`);
 }
 
-type Tab = "overview" | "houses" | "flocks" | "purchases" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
+type Tab = "overview" | "houses" | "flocks" | "purchases" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","purchases","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","purchases","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed","campylobacter"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -2965,6 +2965,7 @@ export default function PoultryProductionPage() {
             <TabButton active={tab === "biosecurity"} onClick={() => setTab("biosecurity")}><ClipboardList className="w-3.5 h-3.5 mr-1" />Biosecurity</TabButton>
             <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
             <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
+            <TabButton active={tab === "campylobacter"} onClick={() => setTab("campylobacter")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Campylobacter</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-3 shrink-0">
             {generating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileDown className="w-3.5 h-3.5 mr-1" />}
@@ -2986,8 +2987,193 @@ export default function PoultryProductionPage() {
           {tab === "biosecurity" && <BiosecurityChecklistTab farmId={farmId} />}
           {tab === "scheme-records" && <SchemeRecordsTab farmId={farmId} />}
           {tab === "feed" && <PoultryFeedTab farmId={farmId} />}
+          {tab === "campylobacter" && <CampylobacterMonitoringTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
+  );
+}
+
+// ─── Campylobacter Monitoring Tab ─────────────────────────────────────────────
+const CAMPY_SAMPLE_TYPES = [
+  { value: "boot_swab", label: "Boot Swab (pre-harvest)" },
+  { value: "neck_skin", label: "Neck Skin Swab (abattoir)" },
+  { value: "caecal_content", label: "Caecal Content (abattoir)" },
+  { value: "environmental", label: "Environmental Swab" },
+];
+const CAMPY_RESULTS = [
+  { value: "negative", label: "Negative (<1 log CFU/g)" },
+  { value: "positive", label: "Positive" },
+  { value: "pending", label: "Pending" },
+];
+const CAMPY_CATEGORIES = [
+  { value: "lowest", label: "Lowest (≤1,000 ccu/g)" },
+  { value: "lower", label: "Lower (1,000–10,000 ccu/g)" },
+  { value: "higher", label: "Higher (>10,000 ccu/g)" },
+];
+const FSA_BANDS = [
+  { value: "a_very_low", label: "Band A — Very Low" },
+  { value: "b_low", label: "Band B — Low" },
+  { value: "c_intermediate", label: "Band C — Intermediate" },
+  { value: "d_high", label: "Band D — High" },
+  { value: "e_very_high", label: "Band E — Very High" },
+];
+
+function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["campylobacter-monitoring", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/campylobacter-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: flocksData } = useQuery({
+    queryKey: ["poultry-flocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const flocks: any[] = flocksData?.records ?? flocksData ?? [];
+
+  const { data: housesData } = useQuery({
+    queryKey: ["poultry-houses", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const houses: any[] = housesData?.records ?? housesData ?? [];
+
+  function openAdd() { setEditing(null); setForm({ sampleType: "boot_swab", result: "pending", zapTriggered: false }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? api(`farms/${farmId}/campylobacter-monitoring/${editing.id}`) : api(`farms/${farmId}/campylobacter-monitoring`);
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: ["campylobacter-monitoring", farmId] });
+    setOpen(false);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this Campylobacter monitoring record?")) return;
+    await fetch(api(`farms/${farmId}/campylobacter-monitoring/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: ["campylobacter-monitoring", farmId] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const resultBadge = (r: string) => {
+    const colours: Record<string, string> = { negative: "bg-green-100 text-green-800", positive: "bg-red-100 text-red-800", pending: "bg-amber-100 text-amber-800" };
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colours[r] ?? "bg-gray-100 text-gray-700"}`}>{CAMPY_RESULTS.find(x => x.value === r)?.label ?? r}</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Campylobacter Monitoring Programme</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor Chicken/Turkey scheme requires documented Campylobacter monitoring with structured lab results. FSA bands and Zoonoses Action Plan (ZAP) triggers are recorded here.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Sample</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <p className="font-medium text-gray-600">No Campylobacter records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Add boot swab or neck skin results for each flock departure.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Sample Date","House / Flock","Sample Type","Result","Category","FSA Band","ZAP Triggered","Next Sample",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.sampleDate)}</td>
+                  <td className="px-3 py-2 text-xs">{houses.find((h: any) => h.id === r.houseId)?.houseName ?? "—"}{r.flockId ? ` / ${flocks.find((f: any) => f.id === r.flockId)?.flockNumber ?? ""}` : ""}</td>
+                  <td className="px-3 py-2">{CAMPY_SAMPLE_TYPES.find(t => t.value === r.sampleType)?.label ?? r.sampleType}</td>
+                  <td className="px-3 py-2">{resultBadge(r.result)}</td>
+                  <td className="px-3 py-2 text-xs">{CAMPY_CATEGORIES.find(c => c.value === r.resultCategory)?.label ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{FSA_BANDS.find(b => b.value === r.fsa_band)?.label ?? "—"}</td>
+                  <td className="px-3 py-2">{r.zapTriggered ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">ZAP Active</span> : <span className="text-gray-400 text-xs">No</span>}</td>
+                  <td className="px-3 py-2">{fmtDate(r.nextSampleDue)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Campylobacter Sample Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Sample Date *</Label><Input type="date" value={form.sampleDate || ""} onChange={e => set("sampleDate", e.target.value)} /></div>
+            <div><Label>Sample Type *</Label>
+              <Select value={form.sampleType || "boot_swab"} onValueChange={v => set("sampleType", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CAMPY_SAMPLE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>House</Label>
+              <Select value={String(form.houseId || "__none__")} onValueChange={v => set("houseId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{houses.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.houseName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Flock</Label>
+              <Select value={String(form.flockId || "__none__")} onValueChange={v => set("flockId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{flocks.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.flockNumber}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Samples Taken</Label><Input type="number" min="0" value={form.samplesTaken ?? ""} onChange={e => set("samplesTaken", e.target.value)} /></div>
+            <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} /></div>
+            <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
+            <div><Label>Result *</Label>
+              <Select value={form.result || "pending"} onValueChange={v => set("result", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CAMPY_RESULTS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>CEU Count (cfu/g)</Label><Input type="number" step="any" value={form.ceuCount ?? ""} onChange={e => set("ceuCount", e.target.value)} /></div>
+            <div><Label>Result Category</Label>
+              <Select value={form.resultCategory || "__none__"} onValueChange={v => set("resultCategory", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— N/A</SelectItem>{CAMPY_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>FSA Band</Label>
+              <Select value={form.fsa_band || "__none__"} onValueChange={v => set("fsa_band", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select band" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not banded</SelectItem>{FSA_BANDS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" id="zap" checked={!!form.zapTriggered} onChange={e => set("zapTriggered", e.target.checked)} className="rounded" />
+              <Label htmlFor="zap">ZAP Triggered</Label>
+            </div>
+            {form.zapTriggered && <div><Label>ZAP Reference</Label><Input value={form.zapReference || ""} onChange={e => set("zapReference", e.target.value)} /></div>}
+            <div><Label>Next Sample Due</Label><Input type="date" value={form.nextSampleDue || ""} onChange={e => set("nextSampleDue", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Biosecurity, litter management, competitive exclusion…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

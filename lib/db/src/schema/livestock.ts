@@ -844,3 +844,89 @@ export const lambingRecordsTable = pgTable("lambing_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+// ─── BVD Testing Register ──────────────────────────────────────────────────────
+export const bvdTestingRecordsTable = pgTable("bvd_testing_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  testDate: date("test_date").notNull(),
+  testType: text("test_type").notNull(), // "ear_notch_pcr" | "blood_elisa" | "milk_elisa" | "blood_pcr" | "bulk_milk_pcr"
+  labName: text("lab_name"),
+  labRef: text("lab_ref"),
+  animalsTestedCount: integer("animals_tested_count"),
+  piAnimalsFound: integer("pi_animals_found").default(0),
+  result: text("result").notNull(), // "negative" | "positive" | "inconclusive" | "pi_identified"
+  accreditationStatus: text("accreditation_status"), // "not_accredited" | "not_negative" | "negative_not_vaccinating" | "negative_vaccinating"
+  monitoringScheme: text("monitoring_scheme"), // "CHeCS" | "ScotEID" | "other" | "none"
+  schemeMembershipNumber: text("scheme_membership_number"),
+  vetName: text("vet_name"),
+  actionsTaken: text("actions_taken"),
+  nextTestDue: date("next_test_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type BvdTestingRecord = typeof bvdTestingRecordsTable.$inferSelect;
+export type NewBvdTestingRecord = typeof bvdTestingRecordsTable.$inferInsert;
+
+// ─── Johne's Disease Monitoring Register ─────────────────────────────────────
+export const johnesMonitoringRecordsTable = pgTable("johnes_monitoring_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  testDate: date("test_date").notNull(),
+  testType: text("test_type").notNull(), // "individual_blood_elisa" | "bulk_milk_elisa" | "individual_milk_elisa" | "faecal_pcr" | "post_mortem" | "pooled_faecal_pcr"
+  labName: text("lab_name"),
+  labRef: text("lab_ref"),
+  animalsTestedCount: integer("animals_tested_count"),
+  riskLevel: text("risk_level"), // "1_very_low" | "2_low" | "3_moderate" | "4_high" — JoHne's UK classification
+  bulkMilkOd: numeric("bulk_milk_od", { precision: 6, scale: 3 }), // optical density for bulk milk ELISA
+  positiveAnimalsCount: integer("positive_animals_count").default(0),
+  jmmEnrolled: boolean("jmm_enrolled").default(false), // Johne's Management in Milk scheme
+  scheme: text("scheme"), // "johnes_management_in_milk" | "farm_health_connect" | "voluntary" | "other"
+  vetSignOff: boolean("vet_sign_off").default(false),
+  vetName: text("vet_name"),
+  actionsTaken: text("actions_taken"),
+  nextTestDue: date("next_test_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type JohnesMonitoringRecord = typeof johnesMonitoringRecordsTable.$inferSelect;
+export type NewJohnesMonitoringRecord = typeof johnesMonitoringRecordsTable.$inferInsert;
+
+// ─── Casualty / Emergency Slaughter Records ───────────────────────────────────
+export const casualtySlaughterRecordsTable = pgTable("casualty_slaughter_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  eventDate: date("event_date").notNull(),
+  animalEarTag: text("animal_ear_tag"),
+  species: text("species").notNull(), // "Cattle" | "Sheep" | "Pig" | "Goat" | "Other"
+  breed: text("breed"),
+  ageOrDescription: text("age_or_description"),
+  reasonForSlaughter: text("reason_for_slaughter").notNull(),
+  method: text("method").notNull(), // "captive_bolt" | "free_bullet" | "barbiturate_injection" | "pithing" | "other"
+  performedBy: text("performed_by").notNull(),
+  performedByMemberId: integer("performed_by_member_id"),
+  waskWatokCertRef: text("wask_watok_cert_ref"), // certificate reference number
+  witnessName: text("witness_name"),
+  veterinaryInvolved: boolean("veterinary_involved").default(false),
+  vetName: text("vet_name"),
+  carcaseDisposalMethod: text("carcase_disposal_method"), // "licensed_contractor" | "hunt_kennel" | "incineration" | "rendering" | "burial_permitted" | "other"
+  carcaseDisposalContractorId: integer("carcase_disposal_contractor_id").references(() => fallenStockContractorsTable.id),
+  carcaseCollectionDate: date("carcase_collection_date"),
+  carcaseDisposalRef: text("carcase_disposal_ref"), // collection note / waste transfer note reference
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CasualtySlaughterRecord = typeof casualtySlaughterRecordsTable.$inferSelect;
+export type NewCasualtySlaughterRecord = typeof casualtySlaughterRecordsTable.$inferInsert;

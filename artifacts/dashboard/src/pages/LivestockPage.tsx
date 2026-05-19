@@ -6675,7 +6675,7 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
 
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping"]; return valid.includes(t) ? t : "herds"; });
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping" | "bvd" | "casualty-slaughter">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping","bvd","casualty-slaughter"]; return valid.includes(t) ? t : "herds"; });
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -6723,6 +6723,12 @@ export default function LivestockPage() {
         <TabButton active={tab === "sheep-dipping"} onClick={() => setTab("sheep-dipping")}>
           <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" /> Sheep Dipping</span>
         </TabButton>
+        <TabButton active={tab === "bvd"} onClick={() => setTab("bvd")}>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> BVD Testing</span>
+        </TabButton>
+        <TabButton active={tab === "casualty-slaughter"} onClick={() => setTab("casualty-slaughter")}>
+          <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Casualty Slaughter</span>
+        </TabButton>
       </TabBar>
       <ErrorBoundary key={tab}>
         {tab === "herds" && <HerdsSection farmId={farmId} />}
@@ -6740,7 +6746,330 @@ export default function LivestockPage() {
         {tab === "tb-tests" && <TbTestsSection farmId={farmId} />}
         {tab === "welfare-outcomes" && <WelfareOutcomeSection farmId={farmId} />}
         {tab === "sheep-dipping" && <SheepDippingSection farmId={farmId} />}
+        {tab === "bvd" && <BvdTestingSection farmId={farmId} />}
+        {tab === "casualty-slaughter" && <CasualtySlaughterSection farmId={farmId} />}
       </ErrorBoundary>
     </AppLayout>
+  );
+}
+
+// ─── BVD Testing Section ──────────────────────────────────────────────────────
+const BVD_TEST_TYPES = [
+  { value: "ear_notch_pcr", label: "Ear Notch PCR" },
+  { value: "blood_elisa", label: "Blood ELISA" },
+  { value: "milk_elisa", label: "Individual Milk ELISA" },
+  { value: "blood_pcr", label: "Blood PCR" },
+  { value: "bulk_milk_pcr", label: "Bulk Milk PCR" },
+];
+const BVD_RESULTS = [
+  { value: "negative", label: "Negative" },
+  { value: "positive", label: "Positive" },
+  { value: "inconclusive", label: "Inconclusive" },
+  { value: "pi_identified", label: "PI Animal Identified" },
+];
+const BVD_ACCRED = [
+  { value: "not_accredited", label: "Not Accredited" },
+  { value: "not_negative", label: "Not BVD-Negative" },
+  { value: "negative_not_vaccinating", label: "BVD-Negative (Not Vaccinating)" },
+  { value: "negative_vaccinating", label: "BVD-Negative (Vaccinating)" },
+];
+const BVD_SCHEMES = [
+  { value: "CHeCS", label: "CHeCS Cattle Health Certification Standards" },
+  { value: "ScotEID", label: "ScotEID" },
+  { value: "other", label: "Other scheme" },
+  { value: "none", label: "No scheme — independent testing" },
+];
+
+function BvdTestingSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["bvd-tests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/bvd-tests`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: herds = [] } = useQuery({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ result: "negative" }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? `/api/farms/${farmId}/bvd-tests/${editing.id}` : `/api/farms/${farmId}/bvd-tests`;
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: ["bvd-tests", farmId] });
+    setOpen(false);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this BVD test record?")) return;
+    await fetch(`/api/farms/${farmId}/bvd-tests/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["bvd-tests", farmId] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const resultBadge = (r: string) => {
+    const colours: Record<string, string> = { negative: "bg-green-100 text-green-800", positive: "bg-red-100 text-red-800", pi_identified: "bg-red-200 text-red-900", inconclusive: "bg-amber-100 text-amber-800" };
+    const label = BVD_RESULTS.find(x => x.value === r)?.label ?? r;
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colours[r] ?? "bg-gray-100 text-gray-700"}`}>{label}</span>;
+  };
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">BVD Testing Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor Beef &amp; Dairy requires documented BVD monitoring. Record individual tests, PI findings, and herd accreditation status.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <p className="font-medium text-gray-600">No BVD test records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Add test results including ear notch, blood ELISA, or bulk milk PCR tests.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Test Date","Test Type","Herd","Result","Animals Tested","PI Found","Accreditation Status","Next Test Due",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.testDate)}</td>
+                  <td className="px-3 py-2">{BVD_TEST_TYPES.find(t => t.value === r.testType)?.label ?? r.testType}</td>
+                  <td className="px-3 py-2">{herds.find((h: any) => h.id === r.herdId)?.name ?? "—"}</td>
+                  <td className="px-3 py-2">{resultBadge(r.result)}</td>
+                  <td className="px-3 py-2">{r.animalsTestedCount ?? "—"}</td>
+                  <td className="px-3 py-2">{r.piAnimalsFound ?? 0}</td>
+                  <td className="px-3 py-2 text-xs">{BVD_ACCRED.find(a => a.value === r.accreditationStatus)?.label ?? "—"}</td>
+                  <td className="px-3 py-2">{fmtDate(r.nextTestDue)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} BVD Test Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Test Date *</Label><Input type="date" value={form.testDate || ""} onChange={e => set("testDate", e.target.value)} /></div>
+            <div><Label>Test Type *</Label>
+              <Select value={form.testType || ""} onValueChange={v => set("testType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{BVD_TEST_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Herd</Label>
+              <Select value={String(form.herdId || "__none__")} onValueChange={v => set("herdId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select herd" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— All herds</SelectItem>{herds.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Result *</Label>
+              <Select value={form.result || "negative"} onValueChange={v => set("result", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{BVD_RESULTS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="e.g. SRUC, Biobest" /></div>
+            <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
+            <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value)} /></div>
+            <div><Label>PI Animals Found</Label><Input type="number" min="0" value={form.piAnimalsFound ?? 0} onChange={e => set("piAnimalsFound", e.target.value)} /></div>
+            <div><Label>Monitoring Scheme</Label>
+              <Select value={form.monitoringScheme || "__none__"} onValueChange={v => set("monitoringScheme", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— None</SelectItem>{BVD_SCHEMES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Accreditation Status</Label>
+              <Select value={form.accreditationStatus || "__none__"} onValueChange={v => set("accreditationStatus", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not set</SelectItem>{BVD_ACCRED.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Scheme Membership No.</Label><Input value={form.schemeMembershipNumber || ""} onChange={e => set("schemeMembershipNumber", e.target.value)} /></div>
+            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
+            <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="PI removal, vaccination decisions, biosecurity changes…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Casualty / Emergency Slaughter Section ───────────────────────────────────
+const CASUALTY_METHODS = [
+  { value: "captive_bolt", label: "Captive Bolt (+ pithing/sticking)" },
+  { value: "free_bullet", label: "Free Bullet" },
+  { value: "barbiturate_injection", label: "Barbiturate Injection (Vet)" },
+  { value: "other", label: "Other" },
+];
+const CARCASE_DISPOSAL = [
+  { value: "licensed_contractor", label: "Licensed Fallen Stock Contractor" },
+  { value: "hunt_kennel", label: "Hunt Kennel / Knacker" },
+  { value: "incineration", label: "Licensed Incineration" },
+  { value: "rendering", label: "Rendering Plant" },
+  { value: "burial_permitted", label: "On-farm Burial (EA Permit)" },
+  { value: "other", label: "Other permitted method" },
+];
+
+function CasualtySlaughterSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["casualty-slaughter", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/casualty-slaughter`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: fallenContractors = [] } = useQuery({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ species: "Cattle", method: "captive_bolt", veterinaryInvolved: false }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  async function save() {
+    const url = editing ? `/api/farms/${farmId}/casualty-slaughter/${editing.id}` : `/api/farms/${farmId}/casualty-slaughter`;
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: ["casualty-slaughter", farmId] });
+    setOpen(false);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this casualty slaughter record?")) return;
+    await fetch(`/api/farms/${farmId}/casualty-slaughter/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["casualty-slaughter", farmId] });
+  }
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Casualty / Emergency Slaughter Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a record of every on-farm emergency killing. The person carrying out the slaughter must hold a valid WASK/WATOK certificate.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Event</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <p className="font-medium text-gray-600">No casualty slaughter events recorded</p>
+          <p className="text-sm text-gray-400 mt-1">Record emergency on-farm killings here, separate from natural mortality.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Date","Ear Tag","Species","Reason","Method","Performed By","WASK/WATOK Ref","Disposal",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{fmtDate(r.eventDate)}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.animalEarTag || "—"}</td>
+                  <td className="px-3 py-2">{r.species}</td>
+                  <td className="px-3 py-2 max-w-[140px] truncate" title={r.reasonForSlaughter}>{r.reasonForSlaughter}</td>
+                  <td className="px-3 py-2 text-xs">{CASUALTY_METHODS.find(m => m.value === r.method)?.label ?? r.method}</td>
+                  <td className="px-3 py-2">{r.performedBy}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.waskWatokCertRef || "—"}</td>
+                  <td className="px-3 py-2 text-xs">{CARCASE_DISPOSAL.find(c => c.value === r.carcaseDisposalMethod)?.label ?? r.carcaseDisposalMethod ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Casualty Slaughter Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Event Date *</Label><Input type="date" value={form.eventDate || ""} onChange={e => set("eventDate", e.target.value)} /></div>
+            <div><Label>Species *</Label>
+              <Select value={form.species || "Cattle"} onValueChange={v => set("species", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["Cattle","Sheep","Pig","Goat","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Ear Tag / ID</Label><Input value={form.animalEarTag || ""} onChange={e => set("animalEarTag", e.target.value)} placeholder="UK ear tag number" /></div>
+            <div><Label>Breed / Age</Label><Input value={form.ageOrDescription || ""} onChange={e => set("ageOrDescription", e.target.value)} placeholder="e.g. 3yo Holstein cow" /></div>
+            <div className="col-span-2"><Label>Reason for Slaughter *</Label><Input value={form.reasonForSlaughter || ""} onChange={e => set("reasonForSlaughter", e.target.value)} placeholder="e.g. Severe fracture — irretrievable" /></div>
+            <div><Label>Method *</Label>
+              <Select value={form.method || "captive_bolt"} onValueChange={v => set("method", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CASUALTY_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Performed By *</Label><Input value={form.performedBy || ""} onChange={e => set("performedBy", e.target.value)} placeholder="Full name" /></div>
+            <div><Label>WASK/WATOK Certificate Ref</Label><Input value={form.waskWatokCertRef || ""} onChange={e => set("waskWatokCertRef", e.target.value)} placeholder="Certificate number" /></div>
+            <div><Label>Witness</Label><Input value={form.witnessName || ""} onChange={e => set("witnessName", e.target.value)} /></div>
+            <div className="flex items-center gap-2 pt-5">
+              <input type="checkbox" id="vetinv" checked={!!form.veterinaryInvolved} onChange={e => set("veterinaryInvolved", e.target.checked)} className="rounded" />
+              <Label htmlFor="vetinv">Vet involved</Label>
+            </div>
+            {form.veterinaryInvolved && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
+            <div><Label>Carcase Disposal Method</Label>
+              <Select value={form.carcaseDisposalMethod || "__none__"} onValueChange={v => set("carcaseDisposalMethod", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select disposal method" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not yet arranged</SelectItem>{CARCASE_DISPOSAL.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Disposal Contractor</Label>
+              <Select value={String(form.carcaseDisposalContractorId || "__none__")} onValueChange={v => set("carcaseDisposalContractorId", v === "__none__" ? null : Number(v))}>
+                <SelectTrigger><SelectValue placeholder="Select contractor" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— None / N/A</SelectItem>{fallenContractors.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Carcase Collection Date</Label><Input type="date" value={form.carcaseCollectionDate || ""} onChange={e => set("carcaseCollectionDate", e.target.value)} /></div>
+            <div><Label>Disposal / Collection Note Ref</Label><Input value={form.carcaseDisposalRef || ""} onChange={e => set("carcaseDisposalRef", e.target.value)} placeholder="NFAS cert / waste transfer note ref" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

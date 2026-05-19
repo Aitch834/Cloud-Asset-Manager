@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, jsonb, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable, farmMembersTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 import { stockItemsTable, stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
@@ -91,3 +91,72 @@ export const nvzFertiliserApplicationsTable = pgTable("nvz_fertiliser_applicatio
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── IPM (Integrated Pest Management) Plan ───────────────────────────────────
+export const ipmPlansTable = pgTable("ipm_plans", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  planYear: integer("plan_year").notNull(),
+  reviewDate: date("review_date"),
+  preparedBy: text("prepared_by"),
+  approvedBy: text("approved_by"),
+  approvedDate: date("approved_date"),
+  cropRotationNotes: text("crop_rotation_notes"),
+  monitoringFrequency: text("monitoring_frequency"),        // "weekly" | "fortnightly" | "as_needed" | other
+  monitoringMethods: text("monitoring_methods"),            // free text — traps, visual scouting, pheromone lures etc
+  nonChemicalMethods: text("non_chemical_methods"),        // biological, cultural, physical controls
+  resistanceManagementNotes: text("resistance_management_notes"),
+  economicThresholds: text("economic_thresholds"),         // general notes on thresholds used
+  sprayDecisionRationale: text("spray_decision_rationale"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const ipmThresholdEntriesTable = pgTable("ipm_threshold_entries", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => ipmPlansTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  pestOrDisease: text("pest_or_disease").notNull(),
+  targetCrop: text("target_crop"),
+  monitoringMethod: text("monitoring_method"),
+  actionThreshold: text("action_threshold"),              // e.g. "3 aphids per tiller"
+  nonChemicalOption: text("non_chemical_option"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type IpmPlan = typeof ipmPlansTable.$inferSelect;
+export type NewIpmPlan = typeof ipmPlansTable.$inferInsert;
+export type IpmThresholdEntry = typeof ipmThresholdEntriesTable.$inferSelect;
+export type NewIpmThresholdEntry = typeof ipmThresholdEntriesTable.$inferInsert;
+
+// ─── LERAP Assessments ────────────────────────────────────────────────────────
+export const lerapAssessmentsTable = pgTable("lerap_assessments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  productId: integer("product_id").references(() => sprayProductsTable.id),
+  assessmentDate: date("assessment_date").notNull(),
+  assessorName: text("assessor_name"),
+  step: text("step").notNull().default("1"),               // "1" | "2"
+  watercourseDescription: text("watercourse_description"), // e.g. "Main drain — flowing"
+  watercourseType: text("watercourse_type"),               // "aquatic" | "non_aquatic" | "boundary_feature"
+  standardBufferM: numeric("standard_buffer_m", { precision: 6, scale: 1 }),   // label buffer zone metres
+  lerapBufferM: numeric("lerap_buffer_m", { precision: 6, scale: 1 }),         // Step 2 reduced buffer if applicable
+  outcome: text("outcome"),                                // "standard_buffer" | "reduced_buffer" | "no_spray_exclusion"
+  reductionJustification: text("reduction_justification"),
+  cropType: text("crop_type"),
+  soilType: text("soil_type"),
+  validUntil: date("valid_until"),
+  documentRef: text("document_ref"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type LerapAssessment = typeof lerapAssessmentsTable.$inferSelect;
+export type NewLerapAssessment = typeof lerapAssessmentsTable.$inferInsert;
