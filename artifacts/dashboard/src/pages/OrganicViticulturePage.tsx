@@ -36,6 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLookupStrings } from "@/hooks/use-lookup";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -305,22 +306,45 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
 
 // ─── Organic Inputs Log Tab ──────────────────────────────────────────────────
 
-function InputLogTab({ farmId }: { farmId: number }) {
+function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [productLookupId, setProductLookupId] = useState<string>("");
   const inputUnits = useLookupStrings("organic_input_units", ["kg/ha", "g/ha", "L/ha", "mL/ha", "kg", "g", "L", "mL", "t/ha", "Other"]);
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/staff`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
+  const { data: productsData } = useQuery<{ records: { id: number; productName: string; activeIngredient: string | null; category: string | null }[] }>({
+    queryKey: ["spray-products", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/spray-products`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const sprayProducts = productsData?.records ?? [];
+  const handleProductLookup = (id: string) => {
+    setProductLookupId(id);
+    const p = sprayProducts.find(p => String(p.id) === id);
+    if (p) {
+      setForm(f => ({ ...f, productName: p.productName, inputType: p.category ?? f.inputType ?? "" }));
+    }
+  };
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-input-log", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/input-log`).then(r => r.json()),
   });
 
-  const openAdd = () => { setForm({ approvalStatus: "permitted", vintageYear: String(new Date().getFullYear()) }); setShowAdd(true); };
+  const openAdd = () => { setProductLookupId(""); setForm({ approvalStatus: "permitted", vintageYear: String(new Date().getFullYear()) }); setShowAdd(true); };
   const openEdit = (r: any) => {
+    setProductLookupId("");
     setForm({
       blockName: r.blockName ?? "",
       productName: r.productName ?? "",
@@ -417,14 +441,29 @@ function InputLogTab({ farmId }: { farmId: number }) {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Input Record" : "Add Input Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>Product Register Lookup</Label>
+              <Select value={productLookupId} onValueChange={handleProductLookup}>
+                <SelectTrigger><SelectValue placeholder={sprayProducts.length ? "Select from product register to auto-fill…" : "No products in register — enter manually below"} /></SelectTrigger>
+                <SelectContent>
+                  {sprayProducts.map(p => <SelectItem key={String(p.id)} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` — ${p.activeIngredient}` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {sprayProducts.length === 0 && <p className="text-xs text-muted-foreground mt-1">Add products in <strong>Sprays &amp; Inputs → Products</strong> to enable auto-fill.</p>}
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Product Name *</Label><Input value={form.productName ?? ""} onChange={sf("productName")} placeholder="e.g. Bordeaux Mixture WP" /></div>
+              <div>
+                <Label>Product Name *</Label>
+                <Input value={form.productName ?? ""} onChange={sf("productName")} placeholder="e.g. Bordeaux Mixture WP" />
+                {productLookupId && <p className="text-xs text-green-700 mt-1">Auto-filled — edit if needed.</p>}
+              </div>
               <div>
                 <Label>Input Type *</Label>
                 <Select value={form.inputType ?? ""} onValueChange={v => setForm(f => ({ ...f, inputType: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                   <SelectContent>{INPUT_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
+                {productLookupId && !!form.inputType && <p className="text-xs text-green-700 mt-1">From product register</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -432,7 +471,16 @@ function InputLogTab({ farmId }: { farmId: number }) {
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={sf("vintageYear")} placeholder="e.g. 2025" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Block Name</Label><Input value={form.blockName ?? ""} onChange={sf("blockName")} placeholder="Block or whole vineyard" /></div>
+              <div>
+                <Label>Block</Label>
+                <Select value={form.blockName || "__whole__"} onValueChange={v => setForm(f => ({ ...f, blockName: v === "__whole__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Whole vineyard or select block…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__whole__">— Whole vineyard —</SelectItem>
+                    {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.blockName)}>{String(b.blockName)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Area (ha)</Label><Input type="number" value={form.areaHa ?? ""} onChange={sf("areaHa")} placeholder="0.00" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -454,7 +502,7 @@ function InputLogTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>Certifier Approval Ref</Label><Input value={form.certifierApprovalRef ?? ""} onChange={sf("certifierApprovalRef")} placeholder="Reference if certifier pre-approval was required" /></div>
-            <div><Label>Applied By</Label><Input value={form.appliedBy ?? ""} onChange={sf("appliedBy")} /></div>
+            <div><Label>Applied By</Label><StaffSelect value={form.appliedBy ?? ""} onChange={v => setForm(f => ({ ...f, appliedBy: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
           {editing && (
@@ -486,7 +534,7 @@ function InputLogTab({ farmId }: { farmId: number }) {
 
 // ─── Copper Register Tab ─────────────────────────────────────────────────────
 
-function CopperRegisterTab({ farmId }: { farmId: number }) {
+function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -495,6 +543,13 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const copperProducts = useLookupStrings("organic_copper_products", ["Bordeaux Mixture WP", "Copper Hydroxide WP", "Copper Oxychloride WP", "Copper Sulfate (tribasic)", "Nordox 75 WG", "Trophy WG", "Other"]);
   const sprayMethods = useLookupStrings("vineyard_spray_application_methods", ["Knapsack Sprayer", "Tractor-mounted Boom Sprayer", "Air-blast / Vineyard Sprayer", "Lean-to / Facing Sprayer", "Drone Application", "Hand-held Lance", "Other"]);
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/staff`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-copper-log", farmId],
@@ -632,7 +687,16 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Block Name</Label><Input value={form.blockName ?? ""} onChange={sf("blockName")} placeholder="Whole vineyard or specific block" /></div>
+              <div>
+                <Label>Block</Label>
+                <Select value={form.blockName || "__whole__"} onValueChange={v => setForm(f => ({ ...f, blockName: v === "__whole__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Whole vineyard or select block…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__whole__">— Whole vineyard —</SelectItem>
+                    {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.blockName)}>{String(b.blockName)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Area Applied (ha)</Label><Input type="number" value={form.areaHa ?? ""} onChange={sf("areaHa")} placeholder="0.00" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -657,7 +721,7 @@ function CopperRegisterTab({ farmId }: { farmId: number }) {
                   <SelectContent>{sprayMethods.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Operator</Label><Input value={form.operatorName ?? ""} onChange={sf("operatorName")} /></div>
+              <div><Label>Operator</Label><StaffSelect value={form.operatorName ?? ""} onChange={v => setForm(f => ({ ...f, operatorName: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
@@ -1392,8 +1456,8 @@ export default function OrganicViticulturePage() {
 
         <Card className="p-6">
           {tab === "block-conversion" && <BlockConversionTab farmId={farmId} />}
-          {tab === "input-log" && <InputLogTab farmId={farmId} />}
-          {tab === "copper-register" && <CopperRegisterTab farmId={farmId} />}
+          {tab === "input-log" && <InputLogTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "copper-register" && <CopperRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={farmId} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}

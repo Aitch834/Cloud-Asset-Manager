@@ -982,6 +982,13 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
   const [viewing, setViewing] = useState<Phenology | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
   const openAdd = () => { setForm({ observationDate: today, observer: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Phenology) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -1109,7 +1116,7 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
             <div><Label>Description</Label><Input value={String(form.bbchDescription ?? "")} onChange={e => sf("bbchDescription", e.target.value)} /></div>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>% Reached</Label><Input type="number" min="0" max="100" value={String(form.percentageReached ?? "")} onChange={e => sf("percentageReached", e.target.value)} /></div>
-              <div><Label>Observer</Label><Input value={String(form.observer ?? "")} onChange={e => sf("observer", e.target.value)} /></div>
+              <div><Label>Observer</Label><StaffSelect value={String(form.observer ?? "")} onChange={v => sf("observer", v)} staffNames={staffNames} loading={staffLoading} /></div>
               <div><Label>Temp (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureC ?? "")} onChange={e => sf("temperatureC", e.target.value)} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
@@ -1137,6 +1144,13 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const operationTypes = useLookupStrings("vineyard_operation_types", OPERATION_TYPES);
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
   const openAdd = () => { setForm({ operationDate: today, operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Operation) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -1297,7 +1311,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
               <div><Label>Leaves Removed Zone</Label><Input value={String(form.leavesRemovedZone ?? "")} onChange={e => sf("leavesRemovedZone", e.target.value)} placeholder="e.g. Fruit zone" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} /></div>
+              <div><Label>Operator</Label><StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
               <div><Label>Contractor</Label><Input value={String(form.contractorName ?? "")} onChange={e => sf("contractorName", e.target.value)} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1335,6 +1349,13 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
     staleTime: 60_000,
   });
   const wineryContacts = wineryContactsData?.records ?? [];
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
   const openAdd = () => { setForm({ harvestDate: today, vintageYear: new Date().getFullYear(), operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
   const openEdit = (r: Harvest) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
@@ -1580,7 +1601,7 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
                 </div>
               </>
             )}
-            <div><Label>Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} /></div>
+            <div><Label>Operator</Label><StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -1605,6 +1626,13 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
   const [viewing, setViewing] = useState<Scouting | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Scouting | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
   const openAdd = () => {
     setForm({ scoutDate: today, scoutedBy: displayName ?? "", downyMildewPressure: "0", powderyMildewPressure: "0", botrytisPressure: "0", phomopsisPressure: "0", leafhopperPressure: "0", spiderMitePressure: "0" });
@@ -1781,7 +1809,7 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
                 </Select>
               </div>
             </div>
-            <div><Label>Scouted By</Label><Input value={String(form.scoutedBy ?? "")} onChange={e => sf("scoutedBy", e.target.value)} /></div>
+            <div><Label>Scouted By</Label><StaffSelect value={String(form.scoutedBy ?? "")} onChange={v => sf("scoutedBy", v)} staffNames={staffNames} loading={staffLoading} /></div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Disease Pressure (0 = None → 3 = High)</p>
             <div className="grid grid-cols-2 gap-3">
               {(["downyMildewPressure", "powderyMildewPressure", "botrytisPressure", "phomopsisPressure"] as const).map(k => {
