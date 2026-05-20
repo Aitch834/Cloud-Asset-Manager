@@ -2386,7 +2386,7 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
   const [dateTo, setDateTo] = useState(today.toISOString().slice(0, 10));
   const [sections, setSections] = useState({
     spray: true, movements: true, medicines: true, training: true,
-    nvz: true, biosecurity: true, documents: true, risk: true,
+    tbTests: true, casualtySlaughter: true, mortality: true, feedAndWater: true,
   });
 
   const farmQ = useQuery<{ record: any }>({
@@ -2421,14 +2421,51 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/certificates`, { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId && sections.training,
   });
+  const tbTestsQ = useQuery<{ records: any[] }>({
+    queryKey: ["tb-tests-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/tb-tests`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.tbTests,
+  });
+  const casualtyQ = useQuery<{ records: any[] }>({
+    queryKey: ["casualty-slaughter-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/casualty-slaughter`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.casualtySlaughter,
+  });
+  const mortalityQ = useQuery<{ records: any[] }>({
+    queryKey: ["mortality-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/mortality-records`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.mortality,
+  });
+  const feedQ = useQuery<{ records: any[] }>({
+    queryKey: ["feed-records-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-records`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.feedAndWater,
+  });
+  const waterQ = useQuery<{ records: any[] }>({
+    queryKey: ["water-records-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/water-records`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.feedAndWater,
+  });
+
+  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+
+  // Filter all "all-time" datasets down to the selected date window in the browser
+  const inRange = (d: string | null | undefined) => {
+    if (!d) return false;
+    const dt = new Date(d).toISOString().slice(0, 10);
+    return dt >= dateFrom && dt <= dateTo;
+  };
 
   const sprayRecords = Array.isArray(sprayQ.data?.records) ? sprayQ.data!.records : [];
   const movements = Array.isArray(movementsQ.data?.records) ? movementsQ.data!.records : [];
   const medicines = Array.isArray(medicinesQ.data?.records) ? medicinesQ.data!.records : [];
   const training = Array.isArray(trainingQ.data?.records) ? trainingQ.data!.records : [];
   const certs = Array.isArray(certsQ.data?.records) ? certsQ.data!.records : [];
-
-  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const tbTests = (Array.isArray(tbTestsQ.data?.records) ? tbTestsQ.data!.records : []).filter(r => inRange(r.testDate));
+  const casualtyRecords = (Array.isArray(casualtyQ.data?.records) ? casualtyQ.data!.records : []).filter(r => inRange(r.eventDate));
+  const mortalityRecords = (Array.isArray(mortalityQ.data?.records) ? mortalityQ.data!.records : []).filter(r => inRange(r.dateOfDeath));
+  const feedRecords = (Array.isArray(feedQ.data?.records) ? feedQ.data!.records : []).filter(r => inRange(r.feedDate));
+  const waterRecords = (Array.isArray(waterQ.data?.records) ? waterQ.data!.records : []).filter(r => inRange(r.testDate || r.createdAt));
 
   const handlePrint = () => {
     const printedDate = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -2436,6 +2473,7 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
     const thStyle = `border:1px solid #d1d5db;padding:5px 8px;text-align:left;background:#f3f4f6;font-weight:700`;
     const tdStyle = `border:1px solid #e5e7eb;padding:4px 8px`;
     const sectionH = `font-size:13px;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #16a34a;padding-bottom:4px;color:#15803d`;
+    const noData = (cols: number) => `<tr><td colspan="${cols}" style="${tdStyle};text-align:center;color:#9ca3af">No records in period</td></tr>`;
 
     const sprayRows = sections.spray ? sprayRecords.map(r =>
       `<tr><td style="${tdStyle}">${fmtD(r.applicationDate)}</td><td style="${tdStyle}">${r.productName||"—"}</td><td style="${tdStyle}">${r.fieldName||r.fieldId||"—"}</td><td style="${tdStyle}">${r.operator||"—"}</td><td style="${tdStyle}">${r.totalArea||"—"}</td></tr>`
@@ -2450,37 +2488,82 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
     ).join("") : "";
 
     const trainRows = sections.training ? training.map(r =>
-      `<tr><td style="${tdStyle}">${r.userId||"—"}</td><td style="${tdStyle}">${r.trainingTitle||"—"}</td><td style="${tdStyle}">${fmtD(r.trainingDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
+      `<tr><td style="${tdStyle}">${r.staffName||r.userId||"—"}</td><td style="${tdStyle}">${r.trainingTitle||"—"}</td><td style="${tdStyle}">${fmtD(r.trainingDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
     ).join("") : "";
 
     const certRows = sections.training ? certs.map(r =>
-      `<tr><td style="${tdStyle}">${r.userId||"—"}</td><td style="${tdStyle}">${r.certificateType||"—"}</td><td style="${tdStyle}">${fmtD(r.issueDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
+      `<tr><td style="${tdStyle}">${r.staffName||r.userId||"—"}</td><td style="${tdStyle}">${r.certificateType||"—"}</td><td style="${tdStyle}">${fmtD(r.issueDate)}</td><td style="${tdStyle}">${fmtD(r.expiryDate)}</td></tr>`
     ).join("") : "";
+
+    const tbRows = sections.tbTests ? tbTests.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.testDate)}</td><td style="${tdStyle}">${r.testType||"—"}</td><td style="${tdStyle}">${r.species||"—"}</td><td style="${tdStyle}">${r.animalsTested??"—"}</td><td style="${tdStyle}">${r.reactors??0} / ${r.inconclusives??0}</td><td style="${tdStyle}">${r.outcome||"—"}</td><td style="${tdStyle}">${r.testingVet||r.aphaOfficer||"—"}</td></tr>`
+    ).join("") : "";
+
+    const casualtyRows = sections.casualtySlaughter ? casualtyRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.eventDate)}</td><td style="${tdStyle}">${r.animalEarTag||"—"}</td><td style="${tdStyle}">${r.species||"—"}</td><td style="${tdStyle}">${r.reasonForSlaughter||"—"}</td><td style="${tdStyle}">${r.method||"—"}</td><td style="${tdStyle}">${r.veterinaryInvolved ? (r.vetName||"Vet") : (r.performedBy||"—")}</td></tr>`
+    ).join("") : "";
+
+    const mortalityRows = sections.mortality ? mortalityRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.dateOfDeath)}</td><td style="${tdStyle}">${r.tagNumber||"—"}</td><td style="${tdStyle}">${r.species||"—"}</td><td style="${tdStyle}">${r.causeOfDeath||"—"}</td><td style="${tdStyle}">${r.disposalMethod||"—"}</td><td style="${tdStyle}">${r.contractorName||r.disposalOperator||"—"}</td></tr>`
+    ).join("") : "";
+
+    const feedRows = sections.feedAndWater ? feedRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.feedDate)}</td><td style="${tdStyle}">${r.feedType||"—"}</td><td style="${tdStyle}">${r.supplier||"—"}</td><td style="${tdStyle}">${r.batchNumber||"—"}</td><td style="${tdStyle}">${r.quantityKg||"—"}</td></tr>`
+    ).join("") : "";
+
+    const waterRows = sections.feedAndWater ? waterRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.testDate||r.createdAt)}</td><td style="${tdStyle}">${r.waterSource||"—"}</td><td style="${tdStyle}">${r.testResult||"—"}</td><td style="${tdStyle}">${r.testPass === true ? "Pass" : r.testPass === false ? "Fail" : "—"}</td></tr>`
+    ).join("") : "";
+
+    let sectionNum = 1;
 
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>RT Audit Pack — ${farm?.name||"Farm"}</title>
 <style>body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0;padding:24px}h1{font-size:18px;font-weight:800;color:#15803d;margin:0 0 2px}h2{font-size:14px;font-weight:700;margin:0 0 4px}p{margin:0 0 4px;font-size:10px}@media print{@page{margin:1.5cm}}</style>
 </head><body>
 <div style="border-bottom:3px solid #16a34a;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
-  <div><h1>Red Tractor Audit Pack</h1><h2>${farm?.name||"Farm"}</h2><p>CPH: ${farm?.cphNumber||"—"} &nbsp;|&nbsp; RT ID: ${farm?.redTractorId||"—"}</p></div>
-  <div style="text-align:right;font-size:9px;color:#555"><p>Printed: ${printedDate}</p><p>Period: ${dateFrom} to ${dateTo}</p></div>
+  <div>
+    <h1>Red Tractor Audit Pack</h1>
+    <h2>${farm?.name||"Farm"}</h2>
+    <p>CPH: ${farm?.cphNumber||"—"} &nbsp;|&nbsp; RT Member ID: ${farm?.redTractorId||"—"} &nbsp;|&nbsp; SBI: ${farm?.sbiNumber||"—"}</p>
+    <p style="margin-top:4px;color:#374151">Prepared by this holding for Red Tractor inspection purposes</p>
+  </div>
+  <div style="text-align:right;font-size:9px;color:#555">
+    <p>Printed: ${printedDate}</p>
+    <p>Audit period: ${dateFrom} to ${dateTo}</p>
+    <p>Farm manager: ${farm?.farmManager||"—"}</p>
+  </div>
 </div>
 
-${sections.spray ? `<p style="${sectionH}">1. Spray & Input Application Records</p>
-<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Field</th><th style="${thStyle}">Operator</th><th style="${thStyle}">Area (ha)</th></tr></thead><tbody>${sprayRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+${sections.spray ? `<p style="${sectionH}">${sectionNum++}. Spray &amp; Input Application Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Field</th><th style="${thStyle}">Operator</th><th style="${thStyle}">Area (ha)</th></tr></thead><tbody>${sprayRows||noData(5)}</tbody></table>` : ""}
 
-${sections.movements ? `<p style="${sectionH}">2. Livestock Movement Records</p>
-<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Type</th><th style="${thStyle}">Species</th><th style="${thStyle}">No.</th><th style="${thStyle}">Licence Ref</th></tr></thead><tbody>${mvtRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+${sections.movements ? `<p style="${sectionH}">${sectionNum++}. Livestock Movement Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Type</th><th style="${thStyle}">Species</th><th style="${thStyle}">No.</th><th style="${thStyle}">Licence Ref</th></tr></thead><tbody>${mvtRows||noData(5)}</tbody></table>` : ""}
 
-${sections.medicines ? `<p style="${sectionH}">3. Medicine Treatment Records</p>
-<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Species</th><th style="${thStyle}">Withdrawal (days)</th><th style="${thStyle}">Administered by</th></tr></thead><tbody>${medRows||"<tr><td colspan=5 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records in period</td></tr>"}</tbody></table>` : ""}
+${sections.medicines ? `<p style="${sectionH}">${sectionNum++}. Medicine Treatment Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Product</th><th style="${thStyle}">Species</th><th style="${thStyle}">Withdrawal (days)</th><th style="${thStyle}">Administered by</th></tr></thead><tbody>${medRows||noData(5)}</tbody></table>` : ""}
 
-${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
-<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Training</th><th style="${thStyle}">Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${trainRows||"<tr><td colspan=4 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records</td></tr>"}</tbody></table>
-<p style="${sectionH}">4b. Certificates & Qualifications</p>
-<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Certificate</th><th style="${thStyle}">Issue Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${certRows||"<tr><td colspan=4 style='"+tdStyle+";text-align:center;color:#9ca3af'>No records</td></tr>"}</tbody></table>` : ""}
+${sections.training ? `<p style="${sectionH}">${sectionNum++}. Staff Training Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Training</th><th style="${thStyle}">Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${trainRows||noData(4)}</tbody></table>
+<p style="${sectionH}">${sectionNum-1}b. Certificates &amp; Qualifications</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Staff Member</th><th style="${thStyle}">Certificate</th><th style="${thStyle}">Issue Date</th><th style="${thStyle}">Expiry</th></tr></thead><tbody>${certRows||noData(4)}</tbody></table>` : ""}
+
+${sections.tbTests ? `<p style="${sectionH}">${sectionNum++}. TB Test Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Test Date</th><th style="${thStyle}">Test Type</th><th style="${thStyle}">Species</th><th style="${thStyle}">Tested</th><th style="${thStyle}">Reactors / Inconclusive</th><th style="${thStyle}">Outcome</th><th style="${thStyle}">Testing Vet / Officer</th></tr></thead><tbody>${tbRows||noData(7)}</tbody></table>` : ""}
+
+${sections.casualtySlaughter ? `<p style="${sectionH}">${sectionNum++}. Casualty &amp; Emergency Slaughter</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Ear Tag</th><th style="${thStyle}">Species</th><th style="${thStyle}">Reason</th><th style="${thStyle}">Method</th><th style="${thStyle}">Performed by</th></tr></thead><tbody>${casualtyRows||noData(6)}</tbody></table>` : ""}
+
+${sections.mortality ? `<p style="${sectionH}">${sectionNum++}. Mortality Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date of Death</th><th style="${thStyle}">Tag No.</th><th style="${thStyle}">Species</th><th style="${thStyle}">Cause of Death</th><th style="${thStyle}">Disposal Method</th><th style="${thStyle}">Contractor</th></tr></thead><tbody>${mortalityRows||noData(6)}</tbody></table>` : ""}
+
+${sections.feedAndWater ? `<p style="${sectionH}">${sectionNum++}. Feed Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Feed Type</th><th style="${thStyle}">Supplier</th><th style="${thStyle}">Batch No.</th><th style="${thStyle}">Quantity (kg)</th></tr></thead><tbody>${feedRows||noData(5)}</tbody></table>
+<p style="${sectionH}">${sectionNum-1}b. Water Quality Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Test Date</th><th style="${thStyle}">Water Source</th><th style="${thStyle}">Result</th><th style="${thStyle}">Pass / Fail</th></tr></thead><tbody>${waterRows||noData(4)}</tbody></table>` : ""}
 
 <div style="margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px;font-size:9px;color:#6b7280">
-<p>This document was generated by BDE Farm Trac on ${printedDate}. It is an on-farm compliance record for Red Tractor and regulatory audit purposes. Records must be kept for a minimum of 3 years.</p>
+<p>This document was prepared by ${farm?.name||"this holding"} using BDE Farm Trac and printed on ${printedDate}. It contains on-farm compliance records for presentation to a Red Tractor assessor. These records are the responsibility of the holding and must be retained for a minimum of 3 years. This document does not constitute submission to Red Tractor or any regulatory body.</p>
 </div></body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.addEventListener("afterprint", () => w.close()); w.print(); }, 400); }
@@ -2488,12 +2571,22 @@ ${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
 
   const sectionToggle = (k: keyof typeof sections) => setSections(p => ({ ...p, [k]: !p[k] }));
 
+  const totalRecords =
+    (sections.spray ? sprayRecords.length : 0) +
+    (sections.movements ? movements.length : 0) +
+    (sections.medicines ? medicines.length : 0) +
+    (sections.training ? training.length + certs.length : 0) +
+    (sections.tbTests ? tbTests.length : 0) +
+    (sections.casualtySlaughter ? casualtyRecords.length : 0) +
+    (sections.mortality ? mortalityRecords.length : 0) +
+    (sections.feedAndWater ? feedRecords.length + waterRecords.length : 0);
+
   return (
     <div className="max-w-3xl">
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
         <div className="flex-1">
           <h3 className="font-semibold text-gray-800">Red Tractor Audit Pack Generator</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Select a date range and the sections to include, then click Generate to open a print-ready PDF-style view with all selected records.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Prepared by the holding for presentation to your Red Tractor assessor. Select a date range and the sections to include, then click Generate to open a print-ready view.</p>
         </div>
         <Button onClick={handlePrint} className="bg-green-700 hover:bg-green-800 text-white flex-shrink-0">
           <Printer className="w-4 h-4 mr-2" />Generate &amp; Print Audit Pack
@@ -2517,14 +2610,14 @@ ${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
         <p className="text-xs font-semibold text-gray-600 mb-2">Sections to include</p>
         <div className="grid grid-cols-2 gap-2">
           {([
-            ["spray", "Spray & Input Records"],
-            ["movements", "Livestock Movements"],
-            ["medicines", "Medicine Records"],
-            ["training", "Staff Training & Certs"],
-            ["nvz", "NVZ Applications"],
-            ["biosecurity", "Biosecurity Plan"],
-            ["documents", "Document Register"],
-            ["risk", "Risk Assessments"],
+            ["spray",            "Spray & Input Records"],
+            ["movements",        "Livestock Movements"],
+            ["medicines",        "Medicine Records"],
+            ["training",         "Staff Training & Certs"],
+            ["tbTests",          "TB Test Records"],
+            ["casualtySlaughter","Casualty / Emergency Slaughter"],
+            ["mortality",        "Mortality Records"],
+            ["feedAndWater",     "Feed & Water Quality"],
           ] as [keyof typeof sections, string][]).map(([k, label]) => (
             <label key={k} className="flex items-center gap-2 cursor-pointer text-sm">
               <input type="checkbox" checked={sections[k]} onChange={() => sectionToggle(k)}
@@ -2536,7 +2629,10 @@ ${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
       </div>
 
       <div className="border rounded-xl p-4 bg-white space-y-3">
-        <p className="text-xs font-semibold text-gray-600">Preview — Record Counts</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-gray-600">Preview — Record Counts</p>
+          <p className="text-xs text-gray-400">{totalRecords} total records selected</p>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {sections.spray && (
             <div className="text-center p-3 border rounded-lg">
@@ -2560,6 +2656,30 @@ ${sections.training ? `<p style="${sectionH}">4. Staff Training Records</p>
             <div className="text-center p-3 border rounded-lg">
               <p className="text-xl font-bold text-green-700">{training.length + certs.length}</p>
               <p className="text-xs text-gray-500">Training &amp; certs</p>
+            </div>
+          )}
+          {sections.tbTests && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{tbTests.length}</p>
+              <p className="text-xs text-gray-500">TB tests</p>
+            </div>
+          )}
+          {sections.casualtySlaughter && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{casualtyRecords.length}</p>
+              <p className="text-xs text-gray-500">Casualty slaughter</p>
+            </div>
+          )}
+          {sections.mortality && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{mortalityRecords.length}</p>
+              <p className="text-xs text-gray-500">Mortality records</p>
+            </div>
+          )}
+          {sections.feedAndWater && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{feedRecords.length + waterRecords.length}</p>
+              <p className="text-xs text-gray-500">Feed &amp; water</p>
             </div>
           )}
         </div>
