@@ -2821,12 +2821,12 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             <div>
               <Label>MAPP Number</Label>
               <Input value={String(form.mappNumber ?? "")} onChange={sf("mappNumber")} placeholder="e.g. 12345" />
-              {productLookupId && form.mappNumber && <p className="text-xs text-green-700 mt-1">From product register</p>}
+              {productLookupId && !!form.mappNumber && <p className="text-xs text-green-700 mt-1">From product register</p>}
             </div>
             <div>
               <Label>Active Ingredient</Label>
               <Input value={String(form.activeIngredient ?? "")} onChange={sf("activeIngredient")} placeholder="e.g. Azoxystrobin" />
-              {productLookupId && form.activeIngredient && <p className="text-xs text-green-700 mt-1">From product register</p>}
+              {productLookupId && !!form.activeIngredient && <p className="text-xs text-green-700 mt-1">From product register</p>}
             </div>
             <div>
               <Label>Product Type</Label>
@@ -2834,7 +2834,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>{sprayTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
-              {productLookupId && form.productType && <p className="text-xs text-green-700 mt-1">From product register</p>}
+              {productLookupId && !!form.productType && <p className="text-xs text-green-700 mt-1">From product register</p>}
             </div>
             <div>
               <Label>Application Method</Label>
@@ -2865,7 +2865,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             <div>
               <Label>Harvest Interval (days)</Label>
               <Input type="number" value={String(form.harvestIntervalDays ?? "")} onChange={sf("harvestIntervalDays")} />
-              {productLookupId && form.harvestIntervalDays && <p className="text-xs text-green-700 mt-1">From product register</p>}
+              {productLookupId && !!form.harvestIntervalDays && <p className="text-xs text-green-700 mt-1">From product register</p>}
             </div>
             <div><Label>Wind Speed (mph)</Label><Input type="number" step="0.1" value={String(form.windSpeedMph ?? "")} onChange={sf("windSpeedMph")} /></div>
             <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureCelsius ?? "")} onChange={sf("temperatureCelsius")} /></div>
@@ -2883,7 +2883,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             <div>
               <Label>Operator Certificate No. (PA1/PA2/PA6)</Label>
               <Input value={String(form.operatorCertificateNo ?? "")} onChange={sf("operatorCertificateNo")} placeholder="e.g. PA6 — 12345" />
-              {form.operatorName && form.operatorCertificateNo && staffNames.includes(String(form.operatorName)) && <p className="text-xs text-green-700 mt-1">Auto-filled from staff certificate record</p>}
+              {!!form.operatorName && !!form.operatorCertificateNo && staffNames.includes(String(form.operatorName)) && <p className="text-xs text-green-700 mt-1">Auto-filled from staff certificate record</p>}
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
