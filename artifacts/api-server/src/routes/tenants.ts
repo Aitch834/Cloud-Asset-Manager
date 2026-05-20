@@ -99,7 +99,12 @@ router.put("/tenants/current", requireAuth, requireTenant, requireClientAdmin, a
 });
 
 router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId } = req.body;
+  const {
+    name, address, postcode, cphNumber, gridReference, totalAcreage,
+    sectorArable, sectorBeef, sectorSheep, sectorDairy, sectorPigs, sectorPoultry,
+    sectorEggs, sectorGoats, sectorEquine, sectorHorticulture, sectorViticulture,
+    redTractorId,
+  } = req.body;
 
   if (!name) {
     res.status(400).json({ error: "Farm name is required" });
@@ -116,10 +121,15 @@ router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientA
     totalAcreage,
     sectorArable: sectorArable ?? false,
     sectorBeef: sectorBeef ?? false,
+    sectorSheep: sectorSheep ?? false,
     sectorDairy: sectorDairy ?? false,
     sectorPigs: sectorPigs ?? false,
     sectorPoultry: sectorPoultry ?? false,
+    sectorEggs: sectorEggs ?? false,
+    sectorGoats: sectorGoats ?? false,
+    sectorEquine: sectorEquine ?? false,
     sectorHorticulture: sectorHorticulture ?? false,
+    sectorViticulture: sectorViticulture ?? false,
     redTractorId: redTractorId || null,
   }).returning();
 
