@@ -418,6 +418,69 @@ router.get("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
   res.json({ record });
 });
 
+router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const {
+    name, cphNumber, address, postcode, gridReference, totalAcreage, totalHectares,
+    latitude, longitude, what3words,
+    emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail,
+    sectorArable, sectorBeef, sectorSheep, sectorDairy, sectorPigs, sectorPoultry,
+    sectorEggs, sectorGoats, sectorEquine, sectorHorticulture, sectorViticulture,
+    redTractorId, sbiNumber, farmManager, holdingType, assuranceBody,
+    isNvzDesignated, country,
+    eaml2Email, flockMark, herdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
+  } = req.body;
+
+  if (!name) { res.status(400).json({ error: "Farm name is required" }); return; }
+
+  const [updated] = await db.update(farmsTable).set({
+    name,
+    cphNumber: cphNumber ?? null,
+    address: address ?? null,
+    postcode: postcode ?? null,
+    gridReference: gridReference ?? null,
+    totalAcreage: totalAcreage ?? null,
+    totalHectares: totalHectares ?? null,
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+    what3words: what3words ?? null,
+    emergencyContactName: emergencyContactName ?? null,
+    emergencyContactRelationship: emergencyContactRelationship ?? null,
+    emergencyContactPhone: emergencyContactPhone ?? null,
+    emergencyContactEmail: emergencyContactEmail ?? null,
+    sectorArable: sectorArable ?? false,
+    sectorBeef: sectorBeef ?? false,
+    sectorSheep: sectorSheep ?? false,
+    sectorDairy: sectorDairy ?? false,
+    sectorPigs: sectorPigs ?? false,
+    sectorPoultry: sectorPoultry ?? false,
+    sectorEggs: sectorEggs ?? false,
+    sectorGoats: sectorGoats ?? false,
+    sectorEquine: sectorEquine ?? false,
+    sectorHorticulture: sectorHorticulture ?? false,
+    sectorViticulture: sectorViticulture ?? false,
+    redTractorId: redTractorId ?? null,
+    sbiNumber: sbiNumber ?? null,
+    farmManager: farmManager ?? null,
+    holdingType: holdingType ?? null,
+    assuranceBody: assuranceBody ?? null,
+    isNvzDesignated: isNvzDesignated ?? false,
+    country: country ?? "england",
+    eaml2Email: eaml2Email ?? null,
+    flockMark: flockMark ?? null,
+    herdMark: herdMark ?? null,
+    bcmsHoldingNumber: bcmsHoldingNumber ?? null,
+    scotEidNumber: scotEidNumber ?? null,
+    eidCymruNumber: eidCymruNumber ?? null,
+  })
+  .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
+  .returning();
+
+  if (!updated) { res.status(404).json({ error: "Farm not found" }); return; }
+  res.json({ record: updated });
+});
+
 router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -4529,15 +4592,29 @@ router.delete("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant
 router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const staff = await db
-    .select({
+  const [systemStaff, memberStaff] = await Promise.all([
+    db.select({
       id: usersTable.id,
       name: sql<string>`trim(concat(${usersTable.firstName}, ' ', ${usersTable.lastName}))`,
       role: staffFarmAssignmentsTable.farmRole,
     })
     .from(staffFarmAssignmentsTable)
     .innerJoin(usersTable, eq(staffFarmAssignmentsTable.userId, usersTable.id))
-    .where(eq(staffFarmAssignmentsTable.farmId, farmId));
+    .where(eq(staffFarmAssignmentsTable.farmId, farmId)),
+    db.select({
+      id: farmMembersTable.linkedUserId,
+      name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
+      role: farmMembersTable.farmRole,
+    })
+    .from(farmMembersTable)
+    .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.isActive, true)))
+    .orderBy(farmMembersTable.lastName, farmMembersTable.firstName),
+  ]);
+  const seen = new Set(systemStaff.map(s => s.name));
+  const staff = [
+    ...systemStaff,
+    ...memberStaff.filter(m => m.name && !seen.has(m.name)),
+  ];
   res.json({ staff });
 });
 
