@@ -6957,13 +6957,52 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  const { data: animalsData } = useQuery<{ records: { id: number; earTagNumber: string | null; species: string; breed: string | null; dateOfBirth: string | null; sex: string | null }[] }>({
+    queryKey: ["farm-animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const animals = animalsData?.records ?? [];
+
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/staff`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
+
+  function handleEarTagChange(tag: string) {
+    const matched = animals.find(a => a.earTagNumber && a.earTagNumber.toLowerCase() === tag.toLowerCase());
+    if (matched) {
+      const agePart = matched.dateOfBirth
+        ? `${Math.floor((Date.now() - new Date(matched.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))}yo `
+        : "";
+      const sexPart = matched.sex ? matched.sex + " " : "";
+      const breedPart = matched.breed ?? matched.species;
+      setForm((f: any) => ({ ...f, animalEarTag: tag, species: matched.species || f.species, ageOrDescription: `${agePart}${sexPart}${breedPart}`.trim() || f.ageOrDescription }));
+    } else {
+      set("animalEarTag", tag);
+    }
+  }
+
+  function handleMethodChange(v: string) {
+    setForm((f: any) => ({ ...f, method: v, veterinaryInvolved: v === "barbiturate_injection" ? true : f.veterinaryInvolved }));
+  }
+
   function openAdd() { setEditing(null); setForm({ species: "Cattle", method: "captive_bolt", veterinaryInvolved: false }); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
   async function save() {
+    const payload = { ...form };
+    if (payload.veterinaryInvolved && !payload.performedBy && payload.vetName) {
+      payload.performedBy = payload.vetName;
+    }
     const url = editing ? `/api/farms/${farmId}/casualty-slaughter/${editing.id}` : `/api/farms/${farmId}/casualty-slaughter`;
-    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     qc.invalidateQueries({ queryKey: ["casualty-slaughter", farmId] });
+    qc.invalidateQueries({ queryKey: ["farm-animals", farmId] });
     setOpen(false);
   }
 
@@ -6974,6 +7013,7 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
   }
 
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const matchedAnimal = (tag: string) => animals.find(a => a.earTagNumber?.toLowerCase() === tag?.toLowerCase());
 
   return (
     <div className="p-4">
@@ -6994,7 +7034,7 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
-              <tr>{["Date","Ear Tag","Species","Reason","Method","Performed By","WASK/WATOK Ref","Disposal",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+              <tr>{["Date","Ear Tag","Species","Reason","Method","Performed By","WASK/WATOK / RCVS","Disposal",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map((r: any) => (
@@ -7004,8 +7044,8 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">{r.species}</td>
                   <td className="px-3 py-2 max-w-[140px] truncate" title={r.reasonForSlaughter}>{r.reasonForSlaughter}</td>
                   <td className="px-3 py-2 text-xs">{CASUALTY_METHODS.find(m => m.value === r.method)?.label ?? r.method}</td>
-                  <td className="px-3 py-2">{r.performedBy}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{r.waskWatokCertRef || "—"}</td>
+                  <td className="px-3 py-2">{r.veterinaryInvolved ? (r.vetName || r.performedBy) : r.performedBy}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.veterinaryInvolved ? (r.rcvsNumber || "—") : (r.waskWatokCertRef || "—")}</td>
                   <td className="px-3 py-2 text-xs">{CARCASE_DISPOSAL.find(c => c.value === r.carcaseDisposalMethod)?.label ?? r.carcaseDisposalMethod ?? "—"}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
@@ -7031,23 +7071,40 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
                 <SelectContent>{["Cattle","Sheep","Pig","Goat","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Ear Tag / ID</Label><Input value={form.animalEarTag || ""} onChange={e => set("animalEarTag", e.target.value)} placeholder="UK ear tag number" /></div>
-            <div><Label>Breed / Age</Label><Input value={form.ageOrDescription || ""} onChange={e => set("ageOrDescription", e.target.value)} placeholder="e.g. 3yo Holstein cow" /></div>
+            <div>
+              <Label>Ear Tag / ID</Label>
+              <Input value={form.animalEarTag || ""} onChange={e => handleEarTagChange(e.target.value)} placeholder="UK ear tag number" />
+              {form.animalEarTag && matchedAnimal(form.animalEarTag) && (
+                <p className="text-xs text-green-700 mt-1">Matched — breed &amp; age auto-filled from animal register.</p>
+              )}
+            </div>
+            <div>
+              <Label>Breed / Age</Label>
+              <Input value={form.ageOrDescription || ""} onChange={e => set("ageOrDescription", e.target.value)} placeholder="e.g. 3yo Holstein cow" />
+            </div>
             <div className="col-span-2"><Label>Reason for Slaughter *</Label><Input value={form.reasonForSlaughter || ""} onChange={e => set("reasonForSlaughter", e.target.value)} placeholder="e.g. Severe fracture — irretrievable" /></div>
             <div><Label>Method *</Label>
-              <Select value={form.method || "captive_bolt"} onValueChange={v => set("method", v)}>
+              <Select value={form.method || "captive_bolt"} onValueChange={handleMethodChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{CASUALTY_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Performed By *</Label><Input value={form.performedBy || ""} onChange={e => set("performedBy", e.target.value)} placeholder="Full name" /></div>
-            <div><Label>WASK/WATOK Certificate Ref</Label><Input value={form.waskWatokCertRef || ""} onChange={e => set("waskWatokCertRef", e.target.value)} placeholder="Certificate number" /></div>
             <div><Label>Witness</Label><Input value={form.witnessName || ""} onChange={e => set("witnessName", e.target.value)} /></div>
-            <div className="flex items-center gap-2 pt-5">
+            <div className="col-span-2 flex items-center gap-2 pt-1">
               <input type="checkbox" id="vetinv" checked={!!form.veterinaryInvolved} onChange={e => set("veterinaryInvolved", e.target.checked)} className="rounded" />
-              <Label htmlFor="vetinv">Vet involved</Label>
+              <Label htmlFor="vetinv">Veterinary surgeon involved</Label>
             </div>
-            {form.veterinaryInvolved && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
+            {form.veterinaryInvolved ? (
+              <>
+                <div><Label>Vet Name *</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="Full name" /></div>
+                <div><Label>RCVS Number</Label><Input value={form.rcvsNumber || ""} onChange={e => set("rcvsNumber", e.target.value)} placeholder="e.g. 1234567" /></div>
+              </>
+            ) : (
+              <>
+                <div><Label>Performed By *</Label><StaffSelect value={form.performedBy || ""} onChange={v => set("performedBy", v)} staffNames={staffNames} loading={staffLoading} /></div>
+                <div><Label>WASK/WATOK Certificate Ref</Label><Input value={form.waskWatokCertRef || ""} onChange={e => set("waskWatokCertRef", e.target.value)} placeholder="Certificate number" /></div>
+              </>
+            )}
             <div><Label>Carcase Disposal Method</Label>
               <Select value={form.carcaseDisposalMethod || "__none__"} onValueChange={v => set("carcaseDisposalMethod", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Select disposal method" /></SelectTrigger>

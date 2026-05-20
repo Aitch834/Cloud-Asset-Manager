@@ -918,6 +918,7 @@ export const casualtySlaughterRecordsTable = pgTable("casualty_slaughter_records
   witnessName: text("witness_name"),
   veterinaryInvolved: boolean("veterinary_involved").default(false),
   vetName: text("vet_name"),
+  rcvsNumber: text("rcvs_number"),
   carcaseDisposalMethod: text("carcase_disposal_method"), // "licensed_contractor" | "hunt_kennel" | "incineration" | "rendering" | "burial_permitted" | "other"
   carcaseDisposalContractorId: integer("carcase_disposal_contractor_id").references(() => fallenStockContractorsTable.id),
   carcaseCollectionDate: date("carcase_collection_date"),

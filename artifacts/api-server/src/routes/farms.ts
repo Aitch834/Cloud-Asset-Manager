@@ -25330,7 +25330,7 @@ router.get("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requ
 router.post("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
-  if (!b.eventDate || !b.species || !b.reasonForSlaughter || !b.method || !b.performedBy) { res.status(400).json({ error: "eventDate, species, reasonForSlaughter, method and performedBy are required" }); return; }
+  if (!b.eventDate || !b.species || !b.reasonForSlaughter || !b.method) { res.status(400).json({ error: "eventDate, species, reasonForSlaughter and method are required" }); return; }
   const [record] = await db.insert(casualtySlaughterRecordsTable).values({
     farmId,
     herdId: b.herdId != null ? Number(b.herdId) : null,
@@ -25347,6 +25347,7 @@ router.post("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, req
     witnessName: b.witnessName ? String(b.witnessName) : null,
     veterinaryInvolved: b.veterinaryInvolved === true || b.veterinaryInvolved === "true",
     vetName: b.vetName ? String(b.vetName) : null,
+    rcvsNumber: b.rcvsNumber ? String(b.rcvsNumber) : null,
     carcaseDisposalMethod: b.carcaseDisposalMethod ? String(b.carcaseDisposalMethod) : null,
     carcaseDisposalContractorId: b.carcaseDisposalContractorId != null ? Number(b.carcaseDisposalContractorId) : null,
     carcaseCollectionDate: b.carcaseCollectionDate ? String(b.carcaseCollectionDate) : null,
@@ -25355,6 +25356,11 @@ router.post("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, req
     documentPath: b.documentPath ? String(b.documentPath) : null,
     documentName: b.documentName ? String(b.documentName) : null,
   }).returning();
+  if (b.animalEarTag) {
+    const earTag = String(b.animalEarTag);
+    const [matchedAnimal] = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, earTag)));
+    if (matchedAnimal) await db.update(livestockAnimalsTable).set({ status: "dead" }).where(eq(livestockAnimalsTable.id, matchedAnimal.id));
+  }
   res.json({ record });
 });
 
@@ -25363,11 +25369,15 @@ router.put("/farms/:farmId/casualty-slaughter/:id", requireAuth, requireTenant, 
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["herdId","eventDate","animalEarTag","species","breed","ageOrDescription","reasonForSlaughter","method","performedBy","performedByMemberId","waskWatokCertRef","witnessName","veterinaryInvolved","vetName","carcaseDisposalMethod","carcaseDisposalContractorId","carcaseCollectionDate","carcaseDisposalRef","notes","documentPath","documentName"];
+  const fields = ["herdId","eventDate","animalEarTag","species","breed","ageOrDescription","reasonForSlaughter","method","performedBy","performedByMemberId","waskWatokCertRef","witnessName","veterinaryInvolved","vetName","rcvsNumber","carcaseDisposalMethod","carcaseDisposalContractorId","carcaseCollectionDate","carcaseDisposalRef","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   if (b.veterinaryInvolved !== undefined) updates.veterinaryInvolved = b.veterinaryInvolved === true || b.veterinaryInvolved === "true";
   const [record] = await db.update(casualtySlaughterRecordsTable).set(updates).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  if (record.animalEarTag) {
+    const [matchedAnimal] = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, record.animalEarTag)));
+    if (matchedAnimal) await db.update(livestockAnimalsTable).set({ status: "dead" }).where(eq(livestockAnimalsTable.id, matchedAnimal.id));
+  }
   res.json({ record });
 });
 
