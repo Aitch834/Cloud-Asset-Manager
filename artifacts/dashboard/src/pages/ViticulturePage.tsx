@@ -2641,13 +2641,26 @@ const SPRAY_APPLICATION_METHODS = [
 
 export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const crud = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
-  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { name: string }[] }>({
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
     staleTime: 120_000,
   });
   const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
+  const { data: productsData } = useQuery<{ records: { id: number; productName: string; mappaNumber: string | null; activeIngredient: string | null; category: string | null; harvestInterval: number | null }[] }>({
+    queryKey: ["spray-products", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/spray-products`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const { data: certsData } = useQuery<{ records: { userId: string; certificateType: string; certificateNumber: string | null; issueDate: string }[] }>({
+    queryKey: ["staff-certificates", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/certificates`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 120_000,
+  });
+  const sprayProducts = productsData?.records ?? [];
   const sprayTypes = useLookupStrings("spray_product_categories", SPRAY_PRODUCT_TYPES);
   const sprayMethods = useLookupStrings("vineyard_spray_application_methods", SPRAY_APPLICATION_METHODS);
   const rateUnits = useLookupStrings("vineyard_spray_rate_units", ["L/ha", "mL/ha", "kg/ha", "g/ha", "Other"]);
@@ -2658,12 +2671,39 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [editing, setEditing] = useState<number | null>(null);
+  const [productLookupId, setProductLookupId] = useState<string>("");
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
 
-  const openAdd = () => { setEditing(null); setForm({ applicationDate: today }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
+  const handleProductLookup = (id: string) => {
+    setProductLookupId(id);
+    const p = sprayProducts.find(p => String(p.id) === id);
+    if (p) {
+      setForm(f => ({
+        ...f,
+        productName: p.productName,
+        mappNumber: p.mappaNumber ?? f.mappNumber ?? "",
+        activeIngredient: p.activeIngredient ?? f.activeIngredient ?? "",
+        productType: p.category ?? f.productType ?? "",
+        harvestIntervalDays: p.harvestInterval != null ? String(p.harvestInterval) : (f.harvestIntervalDays ?? ""),
+      }));
+    }
+  };
+
+  const PA_CERT_KEYWORDS = ["pa1", "pa2", "pa6", "nptc", "spray", "pesticide", "coshh", "basis", "city & guilds"];
+  const handleOperatorChange = (name: string) => {
+    sfv("operatorName", name);
+    const member = (staffData?.staff ?? []).find(s => s.name === name);
+    if (!member) return;
+    const certs = (certsData?.records ?? [])
+      .filter(c => c.userId === member.id && PA_CERT_KEYWORDS.some(kw => (c.certificateType ?? "").toLowerCase().includes(kw)))
+      .sort((a, b) => (a.issueDate > b.issueDate ? -1 : 1));
+    if (certs[0]?.certificateNumber) sfv("operatorCertificateNo", certs[0].certificateNumber);
+  };
+
+  const openAdd = () => { setEditing(null); setProductLookupId(""); setForm({ applicationDate: today }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setProductLookupId(""); setForm({ ...r }); setOpen(true); };
   const save = () => {
     if (editing !== null) crud.edit.mutate({ id: editing, ...form } as Record<string, unknown> & { id: number });
     else crud.add.mutate(form);
@@ -2762,15 +2802,39 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2"><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={sf("productName")} placeholder="e.g. Amistar 250 SC" /></div>
-            <div><Label>MAPP Number</Label><Input value={String(form.mappNumber ?? "")} onChange={sf("mappNumber")} placeholder="e.g. 12345" /></div>
-            <div><Label>Active Ingredient</Label><Input value={String(form.activeIngredient ?? "")} onChange={sf("activeIngredient")} placeholder="e.g. Azoxystrobin" /></div>
+            {/* ── Product lookup ── */}
+            <div className="col-span-2">
+              <Label>Product Register Lookup</Label>
+              <Select value={productLookupId} onValueChange={handleProductLookup}>
+                <SelectTrigger><SelectValue placeholder={sprayProducts.length ? "Select from product register to auto-fill…" : "No products in register — enter manually below"} /></SelectTrigger>
+                <SelectContent>
+                  {sprayProducts.map(p => <SelectItem key={String(p.id)} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` — ${p.activeIngredient}` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {sprayProducts.length === 0 && <p className="text-xs text-muted-foreground mt-1">Add products in <strong>Sprays &amp; Inputs → Products</strong> to enable auto-fill.</p>}
+            </div>
+            <div className="col-span-2">
+              <Label>Product Name *</Label>
+              <Input value={String(form.productName ?? "")} onChange={sf("productName")} placeholder="e.g. Amistar 250 SC" />
+              {productLookupId && <p className="text-xs text-green-700 mt-1">Auto-filled from product register — edit if needed.</p>}
+            </div>
+            <div>
+              <Label>MAPP Number</Label>
+              <Input value={String(form.mappNumber ?? "")} onChange={sf("mappNumber")} placeholder="e.g. 12345" />
+              {productLookupId && form.mappNumber && <p className="text-xs text-green-700 mt-1">From product register</p>}
+            </div>
+            <div>
+              <Label>Active Ingredient</Label>
+              <Input value={String(form.activeIngredient ?? "")} onChange={sf("activeIngredient")} placeholder="e.g. Azoxystrobin" />
+              {productLookupId && form.activeIngredient && <p className="text-xs text-green-700 mt-1">From product register</p>}
+            </div>
             <div>
               <Label>Product Type</Label>
               <Select value={String(form.productType ?? "")} onValueChange={v => sfv("productType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>{sprayTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
+              {productLookupId && form.productType && <p className="text-xs text-green-700 mt-1">From product register</p>}
             </div>
             <div>
               <Label>Application Method</Label>
@@ -2798,7 +2862,11 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             <div><Label>Area Treated (ha)</Label><Input type="number" step="0.0001" value={String(form.areaTreatedHa ?? "")} onChange={sf("areaTreatedHa")} /></div>
             <div><Label>Water Volume (L/ha)</Label><Input type="number" value={String(form.waterVolumeLPerHa ?? "")} onChange={sf("waterVolumeLPerHa")} /></div>
             <div><Label>Re-entry Period (hrs)</Label><Input type="number" value={String(form.reentryPeriodHours ?? "")} onChange={sf("reentryPeriodHours")} /></div>
-            <div><Label>Harvest Interval (days)</Label><Input type="number" value={String(form.harvestIntervalDays ?? "")} onChange={sf("harvestIntervalDays")} /></div>
+            <div>
+              <Label>Harvest Interval (days)</Label>
+              <Input type="number" value={String(form.harvestIntervalDays ?? "")} onChange={sf("harvestIntervalDays")} />
+              {productLookupId && form.harvestIntervalDays && <p className="text-xs text-green-700 mt-1">From product register</p>}
+            </div>
             <div><Label>Wind Speed (mph)</Label><Input type="number" step="0.1" value={String(form.windSpeedMph ?? "")} onChange={sf("windSpeedMph")} /></div>
             <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureCelsius ?? "")} onChange={sf("temperatureCelsius")} /></div>
             <div className="col-span-2">
@@ -2810,9 +2878,13 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             </div>
             <div>
               <Label>Operator</Label>
-              <StaffSelect value={String(form.operatorName ?? "")} onChange={v => sfv("operatorName", v)} staffNames={staffNames} loading={staffLoading} />
+              <StaffSelect value={String(form.operatorName ?? "")} onChange={handleOperatorChange} staffNames={staffNames} loading={staffLoading} />
             </div>
-            <div><Label>Operator Certificate No. (PA1/PA2/PA6)</Label><Input value={String(form.operatorCertificateNo ?? "")} onChange={sf("operatorCertificateNo")} placeholder="e.g. PA6 — 12345" /></div>
+            <div>
+              <Label>Operator Certificate No. (PA1/PA2/PA6)</Label>
+              <Input value={String(form.operatorCertificateNo ?? "")} onChange={sf("operatorCertificateNo")} placeholder="e.g. PA6 — 12345" />
+              {form.operatorName && form.operatorCertificateNo && staffNames.includes(String(form.operatorName)) && <p className="text-xs text-green-700 mt-1">Auto-filled from staff certificate record</p>}
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
           <DialogFooter>
