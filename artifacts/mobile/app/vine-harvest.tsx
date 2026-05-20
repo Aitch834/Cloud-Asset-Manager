@@ -258,6 +258,7 @@ export default function VineHarvestScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>TA (g/L)</Text>
               <Input placeholder="e.g. 9.8" value={titratable} onChangeText={setTitratable} keyboardType="decimal-pad" />
+              <Text style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Lab result — can be added after harvest</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.fieldLabel}>Pot. Alcohol %</Text>
