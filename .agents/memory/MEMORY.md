@@ -1,1 +1,1 @@
-- [Test-dashboard React deduplication](test-dashboard-react-dedup.md) — SlurryTab "Invalid hook call" caused by stale dep cache; fix is keeping all hook-using packages in optimizeDeps.include AND extracting very large components (>2000 lines) into separate files.
+- [Test-dashboard proxy cache fix](test-dashboard-proxy-cache.md) — Replit proxy caches @fs/ module URLs across server sessions; session-token stamping in vite.config.ts is the fix.
