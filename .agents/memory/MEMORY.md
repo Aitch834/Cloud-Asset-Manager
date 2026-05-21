@@ -1,1 +1,2 @@
 - [Test-dashboard proxy cache fix](test-dashboard-proxy-cache.md) — Replit proxy caches @fs/ module URLs across server sessions; session-token stamping in vite.config.ts is the fix.
+- [Replit External Proxy Gateway Fix](proxy-gateway-fix.md) — website vite.config proxy rules forward sub-path apps when external proxy routing breaks.

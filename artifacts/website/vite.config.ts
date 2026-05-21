@@ -65,6 +65,21 @@ export default defineConfig({
     headers: {
       "Cache-Control": "no-store",
     },
+    // Gateway proxy: the external Replit preview proxy only reliably routes
+    // traffic to the app sitting at "/". All other apps' paths are forwarded
+    // here by the platform and then proxied on to the correct local port.
+    proxy: {
+      "/test-dashboard": {
+        target: "http://localhost:18652",
+        changeOrigin: true,
+        ws: true,
+      },
+      "/dashboard": {
+        target: "http://localhost:23183",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],
