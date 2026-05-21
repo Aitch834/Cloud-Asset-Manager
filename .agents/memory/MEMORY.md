@@ -1,1 +1,1 @@
-- [Leaflet alias fix](leaflet-alias-fix.md) — packages only in dashboard/node_modules need BOTH alias AND optimizeDeps.include or the include silently fails, causing mid-render re-optimisation → two React instances → "Invalid hook call".
+- [Vite browserHash crash pattern](leaflet-alias-fix.md) — ANY runtime-discovered dep changes the browserHash and re-keys all React chunk URLs → two React instances → "Invalid hook call". Fix: every undiscovered package needs alias + optimizeDeps.include entry before first render.

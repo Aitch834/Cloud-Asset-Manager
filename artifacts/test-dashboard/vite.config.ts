@@ -153,16 +153,54 @@ export default defineConfig({
       { find: "react-hook-form",       replacement: td("react-hook-form") },
       { find: "wouter",                replacement: td("wouter") },
 
-      // ── leaflet ──────────────────────────────────────────────────────────
-      // Lives only in dashboard/node_modules.  Without this alias the
-      // optimizeDeps.include entry below silently fails (Vite can't resolve
-      // "leaflet" from test-dashboard's own node_modules), so leaflet is never
-      // pre-bundled at startup.  Vite then discovers it mid-render when
-      // StorageLocationMapPicker.tsx is first served (its dynamic import() is
-      // visible to Vite's static analyser), triggers a forced re-optimisation,
-      // rehashes ALL pre-bundled chunks including React, and briefly creates
-      // two React instances — causing "Invalid hook call" on SlurryTab.
+      // ── Runtime-discovered packages — must ALL be pre-bundled at startup ────
+      //
+      // HOW THE CRASH WORKS: when Vite discovers any new dep mid-render it
+      // increments the global `browserHash`.  Every pre-bundled chunk URL
+      // carries that hash (e.g. react.js?v=<browserHash>).  Modules already in
+      // memory hold references to the OLD hash; newly-loaded modules fetch the
+      // NEW hash.  For a brief window there are two distinct React instances in
+      // the same tab → "Invalid hook call" on whichever component was rendering.
+      //
+      // FIX: every package that Vite has previously discovered at runtime
+      // (visible in node_modules/.vite/deps/_metadata.json under "optimized"
+      // but absent from the explicit `include` list) must be added here AND to
+      // `optimizeDeps.include` below so Vite bundles them during startup before
+      // any component renders.
+      //
+      // Packages that live only in dashboard/node_modules need an alias so that
+      // the `include` entry can resolve them (otherwise Vite searches from
+      // test-dashboard's own node_modules and silently skips the entry).
+      // Packages that exist in test-dashboard/node_modules use `td()` as usual.
+
+      // leaflet — only in dashboard/node_modules; dynamically imported by
+      // StorageLocationMapPicker.tsx (visible to Vite's static analyser).
       { find: "leaflet", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/leaflet") },
+
+      // recharts — React-aware charting lib; exists in test-dashboard's own
+      // node_modules so td() works.  Used by chart.tsx → many report pages.
+      { find: "recharts", replacement: td("recharts") },
+
+      // cmdk — React-aware command-menu lib; exists in test-dashboard's own
+      // node_modules.  Used by @/components/ui/command.tsx.
+      { find: "cmdk", replacement: td("cmdk") },
+
+      // qrcode.react — React component; only in dashboard/node_modules.
+      // Used by Fields, Equipment, Storage Locations pages.
+      { find: "qrcode.react", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/qrcode.react") },
+
+      // jspdf + jspdf-autotable — PDF generation, not React-aware but only
+      // in dashboard/node_modules.  Late discovery still triggers a browserHash
+      // change that can produce two React instances.
+      { find: "jspdf",          replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/jspdf") },
+      { find: "jspdf-autotable", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/jspdf-autotable") },
+
+      // class-variance-authority / clsx / tailwind-merge — pure utility libs
+      // with no React; exist in test-dashboard's own node_modules.  Adding
+      // them to include (below) prevents late discovery from changing the hash.
+      { find: "class-variance-authority", replacement: td("class-variance-authority") },
+      { find: "clsx",           replacement: td("clsx") },
+      { find: "tailwind-merge", replacement: td("tailwind-merge") },
 
       // ── Zustand (each ESM sub-path) ───────────────────────────────────────
       // Zustand lives only in dashboard/node_modules.
@@ -220,6 +258,11 @@ export default defineConfig({
       "embla-carousel-react",
       "react-day-picker",
       "react-resizable-panels",
+      // React-aware runtime-discovered packages — deduped to ensure only one
+      // copy of React is used regardless of which node_modules copy is loaded.
+      "recharts",
+      "cmdk",
+      "qrcode.react",
     ],
   },
   optimizeDeps: {
@@ -300,13 +343,26 @@ export default defineConfig({
       "embla-carousel-react",
       "react-day-picker",
       "react-resizable-panels",
-      // leaflet — dynamically imported by StorageLocationMapPicker (inside a
-      // useEffect).  Without a pre-bundle entry, Vite discovers it the first
-      // time EnvironmentalPageFull renders (even if the Features tab is not
-      // active, the static import chain pulls in the file), triggers a
-      // mid-render re-optimisation that briefly creates two React instances,
-      // and causes "Invalid hook call" on SlurryTab.
+      // leaflet — only in dashboard/node_modules; alias in resolve.alias lets
+      // Vite find it.  Without pre-bundling, StorageLocationMapPicker's dynamic
+      // import() triggers discovery mid-render → browserHash change → two React
+      // instances → "Invalid hook call" on SlurryTab.
       "leaflet",
+      // The packages below were previously discovered at runtime (visible in
+      // _metadata.json but absent from this list).  Any late discovery changes
+      // the global browserHash, re-keying every pre-bundled chunk URL.  Modules
+      // already loaded keep the old URL; newly loaded modules get the new URL →
+      // two React instances → "Invalid hook call" on whichever tab renders next.
+      // Adding them here forces Vite to pre-bundle all of them at startup so the
+      // browserHash never changes after the server is ready.
+      "recharts",
+      "cmdk",
+      "qrcode.react",
+      "jspdf",
+      "jspdf-autotable",
+      "class-variance-authority",
+      "clsx",
+      "tailwind-merge",
     ],
   },
   root: path.resolve(import.meta.dirname),
