@@ -789,6 +789,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["equipment-management"],
   },
   {
+    id: "environmental-feature",
+    title: "Register Environmental Feature",
+    description: "Register a hedgerow, pond, ditch, woodland, SSSI area or buffer strip — GPS location, dimensions and management practice",
+    icon: "map-pin",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    route: "/environmental-feature",
+    moduleKeys: ["environmental"],
+  },
+  {
     id: "environmental-event",
     title: "Environmental Management Event",
     description: "Log hedge trimming, pond clearance, mowing, scrub clearance and other habitat management activities",
@@ -971,8 +981,8 @@ const recordOptions: RecordOption[] = [
   },
   {
     id: "sfi-action",
-    title: "SFI / ELMs Action Event",
-    description: "Log a Sustainable Farming Incentive action with area, evidence notes and GPS location",
+    title: "SFI / ELMs Action",
+    description: "Log an SFI or ELMs agreement action — scheme, action code, land parcel, eligible area, payment rate and compliance status",
     icon: "sun",
     color: "#059669",
     bgColor: "#d1fae5",

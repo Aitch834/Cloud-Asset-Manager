@@ -142,6 +142,7 @@ export const STORAGE_KEYS = {
   FEED_RECORDS: "bde_feed_records",
   WATER_QUALITY_RECORDS: "bde_water_quality_records",
   ENVIRONMENTAL_EVENTS: "bde_environmental_events",
+  ENVIRONMENTAL_FEATURES: "bde_environmental_features",
   SEED_DRILLING_RECORDS: "bde_seed_drilling_records",
   WASTE_DISPOSAL_RECORDS: "bde_waste_disposal_records",
   FLY_TIPPING_REPORTS: "bde_fly_tipping_reports",

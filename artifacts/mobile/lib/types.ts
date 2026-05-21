@@ -1041,19 +1041,45 @@ export interface SlurryEvent {
 export interface SfiAction {
   id: string;
   farmId: string;
-  agreementReference: string;
+  schemeName: string;
+  agreementNumber: string;
+  agreementStartDate: string;
+  agreementEndDate: string;
+  managingBody: string;
+  agentOrAdvisorName: string;
+  status: string;
   actionCode: string;
-  actionName: string;
-  actionDate: string;
-  fieldName: string;
-  areaHa: string;
-  completedBy: string;
+  actionTitle: string;
+  landParcelReference: string;
+  eligibleAreaHa: string;
+  annualPaymentPerHa: string;
+  annualPaymentAmount: string;
+  complianceStatus: string;
+  lastEvidenceDate: string;
+  nextEvidenceDate: string;
   evidenceNotes: string;
   photoTaken: boolean;
-  paymentRate: string;
-  notes: string;
   latitude?: number;
   longitude?: number;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface EnvironmentalFeature {
+  id: string;
+  farmId: string;
+  featureType: string;
+  description: string;
+  areaHectares: string;
+  lengthMetres: string;
+  isEnclosed: boolean;
+  managementPractice: string;
+  dateRecorded: string;
+  latitude?: number;
+  longitude?: number;
+  photoTaken: boolean;
+  notes: string;
   createdAt: string;
   synced: boolean;
 }
