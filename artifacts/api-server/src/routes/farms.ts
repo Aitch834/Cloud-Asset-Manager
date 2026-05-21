@@ -25687,4 +25687,229 @@ router.patch("/farms/:farmId/lerap-assessments/:id/document", requireAuth, requi
   res.json({ record });
 });
 
+// ─── BVD Testing Register ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/bvd-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(bvdTestingRecordsTable).where(eq(bvdTestingRecordsTable.farmId, farmId)).orderBy(desc(bvdTestingRecordsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/bvd-tests", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(bvdTestingRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/bvd-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(bvdTestingRecordsTable).set({ ...sanitiseBody(req.body), farmId }).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/bvd-tests/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(bvdTestingRecordsTable).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/bvd-tests/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(bvdTestingRecordsTable).set({ documentPath, documentName }).where(and(eq(bvdTestingRecordsTable.id, id), eq(bvdTestingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Johne's Disease Monitoring ───────────────────────────────────────────────
+router.get("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(johnesMonitoringRecordsTable).where(eq(johnesMonitoringRecordsTable.farmId, farmId)).orderBy(desc(johnesMonitoringRecordsTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(johnesMonitoringRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(johnesMonitoringRecordsTable).set({ ...sanitiseBody(req.body), farmId }).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(johnesMonitoringRecordsTable).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/johnes-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(johnesMonitoringRecordsTable).set({ documentPath, documentName }).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Casualty / Emergency Slaughter Register ──────────────────────────────────
+router.get("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(casualtySlaughterRecordsTable).where(eq(casualtySlaughterRecordsTable.farmId, farmId)).orderBy(desc(casualtySlaughterRecordsTable.eventDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/casualty-slaughter", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(casualtySlaughterRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/casualty-slaughter/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(casualtySlaughterRecordsTable).set({ ...sanitiseBody(req.body), farmId }).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/casualty-slaughter/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(casualtySlaughterRecordsTable).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/casualty-slaughter/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(casualtySlaughterRecordsTable).set({ documentPath, documentName }).where(and(eq(casualtySlaughterRecordsTable.id, id), eq(casualtySlaughterRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Campylobacter Monitoring Programme ──────────────────────────────────────
+router.get("/farms/:farmId/campylobacter-monitoring", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(campylobacterMonitoringTable).where(eq(campylobacterMonitoringTable.farmId, farmId)).orderBy(desc(campylobacterMonitoringTable.sampleDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/campylobacter-monitoring", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(campylobacterMonitoringTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/campylobacter-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(campylobacterMonitoringTable).set({ ...sanitiseBody(req.body), farmId }).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/campylobacter-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(campylobacterMonitoringTable).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/campylobacter-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(campylobacterMonitoringTable).set({ documentPath, documentName }).where(and(eq(campylobacterMonitoringTable.id, id), eq(campylobacterMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Salmonella Monitoring Register (Pigs) ────────────────────────────────────
+router.get("/farms/:farmId/pig-salmonella-monitoring", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(salmMonitoringTable).where(eq(salmMonitoringTable.farmId, farmId)).orderBy(desc(salmMonitoringTable.samplingPeriodStart));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/pig-salmonella-monitoring", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(salmMonitoringTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/pig-salmonella-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(salmMonitoringTable).set({ ...sanitiseBody(req.body), farmId }).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/pig-salmonella-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(salmMonitoringTable).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/pig-salmonella-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db.update(salmMonitoringTable).set({ documentPath, documentName }).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
 export default router;

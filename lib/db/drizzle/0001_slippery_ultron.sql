@@ -1,0 +1,1 @@
+ALTER TABLE "casualty_slaughter_records" ADD COLUMN "rcvs_number" text;
