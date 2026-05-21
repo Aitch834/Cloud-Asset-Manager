@@ -153,6 +153,17 @@ export default defineConfig({
       { find: "react-hook-form",       replacement: td("react-hook-form") },
       { find: "wouter",                replacement: td("wouter") },
 
+      // ── leaflet ──────────────────────────────────────────────────────────
+      // Lives only in dashboard/node_modules.  Without this alias the
+      // optimizeDeps.include entry below silently fails (Vite can't resolve
+      // "leaflet" from test-dashboard's own node_modules), so leaflet is never
+      // pre-bundled at startup.  Vite then discovers it mid-render when
+      // StorageLocationMapPicker.tsx is first served (its dynamic import() is
+      // visible to Vite's static analyser), triggers a forced re-optimisation,
+      // rehashes ALL pre-bundled chunks including React, and briefly creates
+      // two React instances — causing "Invalid hook call" on SlurryTab.
+      { find: "leaflet", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/leaflet") },
+
       // ── Zustand (each ESM sub-path) ───────────────────────────────────────
       // Zustand lives only in dashboard/node_modules.
       { find: "zustand/vanilla",     replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/vanilla.mjs") },

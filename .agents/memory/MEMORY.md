@@ -1,1 +1,1 @@
-- [test-dashboard Vite alias rule](test-dashboard-vite-alias.md) — every React-aware package and any package with a dynamic import() must be in optimizeDeps.include or it triggers mid-render re-opt → two React instances → "Invalid hook call".
+- [Leaflet alias fix](leaflet-alias-fix.md) — packages only in dashboard/node_modules need BOTH alias AND optimizeDeps.include or the include silently fails, causing mid-render re-optimisation → two React instances → "Invalid hook call".
