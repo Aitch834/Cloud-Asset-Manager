@@ -1,1 +1,1 @@
-- [test-dashboard Vite hash crash](test-dashboard-vite-hash-crash.md) — root cause + fix for "Invalid hook call" from two React instances when dep-bundle browserHash diverges after server restart.
+- [Test-dashboard React deduplication](test-dashboard-react-dedup.md) — SlurryTab "Invalid hook call" caused by stale dep cache; fix is keeping all hook-using packages in optimizeDeps.include AND extracting very large components (>2000 lines) into separate files.
