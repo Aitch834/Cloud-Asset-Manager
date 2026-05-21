@@ -2009,7 +2009,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
 
   const spreadQ = useQuery({
     queryKey: ["slurry-spreading", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/slurry-spreading`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}/slurry-spreading-records`, { credentials: "include" }).then(r => r.json()),
     select: (d: any) => d.records ?? [],
   });
 
@@ -2029,7 +2029,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   });
 
   const saveSpread = useMutation({
-    mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/slurry-spreading`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
+    mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/slurry-spreading-records`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["slurry-spreading", farmId] }); setSpreadOpen(false); setSpreadForm({}); toast({ title: "Spreading record saved" }); },
     onError: () => toast({ title: "Failed", variant: "destructive" }),
   });

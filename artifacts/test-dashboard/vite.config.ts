@@ -289,6 +289,13 @@ export default defineConfig({
       "embla-carousel-react",
       "react-day-picker",
       "react-resizable-panels",
+      // leaflet — dynamically imported by StorageLocationMapPicker (inside a
+      // useEffect).  Without a pre-bundle entry, Vite discovers it the first
+      // time EnvironmentalPageFull renders (even if the Features tab is not
+      // active, the static import chain pulls in the file), triggers a
+      // mid-render re-optimisation that briefly creates two React instances,
+      // and causes "Invalid hook call" on SlurryTab.
+      "leaflet",
     ],
   },
   root: path.resolve(import.meta.dirname),
