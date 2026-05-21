@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry";
 interface LatLng { lat: number; lng: number; }
@@ -510,12 +511,15 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [pin, setPin] = useState<LatLng | null>(null);
-  const [form, setForm] = useState<any>({
+  const emptyForm = () => ({
     featureType: "", description: "", areaHectares: "", lengthMetres: "",
     managementPractice: "", dateRecorded: "", notes: "", fieldId: "", isEnclosed: false,
   });
+  const [form, setForm] = useState<any>(emptyForm());
 
   const fieldsQuery = useQuery({
     queryKey: ["fields", farmId],
@@ -536,12 +540,18 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/environmental-features`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }),
-    onSuccess: () => { toast({ title: "Feature saved" }); invalidate(); setAddOpen(false); resetForm(); },
+    onSuccess: () => { toast({ title: "Feature saved" }); invalidate(); setAddOpen(false); setForm(emptyForm()); setPin(null); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/environmental-features/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+    onSuccess: () => { toast({ title: "Feature updated" }); invalidate(); setEditRecord(null); setForm(emptyForm()); setPin(null); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -550,11 +560,29 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function resetForm() {
-    setForm({ featureType: "", description: "", areaHectares: "", lengthMetres: "", managementPractice: "", dateRecorded: "", notes: "", fieldId: "", isEnclosed: false });
-    setPin(null);
+  function openEdit(r: any) {
+    setForm({
+      featureType: r.featureType ?? "",
+      description: r.description ?? "",
+      areaHectares: r.areaHectares != null ? String(parseFloat(r.areaHectares)) : "",
+      lengthMetres: r.lengthMetres != null ? String(parseFloat(r.lengthMetres)) : "",
+      managementPractice: r.managementPractice ?? "",
+      dateRecorded: r.dateRecorded ? new Date(r.dateRecorded).toISOString().slice(0, 10) : "",
+      notes: r.notes ?? "",
+      fieldId: r.fieldId != null ? String(r.fieldId) : "",
+      isEnclosed: !!r.isEnclosed,
+    });
+    setPin(r.latitude && r.longitude ? { lat: parseFloat(r.latitude), lng: parseFloat(r.longitude) } : null);
+    setEditRecord(r);
   }
 
+  function handleSubmit() {
+    const payload = { ...form, latitude: pin ? String(pin.lat) : null, longitude: pin ? String(pin.lng) : null };
+    if (editRecord) updateMut.mutate({ id: editRecord.id, body: payload });
+    else createMut.mutate(payload);
+  }
+
+  const dialogOpen = addOpen || !!editRecord;
   const records: any[] = q.data ?? [];
   const totalHa = records.reduce((s, r) => s + (r.areaHectares ? parseFloat(r.areaHectares) : 0), 0);
   const totalM = records.reduce((s, r) => s + (r.lengthMetres ? parseFloat(r.lengthMetres) : 0), 0);
@@ -579,16 +607,10 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-2"
-          onClick={() => printFeatureRegister(records, schemes, farmId)}
-        >
-          <Printer size={14} />
-          Print Feature Register
+        <Button size="sm" variant="outline" className="gap-2" onClick={() => printFeatureRegister(records, schemes, farmId)}>
+          <Printer size={14} />Print Feature Register
         </Button>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm(emptyForm()); setPin(null); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Add Feature
         </Button>
       </div>
@@ -621,22 +643,20 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.managementPractice || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem" }}>
                       {hasGps ? (
-                        <a
-                          href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=17/${r.latitude}/${r.longitude}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#2563eb", fontFamily: "monospace", textDecoration: "none" }}
-                        >
-                          <MapPin size={11} />
-                          {parseFloat(r.latitude).toFixed(4)}, {parseFloat(r.longitude).toFixed(4)}
+                        <a href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=17/${r.latitude}/${r.longitude}`}
+                          target="_blank" rel="noreferrer"
+                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#2563eb", fontFamily: "monospace", textDecoration: "none" }}>
+                          <MapPin size={11} />{parseFloat(r.latitude).toFixed(4)}, {parseFloat(r.longitude).toFixed(4)}
                         </a>
-                      ) : (
-                        <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Not set</span>
-                      )}
+                      ) : <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Not set</span>}
                     </td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.dateRecorded)}</td>
                     <td style={{ padding: "0.5rem" }}>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={13} /></button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -646,11 +666,11 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      {/* Add / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setPin(null); } }}>
         <DialogContent style={{ maxWidth: "56rem" }}>
-          <DialogHeader><DialogTitle>Add Environmental Feature</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Environmental Feature" : "Add Environmental Feature"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
-            {/* Left column — form fields */}
             <div className="space-y-3">
               <div><Label>Feature Type <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.featureType} onValueChange={v => setForm((f: any) => ({ ...f, featureType: v }))}>
@@ -669,7 +689,6 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 <div><Label>Length (metres)</Label><Input type="number" step="0.1" min="0" value={form.lengthMetres} onChange={e => setForm((f: any) => ({ ...f, lengthMetres: e.target.value }))} /></div>
               </div>
               <div><Label>Management Practice</Label><Input placeholder="e.g. Annual trim, no autumn cutting" value={form.managementPractice} onChange={e => setForm((f: any) => ({ ...f, managementPractice: e.target.value }))} /></div>
-              {/* Field association */}
               <div>
                 <Label>Associated Field <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span></Label>
                 <Select value={form.fieldId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, fieldId: v === "__none__" ? "" : v, isEnclosed: v === "__none__" ? false : f.isEnclosed }))}>
@@ -694,43 +713,71 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 </div>
               )}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              {editRecord ? (
+                <div>
+                  <Label className="block mb-1.5">Photos &amp; Attachments</Label>
+                  <RecordAttachments farmId={farmId} recordType="environmental_feature" recordId={editRecord.id} compact />
+                </div>
+              ) : (
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", fontStyle: "italic" }}>
+                  📎 Save the feature first, then re-open it to attach photos or documents.
+                </p>
+              )}
             </div>
-
-            {/* Right column — map */}
             <div>
-              <Label className="flex items-center gap-1.5 mb-2">
-                <MapPin size={14} className="text-muted-foreground" />
-                GPS Pin Location
-              </Label>
-              <StorageLocationMapPicker
-                key={addOpen ? "open" : "closed"}
-                value={pin}
-                onChange={setPin}
-                mapHeight={400}
-              />
+              <Label className="flex items-center gap-1.5 mb-2"><MapPin size={14} className="text-muted-foreground" />GPS Pin Location</Label>
+              <StorageLocationMapPicker key={dialogOpen ? "open" : "closed"} value={pin} onChange={setPin} mapHeight={400} />
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button
-              onClick={() => createMut.mutate({
-                ...form,
-                latitude: pin ? String(pin.lat) : null,
-                longitude: pin ? String(pin.lng) : null,
-              })}
-              disabled={!form.featureType || !form.dateRecorded || createMut.isPending}
-            >
-              Save Feature
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setPin(null); }}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={!form.featureType || !form.dateRecorded || createMut.isPending || updateMut.isPending}>
+              {editRecord ? "Save Changes" : "Save Feature"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* View Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Leaf size={16} className="text-green-600" />Environmental Feature</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
+                {([
+                  { label: "Feature Type", value: <FeatureTypeLabel type={viewRecord.featureType} /> },
+                  { label: "Date Recorded", value: fmt(viewRecord.dateRecorded) },
+                  { label: "Description", value: viewRecord.description || "—", full: true },
+                  { label: "Area", value: viewRecord.areaHectares ? `${parseFloat(viewRecord.areaHectares).toFixed(2)} ha` : "—" },
+                  { label: "Length", value: viewRecord.lengthMetres ? `${parseFloat(viewRecord.lengthMetres).toFixed(0)} m` : "—" },
+                  { label: "Management Practice", value: viewRecord.managementPractice || "—", full: true },
+                  { label: "GPS Location", value: viewRecord.latitude && viewRecord.longitude ? `${parseFloat(viewRecord.latitude).toFixed(5)}, ${parseFloat(viewRecord.longitude).toFixed(5)}` : "Not set" },
+                  { label: "Notes", value: viewRecord.notes || "—", full: true },
+                ] as { label: string; value: React.ReactNode; full?: boolean }[]).map(({ label, value, full }) => (
+                  <div key={label} style={full ? { gridColumn: "1 / -1" } : {}}>
+                    <p style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 3 }}>{label}</p>
+                    <div style={{ fontSize: "0.875rem", color: "#111827" }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 6 }}>Photos &amp; Attachments</p>
+                <RecordAttachments farmId={farmId} recordType="environmental_feature" recordId={viewRecord.id} />
+              </div>
+            </div>
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Feature</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Feature</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Delete this environmental feature record?</p>
+          <p className="text-sm text-gray-600 py-2">Delete this environmental feature record? This cannot be undone.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -979,6 +1026,14 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  const plannerMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/planner-events`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => toast({ title: "Added to Week Ahead Planner" }),
+    onError: () => toast({ title: "Failed to add to planner", variant: "destructive" }),
+  });
+
   const records: any[] = q.data ?? [];
   const lastPass = records.find(r => r.outcome === "pass" || r.outcome === "advisory");
 
@@ -1073,7 +1128,20 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.assessorOrganisation || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}><OutcomeBadge outcome={r.outcome} /></td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 220, fontSize: "0.8rem" }}>{r.conditions || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.nextAssessmentDue)}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>
+                    {r.nextAssessmentDue ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        {fmt(r.nextAssessmentDue)}
+                        <button
+                          onClick={() => plannerMut.mutate({ title: "Environmental Assessment Due", eventDate: r.nextAssessmentDue, colour: "blue", description: r.assessorOrganisation ? `Assessor: ${r.assessorOrganisation}` : undefined })}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#3b82f6", padding: 2, lineHeight: 1 }}
+                          title="Add to Week Ahead Planner"
+                        >
+                          <CalendarDays size={12} />
+                        </button>
+                      </div>
+                    ) : "—"}
+                  </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160, fontSize: "0.8rem" }}>{r.notes || "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
                     <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
@@ -1586,6 +1654,10 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
                 </div>
               );
             })()}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 6 }}>Photos &amp; Attachments</div>
+              <RecordAttachments farmId={farmId} recordType="environmental_management_event" recordId={viewRecord.id} />
+            </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Event</Button>
@@ -1821,36 +1893,135 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
 }
 
 // ─── SFI Actions Tab ────────────────────────────────────────────────────────────
+
+const SFI_SCHEME_NAMES = [
+  "SFI 2023", "SFI 2024", "SFI Pilot",
+  "Countryside Stewardship (Higher Tier)",
+  "Countryside Stewardship (Mid Tier)",
+  "England Woodland Creation Offer (EWCO)",
+  "Farming in Protected Landscapes (FiPL)",
+  "ELMs Pilot",
+];
+
+const SFI_MANAGING_BODIES = [
+  "Rural Payments Agency (RPA)",
+  "Natural England",
+  "Forestry Commission",
+];
+
+const COMMON_ACTION_CODES: { code: string; title: string }[] = [
+  { code: "SAM1", title: "Assess soil, produce a soil management plan and test soil organic matter" },
+  { code: "SAM2", title: "Multi-species winter cover crop" },
+  { code: "SAM3", title: "Herbal leys" },
+  { code: "NUM1", title: "Assess nutrient management and produce a nutrient management plan" },
+  { code: "NUM2", title: "Optimise application of inorganic fertiliser" },
+  { code: "NUM3", title: "Precision application of nitrogen to agricultural land" },
+  { code: "IGL1", title: "Take improved grassland field corners and blocks out of management" },
+  { code: "IGL2", title: "Manage grassland with very low nutrient inputs (outside SDAs)" },
+  { code: "IGL3", title: "Manage grassland with low nutrient inputs (outside SDAs)" },
+  { code: "AHL1", title: "Arable and horticultural land: assess soil, produce a soil management plan" },
+  { code: "AHL2", title: "Arable and horticultural land: establish and maintain a year-round green cover" },
+  { code: "AHL3", title: "Arable and horticultural land: establish and maintain temporary grassland" },
+  { code: "IPM1", title: "Assess integrated pest management and produce a plan" },
+  { code: "IPM2", title: "Insect monitoring traps" },
+  { code: "IPM3", title: "Companion cropping on arable and horticultural land" },
+  { code: "IPM4", title: "Cultivated areas for arable plants" },
+  { code: "HRW1", title: "Manage hedgerows" },
+  { code: "HRW2", title: "Add woody features to hedgerows" },
+  { code: "HRW3", title: "Manage hedgerow trees on farms" },
+  { code: "WBD1", title: "Create or restore bunds, dams or scrapes" },
+  { code: "FG1", title: "Manage farmland around ponds" },
+  { code: "OFC1", title: "Manage or create traditional farm orchards" },
+];
+
+interface SFIActionRow {
+  id?: number;
+  actionCode: string;
+  actionTitle: string;
+  landParcelReference: string;
+  eligibleAreaHa: string;
+  annualPaymentPerHa: string;
+  annualPaymentAmount: string;
+  complianceStatus: string;
+  notes: string;
+}
+
+function emptySFIAction(): SFIActionRow {
+  return { actionCode: "", actionTitle: "", landParcelReference: "", eligibleAreaHa: "", annualPaymentPerHa: "", annualPaymentAmount: "", complianceStatus: "compliant", notes: "" };
+}
+
 function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<Record<string, string>>({ status: "Active" });
+  const [actions, setActions] = useState<SFIActionRow[]>([]);
+  const [deletedActionIds, setDeletedActionIds] = useState<number[]>([]);
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [pendingPlannerDates, setPendingPlannerDates] = useState<{ start: string | null; end: string | null; schemeName: string } | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
   const { data: agreements = [], isLoading } = useQuery({
     queryKey: ["sfi-agreements", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/sfi-agreements`, { credentials: "include" }).then(r => r.json()),
-    select: (d: any) => d.records ?? [],
+    select: (d: any) => Array.isArray(d) ? d : (d.records ?? []),
+  });
+
+  const { data: allActions = [] } = useQuery({
+    queryKey: ["sfi-actions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sfi-actions`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => Array.isArray(d) ? d : (d.records ?? []),
+  });
+
+  const plannerMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/planner-events`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => toast({ title: "Date added to Week Ahead Planner" }),
+    onError: () => toast({ title: "Failed to add to planner", variant: "destructive" }),
   });
 
   const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
+    mutationFn: async (body: Record<string, unknown>) => {
       const url = editing ? `/api/farms/${farmId}/sfi-agreements/${editing.id}` : `/api/farms/${farmId}/sfi-agreements`;
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const agreement = await res.json();
+      const agreementId = agreement.id;
+      await Promise.all(deletedActionIds.map(id =>
+        fetch(`/api/farms/${farmId}/sfi-actions/${id}`, { method: "DELETE", credentials: "include" })
+      ));
+      await Promise.all(actions.map(action =>
+        action.id
+          ? fetch(`/api/farms/${farmId}/sfi-actions/${action.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ ...action, agreementId, farmId }) })
+          : fetch(`/api/farms/${farmId}/sfi-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ ...action, agreementId, farmId }) })
+      ));
+      return { startDate: body.agreementStartDate as string | null, endDate: body.agreementEndDate as string | null, schemeName: String(body.schemeName ?? body.agreementNumber ?? "") };
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }); setOpen(false); setForm({}); setEditing(null); toast({ title: "Agreement saved" }); },
+    onSuccess: ({ startDate, endDate, schemeName }) => {
+      qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] });
+      qc.invalidateQueries({ queryKey: ["sfi-actions", farmId] });
+      setOpen(false); setForm({ status: "Active" }); setEditing(null); setActions([]); setDeletedActionIds([]);
+      toast({ title: "Agreement saved" });
+      if (startDate || endDate) {
+        setPendingPlannerDates({ start: startDate || null, end: endDate || null, schemeName });
+        setPlannerOpen(true);
+      }
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }),
+    mutationFn: async (id: number) => {
+      const acts = (allActions as any[]).filter((a: any) => a.agreementId === id);
+      await Promise.all(acts.map((a: any) => fetch(`/api/farms/${farmId}/sfi-actions/${a.id}`, { method: "DELETE", credentials: "include" })));
+      await fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE", credentials: "include" });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }); qc.invalidateQueries({ queryKey: ["sfi-actions", farmId] }); },
   });
 
   const rows = agreements as Record<string, unknown>[];
@@ -1858,83 +2029,346 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
   useEffect(() => {
     if (!openId || autoOpened.current || rows.length === 0) return;
     const target = rows.find(r => Number(r.id) === openId);
-    if (target) {
-      autoOpened.current = true;
-      setTimeout(() => setViewRecord(target), 100);
-    }
+    if (target) { autoOpened.current = true; setTimeout(() => setViewRecord(target), 100); }
   }, [openId, rows]);
+
+  function openAdd() {
+    setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); setOpen(true);
+  }
+
+  function openEdit(r: Record<string, unknown>) {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v != null ? String(v) : ""])));
+    const agreementActions = (allActions as any[]).filter((a: any) => a.agreementId === Number(r.id));
+    setActions(agreementActions.map((a: any): SFIActionRow => ({
+      id: a.id, actionCode: a.actionCode ?? "", actionTitle: a.actionTitle ?? "",
+      landParcelReference: a.landParcelReference ?? "",
+      eligibleAreaHa: a.eligibleAreaHa != null ? String(a.eligibleAreaHa) : "",
+      annualPaymentPerHa: a.annualPaymentPerHa != null ? String(a.annualPaymentPerHa) : "",
+      annualPaymentAmount: a.annualPaymentAmount != null ? String(a.annualPaymentAmount) : "",
+      complianceStatus: a.complianceStatus ?? "compliant", notes: a.notes ?? "",
+    })));
+    setDeletedActionIds([]); setOpen(true);
+  }
+
+  function updateActionRow(idx: number, field: keyof SFIActionRow, value: string) {
+    setActions(prev => prev.map((a, i) => {
+      if (i !== idx) return a;
+      const updated = { ...a, [field]: value };
+      if ((field === "eligibleAreaHa" || field === "annualPaymentPerHa") && !updated.annualPaymentAmount) {
+        const area = parseFloat(updated.eligibleAreaHa); const rate = parseFloat(updated.annualPaymentPerHa);
+        if (!isNaN(area) && !isNaN(rate)) updated.annualPaymentAmount = (area * rate).toFixed(2);
+      }
+      if (field === "actionCode" && !updated.actionTitle) {
+        const known = COMMON_ACTION_CODES.find(c => c.code.toUpperCase() === value.toUpperCase());
+        if (known) updated.actionTitle = known.title;
+      }
+      return updated;
+    }));
+  }
+
+  function removeActionRow(idx: number) {
+    const action = actions[idx];
+    if (action.id) setDeletedActionIds(prev => [...prev, action.id!]);
+    setActions(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  const calcTotal = actions.reduce((s, a) => { const v = parseFloat(a.annualPaymentAmount); return s + (isNaN(v) ? 0 : v); }, 0);
+
+  const statusColors: Record<string, string> = {
+    Active: "bg-green-100 text-green-700", Applied: "bg-blue-100 text-blue-700",
+    Withdrawn: "bg-gray-100 text-gray-600", Expired: "bg-red-100 text-red-600",
+    "Under Query": "bg-amber-100 text-amber-700",
+  };
+  const complianceColors: Record<string, string> = {
+    compliant: "bg-green-100 text-green-700", "non-compliant": "bg-red-100 text-red-700",
+    "under-review": "bg-amber-100 text-amber-700", "pending-assessment": "bg-blue-100 text-blue-700",
+  };
+
+  const isSchemeNameCustom = !SFI_SCHEME_NAMES.includes(form.schemeName ?? "");
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="font-semibold">SFI / ELMs Actions & Agreements</h3>
-          <p className="text-sm text-muted-foreground">Record Sustainable Farming Incentive agreements, action codes, areas applied, and annual payments.</p>
+          <h3 className="font-semibold">SFI / ELMs Actions &amp; Agreements</h3>
+          <p className="text-sm text-muted-foreground">Record Sustainable Farming Incentive and Environmental Land Management agreements, action codes, areas and annual payments.</p>
         </div>
         <div className="flex gap-2">
-          {rows.length > 0 && (
-            <Button variant="outline" onClick={() => printSFISummary(rows, farmId)}>
-              <Printer className="w-4 h-4 mr-2" /> Print Summary
-            </Button>
-          )}
-          <Button onClick={() => { setEditing(null); setForm({ status: "Active" }); setOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Add Agreement
-          </Button>
+          {rows.length > 0 && <Button variant="outline" onClick={() => printSFISummary(rows, farmId)}><Printer className="w-4 h-4 mr-2" />Print Summary</Button>}
+          <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Agreement</Button>
         </div>
       </div>
+
       {isLoading ? <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div> : (
         <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
           {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic py-8 text-center">No SFI agreements recorded yet. Add your first agreement above.</p>
+            <p className="text-sm text-muted-foreground italic py-8 text-center">No SFI / ELMs agreements recorded yet. Add your first agreement above.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
-                  <tr>{["Agreement No.", "Start Date", "End Date", "Status", "Application Ref", "Annual Payment", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                  <tr>{["Scheme", "Agreement No.", "Start", "End", "Status", "Actions", "Annual Payment", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
                 </thead>
-                <tbody className="divide-y">{rows.map((r) => (
-                  <tr key={Number(r.id)} ref={(el) => { if (el) rowRefs.current.set(Number(r.id), el as HTMLElement); }} className={`transition-colors${hlId === Number(r.id) ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-black/5"}`}>
-                    <td className="px-4 py-3 font-mono text-xs">{String(r.agreementNumber ?? "—")}</td>
-                    <td className="px-4 py-3">{r.startDate ? new Date(r.startDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                    <td className="px-4 py-3">{r.endDate ? new Date(r.endDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${(r.status as string) === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>{String(r.status ?? "—")}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{String(r.applicationReference ?? "—")}</td>
-                    <td className="px-4 py-3">{r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toFixed(2)}` : "—"}</td>
-                    <td className="px-4 py-3 text-right space-x-1">
-                      <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this SFI/ELMs agreement? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                    </td>
-                  </tr>
-                ))}</tbody>
+                <tbody className="divide-y">
+                  {rows.map((r) => {
+                    const agreementActions = (allActions as any[]).filter((a: any) => a.agreementId === Number(r.id));
+                    return (
+                      <tr key={Number(r.id)} ref={(el) => { if (el) rowRefs.current.set(Number(r.id), el as HTMLElement); }}
+                        className={`transition-colors${hlId === Number(r.id) ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-black/5"}`}>
+                        <td className="px-4 py-3 font-medium">{String(r.schemeName ?? "—")}</td>
+                        <td className="px-4 py-3 font-mono text-xs">{String(r.agreementNumber ?? "—")}</td>
+                        <td className="px-4 py-3 text-sm">{r.agreementStartDate ? new Date(r.agreementStartDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-4 py-3 text-sm">{r.agreementEndDate ? new Date(r.agreementEndDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[String(r.status)] ?? "bg-gray-100 text-gray-600"}`}>{String(r.status ?? "—")}</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">{agreementActions.length > 0 ? `${agreementActions.length} code${agreementActions.length !== 1 ? "s" : ""}` : "—"}</td>
+                        <td className="px-4 py-3">{r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "—"}</td>
+                        <td className="px-4 py-3 text-right space-x-1">
+                          <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => openEdit(r)} title="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this SFI/ELMs agreement and all its action codes? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               </table>
             </div>
           )}
         </div>
       )}
+
+      {/* View Dialog */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><Leaf className="w-4 h-4 text-green-600" />SFI / ELMs Agreement</DialogTitle></DialogHeader>
-            <div className="space-y-3 text-sm py-1">
+            <div className="space-y-4 text-sm py-1">
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {!!viewRecord.schemeName && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Scheme</p><p className="font-semibold">{String(viewRecord.schemeName)}</p></div>}
                 {!!viewRecord.agreementNumber && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Agreement No.</p><p className="font-mono">{String(viewRecord.agreementNumber)}</p></div>}
-                {!!viewRecord.applicationReference && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Application Ref</p><p className="font-mono">{String(viewRecord.applicationReference)}</p></div>}
-                {!!viewRecord.startDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Start Date</p><p>{new Date(viewRecord.startDate as string).toLocaleDateString("en-GB")}</p></div>}
-                {!!viewRecord.endDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">End Date</p><p>{new Date(viewRecord.endDate as string).toLocaleDateString("en-GB")}</p></div>}
-                <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Status</p><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${String(viewRecord.status) === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>{String(viewRecord.status ?? "—")}</span></div>
-                {!!viewRecord.totalAnnualPayment && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Annual Payment</p><p>£{Number(viewRecord.totalAnnualPayment).toFixed(2)}</p></div>}
+                {!!viewRecord.agreementStartDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Start Date</p><p>{new Date(viewRecord.agreementStartDate as string).toLocaleDateString("en-GB")}</p></div>}
+                {!!viewRecord.agreementEndDate && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">End Date</p><p>{new Date(viewRecord.agreementEndDate as string).toLocaleDateString("en-GB")}</p></div>}
+                <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Status</p><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[String(viewRecord.status)] ?? "bg-gray-100 text-gray-600"}`}>{String(viewRecord.status ?? "—")}</span></div>
+                {!!viewRecord.totalAnnualPayment && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Annual Payment</p><p className="font-semibold">£{Number(viewRecord.totalAnnualPayment).toLocaleString("en-GB", { minimumFractionDigits: 2 })}</p></div>}
+                {!!viewRecord.managingBody && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Managing Body</p><p>{String(viewRecord.managingBody)}</p></div>}
+                {!!viewRecord.agentOrAdvisorName && <div><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Agent / Advisor</p><p>{String(viewRecord.agentOrAdvisorName)}</p></div>}
+                {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Notes</p><p className="text-muted-foreground">{String(viewRecord.notes)}</p></div>}
               </div>
+              {(() => {
+                const acts = (allActions as any[]).filter((a: any) => a.agreementId === Number(viewRecord.id));
+                if (!acts.length) return null;
+                return (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-medium mb-2">Action Codes ({acts.length})</p>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>{["Code", "Action Title", "Parcel Ref", "Area (ha)", "Rate (£/ha)", "Annual (£)", "Status"].map(h => <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground">{h}</th>)}</tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {acts.map((a: any) => (
+                            <tr key={a.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-mono font-semibold text-green-700">{a.actionCode}</td>
+                              <td className="px-3 py-2 text-muted-foreground max-w-48">{a.actionTitle}</td>
+                              <td className="px-3 py-2 font-mono">{a.landParcelReference || "—"}</td>
+                              <td className="px-3 py-2">{a.eligibleAreaHa ? Number(a.eligibleAreaHa).toFixed(2) : "—"}</td>
+                              <td className="px-3 py-2">{a.annualPaymentPerHa ? `£${Number(a.annualPaymentPerHa).toFixed(2)}` : "—"}</td>
+                              <td className="px-3 py-2 font-semibold">{a.annualPaymentAmount ? `£${Number(a.annualPaymentAmount).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "—"}</td>
+                              <td className="px-3 py-2"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium ${complianceColors[a.complianceStatus] ?? "bg-gray-100 text-gray-600"}`}>{(a.complianceStatus ?? "").replace(/-/g, " ")}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { const r = viewRecord; setViewRecord(null); setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}>Edit</Button>
+              <Button variant="outline" onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
               <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); } }}>
+        <DialogContent style={{ maxWidth: "56rem", maxHeight: "90vh", overflow: "auto" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit SFI / ELMs Agreement" : "Add SFI / ELMs Agreement"}</DialogTitle></DialogHeader>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 pb-1 border-b">Agreement Details</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Scheme Name <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={SFI_SCHEME_NAMES.includes(form.schemeName ?? "") ? (form.schemeName ?? "") : "Other"}
+                  onValueChange={v => setForm(f => ({ ...f, schemeName: v === "Other" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select scheme…" /></SelectTrigger>
+                  <SelectContent>
+                    {SFI_SCHEME_NAMES.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    <SelectItem value="Other">Other…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {isSchemeNameCustom && (
+                  <Input className="mt-1.5" placeholder="Enter scheme name" value={form.schemeName ?? ""} onChange={e => setForm(f => ({ ...f, schemeName: e.target.value }))} />
+                )}
+              </div>
+              <div><Label>Agreement Number <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. AG00012345" value={form.agreementNumber ?? ""} onChange={e => setForm(f => ({ ...f, agreementNumber: e.target.value }))} /></div>
+              <div><Label>Start Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.agreementStartDate ?? ""} onChange={e => setForm(f => ({ ...f, agreementStartDate: e.target.value }))} /></div>
+              <div><Label>End Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.agreementEndDate ?? ""} onChange={e => setForm(f => ({ ...f, agreementEndDate: e.target.value }))} /></div>
+              <div>
+                <Label>Status <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={form.status ?? "Active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{["Active", "Applied", "Withdrawn", "Expired", "Under Query"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Total Annual Payment (£)</Label>
+                <Input type="number" step="0.01" placeholder={calcTotal > 0 ? `${calcTotal.toFixed(2)} (calculated)` : "e.g. 5000.00"} value={form.totalAnnualPayment ?? ""} onChange={e => setForm(f => ({ ...f, totalAnnualPayment: e.target.value }))} />
+                {calcTotal > 0 && !form.totalAnnualPayment && (
+                  <p className="text-xs text-muted-foreground mt-0.5">From action codes: <span className="font-medium text-green-700">£{calcTotal.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</span>{" "}
+                    <button type="button" className="text-blue-600 underline" onClick={() => setForm(f => ({ ...f, totalAnnualPayment: calcTotal.toFixed(2) }))}>Use this</button>
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label>Managing Body</Label>
+                <Select value={SFI_MANAGING_BODIES.includes(form.managingBody ?? "") ? (form.managingBody ?? "") : form.managingBody ? "Other" : ""}
+                  onValueChange={v => setForm(f => ({ ...f, managingBody: v === "Other" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="e.g. Rural Payments Agency…" /></SelectTrigger>
+                  <SelectContent>
+                    {SFI_MANAGING_BODIES.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    <SelectItem value="Other">Other…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.managingBody !== undefined && !SFI_MANAGING_BODIES.includes(form.managingBody) && (
+                  <Input className="mt-1.5" placeholder="Managing body name" value={form.managingBody ?? ""} onChange={e => setForm(f => ({ ...f, managingBody: e.target.value }))} />
+                )}
+              </div>
+              <div><Label>Agent / Advisor Name</Label><Input placeholder="Name of agent or farm advisor" value={form.agentOrAdvisorName ?? ""} onChange={e => setForm(f => ({ ...f, agentOrAdvisorName: e.target.value }))} /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} placeholder="Any additional notes or conditions…" value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-3 pb-1 border-b">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action Codes</p>
+              <Button size="sm" variant="outline" type="button" onClick={() => setActions(prev => [...prev, emptySFIAction()])}>
+                <Plus className="w-3.5 h-3.5 mr-1" />Add Action Code
+              </Button>
+            </div>
+            {actions.length === 0 ? (
+              <p className="text-sm text-muted-foreground/70 italic text-center py-3">No action codes added yet. Click "Add Action Code" to record the SFI actions under this agreement.</p>
+            ) : (
+              <div className="space-y-2">
+                {actions.map((a, idx) => (
+                  <div key={idx} className="border rounded-lg p-3 bg-gray-50/50">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <Label className="text-xs">Code <span style={{ color: "#ef4444" }}>*</span></Label>
+                        <input list={`sfi-codes-${idx}`} value={a.actionCode}
+                          onChange={e => updateActionRow(idx, "actionCode", e.target.value.toUpperCase())}
+                          placeholder="e.g. SAM1"
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-ring" />
+                        <datalist id={`sfi-codes-${idx}`}>
+                          {COMMON_ACTION_CODES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.title}</option>)}
+                        </datalist>
+                      </div>
+                      <div className="col-span-4">
+                        <Label className="text-xs">Action Title <span style={{ color: "#ef4444" }}>*</span></Label>
+                        <Input className="h-8 text-xs" placeholder="Description of the action" value={a.actionTitle} onChange={e => updateActionRow(idx, "actionTitle", e.target.value)} />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Parcel Ref</Label>
+                        <Input className="h-8 text-xs font-mono" placeholder="e.g. TL1234" value={a.landParcelReference} onChange={e => updateActionRow(idx, "landParcelReference", e.target.value)} />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">Area (ha)</Label>
+                        <Input type="number" step="0.01" className="h-8 text-xs" value={a.eligibleAreaHa} onChange={e => updateActionRow(idx, "eligibleAreaHa", e.target.value)} />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">£/ha</Label>
+                        <Input type="number" step="0.01" className="h-8 text-xs" value={a.annualPaymentPerHa} onChange={e => updateActionRow(idx, "annualPaymentPerHa", e.target.value)} />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">Annual (£)</Label>
+                        <Input type="number" step="0.01" className="h-8 text-xs" value={a.annualPaymentAmount} onChange={e => updateActionRow(idx, "annualPaymentAmount", e.target.value)} />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">Status</Label>
+                        <Select value={a.complianceStatus} onValueChange={v => updateActionRow(idx, "complianceStatus", v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="compliant">Compliant</SelectItem>
+                            <SelectItem value="non-compliant">Non-compliant</SelectItem>
+                            <SelectItem value="under-review">Under review</SelectItem>
+                            <SelectItem value="pending-assessment">Pending</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-12 flex justify-end">
+                        <button type="button" onClick={() => removeActionRow(idx)} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 mt-1">
+                          <Trash2 className="w-3 h-3" />Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {calcTotal > 0 && (
+                  <div className="flex justify-end pr-1">
+                    <p className="text-sm font-semibold text-green-700">Total from action codes: £{calcTotal.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); }}>Cancel</Button>
+            <Button
+              onClick={() => {
+                const payload = { ...form };
+                if (!payload.totalAnnualPayment && calcTotal > 0) payload.totalAnnualPayment = calcTotal.toFixed(2);
+                save.mutate(payload as Record<string, unknown>);
+              }}
+              disabled={save.isPending || !form.schemeName || !form.agreementNumber || !form.agreementStartDate || !form.agreementEndDate}
+            >
+              {save.isPending ? "Saving…" : "Save Agreement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Planner offer dialog */}
+      <Dialog open={plannerOpen} onOpenChange={o => { if (!o) setPlannerOpen(false); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-blue-600" />Add Dates to Week Ahead Planner?</DialogTitle></DialogHeader>
+          <div className="space-y-2 py-1 text-sm text-muted-foreground">
+            <p>Add the agreement start and/or end dates to the Week Ahead Planner as diary reminders?</p>
+            {pendingPlannerDates?.start && (
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2 bg-green-50">
+                <span>Agreement starts: <strong>{new Date(pendingPlannerDates.start).toLocaleDateString("en-GB")}</strong></span>
+                <Button size="sm" variant="outline" onClick={() => plannerMut.mutate({ title: `SFI starts: ${pendingPlannerDates!.schemeName}`, eventDate: pendingPlannerDates!.start, colour: "green" })}>Add</Button>
+              </div>
+            )}
+            {pendingPlannerDates?.end && (
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2 bg-amber-50">
+                <span>Agreement ends: <strong>{new Date(pendingPlannerDates.end).toLocaleDateString("en-GB")}</strong></span>
+                <Button size="sm" variant="outline" onClick={() => plannerMut.mutate({ title: `SFI ends: ${pendingPlannerDates!.schemeName}`, eventDate: pendingPlannerDates!.end, colour: "amber" })}>Add</Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPlannerOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={!!pendingConfirm}
         title="Delete Agreement"
@@ -1944,28 +2378,6 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit SFI Agreement" : "Add SFI / ELMs Agreement"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Agreement Number *</Label><Input value={form.agreementNumber ?? ""} onChange={e => setForm(f => ({ ...f, agreementNumber: e.target.value }))} /></div>
-            <div><Label>Application Reference</Label><Input value={form.applicationReference ?? ""} onChange={e => setForm(f => ({ ...f, applicationReference: e.target.value }))} /></div>
-            <div><Label>Start Date *</Label><Input type="date" value={form.startDate ?? ""} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
-            <div><Label>End Date</Label><Input type="date" value={form.endDate ?? ""} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
-            <div><Label>Status *</Label>
-              <Select value={form.status ?? "Active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["Active", "Applied", "Withdrawn", "Expired", "Under Query"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Total Annual Payment (£)</Label><Input type="number" step="0.01" value={form.totalAnnualPayment ?? ""} onChange={e => setForm(f => ({ ...f, totalAnnualPayment: e.target.value }))} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
