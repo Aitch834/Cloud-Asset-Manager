@@ -27,18 +27,19 @@ if (!basePath) {
 }
 
 // Plugin: prevent stale cross-session module cache hits from Replit's proxy,
-// and force a full page reload when the Vite dev server restarts.
+// and force a full page reload when the Vite dev server restarts or re-optimises.
 //
 // ROOT CAUSE:
 // Replit's preview proxy caches @fs/ module responses by URL.  When the dev
-// server restarts (or Vite's dep optimiser runs a second pass), the browserHash
-// embedded in every pre-bundled dep URL changes (e.g. react.js?v=A → ?v=B).
-// If the proxy then serves modules from a PREVIOUS server session — which were
-// compiled with the OLD hash — they import react.js?v=A while freshly served
-// modules import react.js?v=B.  Two distinct React instances coexist in the same
-// tab → "Invalid hook call" on SlurryTab and every other hook-using component.
+// server restarts (or Vite's dep optimiser runs a second pass mid-session), the
+// browserHash embedded in every pre-bundled dep URL changes (e.g. react.js?v=A
+// → ?v=B).  If the proxy then serves modules compiled before the hash change —
+// these import react.js?v=A — while freshly served modules import react.js?v=B,
+// two distinct React instances coexist in the same tab.  The result is
+// "Invalid hook call" on SlurryTab (a newly-extracted separate module that is
+// always compiled fresh) even though all other inline tabs still work fine.
 //
-// FIX — THREE LAYERS:
+// FIX — FOUR LAYERS:
 //
 // 1. SESSION-STAMPED MODULE URLS (prevents stale proxy cache hits)
 //    Every @fs/ import URL in compiled modules gains ?td=SESSION_TOKEN.
@@ -55,11 +56,20 @@ if (!basePath) {
 //    The client (main.tsx) fetches this on every vite:ws:connect; if the token
 //    changed, it reloads the page before any navigation can use mixed hashes.
 //
+// 4. IN-SESSION RE-OPTIMISATION RELOAD (closes the mid-session dep-hash gap)
+//    When Vite fires a full-reload event (dep re-optimisation changed the hash
+//    WITHIN the current server process), the plugin regenerates sessionToken
+//    on the server before the message reaches the browser.  The browser reloads
+//    (Vite's own full-reload), main.tsx re-fetches /__td_startup_token__, finds
+//    the new token ≠ the stored one, and reloads once more.  That second reload
+//    loads all @fs/ modules under the new token URLs — which the proxy has never
+//    cached — guaranteeing a single consistent React instance.
+//
 // MIDDLEWARE RESPONSIBILITY:
 //    Incoming requests for ?td=… URLs have the stamp stripped before Vite sees
 //    them, so the module graph tracks modules by their clean file path.
 function reconnectReloadPlugin(sessionBase: string) {
-  const sessionToken =
+  let sessionToken =
     Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
 
   // Stamp @fs/ import URL strings inside compiled JS response bodies.
@@ -106,6 +116,44 @@ function reconnectReloadPlugin(sessionBase: string) {
     apply: "serve" as const,
 
     configureServer(server: any) {
+      // ── Layer 4: Regenerate token on every Vite-triggered full-reload ──────
+      // Vite fires full-reload events when dep re-optimisation changes the
+      // browserHash within the same server process.  By regenerating sessionToken
+      // NOW (before the payload reaches the browser), the next page load will
+      // fetch a new token, detect the mismatch, and reload once more — ensuring
+      // all @fs/ modules are requested under fresh proxy-cache-bypassing URLs.
+      const regenToken = () => {
+        sessionToken =
+          Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      };
+
+      // Vite 5 uses server.hot.send; Vite 4 used server.ws.send.  Intercept
+      // whichever is present to catch the full-reload payload.
+      if (server.hot?.send) {
+        const origHotSend = server.hot.send.bind(server.hot);
+        server.hot.send = (event: any, data?: any) => {
+          if (
+            event === "vite:beforeFullReload" ||
+            (typeof event === "object" && event?.type === "full-reload")
+          ) {
+            regenToken();
+          }
+          return origHotSend(event, data);
+        };
+      }
+      if (server.ws?.send) {
+        const origWsSend = server.ws.send.bind(server.ws);
+        server.ws.send = (payload: any, ...rest: any[]) => {
+          if (
+            typeof payload === "object" &&
+            payload?.type === "full-reload"
+          ) {
+            regenToken();
+          }
+          return origWsSend(payload, ...rest);
+        };
+      }
+
       server.middlewares.use((req: any, res: any, next: any) => {
         // ── 1. Strip ?td= session stamp from incoming request URLs ─────────
         // Vite must see the clean path so module-graph tracking is unaffected.
