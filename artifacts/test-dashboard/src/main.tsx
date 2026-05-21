@@ -3,6 +3,36 @@ import App from "../../dashboard/src/App";
 import "../../dashboard/src/index.css";
 import { useAppStore } from "../../dashboard/src/hooks/use-app-store";
 
+// Detect Vite dev-server restarts that changed the dep-bundle browserHash.
+// On restart the browser reconnects via HMR but KEEPS its JS module graph,
+// so old-hash chunks (react.js?v=A) coexist with newly-loaded new-hash chunks
+// (react.js?v=B) → two React instances → "Invalid hook call" on any tab.
+// Fetching /__td_startup_token__ on every vite:ws:connect event lets us detect
+// the restart and force a full page reload before any navigation happens,
+// ensuring all modules are loaded with the same consistent browserHash.
+if (import.meta.hot) {
+  const TOKEN_KEY = "__td_startup_token__";
+  const checkServerToken = async () => {
+    try {
+      const base = import.meta.env.BASE_URL;
+      const r = await fetch(`${base}__td_startup_token__`);
+      if (!r.ok) return;
+      const { token } = (await r.json()) as { token: string };
+      const stored = sessionStorage.getItem(TOKEN_KEY);
+      if (stored === null) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+      } else if (stored !== token) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        location.reload();
+      }
+    } catch {
+      // Server not ready or non-dev environment — ignore silently.
+    }
+  };
+  checkServerToken();
+  import.meta.hot.on("vite:ws:connect", checkServerToken);
+}
+
 if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
   try {
     const TENANT_SLUG = "oakfield-farms";

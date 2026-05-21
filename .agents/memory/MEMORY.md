@@ -1,1 +1,1 @@
-- [Vite browserHash crash pattern](leaflet-alias-fix.md) — ANY runtime-discovered dep changes the browserHash and re-keys all React chunk URLs → two React instances → "Invalid hook call". Fix: every undiscovered package needs alias + optimizeDeps.include entry before first render.
+- [test-dashboard Vite hash crash](test-dashboard-vite-hash-crash.md) — root cause + fix for "Invalid hook call" from two React instances when dep-bundle browserHash diverges after server restart.

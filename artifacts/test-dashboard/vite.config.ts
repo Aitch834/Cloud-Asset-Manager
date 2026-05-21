@@ -26,6 +26,44 @@ if (!basePath) {
   );
 }
 
+// Plugin: force a full page reload when the Vite dev server restarts.
+//
+// WHY THIS IS NEEDED:
+// When the dep cache is invalidated (e.g. vite.config.ts changes), Vite runs a
+// fresh dep optimisation during startup.  The first pass writes browserHash A to
+// disk; a second pass (discovering transitive deps) produces browserHash B in
+// memory.  If the browser was already connected and had modules loaded with hash A,
+// it reconnects after the restart but KEEPS those old-hash modules in the JS
+// module graph.  New navigations then load new-hash B modules.  react-dom (hash A)
+// and @tanstack/react-query (hash B) each see a different React instance →
+// "Invalid hook call" on SlurryTab and other tabs.
+//
+// HOW IT WORKS:
+// 1. On every server start a unique token is generated (Date.now + random).
+// 2. A middleware endpoint /__td_startup_token__ returns this token as JSON.
+// 3. The client (main.tsx) fetches the endpoint:
+//    • on initial load       → stores token in sessionStorage (no reload)
+//    • on vite:ws:connect    → if token changed, stores new token and reloads
+// After the reload all modules are freshly requested with the new hash → consistent.
+function reconnectReloadPlugin() {
+  const startupToken =
+    Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  return {
+    name: "reconnect-reload",
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        if (req.url?.endsWith("/__td_startup_token__")) {
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(JSON.stringify({ token: startupToken }));
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
+
 // Helper: resolve a package inside test-dashboard's own node_modules.
 // Any package that (a) is imported by dashboard source files, and (b) uses
 // React hooks or React context internally, must be aliased here.  Without
@@ -37,6 +75,7 @@ const td = (pkg: string) =>
 export default defineConfig({
   base: basePath,
   plugins: [
+    reconnectReloadPlugin(),
     react({
       include: [
         path.resolve(import.meta.dirname, "src") + "/**/*.{tsx,ts,jsx,js}",
