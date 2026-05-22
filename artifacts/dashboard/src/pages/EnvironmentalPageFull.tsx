@@ -2648,20 +2648,27 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   });
 
   const saveFillMut = useMutation({
-    mutationFn: (body: Form) =>
-      fetch(`/api/farms/${farmId}/slurry-fill-events`, {
+    mutationFn: async (body: Form) => {
+      const res = await fetch(`/api/farms/${farmId}/slurry-fill-events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
-      }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Failed to record fill event");
+      }
+      return res.json();
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["slurry-fill-events", farmId] });
       setFillOpen(false);
       setFillForm({});
       toast({ title: "Fill event recorded" });
     },
-    onError: () => toast({ title: "Failed to record fill event", variant: "destructive" }),
+    onError: (err: Error) =>
+      toast({ title: err.message || "Failed to record fill event", variant: "destructive" }),
   });
 
   const deleteFillMut = useMutation({
@@ -3163,7 +3170,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
                   <tr>
-                    {["Date", "Store", "Volume (m³)", "Source / Origin", "Notes", ""].map((h) => (
+                    {["Date", "Store", "Material", "Volume (m³)", "Source / Origin", "Notes", ""].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">
                         {h}
                       </th>
@@ -3178,6 +3185,13 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                       </td>
                       <td className="px-4 py-3 font-medium">
                         {r.storeName ?? stores.find((s) => Number(s.id) === Number(r.storeId))?.storeName ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.materialType ? (
+                          <span style={{ fontSize: "0.72rem", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", padding: "2px 7px", borderRadius: 10 }}>
+                            {String(r.materialType)}
+                          </span>
+                        ) : "—"}
                       </td>
                       <td className="px-4 py-3">{r.volumeM3 ? Number(r.volumeM3).toFixed(1) : "—"}</td>
                       <td className="px-4 py-3">{String(r.sourceDescription ?? "—")}</td>
@@ -3629,21 +3643,51 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             </div>
             <div>
               <Label>Manure / Material Type *</Label>
-              <Select
-                value={spreadForm.manureType ?? ""}
-                onValueChange={(v) => setSpreadForm((f) => ({ ...f, manureType: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SPREAD_MATERIALS.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const sourceStore = stores.find((s: any) => String(s.id) === spreadForm.storeId);
+                const locked = !!sourceStore?.material;
+                if (locked) {
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 12px",
+                        background: "#f0fdf4",
+                        border: "1px solid #bbf7d0",
+                        borderRadius: 6,
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      <span style={{ fontSize: "1rem" }}>🔒</span>
+                      <div>
+                        <strong>{String(sourceStore!.material)}</strong>
+                        <p style={{ fontSize: "0.68rem", color: "#166534", margin: 0 }}>
+                          Locked to store configuration — species-specific storage enforced
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <Select
+                    value={spreadForm.manureType ?? ""}
+                    onValueChange={(v) => setSpreadForm((f) => ({ ...f, manureType: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SPREAD_MATERIALS.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
             <div>
               <Label>Volume Applied (m³)</Label>
@@ -4041,6 +4085,55 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               })()}
             </div>
             <div>
+              <Label>Material Type *</Label>
+              {(() => {
+                const sid = fillForm.storeId || fillStoreId;
+                const store = sid ? stores.find((s: any) => String(s.id) === sid) : null;
+                const locked = !!store?.material;
+                if (locked) {
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 12px",
+                        background: "#f0fdf4",
+                        border: "1px solid #bbf7d0",
+                        borderRadius: 6,
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      <span style={{ fontSize: "1rem" }}>🔒</span>
+                      <div>
+                        <strong>{String(store!.material)}</strong>
+                        <p style={{ fontSize: "0.68rem", color: "#166534", margin: 0 }}>
+                          Locked — this store accepts {String(store!.material)} only
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <Select
+                    value={fillForm.materialType ?? ""}
+                    onValueChange={(v) => setFillForm((f) => ({ ...f, materialType: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select material type…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SPREAD_MATERIALS.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+            </div>
+            <div>
               <Label>Volume Added (m³) *</Label>
               <Input
                 type="number"
@@ -4080,12 +4173,15 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 !fillForm.volumeM3 ||
                 saveFillMut.isPending
               }
-              onClick={() =>
+              onClick={() => {
+                const sid = fillForm.storeId || fillStoreId;
+                const store = sid ? stores.find((s: any) => String(s.id) === sid) : null;
                 saveFillMut.mutate({
                   ...fillForm,
-                  storeId: fillForm.storeId || fillStoreId,
-                })
-              }
+                  storeId: sid,
+                  materialType: fillForm.materialType || (store?.material ? String(store.material) : undefined),
+                });
+              }}
             >
               Log Fill Event
             </Button>

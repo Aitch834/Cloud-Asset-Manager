@@ -19471,6 +19471,7 @@ router.get("/farms/:farmId/slurry-fill-events", requireAuth, requireTenant, requ
       storeName: slurryStoresTable.storeName,
       eventDate: slurryStoreFillEventsTable.eventDate,
       volumeM3: slurryStoreFillEventsTable.volumeM3,
+      materialType: slurryStoreFillEventsTable.materialType,
       sourceDescription: slurryStoreFillEventsTable.sourceDescription,
       notes: slurryStoreFillEventsTable.notes,
       createdAt: slurryStoreFillEventsTable.createdAt,
@@ -19484,12 +19485,22 @@ router.get("/farms/:farmId/slurry-fill-events", requireAuth, requireTenant, requ
 
 router.post("/farms/:farmId/slurry-fill-events", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const { storeId, eventDate, volumeM3, sourceDescription, notes } = req.body;
+  const { storeId, eventDate, volumeM3, materialType, sourceDescription, notes } = req.body;
+  // Hard block: if the store has a configured material type, the incoming material must match
+  const [store] = await db.select({ material: slurryStoresTable.material }).from(slurryStoresTable)
+    .where(and(eq(slurryStoresTable.id, Number(storeId)), eq(slurryStoresTable.farmId, farmId)));
+  if (store?.material && materialType && store.material !== materialType) {
+    res.status(422).json({
+      error: `Material type mismatch: this store is configured for "${store.material}" only. You submitted "${materialType}". Species-specific storage is required for accurate nutrient management records.`,
+    });
+    return;
+  }
   const [row] = await db.insert(slurryStoreFillEventsTable).values({
     farmId,
     storeId: Number(storeId),
     eventDate,
     volumeM3,
+    materialType: materialType || store?.material || null,
     sourceDescription: sourceDescription || null,
     notes: notes || null,
   }).returning();

@@ -171,6 +171,7 @@ export const slurryStoreFillEventsTable = pgTable("slurry_store_fill_events", {
   storeId: integer("store_id").notNull().references(() => slurryStoresTable.id, { onDelete: "cascade" }),
   eventDate: date("event_date").notNull(),
   volumeM3: numeric("volume_m3", { precision: 10, scale: 2 }).notNull(),
+  materialType: text("material_type"),
   sourceDescription: text("source_description"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
