@@ -1,19 +1,30 @@
 ---
-name: Test-dashboard token mismatch → Invalid hook call
-description: Why SlurryTab (and others) crash with "Invalid hook call" in the user's external browser but not through the internal proxy, and how it's fixed.
+name: Test-dashboard hook crash root causes
+description: Documents the two distinct root causes of "Invalid hook call" in test-dashboard and their fixes
 ---
 
-## The rule
-Any source-file edit during a live session can trigger `vite:beforeFullReload` → `regenToken()` in the `reconnectReloadPlugin`. If the user's HMR WebSocket is broken (common through the Replit external proxy), no automatic page reload fires. The browser then holds a mix of old-browserHash and new-browserHash pre-bundled chunks (e.g. `react.js?v=OLD` already in memory, `@tanstack/react-query.js?v=NEW` freshly fetched). These two hash variants carry different `ReactCurrentDispatcher` references → "Invalid hook call" on whichever component renders next (historically SlurryTab, because EnvironmentalPageFull is the largest page and is usually the first one touched mid-session).
+## Root causes of "Invalid hook call" in test-dashboard
 
-**Why:** The Replit external proxy tunnels HTTP correctly but WebSocket connections are unreliable/dropped, so the HMR channel the plugin relies on to signal a reload doesn't reach the user's browser.
+### Cause 1: HMR token mismatch (FIXED — polling in main.tsx)
+When a source file is edited while the test-dashboard is running:
+- Vite fires `vite:beforeFullReload` → `regenToken()` in reconnectReloadPlugin
+- Replit's preview proxy caches old @fs/ module URLs (with old token)
+- Browser keeps old-hash React chunk; new modules fetch new-hash React chunk
+- Two React instances → "Invalid hook call"
 
-**How to apply:**
-1. `main.tsx` now polls `/__td_startup_token__` every **4 seconds** via `setInterval`. If the token changes the page auto-reloads. This is the primary safety net.
-2. `vite:ws:connect` still calls `checkServerToken` immediately on reconnect (belt-and-suspenders).
-3. All 59 deps are in `optimizeDeps.include` so no *new* dep discovery should happen (which would also change the browserHash). If a future dep causes the crash again, add it to the include list AND the resolve.alias list in `artifacts/test-dashboard/vite.config.ts`.
-4. The `Cache-Control: no-store` header prevents the browser caching stale chunk URLs.
+**Fix**: `main.tsx` polls `/__td_startup_token__` every 4s. Token change → full reload.
 
-## Key files
-- `artifacts/test-dashboard/src/main.tsx` — token polling lives here
-- `artifacts/test-dashboard/vite.config.ts` — reconnectReloadPlugin, alias list, optimizeDeps.include
+### Cause 2: Corrupted Vite dep-optimisation cache (FIXED — nuke .vite/deps/)
+If the test-dashboard Vite process is interrupted mid-optimisation (crash, forced stop), the `.vite/deps/` pre-bundled chunks can be partially written. Next startup reuses these corrupt chunks. React's internal module registration tables are inconsistent → "Invalid hook call" on FIRST page load (before any edits).
+
+**Symptoms**: Error happens on a completely fresh browser tab (new session, no file edits). `DISCOVERED: []` in `_metadata.json`. Both modules import from the same `react.js?v=HASH` chunk.
+
+**Fix**: Delete `artifacts/test-dashboard/node_modules/.vite/deps/` and restart the workflow. Vite rebuilds the cache cleanly.
+
+**Why:** The reconnectReloadPlugin and `optimizeDeps.include` solve cause 1. Cache nuking solves cause 2. Both are needed.
+
+### Architecture notes
+- test-dashboard loads dashboard source via @fs/ paths — fragile but works when cache is clean
+- All React-aware packages must be in BOTH `resolve.alias` and `optimizeDeps.include`
+- `resolve.dedupe` is set for all React-aware packages as belt-and-suspenders
+- Polling interval: 4000ms — enough to catch most file-edit token changes before the user navigates

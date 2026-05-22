@@ -1,2 +1,2 @@
-- [Test-dashboard token mismatch](test-dashboard-token-mismatch.md) — file-edit → regenToken → old/new hash mix → two React instances → "Invalid hook call"; fix is polling in main.tsx.
+- [Test-dashboard hook crashes](test-dashboard-token-mismatch.md) — TWO causes: (1) file-edit → regenToken → hash mix → two React instances; fix = polling in main.tsx. (2) corrupted .vite/deps/ cache from interrupted sessions; fix = delete deps/ dir and restart.
 - [Proxy gateway fix](proxy-gateway-fix.md) — website vite.config.ts proxies /test-dashboard/ and /dashboard/ to their respective ports; do not remove these rules.
