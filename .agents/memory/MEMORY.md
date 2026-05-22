@@ -1,2 +1,1 @@
-- [Test-dashboard hook crashes](test-dashboard-token-mismatch.md) — TWO causes: (1) file-edit → regenToken → hash mix → two React instances; fix = polling in main.tsx. (2) corrupted .vite/deps/ cache from interrupted sessions; fix = delete deps/ dir and restart.
-- [Proxy gateway fix](proxy-gateway-fix.md) — website vite.config.ts proxies /test-dashboard/ and /dashboard/ to their respective ports; do not remove these rules.
+- [SlurryTab Invalid Hook Call Fix](test-dashboard-token-mismatch.md) — inline SlurryTab into EnvironmentalPageFull; never split hook-using tab components into separate files in this app.
