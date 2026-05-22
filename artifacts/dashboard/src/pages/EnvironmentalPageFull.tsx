@@ -3541,9 +3541,18 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               <Label>Source Store</Label>
               <Select
                 value={spreadForm.storeId || "__none__"}
-                onValueChange={(v) =>
-                  setSpreadForm((f) => ({ ...f, storeId: v === "__none__" ? "" : v }))
-                }
+                onValueChange={(v) => {
+                  if (v === "__none__") {
+                    setSpreadForm((f) => ({ ...f, storeId: "" }));
+                    return;
+                  }
+                  const store = stores.find((s: any) => String(s.id) === v);
+                  setSpreadForm((f) => ({
+                    ...f,
+                    storeId: v,
+                    manureType: store?.material ? String(store.material) : f.manureType,
+                  }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select store (optional)…" />
@@ -3553,15 +3562,24 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                   {stores.map((s: any) => {
                     const cap = storeCapacity[Number(s.id)];
                     const avail = cap?.available != null ? ` (${cap.available.toFixed(0)} m³ free)` : "";
+                    const mat = s.material ? ` · ${s.material}` : "";
                     return (
                       <SelectItem key={s.id} value={String(s.id)}>
-                        {String(s.storeName)}
-                        {avail}
+                        {String(s.storeName)}{mat}{avail}
                       </SelectItem>
                     );
                   })}
                 </SelectContent>
               </Select>
+              {spreadForm.storeId && spreadForm.storeId !== "__none__" && (() => {
+                const store = stores.find((s: any) => String(s.id) === spreadForm.storeId);
+                if (!store?.material) return null;
+                return (
+                  <p style={{ fontSize: "0.72rem", color: "#059669", marginTop: 4 }}>
+                    ✓ Material type set to <strong>{String(store.material)}</strong> from store configuration.
+                  </p>
+                );
+              })()}
             </div>
             <div>
               <Label>Field *</Label>
@@ -3995,11 +4013,32 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                   <SelectItem value="__select__" disabled>Select store…</SelectItem>
                   {stores.map((s: any) => (
                     <SelectItem key={s.id} value={String(s.id)}>
-                      {String(s.storeName)}
+                      {String(s.storeName)}{s.material ? ` · ${s.material}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {(() => {
+                const sid = fillForm.storeId || fillStoreId;
+                if (!sid || sid === "__select__") return null;
+                const store = stores.find((s: any) => String(s.id) === sid);
+                if (!store) return null;
+                const mat = store.material ? String(store.material) : null;
+                const cap = storeCapacity[Number(store.id)];
+                return (
+                  <div style={{ marginTop: 6, padding: "6px 10px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.72rem", color: "#166534" }}>
+                    {mat && <span>Accepts: <strong>{mat}</strong>{" "}</span>}
+                    {cap && cap.pct !== null && (
+                      <span style={{ color: cap.pct >= 90 ? "#dc2626" : "#166534" }}>
+                        · Currently {cap.current.toFixed(1)} m³ stored
+                        {cap.available !== null ? ` (${cap.available.toFixed(1)} m³ free)` : ""}
+                        {cap.pct >= 90 ? " ⚠ Near capacity" : ""}
+                      </span>
+                    )}
+                    {!mat && !cap && <span>No material type configured for this store.</span>}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <Label>Volume Added (m³) *</Label>
