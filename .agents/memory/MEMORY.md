@@ -1,1 +1,2 @@
-- [React Query shared queryKey data shape](react-query-shared-key-shape.md) — queryFn result is cached raw; `select` is per-observer only — all components sharing a key must use `select` to avoid shape mismatches on cache hits.
+- [Mobile preview routing](mobile-preview-routing.md) — expo subdomain works via artifact.toml router=expo-domain; website Vite gateway also needs /mobile proxy entry
+- [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten

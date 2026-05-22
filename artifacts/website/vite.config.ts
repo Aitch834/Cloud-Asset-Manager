@@ -69,6 +69,11 @@ export default defineConfig({
     // traffic to the app sitting at "/". All other apps' paths are forwarded
     // here by the platform and then proxied on to the correct local port.
     proxy: {
+      "/mobile": {
+        target: "http://localhost:18115",
+        changeOrigin: true,
+        ws: true,
+      },
       "/test-dashboard": {
         target: "http://localhost:18652",
         changeOrigin: true,
