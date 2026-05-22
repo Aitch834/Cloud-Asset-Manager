@@ -1,1 +1,1 @@
-- [Test-dashboard dep-chunk stamping](test-dashboard-dep-chunk-stamping.md) — stamping &td= on dep chunks CAUSES the two-React crash; only @fs/ source files should be stamped.
+- [React Query shared queryKey data shape](react-query-shared-key-shape.md) — queryFn result is cached raw; `select` is per-observer only — all components sharing a key must use `select` to avoid shape mismatches on cache hits.

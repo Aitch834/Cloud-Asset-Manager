@@ -2279,7 +2279,6 @@ export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["features","schemes","assessments","events","sfi","slurry"]; return t && valid.includes(t) ? t : "features"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
-
   const schemesQ = useQuery({
     queryKey: ["agri-schemes", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/agri-schemes`).then(r => r.json()),
@@ -2554,8 +2553,9 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
     queryKey: ["fields", farmId],
     queryFn: () =>
       fetch(`/api/farms/${farmId}/fields`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((d: any) => d.records ?? []),
+        .then((r) => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Array<{ id: number; name: string; areaHectares?: string | null }>,
   });
 
   const storesQ = useQuery({
