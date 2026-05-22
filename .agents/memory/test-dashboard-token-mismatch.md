@@ -1,39 +1,50 @@
 ---
-name: SlurryTab Invalid Hook Call Fix
-description: Root cause and definitive fix for "Invalid hook call" on SlurryTab in test-dashboard on every fresh page load.
+name: Test-dashboard "Invalid hook call" root cause and fix
+description: Why SlurryTab (and any tab) crashes with two-React-copies, and the definitive fix in vite.config.ts
 ---
 
-# Root Cause
+# Root cause
 
-Two distinct copies of `react.js?v=<hash>` end up in the browser's ES-module registry simultaneously:
+Replit's preview proxy caches module responses by URL, ignoring `Cache-Control: no-store`.
+Two URL families matter:
 
-1. **Stale registry copy**: `EnvironmentalPageFull.tsx` is already in the browser's module registry with old dep-chunk hashes (from a previous HMR cycle or server restart).
-2. **Fresh fetch**: `SlurryTab.tsx` (the only tab in a separate file) is fetched fresh with new dep-chunk hashes → different `react.js?v=` chunk → React's hook-call validator sees two React instances → "Invalid hook call".
+**a) `@fs/` source files** — these are session-stamped with `?td=TOKEN` (token changes each restart).
+The proxy can never serve a stale source file because the URL is unique per session. ✅ Fixed.
 
-All other tabs in `EnvironmentalPageFull` are **inline** in the same file — they always share the same React chunk. `SlurryTab` was the only externally-imported tab component.
+**b) Pre-bundled dep chunk URLs** (`/test-dashboard/node_modules/.vite/deps/react.js?v=HASH`) —
+the `?v=HASH` is stable across restarts when deps/lockfile don't change. Without per-session
+stamping, the proxy can serve a stale dep chunk from a prior session that was compiled against
+a different React version (or a different internal state). This causes two React instances →
+"Invalid hook call" specifically on the first hook-heavy tab rendered fresh after a restart.
 
-# Definitive Fix (applied)
+# Why only SlurryTab?
 
-**Inline `SlurryTab`'s entire body directly into `EnvironmentalPageFull.tsx`.**
+SlurryTab was the last tab rendered (rendered only when `tab === "slurry"`). All other tabs
+were rendered and their dep chunks loaded/cached during the initial page load.  SlurryTab's
+first hook call (`useQueryClient`) hits the stale dep chunk's React copy → crash.
 
-- Deleted `artifacts/dashboard/src/pages/SlurryTab.tsx`
-- Removed `import { SlurryTab } from "./SlurryTab"` from `EnvironmentalPageFull.tsx`
-- Appended all non-import content of SlurryTab (lines 26–1523) into `EnvironmentalPageFull.tsx`, removing the `export` keyword from the function declaration
-- Result: `EnvironmentalPageFull.tsx` is now 3818 lines with `function SlurryTab` at line 2514 — same file, same module, same React chunk — no possible version split
+Even after inlining SlurryTab into EnvironmentalPageFull.tsx (eliminating the file-boundary),
+the crash persisted because the problem was not file separation — it was dep chunk caching.
 
-**Why:** This eliminates the cross-file module boundary entirely. No matter how many times the Vite server restarts or HMR cycles occur, there is only one file to fetch, so there can only ever be one React chunk version in play.
+# Fix (in artifacts/test-dashboard/vite.config.ts)
 
-# Other Approaches (do NOT use — they don't fix the root cause)
+Three changes to `reconnectReloadPlugin`:
 
-- Nuking `.vite/deps/` cache: temporarily works but returns after next server restart
-- Adding to `optimizeDeps.include`: reduces frequency but doesn't eliminate the race
-- The polling startup token in `test-dashboard/main.tsx`: protects against stale *page* loads but not stale *module registry* entries
+1. **Added `depUrlRe`** — a regex matching `"/base/node_modules/.vite/deps/pkg.js?v=HASH"` strings
+   inside compiled JS response bodies. Group 1 captures the full URL including `?v=HASH`.
 
-# Pattern to Avoid Going Forward
+2. **Updated `isJsModule`** to also intercept dep chunk request URLs
+   (`url.includes("node_modules/.vite/deps/")`). This ensures the dep chunk RESPONSES
+   are also intercepted, so their internal cross-references to other dep chunks are stamped too.
 
-Never split a React component out of its parent page file when:
-- The parent is a large page-level component already in the module registry
-- The child uses hooks from the same React instance
-- The split would create a separate Vite module chunk
+3. **Updated JS transform** to apply both stamps:
+   - `@fs/` URLs: replaced with `"$1?td=TOKEN"` (strips old params, adds token)
+   - Dep chunk URLs: replaced with `"$1&td=TOKEN"` (appends to existing `?v=HASH`)
 
-If a file gets too large, prefer keeping related hook-using components in the same file, or use a shared library chunk (via `manualChunks`) that is stable across server restarts.
+The strip middleware already handles `&td=TOKEN` removal (`replace(/[?&]td=[^&]*/g, "")`),
+so Vite sees clean URLs and module-graph tracking is unaffected.
+
+**Why:**
+- Appending `&td=TOKEN` to `?v=HASH` preserves Vite's chunk-invalidation logic
+- Every session's dep chunk URLs are now unique → proxy has never cached them → fresh serve
+- The full module chain is stamped: HTML entry → source files → dep chunks → dep chunk cross-refs

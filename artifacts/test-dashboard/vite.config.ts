@@ -30,39 +30,57 @@ if (!basePath) {
 // and force a full page reload when the Vite dev server restarts or re-optimises.
 //
 // ROOT CAUSE:
-// Replit's preview proxy caches @fs/ module responses by URL.  When the dev
-// server restarts (or Vite's dep optimiser runs a second pass mid-session), the
-// browserHash embedded in every pre-bundled dep URL changes (e.g. react.js?v=A
-// → ?v=B).  If the proxy then serves modules compiled before the hash change —
-// these import react.js?v=A — while freshly served modules import react.js?v=B,
-// two distinct React instances coexist in the same tab.  The result is
-// "Invalid hook call" on SlurryTab (a newly-extracted separate module that is
-// always compiled fresh) even though all other inline tabs still work fine.
+// Replit's preview proxy caches module responses by URL.  Two URL families
+// matter:
+//   a) @fs/ source files  — each compiled on demand by Vite's transform pipeline
+//   b) pre-bundled dep chunks  — static files in node_modules/.vite/deps/
 //
-// FIX — FOUR LAYERS:
+// For (a): if the proxy serves a source file compiled against browserHash A
+// while Vite has moved to hash B (after a server restart or mid-session
+// re-optimisation), that source file imports dep chunks at ?v=A while all
+// freshly-served modules import dep chunks at ?v=B.  Two React instances
+// coexist → "Invalid hook call".
 //
-// 1. SESSION-STAMPED MODULE URLS (prevents stale proxy cache hits)
-//    Every @fs/ import URL in compiled modules gains ?td=SESSION_TOKEN.
-//    Session tokens change on every server restart, so proxy cache entries from
-//    previous sessions are never served for the current session.
+// For (b): dep chunk URLs contain ?v=HASH, but the HASH is stable across
+// restarts when deps and lockfile don't change.  The proxy caches these URLs
+// indefinitely.  A dep chunk cached in a previous session may contain internal
+// cross-references compiled against a different React version, or the proxy
+// may deliver it before Vite has finished its startup re-optimisation pass.
+// The result is the same two-React-instance crash.
 //
-// 2. ENTRY SCRIPT URL STAMP (closes the last gap in the module cascade)
+// FIX — FIVE LAYERS:
+//
+// 1. SESSION-STAMPED @fs/ MODULE URLS (prevents stale proxy cache hits)
+//    Every @fs/ import URL in compiled source-file responses gains
+//    ?td=SESSION_TOKEN.  Session tokens change on every server restart, so
+//    proxy cache entries from previous sessions are never served for the
+//    current session.
+//
+// 2. SESSION-STAMPED DEP CHUNK URLS (closes the dep-chunk proxy-cache gap)
+//    Every pre-bundled dep chunk URL (/base/node_modules/.vite/deps/pkg.js?v=H)
+//    found in compiled JS responses (source files AND dep chunks themselves) is
+//    extended to ?v=H&td=SESSION_TOKEN.  This makes each session's dep-chunk
+//    URLs unique, so the proxy cannot serve a stale chunk from a prior session.
+//    The strip middleware removes &td= before Vite sees the request, so Vite's
+//    own module-graph tracking (keyed on the clean ?v=H URL) is unaffected.
+//
+// 3. ENTRY SCRIPT URL STAMP (closes the last gap in the module cascade)
 //    index.html's <script src="main.tsx"> is also rewritten to
 //    main.tsx?td=SESSION_TOKEN, making the very first module in the chain
 //    session-unique so the proxy can't serve a stale-hash main.tsx.
 //
-// 3. SERVER-RESTART RELOAD (belt-and-suspenders for connected browsers)
+// 4. SERVER-RESTART RELOAD (belt-and-suspenders for connected browsers)
 //    A /__td_startup_token__ endpoint returns a per-session random token.
 //    The client (main.tsx) fetches this on every vite:ws:connect; if the token
 //    changed, it reloads the page before any navigation can use mixed hashes.
 //
-// 4. IN-SESSION RE-OPTIMISATION RELOAD (closes the mid-session dep-hash gap)
+// 5. IN-SESSION RE-OPTIMISATION RELOAD (closes the mid-session dep-hash gap)
 //    When Vite fires a full-reload event (dep re-optimisation changed the hash
 //    WITHIN the current server process), the plugin regenerates sessionToken
 //    on the server before the message reaches the browser.  The browser reloads
 //    (Vite's own full-reload), main.tsx re-fetches /__td_startup_token__, finds
 //    the new token ≠ the stored one, and reloads once more.  That second reload
-//    loads all @fs/ modules under the new token URLs — which the proxy has never
+//    loads all modules under the new token URLs — which the proxy has never
 //    cached — guaranteeing a single consistent React instance.
 //
 // MIDDLEWARE RESPONSIBILITY:
@@ -73,10 +91,22 @@ function reconnectReloadPlugin(sessionBase: string) {
     Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
 
   // Stamp @fs/ import URL strings inside compiled JS response bodies.
-  // Captures the bare path in group 1; strips any existing query params.
+  // Captures the bare path in group 1; strips any existing query params so the
+  // result is always exactly `<path>?td=SESSION_TOKEN`.
   const escapedBase = sessionBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const fsUrlRe = new RegExp(
     `"(${escapedBase}@fs/[^"?#]+)(?:\\?[^"]*)?"`, "g",
+  );
+
+  // Stamp pre-bundled dep chunk URLs inside compiled JS response bodies.
+  // These look like "/base/node_modules/.vite/deps/react.js?v=HASH".
+  // We preserve the ?v=HASH (so Vite's own chunk-invalidation logic still
+  // works) and append &td=SESSION_TOKEN.  The strip middleware removes &td=
+  // before Vite sees the incoming request, so the module graph is unaffected.
+  // Group 1 = full URL including ?v=HASH.
+  const depUrlRe = new RegExp(
+    `"(${escapedBase}node_modules/\\.vite/deps/[^"?#]+\\?v=[^"&]+)"`,
+    "g",
   );
 
   // Stamp the <script type="module" src="…"> entry in HTML responses.
@@ -179,6 +209,9 @@ function reconnectReloadPlugin(sessionBase: string) {
         const url = req.url as string;
         const isJsModule =
           url.includes("@fs/") ||
+          // Also intercept dep chunk responses so their internal cross-references
+          // (which point to other dep chunks via ?v=HASH URLs) get stamped too.
+          url.includes("node_modules/.vite/deps/") ||
           /\/src\/[^?]+\.(tsx?|jsx?|js)(\?|$)/.test(url);
         const isHtml =
           url === "/" || url.endsWith("/") || /\.html?(\?|$)/.test(url);
@@ -194,8 +227,12 @@ function reconnectReloadPlugin(sessionBase: string) {
           const ct = ((res.getHeader?.("content-type") as string) ?? "").toLowerCase();
 
           if (ct.includes("javascript") || ct.includes("typescript")) {
-            // Stamp every @fs/ import URL in the compiled module body.
-            return body.replace(fsUrlRe, `"$1?td=${sessionToken}"`);
+            // Stamp every @fs/ source-file URL and every dep-chunk URL.
+            // The dep-chunk stamp appends &td= to preserve the existing ?v=HASH
+            // so Vite's own chunk-invalidation logic remains intact.
+            return body
+              .replace(fsUrlRe, `"$1?td=${sessionToken}"`)
+              .replace(depUrlRe, `"$1&td=${sessionToken}"`);
           }
           if (ct.includes("text/html")) {
             // Stamp the module entry-script src so main.tsx itself is

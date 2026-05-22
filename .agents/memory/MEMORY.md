@@ -1,1 +1,1 @@
-- [SlurryTab Invalid Hook Call Fix](test-dashboard-token-mismatch.md) — inline SlurryTab into EnvironmentalPageFull; never split hook-using tab components into separate files in this app.
+- [Test-dashboard "Invalid hook call" fix](test-dashboard-token-mismatch.md) — dep chunk URLs (/node_modules/.vite/deps/*.js?v=HASH) must be session-stamped; Replit's proxy ignores no-store and serves stale React copies without the stamp.
