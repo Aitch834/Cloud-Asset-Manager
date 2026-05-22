@@ -3274,14 +3274,14 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 </thead>
                 <tbody className="divide-y">
                   {spreadings.map((r, i) => (
-                    <tr key={r.id ?? i} className="hover:bg-black/5">
+                    <tr key={r.id != null ? Number(r.id) : i} className="hover:bg-black/5">
                       <td className="px-4 py-3">
                         {r.spreadingDate
                           ? new Date(r.spreadingDate as string).toLocaleDateString("en-GB")
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        {r.storeName ?? (r.storeId ? (stores.find((s) => Number(s.id) === Number(r.storeId))?.storeName ?? "—") : "—")}
+                        {String(r.storeName ?? (r.storeId ? (stores.find((s) => Number(s.id) === Number(r.storeId))?.storeName ?? "—") : "—"))}
                       </td>
                       <td className="px-4 py-3">{String(r.fieldDescription ?? "—")}</td>
                       <td className="px-4 py-3">{String(r.fieldAreaHa ?? "—")}</td>
@@ -4179,7 +4179,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 saveFillMut.mutate({
                   ...fillForm,
                   storeId: sid,
-                  materialType: fillForm.materialType || (store?.material ? String(store.material) : undefined),
+                  materialType: fillForm.materialType || (store?.material ? String(store.material) : ""),
                 });
               }}
             >
