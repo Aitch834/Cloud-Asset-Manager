@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -2425,13 +2425,13 @@ function doSpreadingPrint(spreadings: any[], farmId: number) {
     .map(
       (r) => `<tr>
     <td>${r.spreadingDate ? new Date(r.spreadingDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td>${r.fieldName || "—"}</td>
+    <td>${r.fieldDescription || "—"}</td>
     <td>${r.fieldAreaHa != null ? `${r.fieldAreaHa} ha` : "—"}</td>
-    <td>${r.materialType || "—"}</td>
-    <td>${r.volumeOrTonnesApplied != null ? r.volumeOrTonnesApplied : "—"}</td>
+    <td>${r.manureType || "—"}</td>
+    <td>${r.volumeAppliedM3 != null ? `${Number(r.volumeAppliedM3).toFixed(1)} m³` : "—"}</td>
     <td>${r.applicationMethod || "—"}</td>
     <td>${r.operatorName || "—"}</td>
-    <td>${r.weatherConditions || "—"}</td>
+    <td>${r.groundConditions || "—"}</td>
     <td>${r.notes || "—"}</td>
   </tr>`
     )
@@ -2534,6 +2534,11 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   const [inspStoreId, setInspStoreId] = useState("");
   const [deleteInspId, setDeleteInspId] = useState<number | null>(null);
 
+  // Fill event dialog state
+  const [fillOpen, setFillOpen] = useState(false);
+  const [fillStoreId, setFillStoreId] = useState("");
+  const [fillForm, setFillForm] = useState<Form>({});
+
   // Raise task dialog state
   const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
   const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(
@@ -2585,6 +2590,22 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
     select: (d: any) => (d.records ?? []) as Row[],
   });
 
+  const fillEventsQ = useQuery({
+    queryKey: ["slurry-fill-events", farmId],
+    queryFn: () =>
+      fetch(`/api/farms/${farmId}/slurry-fill-events`, { credentials: "include" }).then((r) =>
+        r.json()
+      ),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Row[],
+  });
+
+  const inspectorOrgsQ = useQuery({
+    queryKey: ["lookup", "inspector_organisations"],
+    queryFn: () => fetch(`/api/lookups/inspector_organisations`).then((r) => r.json()),
+    select: (d: any) => (d.items ?? []).map((i: any) => String(i.value)),
+  });
+
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const saveStoreMut = useMutation({
@@ -2626,6 +2647,36 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
+  const saveFillMut = useMutation({
+    mutationFn: (body: Form) =>
+      fetch(`/api/farms/${farmId}/slurry-fill-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["slurry-fill-events", farmId] });
+      setFillOpen(false);
+      setFillForm({});
+      toast({ title: "Fill event recorded" });
+    },
+    onError: () => toast({ title: "Failed to record fill event", variant: "destructive" }),
+  });
+
+  const deleteFillMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/slurry-fill-events/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["slurry-fill-events", farmId] });
+      toast({ title: "Fill event deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
   const saveInspMut = useMutation({
     mutationFn: (body: Form) => {
       const url = editingInsp
@@ -2646,7 +2697,10 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       setInspForm({});
       setEditingInsp(null);
       toast({ title: wasEditing ? "Inspection updated" : "Inspection recorded" });
-      if (variables.actionsRequired?.trim()) {
+      const hasLeaks = variables.leaksOrDamageFound === "true";
+      const hasDeficiencies = !!variables.deficiencies?.trim();
+      const hasActions = !!variables.actionsRequired?.trim();
+      if (hasLeaks || hasDeficiencies || hasActions) {
         const store = (storesQ.data ?? []).find((s) => String(s.id) === String(variables.storeId));
         const storeName = store ? String(store.storeName ?? "store") : "store";
         const dateStr = variables.inspectionDate
@@ -2656,9 +2710,16 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               year: "numeric",
             })
           : "";
+        const parts: string[] = [];
+        if (hasLeaks)
+          parts.push(
+            "URGENT: Leaks or structural damage found — immediate remedial action required. Do not allow further filling until the store is made safe."
+          );
+        if (hasDeficiencies) parts.push(`Deficiencies noted: ${variables.deficiencies!.trim()}`);
+        if (hasActions) parts.push(`Actions required: ${variables.actionsRequired!.trim()}`);
         setPendingTask({
-          title: `Slurry Store Inspection Follow-up — ${storeName} (${dateStr})`,
-          description: variables.actionsRequired.trim(),
+          title: `${hasLeaks ? "[URGENT] " : ""}Slurry Store Inspection — ${storeName} (${dateStr})`,
+          description: parts.join("\n\n"),
         });
         setTaskAssigneeId("");
         setTaskDueDate("");
@@ -2714,6 +2775,30 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
   const stores = storesQ.data ?? [];
   const spreadings = spreadQ.data ?? [];
   const inspections = inspQ.data ?? [];
+  const fillEvents = fillEventsQ.data ?? [];
+
+  const storeCapacity = useMemo(() => {
+    const cap: Record<number, { filled: number; spread: number; current: number; available: number | null; pct: number | null }> = {};
+    for (const s of stores) {
+      const id = Number(s.id);
+      const maxM3 = Number(s.capacityM3) || 0;
+      const filled = fillEvents
+        .filter((f) => Number(f.storeId) === id)
+        .reduce((sum, f) => sum + (Number(f.volumeM3) || 0), 0);
+      const spread = spreadings
+        .filter((r) => Number(r.storeId) === id)
+        .reduce((sum, r) => sum + (Number(r.volumeAppliedM3) || 0), 0);
+      const current = Math.max(0, filled - spread);
+      cap[id] = {
+        filled,
+        spread,
+        current,
+        available: maxM3 > 0 ? Math.max(0, maxM3 - current) : null,
+        pct: maxM3 > 0 ? Math.min(100, (current / maxM3) * 100) : null,
+      };
+    }
+    return cap;
+  }, [stores, fillEvents, spreadings]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -2796,6 +2881,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                       "Store Name",
                       "Type",
                       "Capacity (m³)",
+                      "Fill Level",
                       "Material",
                       "Last Inspection",
                       "Next Due",
@@ -2827,6 +2913,25 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                       <td className="px-4 py-3 font-medium">{String(r.storeName ?? "—")}</td>
                       <td className="px-4 py-3">{String(r.storeType ?? "—")}</td>
                       <td className="px-4 py-3">{String(r.capacityM3 ?? "—")}</td>
+                      <td className="px-4 py-3" style={{ minWidth: 130 }}>
+                        {(() => {
+                          const cap = storeCapacity[Number(r.id)];
+                          if (!cap || cap.pct === null)
+                            return <span className="text-xs text-muted-foreground">—</span>;
+                          const color = cap.pct >= 90 ? "#dc2626" : cap.pct >= 70 ? "#d97706" : "#16a34a";
+                          return (
+                            <div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", marginBottom: 2, color: "#6b7280" }}>
+                                <span>{cap.current.toFixed(1)} m³</span>
+                                <span style={{ color: cap.available! < 10 ? "#dc2626" : "#374151" }}>{cap.available!.toFixed(1)} free</span>
+                              </div>
+                              <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${cap.pct}%`, background: color, borderRadius: 3, transition: "width 0.3s" }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3">{String(r.material ?? "—")}</td>
                       <td className="px-4 py-3">
                         {r.lastInspectionDate
@@ -2955,6 +3060,43 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                   </div>
                 )}
               </div>
+              {/* Capacity gauge */}
+              {(() => {
+                const cap = storeCapacity[Number(viewStore.id)];
+                const maxM3 = Number(viewStore.capacityM3) || 0;
+                if (!cap || maxM3 === 0) return null;
+                const color = cap.pct! >= 90 ? "#dc2626" : cap.pct! >= 70 ? "#d97706" : "#16a34a";
+                const bgColor = cap.pct! >= 90 ? "#fef2f2" : cap.pct! >= 70 ? "#fffbeb" : "#f0fdf4";
+                return (
+                  <div style={{ marginTop: 12, padding: "12px 14px", background: bgColor, borderRadius: 8, border: `1px solid ${color}33` }}>
+                    <p className="text-xs font-medium uppercase text-muted-foreground mb-2">Current Fill Level</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", marginBottom: 8 }}>
+                      <span><strong>{cap.current.toFixed(1)}</strong> m³ stored</span>
+                      <span style={{ color: cap.available! < maxM3 * 0.1 ? "#dc2626" : "#16a34a", fontWeight: 600 }}>
+                        {cap.available!.toFixed(1)} m³ free
+                      </span>
+                    </div>
+                    <div style={{ height: 14, background: "#e5e7eb", borderRadius: 7, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${cap.pct}%`, background: color, borderRadius: 7, transition: "width 0.4s" }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "#6b7280", marginTop: 4 }}>
+                      <span>0</span>
+                      <span style={{ fontWeight: 500 }}>{cap.pct!.toFixed(0)}% full</span>
+                      <span>{maxM3} m³ max</span>
+                    </div>
+                    {cap.filled > 0 && (
+                      <p style={{ fontSize: "0.7rem", color: "#6b7280", marginTop: 6 }}>
+                        Total filled: {cap.filled.toFixed(1)} m³ · Total spread: {cap.spread.toFixed(1)} m³
+                      </p>
+                    )}
+                    {cap.pct! >= 90 && (
+                      <p style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 600, marginTop: 4 }}>
+                        ⚠ Near capacity — do not add further material without spreading first.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <DialogFooter>
               <Button
@@ -2969,6 +3111,18 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               >
                 Edit
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setViewStore(null);
+                  setFillForm({ eventDate: new Date().toISOString().slice(0, 10), storeId: String(viewStore!.id) });
+                  setFillStoreId(String(viewStore!.id));
+                  setFillOpen(true);
+                }}
+              >
+                Log Fill Event
+              </Button>
               <Button variant="ghost" onClick={() => setViewStore(null)}>
                 Close
               </Button>
@@ -2976,6 +3130,76 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ══ Fill / Intake Events ══════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold">Fill &amp; Intake Events</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Record when slurry or manure is added into a store — used to calculate available capacity.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setFillForm({ eventDate: new Date().toISOString().slice(0, 10) });
+              setFillStoreId("");
+              setFillOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Log Fill Event
+          </Button>
+        </div>
+        {fillEventsQ.isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : (
+          <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+            {fillEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                No fill events recorded. Log an event each time slurry or manure is added to a store.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-black/5 border-b">
+                  <tr>
+                    {["Date", "Store", "Volume (m³)", "Source / Origin", "Notes", ""].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {fillEvents.map((r: any) => (
+                    <tr key={r.id} className="hover:bg-black/5">
+                      <td className="px-4 py-3">
+                        {r.eventDate ? new Date(r.eventDate).toLocaleDateString("en-GB") : "—"}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {r.storeName ?? stores.find((s) => Number(s.id) === Number(r.storeId))?.storeName ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">{r.volumeM3 ? Number(r.volumeM3).toFixed(1) : "—"}</td>
+                      <td className="px-4 py-3">{String(r.sourceDescription ?? "—")}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{String(r.notes ?? "—")}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => deleteFillMut.mutate(Number(r.id))}
+                        >
+                          <span style={{ fontSize: "0.75rem" }}>✕</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ══ Spreading Records ════════════════════════════════════════════════ */}
       <div className="space-y-3">
@@ -3017,10 +3241,11 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                   <tr>
                     {[
                       "Date",
+                      "Source Store",
                       "Field",
                       "Area (ha)",
                       "Material",
-                      "Volume/Tonnes",
+                      "Volume (m³)",
                       "Method",
                       "Operator",
                     ].map((h) => (
@@ -3035,16 +3260,19 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 </thead>
                 <tbody className="divide-y">
                   {spreadings.map((r, i) => (
-                    <tr key={i} className="hover:bg-black/5">
+                    <tr key={r.id ?? i} className="hover:bg-black/5">
                       <td className="px-4 py-3">
                         {r.spreadingDate
                           ? new Date(r.spreadingDate as string).toLocaleDateString("en-GB")
                           : "—"}
                       </td>
-                      <td className="px-4 py-3">{String(r.fieldName ?? "—")}</td>
+                      <td className="px-4 py-3">
+                        {r.storeName ?? (r.storeId ? (stores.find((s) => Number(s.id) === Number(r.storeId))?.storeName ?? "—") : "—")}
+                      </td>
+                      <td className="px-4 py-3">{String(r.fieldDescription ?? "—")}</td>
                       <td className="px-4 py-3">{String(r.fieldAreaHa ?? "—")}</td>
-                      <td className="px-4 py-3">{String(r.materialType ?? "—")}</td>
-                      <td className="px-4 py-3">{String(r.volumeOrTonnesApplied ?? "—")}</td>
+                      <td className="px-4 py-3">{String(r.manureType ?? "—")}</td>
+                      <td className="px-4 py-3">{r.volumeAppliedM3 ? `${Number(r.volumeAppliedM3).toFixed(1)}` : "—"}</td>
                       <td className="px-4 py-3">{String(r.applicationMethod ?? "—")}</td>
                       <td className="px-4 py-3">{String(r.operatorName ?? "—")}</td>
                     </tr>
@@ -3310,6 +3538,32 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
             <div>
+              <Label>Source Store</Label>
+              <Select
+                value={spreadForm.storeId || "__none__"}
+                onValueChange={(v) =>
+                  setSpreadForm((f) => ({ ...f, storeId: v === "__none__" ? "" : v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select store (optional)…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None / unspecified</SelectItem>
+                  {stores.map((s: any) => {
+                    const cap = storeCapacity[Number(s.id)];
+                    const avail = cap?.available != null ? ` (${cap.available.toFixed(0)} m³ free)` : "";
+                    return (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {String(s.storeName)}
+                        {avail}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Field *</Label>
               <Select
                 value={spreadForm.fieldId || "__select__"}
@@ -3319,7 +3573,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                   setSpreadForm((f) => ({
                     ...f,
                     fieldId: v,
-                    fieldName: field?.name ?? "",
+                    fieldDescription: field?.name ?? "",
                     fieldAreaHa:
                       f.fieldAreaHa ||
                       (field?.areaHectares ? parseFloat(field.areaHectares).toFixed(2) : ""),
@@ -3356,10 +3610,10 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
             <div>
-              <Label>Material Type *</Label>
+              <Label>Manure / Material Type *</Label>
               <Select
-                value={spreadForm.materialType ?? ""}
-                onValueChange={(v) => setSpreadForm((f) => ({ ...f, materialType: v }))}
+                value={spreadForm.manureType ?? ""}
+                onValueChange={(v) => setSpreadForm((f) => ({ ...f, manureType: v }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select" />
@@ -3374,13 +3628,13 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               </Select>
             </div>
             <div>
-              <Label>Volume / Tonnes Applied</Label>
+              <Label>Volume Applied (m³)</Label>
               <Input
                 type="number"
                 step="0.1"
-                value={spreadForm.volumeOrTonnesApplied ?? ""}
+                value={spreadForm.volumeAppliedM3 ?? ""}
                 onChange={(e) =>
-                  setSpreadForm((f) => ({ ...f, volumeOrTonnesApplied: e.target.value }))
+                  setSpreadForm((f) => ({ ...f, volumeAppliedM3: e.target.value }))
                 }
               />
             </div>
@@ -3436,19 +3690,20 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               <Input
                 type="number"
                 step="0.1"
-                value={spreadForm.soilTemperature ?? ""}
+                value={spreadForm.soilTemp ?? ""}
                 onChange={(e) =>
-                  setSpreadForm((f) => ({ ...f, soilTemperature: e.target.value }))
+                  setSpreadForm((f) => ({ ...f, soilTemp: e.target.value }))
                 }
               />
             </div>
             <div>
-              <Label>Weather Conditions</Label>
+              <Label>Ground / Weather Conditions</Label>
               <Input
-                value={spreadForm.weatherConditions ?? ""}
+                value={spreadForm.groundConditions ?? ""}
                 onChange={(e) =>
-                  setSpreadForm((f) => ({ ...f, weatherConditions: e.target.value }))
+                  setSpreadForm((f) => ({ ...f, groundConditions: e.target.value }))
                 }
+                placeholder="e.g. dry, frozen, waterlogged"
               />
             </div>
             <div className="col-span-2">
@@ -3532,12 +3787,18 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             <div>
               <Label>Inspector Organisation</Label>
               <Input
+                list="inspector-org-options"
                 value={inspForm.inspectorOrganisation ?? ""}
                 onChange={(e) =>
                   setInspForm((f) => ({ ...f, inspectorOrganisation: e.target.value }))
                 }
                 placeholder="e.g. Internal, AHDB, EA"
               />
+              <datalist id="inspector-org-options">
+                {(inspectorOrgsQ.data ?? []).map((org: string) => (
+                  <option key={org} value={org} />
+                ))}
+              </datalist>
             </div>
             <div>
               <Label>Outcome *</Label>
@@ -3617,16 +3878,15 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 </span>
               </label>
             </div>
-            {inspForm.freeboardOk !== "true" && (
-              <div>
-                <Label>Freeboard (mm)</Label>
-                <Input
-                  type="number"
-                  value={inspForm.freeboardMm ?? ""}
-                  onChange={(e) => setInspForm((f) => ({ ...f, freeboardMm: e.target.value }))}
-                />
-              </div>
-            )}
+            <div>
+              <Label>Freeboard Measured (mm)</Label>
+              <Input
+                type="number"
+                value={inspForm.freeboardMm ?? ""}
+                onChange={(e) => setInspForm((f) => ({ ...f, freeboardMm: e.target.value }))}
+                placeholder="Distance from slurry surface to top of wall"
+              />
+            </div>
             <div className="col-span-2">
               <Label>Deficiencies Found</Label>
               <Textarea
@@ -3644,10 +3904,17 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 rows={2}
                 placeholder="Describe actions needed to remedy deficiencies…"
               />
-              {inspForm.actionsRequired?.trim() && (
+              {(inspForm.actionsRequired?.trim() ||
+                inspForm.deficiencies?.trim() ||
+                inspForm.leaksOrDamageFound === "true") && (
                 <p style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 4 }}>
                   A task will be raised on the Task Board when you save — you can assign it to the
                   responsible person.
+                  {inspForm.leaksOrDamageFound === "true" && (
+                    <strong style={{ display: "block", color: "#dc2626", marginTop: 2 }}>
+                      ⚠ Leaks / damage: an URGENT task will be created.
+                    </strong>
+                  )}
                 </p>
               )}
             </div>
@@ -3687,6 +3954,101 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               }
             >
               {editingInsp ? "Save Changes" : "Save Inspection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Fill event dialog ════════════════════════════════════════════════ */}
+      <Dialog open={fillOpen} onOpenChange={(o) => { if (!o) { setFillOpen(false); setFillForm({}); } }}>
+        <DialogContent style={{ maxWidth: "34rem" }}>
+          <DialogHeader>
+            <DialogTitle>Log Slurry / Manure Fill Event</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Record each time slurry or manure is added into a storage store. This updates the
+              calculated fill level shown in the store table.
+            </p>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Date *</Label>
+              <Input
+                type="date"
+                max={today}
+                value={fillForm.eventDate ?? ""}
+                onChange={(e) => setFillForm((f) => ({ ...f, eventDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Store *</Label>
+              <Select
+                value={fillForm.storeId || fillStoreId || "__select__"}
+                onValueChange={(v) => {
+                  setFillStoreId(v);
+                  setFillForm((f) => ({ ...f, storeId: v }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select store…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__select__" disabled>Select store…</SelectItem>
+                  {stores.map((s: any) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {String(s.storeName)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Volume Added (m³) *</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={fillForm.volumeM3 ?? ""}
+                onChange={(e) => setFillForm((f) => ({ ...f, volumeM3: e.target.value }))}
+                placeholder="0.0"
+              />
+            </div>
+            <div>
+              <Label>Source / Origin</Label>
+              <Input
+                value={fillForm.sourceDescription ?? ""}
+                onChange={(e) => setFillForm((f) => ({ ...f, sourceDescription: e.target.value }))}
+                placeholder="e.g. cattle housing, dirty water, import"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={fillForm.notes ?? ""}
+                onChange={(e) => setFillForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+                placeholder="Any additional information…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFillOpen(false); setFillForm({}); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !fillForm.eventDate ||
+                !(fillForm.storeId || fillStoreId) ||
+                !fillForm.volumeM3 ||
+                saveFillMut.isPending
+              }
+              onClick={() =>
+                saveFillMut.mutate({
+                  ...fillForm,
+                  storeId: fillForm.storeId || fillStoreId,
+                })
+              }
+            >
+              Log Fill Event
             </Button>
           </DialogFooter>
         </DialogContent>

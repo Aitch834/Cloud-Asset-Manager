@@ -158,6 +158,7 @@ import {
   slurryStoresTable,
   slurryStoreInspectionsTable,
   slurrySpreadingRecordsTable,
+  slurryStoreFillEventsTable,
   pigFlocksTable,
   pigMovementsTable,
   pigFciDocumentsTable,
@@ -19295,7 +19296,7 @@ router.delete("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requ
 router.get("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(slurryStoresTable).where(eq(slurryStoresTable.farmId, farmId)).orderBy(slurryStoresTable.storeName);
-  res.json(rows);
+  res.json({ records: rows });
 });
 router.post("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
@@ -19415,8 +19416,31 @@ router.delete("/farms/:farmId/slurry-store-inspections/:id", requireAuth, requir
 
 router.get("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(slurrySpreadingRecordsTable).where(eq(slurrySpreadingRecordsTable.farmId, farmId)).orderBy(desc(slurrySpreadingRecordsTable.spreadingDate));
-  res.json(rows);
+  const rows = await db
+    .select({
+      id: slurrySpreadingRecordsTable.id,
+      farmId: slurrySpreadingRecordsTable.farmId,
+      storeId: slurrySpreadingRecordsTable.storeId,
+      storeName: slurryStoresTable.storeName,
+      spreadingDate: slurrySpreadingRecordsTable.spreadingDate,
+      fieldId: slurrySpreadingRecordsTable.fieldId,
+      fieldDescription: slurrySpreadingRecordsTable.fieldDescription,
+      fieldAreaHa: slurrySpreadingRecordsTable.fieldAreaHa,
+      manureType: slurrySpreadingRecordsTable.manureType,
+      applicationMethod: slurrySpreadingRecordsTable.applicationMethod,
+      incorporationMethod: slurrySpreadingRecordsTable.incorporationMethod,
+      volumeAppliedM3: slurrySpreadingRecordsTable.volumeAppliedM3,
+      soilTemp: slurrySpreadingRecordsTable.soilTemp,
+      groundConditions: slurrySpreadingRecordsTable.groundConditions,
+      operatorName: slurrySpreadingRecordsTable.operatorName,
+      notes: slurrySpreadingRecordsTable.notes,
+      createdAt: slurrySpreadingRecordsTable.createdAt,
+    })
+    .from(slurrySpreadingRecordsTable)
+    .leftJoin(slurryStoresTable, eq(slurrySpreadingRecordsTable.storeId, slurryStoresTable.id))
+    .where(eq(slurrySpreadingRecordsTable.farmId, farmId))
+    .orderBy(desc(slurrySpreadingRecordsTable.spreadingDate));
+  res.json({ records: rows });
 });
 router.post("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
@@ -19433,6 +19457,49 @@ router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requir
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurrySpreadingRecordsTable).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Slurry Store Fill Events ─────────────────────────────────────────────────
+router.get("/farms/:farmId/slurry-fill-events", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: slurryStoreFillEventsTable.id,
+      farmId: slurryStoreFillEventsTable.farmId,
+      storeId: slurryStoreFillEventsTable.storeId,
+      storeName: slurryStoresTable.storeName,
+      eventDate: slurryStoreFillEventsTable.eventDate,
+      volumeM3: slurryStoreFillEventsTable.volumeM3,
+      sourceDescription: slurryStoreFillEventsTable.sourceDescription,
+      notes: slurryStoreFillEventsTable.notes,
+      createdAt: slurryStoreFillEventsTable.createdAt,
+    })
+    .from(slurryStoreFillEventsTable)
+    .leftJoin(slurryStoresTable, eq(slurryStoreFillEventsTable.storeId, slurryStoresTable.id))
+    .where(eq(slurryStoreFillEventsTable.farmId, farmId))
+    .orderBy(desc(slurryStoreFillEventsTable.eventDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/slurry-fill-events", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { storeId, eventDate, volumeM3, sourceDescription, notes } = req.body;
+  const [row] = await db.insert(slurryStoreFillEventsTable).values({
+    farmId,
+    storeId: Number(storeId),
+    eventDate,
+    volumeM3,
+    sourceDescription: sourceDescription || null,
+    notes: notes || null,
+  }).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/slurry-fill-events/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(slurryStoreFillEventsTable).where(and(eq(slurryStoreFillEventsTable.id, id), eq(slurryStoreFillEventsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
