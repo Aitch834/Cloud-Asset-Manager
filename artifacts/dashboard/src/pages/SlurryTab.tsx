@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Printer, Eye, Pencil } from "lucide-react";
 
+// ── Print helpers ──────────────────────────────────────────────────────────
+
 const CSS_PRINT = `
   body { font-family: Arial, sans-serif; font-size: 10.5pt; color: #111; margin: 20mm; }
   h1 { font-size: 15pt; color: #166534; margin-bottom: 4px; }
@@ -46,11 +48,11 @@ const CSS_PRINT = `
   @media print { body { margin: 0; } }
 `;
 
-function openPrint(title: string, html: string) {
+function openPrint(title: string, body: string) {
   const w = window.open("", "_blank", "width=920,height=700");
   if (!w) return;
   w.document.write(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>${CSS_PRINT}</style></head><body>${html}</body></html>`
+    `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>${CSS_PRINT}</style></head><body>${body}</body></html>`
   );
   w.document.close();
   w.focus();
@@ -58,7 +60,11 @@ function openPrint(title: string, html: string) {
 }
 
 function doSSAFOPrint(stores: any[], inspections: any[], farmId: number) {
-  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const now = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
   const storeRows = stores
     .map(
       (s) => `<tr>
@@ -112,11 +118,16 @@ function doSSAFOPrint(stores: any[], inspections: any[], farmId: number) {
 }
 
 function doSpreadingPrint(spreadings: any[], farmId: number) {
-  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const sorted = [...spreadings].sort(
-    (a, b) => new Date(b.spreadingDate ?? 0).getTime() - new Date(a.spreadingDate ?? 0).getTime()
-  );
-  const rows = sorted
+  const now = new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const rows = [...spreadings]
+    .sort(
+      (a, b) =>
+        new Date(b.spreadingDate ?? 0).getTime() - new Date(a.spreadingDate ?? 0).getTime()
+    )
     .map(
       (r) => `<tr>
     <td>${r.spreadingDate ? new Date(r.spreadingDate).toLocaleDateString("en-GB") : "—"}</td>
@@ -149,6 +160,62 @@ function doSpreadingPrint(spreadings: any[], farmId: number) {
   );
 }
 
+// ── Option lists ───────────────────────────────────────────────────────────
+
+const STORE_TYPES = [
+  "Slurry Lagoon",
+  "Slurry Tank",
+  "Reception Pit",
+  "Silage Clamp",
+  "Dung Pad",
+  "Manure Store",
+  "Earth Bank Store",
+];
+
+const MATERIALS = [
+  "Cattle Slurry",
+  "Pig Slurry",
+  "Poultry Slurry",
+  "FYM (Cattle)",
+  "FYM (Pig)",
+  "FYM (Poultry)",
+  "Digestate",
+  "Mixed",
+];
+
+const SPREAD_MATERIALS = [
+  "Cattle Slurry",
+  "Pig Slurry",
+  "Poultry Slurry",
+  "FYM (Cattle)",
+  "FYM (Pig)",
+  "FYM (Poultry)",
+  "Digestate",
+];
+
+const APPLICATION_METHODS = [
+  "Broadcast",
+  "Trailing shoe",
+  "Shallow injection",
+  "Deep injection",
+  "Band spread",
+  "Splash plate",
+];
+
+const INCORPORATION_METHODS = [
+  "Not applicable",
+  "Ploughed in (6 hrs)",
+  "Cultivated (12 hrs)",
+  "Applied to bare soil",
+];
+
+const STORE_STATUSES = ["Compliant", "Non-Compliant", "Under Repair", "Decommissioned"];
+
+// ── Component ──────────────────────────────────────────────────────────────
+
+type Row = Record<string, unknown>;
+type Form = Record<string, string>;
+
 export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -156,28 +223,37 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
   const staffNames = (membersData?.members ?? []).map((m) => memberFullName(m));
   const activeMembers = (membersData?.members ?? []).filter((m) => m.isActive);
 
+  // Store dialog state
   const [storeOpen, setStoreOpen] = useState(false);
-  const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
-  const [storeForm, setStoreForm] = useState<Record<string, string>>({});
-  const [viewStore, setViewStore] = useState<Record<string, unknown> | null>(null);
+  const [editingStore, setEditingStore] = useState<Row | null>(null);
+  const [storeForm, setStoreForm] = useState<Form>({});
+  const [viewStore, setViewStore] = useState<Row | null>(null);
 
+  // Spreading dialog state
   const [spreadOpen, setSpreadOpen] = useState(false);
-  const [spreadForm, setSpreadForm] = useState<Record<string, string>>({});
+  const [spreadForm, setSpreadForm] = useState<Form>({});
 
+  // Inspection dialog state
   const [inspOpen, setInspOpen] = useState(false);
-  const [editingInsp, setEditingInsp] = useState<Record<string, unknown> | null>(null);
-  const [inspForm, setInspForm] = useState<Record<string, string>>({});
+  const [editingInsp, setEditingInsp] = useState<Row | null>(null);
+  const [inspForm, setInspForm] = useState<Form>({});
   const [inspStoreId, setInspStoreId] = useState("");
   const [deleteInspId, setDeleteInspId] = useState<number | null>(null);
 
+  // Raise task dialog state
   const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
-  const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(null);
+  const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(
+    null
+  );
   const [taskAssigneeId, setTaskAssigneeId] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
 
+  // Highlight + auto-open for deep-link
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const storeRowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
+
+  // ── Queries ──────────────────────────────────────────────────────────────
 
   const fieldsQ = useQuery({
     queryKey: ["fields", farmId],
@@ -190,30 +266,34 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
   const storesQ = useQuery({
     queryKey: ["slurry-stores", farmId],
     queryFn: () =>
-      fetch(`/api/farms/${farmId}/slurry-stores`, { credentials: "include" }).then((r) => r.json()),
-    select: (d: any) => (d.records ?? []) as Record<string, unknown>[],
+      fetch(`/api/farms/${farmId}/slurry-stores`, { credentials: "include" }).then((r) =>
+        r.json()
+      ),
+    select: (d: any) => (d.records ?? []) as Row[],
   });
 
   const spreadQ = useQuery({
     queryKey: ["slurry-spreading", farmId],
     queryFn: () =>
-      fetch(`/api/farms/${farmId}/slurry-spreading-records`, { credentials: "include" }).then((r) =>
-        r.json()
+      fetch(`/api/farms/${farmId}/slurry-spreading-records`, { credentials: "include" }).then(
+        (r) => r.json()
       ),
-    select: (d: any) => (d.records ?? []) as Record<string, unknown>[],
+    select: (d: any) => (d.records ?? []) as Row[],
   });
 
   const inspQ = useQuery({
     queryKey: ["slurry-inspections", farmId],
     queryFn: () =>
-      fetch(`/api/farms/${farmId}/slurry-store-inspections`, { credentials: "include" }).then((r) =>
-        r.json()
+      fetch(`/api/farms/${farmId}/slurry-store-inspections`, { credentials: "include" }).then(
+        (r) => r.json()
       ),
-    select: (d: any) => (d.records ?? []) as Record<string, unknown>[],
+    select: (d: any) => (d.records ?? []) as Row[],
   });
 
+  // ── Mutations ─────────────────────────────────────────────────────────────
+
   const saveStoreMut = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
+    mutationFn: (body: Form) => {
       const url = editingStore
         ? `/api/farms/${farmId}/slurry-stores/${editingStore.id}`
         : `/api/farms/${farmId}/slurry-stores`;
@@ -235,7 +315,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
   });
 
   const saveSpreadMut = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: Form) =>
       fetch(`/api/farms/${farmId}/slurry-spreading-records`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -252,7 +332,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
   });
 
   const saveInspMut = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
+    mutationFn: (body: Form) => {
       const url = editingInsp
         ? `/api/farms/${farmId}/slurry-store-inspections/${editingInsp.id}`
         : `/api/farms/${farmId}/slurry-store-inspections`;
@@ -263,17 +343,16 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         body: JSON.stringify(body),
       }).then((r) => r.json());
     },
-    onSuccess: (_data: unknown, variables: any) => {
+    onSuccess: (_data: unknown, variables: Form) => {
       qc.invalidateQueries({ queryKey: ["slurry-inspections", farmId] });
       qc.invalidateQueries({ queryKey: ["slurry-stores", farmId] });
+      const wasEditing = editingInsp;
       setInspOpen(false);
       setInspForm({});
       setEditingInsp(null);
-      toast({ title: editingInsp ? "Inspection updated" : "Inspection recorded" });
-      if (variables?.actionsRequired?.trim()) {
-        const store = (storesQ.data ?? []).find(
-          (s) => String(s.id) === String(variables.storeId)
-        );
+      toast({ title: wasEditing ? "Inspection updated" : "Inspection recorded" });
+      if (variables.actionsRequired?.trim()) {
+        const store = (storesQ.data ?? []).find((s) => String(s.id) === String(variables.storeId));
         const storeName = store ? String(store.storeName ?? "store") : "store";
         const dateStr = variables.inspectionDate
           ? new Date(variables.inspectionDate).toLocaleDateString("en-GB", {
@@ -324,6 +403,8 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
     onError: () => toast({ title: "Failed to raise task", variant: "destructive" }),
   });
 
+  // ── Effects ───────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!openId || autoOpened.current || (storesQ.data ?? []).length === 0) return;
     const target = (storesQ.data ?? []).find((r) => Number(r.id) === openId);
@@ -333,11 +414,15 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
     }
   }, [openId, storesQ.data]);
 
+  // ── Derived ───────────────────────────────────────────────────────────────
+
   const stores = storesQ.data ?? [];
   const spreadings = spreadQ.data ?? [];
   const inspections = inspQ.data ?? [];
 
-  function openInspDialog(store: Record<string, unknown> | null) {
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function openInspDialog(store: Row | null) {
     setEditingInsp(null);
     setInspForm({
       inspectionDate: new Date().toISOString().slice(0, 10),
@@ -348,21 +433,32 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
     setInspOpen(true);
   }
 
-  const statusBadge = (status: unknown) =>
-    String(status) === "Compliant"
+  function statusBadge(status: unknown) {
+    return String(status) === "Compliant"
       ? "bg-green-100 text-green-700"
       : "bg-amber-100 text-amber-700";
+  }
 
-  const outcomeBadge = (outcome: unknown) =>
-    outcome === "Pass"
+  function outcomeBadge(outcome: unknown) {
+    return outcome === "Pass"
       ? "bg-green-100 text-green-700"
       : outcome === "Advisory"
-      ? "bg-amber-100 text-amber-700"
-      : "bg-red-100 text-red-700";
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
+  }
+
+  function rowToForm(row: Row): Form {
+    return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, String(v ?? "")]));
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/* ── Stores ─────────────────────────────────────────── */}
+
+      {/* ══ Slurry & Manure Stores ════════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Slurry &amp; Manure Stores</h3>
@@ -388,6 +484,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
             </Button>
           </div>
         </div>
+
         {storesQ.isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : (
@@ -400,16 +497,23 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
                   <tr>
-                    {["Store Name", "Type", "Capacity (m³)", "Material", "Last Inspection", "Next Due", "Status", ""].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {[
+                      "Store Name",
+                      "Type",
+                      "Capacity (m³)",
+                      "Material",
+                      "Last Inspection",
+                      "Next Due",
+                      "Status",
+                      "",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -451,8 +555,8 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => setViewStore(r)}
                             title="View"
+                            onClick={() => setViewStore(r)}
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
@@ -469,11 +573,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                             variant="ghost"
                             onClick={() => {
                               setEditingStore(r);
-                              setStoreForm(
-                                Object.fromEntries(
-                                  Object.entries(r).map(([k, v]) => [k, String(v ?? "")])
-                                )
-                              );
+                              setStoreForm(rowToForm(r));
                               setStoreOpen(true);
                             }}
                           >
@@ -490,7 +590,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         )}
       </div>
 
-      {/* ── View Store dialog ──────────────────────────────── */}
+      {/* ══ View Store dialog ════════════════════════════════════════════════ */}
       {viewStore && (
         <Dialog open onOpenChange={() => setViewStore(null)}>
           <DialogContent className="max-w-md">
@@ -507,7 +607,9 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                 </div>
                 {!!viewStore.storeType && (
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Type</p>
+                    <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">
+                      Type
+                    </p>
                     <p>{String(viewStore.storeType)}</p>
                   </div>
                 )}
@@ -528,7 +630,9 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Status</p>
+                  <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">
+                    Status
+                  </p>
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusBadge(viewStore.status)}`}
                   >
@@ -564,9 +668,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   const s = viewStore;
                   setViewStore(null);
                   setEditingStore(s);
-                  setStoreForm(
-                    Object.fromEntries(Object.entries(s).map(([k, v]) => [k, String(v ?? "")]))
-                  );
+                  setStoreForm(rowToForm(s));
                   setStoreOpen(true);
                 }}
               >
@@ -580,7 +682,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         </Dialog>
       )}
 
-      {/* ── Spreading Records ──────────────────────────────── */}
+      {/* ══ Spreading Records ════════════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Spreading Records</h3>
@@ -594,11 +696,18 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                 <Printer className="w-4 h-4 mr-1" /> Print Log
               </Button>
             )}
-            <Button size="sm" onClick={() => { setSpreadForm({}); setSpreadOpen(true); }}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setSpreadForm({});
+                setSpreadOpen(true);
+              }}
+            >
               <Plus className="w-4 h-4 mr-2" /> Log Spreading
             </Button>
           </div>
         </div>
+
         {spreadQ.isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : (
@@ -611,16 +720,22 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
                   <tr>
-                    {["Date", "Field", "Area (ha)", "Material", "Volume/Tonnes", "Method", "Operator"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {[
+                      "Date",
+                      "Field",
+                      "Area (ha)",
+                      "Material",
+                      "Volume/Tonnes",
+                      "Method",
+                      "Operator",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -646,7 +761,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         )}
       </div>
 
-      {/* ── Inspection Records ─────────────────────────────── */}
+      {/* ══ Store Inspection Records ══════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Store Inspection Records</h3>
@@ -654,6 +769,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
             <Plus className="w-4 h-4 mr-2" /> Log Inspection
           </Button>
         </div>
+
         {inspQ.isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : (
@@ -666,16 +782,23 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <table className="w-full text-sm">
                 <thead className="bg-black/5 border-b">
                   <tr>
-                    {["Date", "Store", "Inspector", "Outcome", "Leaks / Damage", "Next Due", "Actions", ""].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {[
+                      "Date",
+                      "Store",
+                      "Inspector",
+                      "Outcome",
+                      "Leaks / Damage",
+                      "Next Due",
+                      "Actions",
+                      "",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-4 py-3 font-medium text-muted-foreground text-xs"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -688,7 +811,8 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                       </td>
                       <td className="px-4 py-3 font-medium">{r.storeName ?? "—"}</td>
                       <td className="px-4 py-3">
-                        {[r.inspectorName, r.inspectorOrganisation].filter(Boolean).join(", ") || "—"}
+                        {[r.inspectorName, r.inspectorOrganisation].filter(Boolean).join(", ") ||
+                          "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -722,11 +846,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                             variant="ghost"
                             onClick={() => {
                               setEditingInsp(r);
-                              setInspForm(
-                                Object.fromEntries(
-                                  Object.entries(r).map(([k, v]) => [k, String(v ?? "")])
-                                )
-                              );
+                              setInspForm(rowToForm(r));
                               setInspStoreId(String(r.storeId));
                               setInspOpen(true);
                             }}
@@ -752,7 +872,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         )}
       </div>
 
-      {/* ── Add/Edit Store dialog ─────────────────────────── */}
+      {/* ══ Add / Edit Store dialog ═══════════════════════════════════════════ */}
       <Dialog open={storeOpen} onOpenChange={setStoreOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
@@ -776,15 +896,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Slurry Lagoon",
-                    "Slurry Tank",
-                    "Reception Pit",
-                    "Silage Clamp",
-                    "Dung Pad",
-                    "Manure Store",
-                    "Earth Bank Store",
-                  ].map((o) => (
+                  {STORE_TYPES.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -810,16 +922,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Cattle Slurry",
-                    "Pig Slurry",
-                    "Poultry Slurry",
-                    "FYM (Cattle)",
-                    "FYM (Pig)",
-                    "FYM (Poultry)",
-                    "Digestate",
-                    "Mixed",
-                  ].map((o) => (
+                  {MATERIALS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -840,9 +943,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Input
                 type="number"
                 value={storeForm.requiredStorage ?? ""}
-                onChange={(e) =>
-                  setStoreForm((f) => ({ ...f, requiredStorage: e.target.value }))
-                }
+                onChange={(e) => setStoreForm((f) => ({ ...f, requiredStorage: e.target.value }))}
               />
             </div>
             <div>
@@ -855,7 +956,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Compliant", "Non-Compliant", "Under Repair", "Decommissioned"].map((o) => (
+                  {STORE_STATUSES.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -897,7 +998,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         </DialogContent>
       </Dialog>
 
-      {/* ── Spreading dialog ──────────────────────────────── */}
+      {/* ══ Spreading dialog ══════════════════════════════════════════════════ */}
       <Dialog open={spreadOpen} onOpenChange={setSpreadOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
@@ -908,7 +1009,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Label>Spreading Date *</Label>
               <Input
                 type="date"
-                max={new Date().toISOString().slice(0, 10)}
+                max={today}
                 value={spreadForm.spreadingDate ?? ""}
                 onChange={(e) => setSpreadForm((f) => ({ ...f, spreadingDate: e.target.value }))}
               />
@@ -926,9 +1027,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                     fieldName: field?.name ?? "",
                     fieldAreaHa:
                       f.fieldAreaHa ||
-                      (field?.areaHectares
-                        ? parseFloat(field.areaHectares).toFixed(2)
-                        : ""),
+                      (field?.areaHectares ? parseFloat(field.areaHectares).toFixed(2) : ""),
                   }));
                 }}
               >
@@ -971,15 +1070,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Cattle Slurry",
-                    "Pig Slurry",
-                    "Poultry Slurry",
-                    "FYM (Cattle)",
-                    "FYM (Pig)",
-                    "FYM (Poultry)",
-                    "Digestate",
-                  ].map((o) => (
+                  {SPREAD_MATERIALS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -1008,14 +1099,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Broadcast",
-                    "Trailing shoe",
-                    "Shallow injection",
-                    "Deep injection",
-                    "Band spread",
-                    "Splash plate",
-                  ].map((o) => (
+                  {APPLICATION_METHODS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -1027,18 +1111,15 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Label>Incorporation Method</Label>
               <Select
                 value={spreadForm.incorporationMethod ?? ""}
-                onValueChange={(v) => setSpreadForm((f) => ({ ...f, incorporationMethod: v }))}
+                onValueChange={(v) =>
+                  setSpreadForm((f) => ({ ...f, incorporationMethod: v }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Not applicable",
-                    "Ploughed in (6 hrs)",
-                    "Cultivated (12 hrs)",
-                    "Applied to bare soil",
-                  ].map((o) => (
+                  {INCORPORATION_METHODS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -1061,7 +1142,9 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
                 type="number"
                 step="0.1"
                 value={spreadForm.soilTemperature ?? ""}
-                onChange={(e) => setSpreadForm((f) => ({ ...f, soilTemperature: e.target.value }))}
+                onChange={(e) =>
+                  setSpreadForm((f) => ({ ...f, soilTemperature: e.target.value }))
+                }
               />
             </div>
             <div>
@@ -1096,7 +1179,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         </DialogContent>
       </Dialog>
 
-      {/* ── Inspection dialog ─────────────────────────────── */}
+      {/* ══ Inspection dialog ═════════════════════════════════════════════════ */}
       <Dialog
         open={inspOpen}
         onOpenChange={(o) => {
@@ -1139,7 +1222,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Label>Inspection Date *</Label>
               <Input
                 type="date"
-                max={new Date().toISOString().slice(0, 10)}
+                max={today}
                 value={inspForm.inspectionDate ?? ""}
                 onChange={(e) => setInspForm((f) => ({ ...f, inspectionDate: e.target.value }))}
               />
@@ -1262,16 +1345,14 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Label>Actions Required</Label>
               <Textarea
                 value={inspForm.actionsRequired ?? ""}
-                onChange={(e) =>
-                  setInspForm((f) => ({ ...f, actionsRequired: e.target.value }))
-                }
+                onChange={(e) => setInspForm((f) => ({ ...f, actionsRequired: e.target.value }))}
                 rows={2}
                 placeholder="Describe actions needed to remedy deficiencies…"
               />
               {inspForm.actionsRequired?.trim() && (
                 <p style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 4 }}>
-                  A task will be raised on the Task Board when you save — you can assign it to
-                  the responsible person.
+                  A task will be raised on the Task Board when you save — you can assign it to the
+                  responsible person.
                 </p>
               )}
             </div>
@@ -1316,7 +1397,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         </DialogContent>
       </Dialog>
 
-      {/* ── Raise task dialog ────────────────────────────── */}
+      {/* ══ Raise task dialog ═════════════════════════════════════════════════ */}
       <Dialog
         open={raiseTaskOpen}
         onOpenChange={(o) => {
@@ -1368,7 +1449,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
               <Label>Due Date</Label>
               <Input
                 type="date"
-                min={new Date().toISOString().slice(0, 10)}
+                min={today}
                 value={taskDueDate}
                 onChange={(e) => setTaskDueDate(e.target.value)}
               />
@@ -1409,7 +1490,7 @@ export function SlurryTab({ farmId, openId }: { farmId: number; openId?: number 
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete inspection confirm ─────────────────────── */}
+      {/* ══ Delete inspection confirm ══════════════════════════════════════════ */}
       <Dialog
         open={deleteInspId !== null}
         onOpenChange={(o) => {

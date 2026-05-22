@@ -31,6 +31,12 @@ if (import.meta.hot) {
   };
   checkServerToken();
   import.meta.hot.on("vite:ws:connect", checkServerToken);
+  // Poll every 4 s so a token change (caused by a file edit → vite:beforeFullReload
+  // → regenToken) is detected even when the HMR WebSocket is unavailable through
+  // the Replit external proxy.  Without polling the user's browser can end up with
+  // a mix of old-hash and new-hash pre-bundled chunks, creating two React instances
+  // and "Invalid hook call" on whichever component renders next.
+  setInterval(checkServerToken, 4000);
 }
 
 if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {

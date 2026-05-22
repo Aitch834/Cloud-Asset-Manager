@@ -1,2 +1,2 @@
-- [Test-dashboard proxy cache fix](test-dashboard-proxy-cache.md) — Replit proxy caches @fs/ module URLs across server sessions; session-token stamping in vite.config.ts is the fix.
-- [Replit External Proxy Gateway Fix](proxy-gateway-fix.md) — website vite.config proxy rules forward sub-path apps when external proxy routing breaks.
+- [Test-dashboard token mismatch](test-dashboard-token-mismatch.md) — file-edit → regenToken → old/new hash mix → two React instances → "Invalid hook call"; fix is polling in main.tsx.
+- [Proxy gateway fix](proxy-gateway-fix.md) — website vite.config.ts proxies /test-dashboard/ and /dashboard/ to their respective ports; do not remove these rules.
