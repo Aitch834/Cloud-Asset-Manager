@@ -1,1 +1,1 @@
-- [Test-dashboard "Invalid hook call" fix](test-dashboard-token-mismatch.md) — dep chunk URLs (/node_modules/.vite/deps/*.js?v=HASH) must be session-stamped; Replit's proxy ignores no-store and serves stale React copies without the stamp.
+- [Test-dashboard dep-chunk stamping](test-dashboard-dep-chunk-stamping.md) — stamping &td= on dep chunks CAUSES the two-React crash; only @fs/ source files should be stamped.
