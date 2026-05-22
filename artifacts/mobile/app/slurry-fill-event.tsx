@@ -10,23 +10,20 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
-import { FieldPicker } from "@/components/ui/FieldPicker";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { SlurrySpreadingRecord } from "@/lib/types";
+import type { SlurryFillEvent } from "@/lib/types";
 
 const SPREAD_MATERIALS = [
   "Cattle Slurry",
@@ -41,34 +38,18 @@ const SPREAD_MATERIALS = [
   "Other",
 ];
 
-const APP_METHODS = [
-  { key: "trailing_shoe", label: "Trailing Shoe" },
-  { key: "injected", label: "Injected" },
-  { key: "band_spread", label: "Band Spreading" },
-  { key: "splash_plate", label: "Splash Plate" },
-  { key: "irrigated", label: "Irrigated / Hose" },
-];
-
-const SOIL_CONDITIONS = [
-  "Firm / Dry",
-  "Moist",
-  "Wet",
-  "Saturated",
-  "Frozen",
-];
-
 type Store = {
   id: number;
   storeName: string;
   storeType: string;
   material: string | null;
+  capacityM3: number | null;
 };
 
-export default function SlurrySpreadingScreen() {
+export default function SlurryFillEventScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
 
   const [stores, setStores] = useState<Store[]>([]);
   const [loadingStores, setLoadingStores] = useState(true);
@@ -77,17 +58,10 @@ export default function SlurrySpreadingScreen() {
   const [saving, setSaving] = useState(false);
   const today = new Date().toISOString().split("T")[0];
 
-  const [spreadingDate, setSpreadingDate] = useState(today);
-  const [fieldName, setFieldName] = useState("");
-  const [fieldAreaHa, setFieldAreaHa] = useState("");
-  const [manureType, setManureType] = useState("");
+  const [eventDate, setEventDate] = useState(today);
+  const [materialType, setMaterialType] = useState("");
   const [volumeM3, setVolumeM3] = useState("");
-  const [applicationRateM3Ha, setApplicationRateM3Ha] = useState("");
-  const [applicationMethod, setApplicationMethod] = useState("trailing_shoe");
-  const [soilCondition, setSoilCondition] = useState("");
-  const [contractor, setContractor] = useState("");
-  const [nvzClosedPeriod, setNvzClosedPeriod] = useState(false);
-  const [windspeedOk, setWindspeedOk] = useState(true);
+  const [sourceDescription, setSourceDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
@@ -104,7 +78,7 @@ export default function SlurrySpreadingScreen() {
         setStores(list);
         if (list.length === 1) {
           setSelectedStoreId(list[0].id);
-          if (list[0].material) setManureType(list[0].material);
+          if (list[0].material) setMaterialType(list[0].material);
         }
       })
       .catch(() => {})
@@ -117,9 +91,9 @@ export default function SlurrySpreadingScreen() {
   const handleStoreSelect = (store: Store) => {
     setSelectedStoreId(store.id);
     if (store.material) {
-      setManureType(store.material);
+      setMaterialType(store.material);
     } else {
-      setManureType("");
+      setMaterialType("");
     }
     Haptics.selectionAsync();
   };
@@ -140,26 +114,32 @@ export default function SlurrySpreadingScreen() {
     }
   };
 
-  const doSave = async () => {
+  const handleSave = async () => {
+    if (!selectedStoreId) {
+      Alert.alert("Store Required", "Please select the store receiving this material.");
+      return;
+    }
+    if (!materialType) {
+      Alert.alert("Material Required", "Please select or confirm the material type.");
+      return;
+    }
+    if (!volumeM3.trim()) {
+      Alert.alert("Volume Required", "Please enter the volume added (m³).");
+      return;
+    }
+
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const record: SlurrySpreadingRecord = {
+    const record: SlurryFillEvent = {
       id: generateId(),
       farmId: String(currentFarm?.id ?? ""),
-      spreadingDate,
-      storeId: String(selectedStoreId ?? ""),
+      storeId: String(selectedStoreId),
       storeName: selectedStore?.storeName ?? "",
-      manureType,
-      fieldName: fieldName.trim(),
-      fieldAreaHa: fieldAreaHa.trim(),
+      materialType,
+      eventDate,
       volumeM3: volumeM3.trim(),
-      applicationRateM3Ha: applicationRateM3Ha.trim(),
-      applicationMethod,
-      soilConditionAtSpreading: soilCondition,
-      contractor: contractor.trim(),
-      nvzClosedPeriod,
-      windspeedOk,
+      sourceDescription: sourceDescription.trim(),
       notes: notes.trim(),
       latitude,
       longitude,
@@ -167,36 +147,13 @@ export default function SlurrySpreadingScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.SLURRY_SPREADING_RECORDS, record);
+    await appendToList(STORAGE_KEYS.SLURRY_FILL_EVENTS, record);
     await refreshPendingCount();
     setSaving(false);
 
-    Alert.alert("Saved", "Spreading record saved and queued for sync.", [
+    Alert.alert("Saved", "Fill / intake event saved and queued for sync.", [
       { text: "OK", onPress: () => router.back() },
     ]);
-  };
-
-  const handleSave = () => {
-    if (!spreadingDate || !selectedStoreId) {
-      Alert.alert("Required Fields", "Please select a store and spreading date.");
-      return;
-    }
-    if (!manureType) {
-      Alert.alert("Required Fields", "Please select the manure / material type.");
-      return;
-    }
-    if (nvzClosedPeriod) {
-      Alert.alert(
-        "NVZ Closed Period Warning",
-        "You have indicated spreading occurred in a closed NVZ period. Organic manures are prohibited in closed periods — this may be a compliance breach. Are you sure you want to save?",
-        [
-          { text: "Cancel" },
-          { text: "Save Anyway", style: "destructive", onPress: doSave },
-        ]
-      );
-      return;
-    }
-    doSave();
   };
 
   return (
@@ -210,8 +167,8 @@ export default function SlurrySpreadingScreen() {
             <Feather name="arrow-left" size={22} color={colors.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Slurry / Manure Spreading</Text>
-            <Text style={styles.subtitle}>Field spreading record · NVZ compliance</Text>
+            <Text style={styles.title}>Slurry Store Fill Event</Text>
+            <Text style={styles.subtitle}>Log intake · species-specific storage enforced</Text>
           </View>
         </View>
 
@@ -221,7 +178,7 @@ export default function SlurrySpreadingScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Store selection */}
-          <Text style={styles.sectionTitle}>Source Store</Text>
+          <Text style={styles.sectionTitle}>Store Receiving Material *</Text>
           {loadingStores ? (
             <Text style={styles.hint}>Loading stores…</Text>
           ) : stores.length === 0 ? (
@@ -255,200 +212,97 @@ export default function SlurrySpreadingScreen() {
                   >
                     {s.storeType}
                     {s.material ? ` · ${s.material}` : ""}
+                    {s.capacityM3 ? ` · ${s.capacityM3}m³ cap.` : ""}
                   </Text>
                 </Pressable>
               ))}
             </View>
           )}
 
-          {/* Date */}
-          <Text style={styles.sectionTitle}>Spreading Date</Text>
-          <Input
-            value={spreadingDate}
-            onChangeText={setSpreadingDate}
-            placeholder="YYYY-MM-DD"
-            keyboardType="numbers-and-punctuation"
-          />
-
-          {/* Manure / Material Type */}
-          <Text style={styles.sectionTitle}>Manure / Material Type *</Text>
+          {/* Material type */}
+          <Text style={styles.sectionTitle}>Material Type *</Text>
           {materialLocked ? (
             <View style={styles.lockedRow}>
               <Text style={styles.lockIcon}>🔒</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.lockedValue}>{selectedStore!.material}</Text>
                 <Text style={styles.lockedHint}>
-                  Locked to store configuration — species-specific storage enforced
+                  This store accepts {selectedStore!.material} only — species-specific storage enforced
                 </Text>
               </View>
             </View>
-          ) : (
+          ) : selectedStoreId ? (
             <View style={styles.chipRow}>
               {SPREAD_MATERIALS.map((m) => (
                 <Pressable
                   key={m}
-                  style={[styles.chip, manureType === m && styles.chipActive]}
+                  style={[styles.chip, materialType === m && styles.chipActive]}
                   onPress={() => {
-                    setManureType(m);
+                    setMaterialType(m);
                     Haptics.selectionAsync();
                   }}
                 >
                   <Text
-                    style={[styles.chipText, manureType === m && styles.chipTextActive]}
+                    style={[styles.chipText, materialType === m && styles.chipTextActive]}
                   >
                     {m}
                   </Text>
                 </Pressable>
               ))}
             </View>
+          ) : (
+            <Text style={styles.hint}>Select a store above to set material type</Text>
           )}
 
-          {/* Field */}
-          <Text style={styles.sectionTitle}>Field</Text>
-          <FieldPicker
-            label=""
-            value={fieldName}
-            onChange={setFieldName}
-            fields={fields}
-            loading={fieldsLoading}
-            error={fieldsError}
-          />
+          {/* Date */}
+          <Text style={styles.sectionTitle}>Date of Fill *</Text>
           <Input
-            label="Field Area (ha)"
-            value={fieldAreaHa}
-            onChangeText={setFieldAreaHa}
-            placeholder="e.g. 8.5"
+            value={eventDate}
+            onChangeText={setEventDate}
+            placeholder="YYYY-MM-DD"
+            keyboardType="numbers-and-punctuation"
+          />
+
+          {/* Volume */}
+          <Text style={styles.sectionTitle}>Volume Added (m³) *</Text>
+          <Input
+            value={volumeM3}
+            onChangeText={setVolumeM3}
+            placeholder="e.g. 50.0"
             keyboardType="decimal-pad"
-            style={{ marginTop: spacing.sm }}
           />
-
-          {/* Volume & Rate */}
-          <Text style={styles.sectionTitle}>Quantities</Text>
-          <View style={styles.row}>
-            <Input
-              label="Volume (m³)"
-              value={volumeM3}
-              onChangeText={setVolumeM3}
-              placeholder="e.g. 200"
-              keyboardType="decimal-pad"
-              containerStyle={styles.flex}
-            />
-            <Input
-              label="Rate (m³/ha)"
-              value={applicationRateM3Ha}
-              onChangeText={setApplicationRateM3Ha}
-              placeholder="e.g. 25"
-              keyboardType="decimal-pad"
-              containerStyle={styles.flex}
-            />
-          </View>
-
-          {/* Application method */}
-          <Text style={styles.sectionTitle}>Application Method</Text>
-          <View style={styles.chipRow}>
-            {APP_METHODS.map((m) => (
-              <Pressable
-                key={m.key}
-                style={[styles.chip, applicationMethod === m.key && styles.chipActive]}
-                onPress={() => {
-                  setApplicationMethod(m.key);
-                  Haptics.selectionAsync();
-                }}
-              >
-                <Text
+          {selectedStore?.capacityM3 && volumeM3 && Number(volumeM3) > 0 && (
+            <View style={styles.capacityBar}>
+              <View style={styles.capacityBarTrack}>
+                <View
                   style={[
-                    styles.chipText,
-                    applicationMethod === m.key && styles.chipTextActive,
+                    styles.capacityBarFill,
+                    {
+                      width: `${Math.min(100, (Number(volumeM3) / selectedStore.capacityM3) * 100)}%`,
+                      backgroundColor:
+                        Number(volumeM3) / selectedStore.capacityM3 > 0.9
+                          ? colors.error
+                          : Number(volumeM3) / selectedStore.capacityM3 > 0.75
+                          ? "#F59E0B"
+                          : colors.success,
+                    },
                   ]}
-                >
-                  {m.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Soil condition */}
-          <Text style={styles.sectionTitle}>Soil Condition at Spreading</Text>
-          <View style={styles.chipRow}>
-            {SOIL_CONDITIONS.map((c) => (
-              <Pressable
-                key={c}
-                style={[
-                  styles.chip,
-                  soilCondition === c && styles.chipActive,
-                  (c === "Wet" || c === "Saturated" || c === "Frozen") &&
-                    soilCondition === c &&
-                    styles.chipDanger,
-                ]}
-                onPress={() => {
-                  setSoilCondition(c);
-                  Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[styles.chipText, soilCondition === c && styles.chipTextActive]}
-                >
-                  {c}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {(soilCondition === "Wet" || soilCondition === "Saturated" || soilCondition === "Frozen") && (
-            <View style={[styles.alertBox, { borderColor: colors.error, backgroundColor: "#FEF2F2" }]}>
-              <Feather name="alert-circle" size={14} color={colors.error} />
-              <Text style={[styles.alertText, { color: "#991B1B" }]}>
-                Spreading on {soilCondition.toLowerCase()} or frozen ground risks run-off — check NVZ rules and RB209.
+                />
+              </View>
+              <Text style={styles.capacityLabel}>
+                {((Number(volumeM3) / selectedStore.capacityM3) * 100).toFixed(0)}% of{" "}
+                {selectedStore.capacityM3}m³ capacity
               </Text>
             </View>
           )}
 
-          {/* Contractor */}
+          {/* Source */}
+          <Text style={styles.sectionTitle}>Source / Origin</Text>
           <Input
-            label="Contractor / Operator"
-            value={contractor}
-            onChangeText={setContractor}
-            placeholder="Name or company"
-            style={{ marginTop: spacing.md }}
+            value={sourceDescription}
+            onChangeText={setSourceDescription}
+            placeholder="e.g. cattle housing, dirty water, import from farm"
           />
-
-          {/* NVZ + Wind switches */}
-          <View style={[styles.switchRow, nvzClosedPeriod && { borderColor: colors.error }]}>
-            <View style={styles.flex}>
-              <Text style={[styles.switchLabel, nvzClosedPeriod && { color: colors.error }]}>
-                NVZ Closed Period
-              </Text>
-              <Text style={styles.switchSub}>
-                Turn on if spreading occurred in a closed NVZ period
-              </Text>
-            </View>
-            <Switch
-              value={nvzClosedPeriod}
-              onValueChange={(v) => {
-                setNvzClosedPeriod(v);
-                Haptics.selectionAsync();
-              }}
-              trackColor={{ false: colors.border, true: colors.error }}
-              thumbColor="#fff"
-            />
-          </View>
-
-          <View style={[styles.switchRow, { marginTop: spacing.sm }]}>
-            <View style={styles.flex}>
-              <Text style={styles.switchLabel}>Windspeed Acceptable</Text>
-              <Text style={styles.switchSub}>
-                Spreading should not occur in high wind conditions near watercourses
-              </Text>
-            </View>
-            <Switch
-              value={windspeedOk}
-              onValueChange={(v) => {
-                setWindspeedOk(v);
-                Haptics.selectionAsync();
-              }}
-              trackColor={{ false: colors.error, true: colors.success }}
-              thumbColor="#fff"
-            />
-          </View>
 
           {/* GPS */}
           <Pressable onPress={handleGps} style={styles.gpsBtn}>
@@ -466,6 +320,7 @@ export default function SlurrySpreadingScreen() {
             </Text>
           </Pressable>
 
+          {/* Notes */}
           <Input
             label="Notes"
             value={notes}
@@ -477,11 +332,11 @@ export default function SlurrySpreadingScreen() {
           />
 
           <Button
-            title={saving ? "Saving…" : "Save Spreading Record"}
+            title={saving ? "Saving…" : "Log Fill Event"}
             onPress={handleSave}
-            disabled={saving}
+            disabled={saving || !selectedStoreId}
             fullWidth
-            icon="check"
+            icon="arrow-down"
             style={styles.saveBtn}
           />
         </ScrollView>
@@ -574,11 +429,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primary + "15" },
-  chipDanger: { borderColor: colors.error, backgroundColor: colors.error + "15" },
   chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   chipTextActive: { color: colors.primary, fontFamily: fonts.semiBold },
-  row: { flexDirection: "row", gap: spacing.md },
-  flex: { flex: 1 },
   alertBox: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -588,23 +440,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   alertText: { flex: 1, fontFamily: fonts.regular, fontSize: fontSize.sm },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: spacing.md,
+  capacityBar: { marginTop: spacing.xs },
+  capacityBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.borderLight,
+    overflow: "hidden",
   },
-  switchLabel: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
-  switchSub: {
+  capacityBarFill: { height: "100%", borderRadius: 3 },
+  capacityLabel: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
   },
   gpsBtn: {
     flexDirection: "row",

@@ -1038,6 +1038,45 @@ export interface SlurryEvent {
   synced: boolean;
 }
 
+export interface SlurrySpreadingRecord {
+  id: string;
+  farmId: string;
+  spreadingDate: string;
+  storeId: string;
+  storeName: string;
+  manureType: string;
+  fieldName: string;
+  fieldAreaHa: string;
+  volumeM3: string;
+  applicationRateM3Ha: string;
+  applicationMethod: string;
+  soilConditionAtSpreading: string;
+  contractor: string;
+  nvzClosedPeriod: boolean;
+  windspeedOk: boolean;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SlurryFillEvent {
+  id: string;
+  farmId: string;
+  storeId: string;
+  storeName: string;
+  materialType: string;
+  eventDate: string;
+  volumeM3: string;
+  sourceDescription: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SfiAction {
   id: string;
   farmId: string;
