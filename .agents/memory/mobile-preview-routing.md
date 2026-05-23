@@ -1,44 +1,51 @@
 ---
 name: Mobile preview routing
-description: How the Expo mobile app preview is routed in this pnpm monorepo project
+description: How the Expo mobile app preview is routed in this pnpm monorepo project — confirmed working state
 ---
 
 # Mobile Preview Routing
 
-## The confirmed root cause
+## Architecture
 Replit routes ALL traffic — including the `*.expo.*` subdomain — to whichever app
 sits at `/`. In this project that is the website Vite server (port 19161).
-`router = "expo-domain"` in artifact.toml does NOT cause Replit to route the expo
-subdomain to a different port; it only sets the outer wrapper iframe URL.
 
-## The two-part fix (both are needed, both live in `artifacts/website/vite.config.ts`)
+## The confirmed fix (fully working as of May 2026)
 
-### Fix 1 — Expo-subdomain middleware plugin
-When the incoming `Host` header contains `.expo.`, the Vite custom middleware
-forwards the request directly to Metro (port 18115) instead of serving the website.
-This handles the canvas iframes and the Replit preview pane which show the expo
-subdomain URL.
+### Part 1 — artifact.toml: do NOT use `router = "expo-domain"`
+`router = "expo-domain"` causes Replit to set `initialPath=%2F` in the outer
+workspace_iframe URL, so the inner preview iframe lands at the website root `/`
+instead of `/mobile/`. Remove this line entirely; Replit then uses the regular
+domain with `initialPath=%2Fmobile%2F`, which the gateway proxy serves correctly.
 
-### Fix 2 — Asset path proxies
-Metro's HTML page (served at `/mobile/`) embeds root-relative asset paths:
-- `src="/node_modules/.pnpm/expo-router.../entry.bundle?..."` — the main JS bundle
-- `/_expo/static/media/...` — Expo static media
-- `/assets/?unstable_path=...` — fonts (.ttf) and other assets loaded by Metro's
-  asset system (used by `@expo-google-fonts/inter`, `@expo/vector-icons`, etc.)
+The artifact.toml for mobile should have NO `router` key — just `kind`, `previewPath`,
+`title`, `version`, `id`, integratedSkills, and services.
 
-Without proxy entries for these paths, Vite's SPA fallback returns `text/html`
-which causes fonts to fail silently (`useFonts` hangs → blank white screen).
-The proxy entries:
-```js
-"/_expo":              { target: "http://localhost:18115", changeOrigin: true }
-"/node_modules/.pnpm": { target: "http://localhost:18115", changeOrigin: true }
-"/assets":             { target: "http://localhost:18115", changeOrigin: true }
-"/mobile":             { target: "http://localhost:18115", changeOrigin: true, ws: true }
+### Part 2 — Expo-subdomain middleware plugin (vite.config.ts)
+When the incoming `Host` header contains `.expo.`, forward the entire request to
+Metro (port 18115) with the `origin` header rewritten to `http://localhost:18115`.
+Metro's CorsMiddleware rejects any non-localhost origin — must override in the raw
+`http.request` options before piping.
+
+### Part 3 — Asset path proxies with Metro CORS fix (vite.config.ts)
+Metro's HTML page embeds root-relative asset paths that all need to reach Metro.
+Add proxy entries AND fix the Origin header via `configure` + `proxyReq` event:
+
+```ts
+function metroOriginFix(proxy) {
+  proxy.on("proxyReq", (proxyReq) => {
+    proxyReq.setHeader("origin", `http://localhost:${MOBILE_PORT}`);
+  });
+}
+
+"/_expo":              { target: "http://localhost:18115", changeOrigin: true, configure: metroOriginFix }
+"/node_modules/.pnpm": { target: "http://localhost:18115", changeOrigin: true, configure: metroOriginFix }
+"/assets":             { target: "http://localhost:18115", changeOrigin: true, configure: metroOriginFix }
+"/mobile":             { target: "http://localhost:18115", changeOrigin: true, ws: true, configure: metroOriginFix }
 ```
-Safe notes:
-- `/node_modules/.pnpm` safe: Vite's `fs.deny: ["**/.*"]` already blocks it
-- `/assets` safe: Vite dev mode never serves content at `/assets/` — that is only
-  a production build output path. The website's `public/` images are at root `/`.
+
+**Why `configure`, not `headers`**: Vite proxy `headers` adds response headers, not
+request headers. `configure` + `proxy.on("proxyReq", ...)` is the only way to
+override request headers before they reach the upstream.
 
 ## Port assignments
 - Website/gateway: 19161 (all external traffic arrives here)
@@ -47,7 +54,7 @@ Safe notes:
 - Mobile Metro: 18115
 
 ## What does NOT work
-- `experiments.baseUrl: "/mobile/"` in `artifacts/mobile/app.json` — breaks Metro
-  HMR (see metro-baseur-hmr-crash.md)
+- `experiments.baseUrl: "/mobile/"` in `artifacts/mobile/app.json` — breaks Metro HMR
 - HTML-rewriting proxy that prefixes asset src paths with `/mobile/` — same crash
-- `router = "expo-domain"` alone is NOT enough; the gateway proxy fixes are required
+- `router = "expo-domain"` — wrong initialPath in workspace iframe
+- `headers: { origin: "..." }` in Vite proxy config — adds response headers, not request headers

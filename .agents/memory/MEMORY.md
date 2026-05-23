@@ -1,2 +1,2 @@
-- [Mobile preview routing](mobile-preview-routing.md) — expo subdomain works via artifact.toml router=expo-domain; website Vite gateway also needs /mobile proxy entry
+- [Mobile preview routing](mobile-preview-routing.md) — do NOT use router=expo-domain; use configure+proxyReq (not headers) to override Origin for Metro CORS
 - [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten

@@ -30,6 +30,16 @@ if (!basePath) {
 // Port where the Expo Metro dev server listens (artifacts/mobile localPort).
 const MOBILE_PORT = 18115;
 
+// Vite proxy configure helper: rewrites the Origin header to localhost before
+// the request reaches Metro. Metro's CorsMiddleware rejects any origin that
+// isn't localhost, so requests proxied from the external Replit domain would
+// otherwise fail with 401/500.
+function metroOriginFix(proxy: import("http-proxy").Server) {
+  proxy.on("proxyReq", (proxyReq) => {
+    proxyReq.setHeader("origin", `http://localhost:${MOBILE_PORT}`);
+  });
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -58,7 +68,13 @@ export default defineConfig({
               port: MOBILE_PORT,
               path: req.url,
               method: req.method,
-              headers: { ...req.headers, host: `localhost:${MOBILE_PORT}` },
+              headers: {
+                ...req.headers,
+                host: `localhost:${MOBILE_PORT}`,
+                // Metro's CorsMiddleware only trusts localhost origins.
+                // Rewrite origin so Metro accepts the proxied request.
+                origin: `http://localhost:${MOBILE_PORT}`,
+              },
             },
             (proxyRes) => {
               res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
@@ -122,6 +138,7 @@ export default defineConfig({
       "/_expo": {
         target: `http://localhost:${MOBILE_PORT}`,
         changeOrigin: true,
+        configure: metroOriginFix,
       },
       // Metro JS bundles — pnpm serves them at long /node_modules/.pnpm/...
       // paths. Vite's fs.deny blocks .pnpm (hidden dir) anyway, so this is
@@ -129,6 +146,7 @@ export default defineConfig({
       "/node_modules/.pnpm": {
         target: `http://localhost:${MOBILE_PORT}`,
         changeOrigin: true,
+        configure: metroOriginFix,
       },
       // Metro asset serving (fonts, vector-icon .ttf files, images).
       // Metro uses /assets/?unstable_path=... for all font/asset requests.
@@ -137,12 +155,14 @@ export default defineConfig({
       "/assets": {
         target: `http://localhost:${MOBILE_PORT}`,
         changeOrigin: true,
+        configure: metroOriginFix,
       },
       // Mobile app HTML entry point.
       "/mobile": {
         target: `http://localhost:${MOBILE_PORT}`,
         changeOrigin: true,
         ws: true,
+        configure: metroOriginFix,
       },
       "/test-dashboard": {
         target: "http://localhost:18652",
