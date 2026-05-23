@@ -2006,6 +2006,62 @@ export interface OrganicTreatment {
   synced: boolean;
 }
 
+export interface OrganicArableInput {
+  id: string;
+  farmId: string;
+  productName: string;
+  inputType: string;
+  permittedStatus: string;
+  regulatoryBasis: string;
+  supplierName: string;
+  applicationDate: string;
+  fieldName: string;
+  quantityApplied: string;
+  quantityUnit: string;
+  areaAppliedHa: string;
+  certifierApproval: string;
+  activeIngredient: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface OrganicArableSeed {
+  id: string;
+  farmId: string;
+  purchaseDate: string;
+  cropName: string;
+  variety: string;
+  quantityKg: string;
+  supplierName: string;
+  supplierAddress: string;
+  seedType: string;
+  derogationGranted: boolean;
+  derogationReference: string;
+  certifierApproval: string;
+  batchLotNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface OrganicArableHarvest {
+  id: string;
+  farmId: string;
+  harvestDate: string;
+  cropName: string;
+  variety: string;
+  fieldName: string;
+  yieldTonnes: string;
+  moisturePercent: string;
+  storageLocation: string;
+  organicStatus: string;
+  certifierRef: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface TbTestRecord {
   id: string;
   farmId: string;

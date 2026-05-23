@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -7,37 +7,56 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle, Wheat,
   ShieldCheck, FileText, Sprout, Package, CheckCircle2,
+  Eye, Printer, Download,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { useLookupStrings } from "@/hooks/use-lookup";
+import { downloadCsvFile } from "@/lib/csv";
+import { printProReport } from "@/lib/print-report";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+type Row = Record<string, unknown>;
+
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
-  try { return new Date(val).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
-  catch { return val; }
+  try {
+    return new Date(val).toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  } catch { return val; }
 }
 function fmtN(val: unknown, suffix = ""): string {
   if (val == null || val === "") return "—";
   return `${val}${suffix}`;
 }
-function conversionProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
-  if (!startDate) return 0;
-  const start = new Date(startDate).getTime();
-  const end = endDate ? new Date(endDate).getTime() : start + 2 * 365.25 * 24 * 3600 * 1000;
-  const now = Date.now();
-  return Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
+function str(v: unknown): string { return v == null ? "" : String(v); }
+function conversionProgress(start: string | null | undefined, end: string | null | undefined): number {
+  if (!start) return 0;
+  const s = new Date(start).getTime();
+  const e = end ? new Date(end).getTime() : s + 2 * 365.25 * 24 * 3600 * 1000;
+  return Math.min(100, Math.max(0, Math.round(((Date.now() - s) / (e - s)) * 100)));
 }
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
-  const now = new Date(); now.setHours(0,0,0,0);
-  const target = new Date(dateStr); target.setHours(0,0,0,0);
-  return Math.round((target.getTime() - now.getTime()) / 86400000);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const t = new Date(dateStr); t.setHours(0, 0, 0, 0);
+  return Math.round((t.getTime() - now.getTime()) / 86400000);
+}
+function currentYear() { return new Date().getFullYear(); }
+function yearOptions() {
+  const y = currentYear(); return [y + 1, y, y - 1, y - 2, y - 3].map(String);
 }
 
 const apiFetch = (path: string, opts?: RequestInit) =>
@@ -45,16 +64,28 @@ const apiFetch = (path: string, opts?: RequestInit) =>
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CERTIFIERS = ["Soil Association", "Organic Farmers & Growers (OF&G)", "OCIS", "Biodynamic Association (Demeter)", "Other"];
+const DEFAULT_ARABLE_CROPS = [
+  "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
+  "Malting Barley", "Oilseed Rape (OSR)", "Winter Oats", "Spring Oats",
+  "Winter Beans", "Spring Beans", "Peas", "Maize", "Sugar Beet",
+  "Potatoes", "Linseed", "Rye", "Triticale", "Other",
+];
+
+const CERTIFIERS = [
+  "Soil Association", "Organic Farmers & Growers (OF&G)", "OCIS",
+  "Biodynamic Association (Demeter)", "Other",
+];
 
 const CERT_STATUSES = [
-  { value: "in-conversion", label: "In Conversion", cls: "bg-amber-50 text-amber-700 border-amber-300" },
+  { value: "all", label: "All" },
   { value: "certified", label: "Certified", cls: "bg-green-50 text-green-700 border-green-300" },
+  { value: "in-conversion", label: "In Conversion", cls: "bg-amber-50 text-amber-700 border-amber-300" },
   { value: "suspended", label: "Suspended", cls: "bg-red-50 text-red-700 border-red-300" },
   { value: "withdrawn", label: "Withdrawn", cls: "bg-gray-100 text-gray-500 border-gray-300" },
 ];
 
 const CONV_STATUSES = [
+  { value: "all", label: "All" },
   { value: "pre-conversion", label: "Pre-Conversion", cls: "bg-blue-50 text-blue-700 border-blue-300" },
   { value: "in-conversion", label: "In Conversion", cls: "bg-amber-50 text-amber-700 border-amber-300" },
   { value: "certified", label: "Certified", cls: "bg-green-50 text-green-700 border-green-300" },
@@ -68,24 +99,22 @@ const SEED_TYPES = [
 ];
 
 const HARVEST_STATUSES = [
+  { value: "all", label: "All" },
   { value: "certified", label: "Certified Organic", cls: "bg-green-50 text-green-700 border-green-300" },
   { value: "in-conversion", label: "In-Conversion", cls: "bg-amber-50 text-amber-700 border-amber-300" },
   { value: "conventional", label: "Conventional", cls: "bg-gray-100 text-gray-500 border-gray-300" },
 ];
 
 const PERMITTED_STATUSES = [
+  { value: "all", label: "All" },
   { value: "permitted", label: "Permitted (Annex II)", cls: "bg-green-50 text-green-700 border-green-300" },
   { value: "restricted", label: "Restricted — notify certifier", cls: "bg-amber-50 text-amber-700 border-amber-300" },
   { value: "prohibited", label: "Prohibited", cls: "bg-red-50 text-red-700 border-red-300" },
 ];
 
-const INPUT_TYPES = [
-  "Fertiliser / Soil Amendment",
-  "Crop Protection / Pesticide",
-  "Biological Control",
-  "Seed Treatment",
-  "Cleaning & Disinfection",
-  "Other",
+const INPUT_TYPES_ALL = [
+  "Fertiliser / Soil Amendment", "Crop Protection / Pesticide",
+  "Biological Control", "Seed Treatment", "Cleaning & Disinfection", "Other",
 ];
 
 const QUANTITY_UNITS = ["kg/ha", "l/ha", "t/ha", "kg", "l", "t", "g/ha", "units/ha"];
@@ -129,8 +158,12 @@ const ANNEX_INPUTS = [
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
-function StatusBadge({ value, options }: { value: string; options: { value: string; label: string; cls: string }[] }) {
-  const opt = options.find(o => o.value === value) ?? { label: value, cls: "bg-gray-100 text-gray-600 border-gray-300" };
+function StatusBadge({ value, options }: {
+  value: string;
+  options: { value: string; label: string; cls: string }[];
+}) {
+  const opt = options.filter(o => o.value !== "all").find(o => o.value === value)
+    ?? { label: value, cls: "bg-gray-100 text-gray-600 border-gray-300" };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium ${opt.cls}`}>
       {opt.label}
@@ -138,7 +171,9 @@ function StatusBadge({ value, options }: { value: string; options: { value: stri
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string | number; sub?: string }) {
+function SummaryCard({ icon: Icon, label, value, sub }: {
+  icon: React.ElementType; label: string; value: string | number; sub?: string;
+}) {
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
       <div className="rounded-lg bg-primary/10 p-2 shrink-0">
@@ -172,7 +207,7 @@ function DeleteConfirmDialog({ open, onClose, onConfirm, saving }: {
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" />Delete Record
           </DialogTitle>
-          <DialogDescription>This cannot be undone. Are you sure?</DialogDescription>
+          <DialogDescription>This action cannot be undone. Are you sure?</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
@@ -185,6 +220,114 @@ function DeleteConfirmDialog({ open, onClose, onConfirm, saving }: {
   );
 }
 
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex gap-4 py-2 border-b border-border/50 last:border-0">
+      <span className="text-xs text-muted-foreground font-medium min-w-[150px] shrink-0">{label}</span>
+      <span className="text-sm flex-1">{value || "—"}</span>
+    </div>
+  );
+}
+
+function FilterPills({ options, value, onChange, counts }: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  counts?: Record<string, number>;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(o => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${value === o.value ? "bg-primary text-white border-primary" : "bg-background text-muted-foreground border-border hover:bg-muted"}`}
+        >
+          {o.label}
+          {counts && counts[o.value] != null && (
+            <span className={`ml-1.5 ${value === o.value ? "opacity-80" : "text-muted-foreground"}`}>({counts[o.value]})</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReportBar({ onPrint, onCsv, onAdd, addLabel }: {
+  onPrint: () => void; onCsv: () => void; onAdd: () => void; addLabel: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={onPrint}>
+          <Printer className="w-3.5 h-3.5 mr-1.5" />Print Register
+        </Button>
+        <Button variant="outline" size="sm" onClick={onCsv}>
+          <Download className="w-3.5 h-3.5 mr-1.5" />Export CSV
+        </Button>
+      </div>
+      <Button size="sm" onClick={onAdd}>
+        <Plus className="w-4 h-4 mr-1.5" />{addLabel}
+      </Button>
+    </div>
+  );
+}
+
+// ─── Field Selector ────────────────────────────────────────────────────────────
+
+function FieldSelector({ value, onChange, fields }: {
+  value: string; onChange: (v: string) => void; fields: { id: number; name: string }[];
+}) {
+  const inList = fields.some(f => f.name === value);
+  const showText = !inList || fields.length === 0;
+  return (
+    <div className="space-y-1.5">
+      {fields.length > 0 && (
+        <Select value={inList ? value : "__other__"} onValueChange={v => {
+          if (v === "__other__") onChange("");
+          else onChange(v);
+        }}>
+          <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+          <SelectContent>
+            {fields.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}
+            <SelectItem value="__other__">Other / Manual entry</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      {showText && (
+        <Input placeholder="Field / parcel name" value={value} onChange={e => onChange(e.target.value)} />
+      )}
+    </div>
+  );
+}
+
+// ─── Substance Picker ─────────────────────────────────────────────────────────
+
+function SubstancePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inList = ANNEX_INPUTS.includes(value);
+  const [custom, setCustom] = useState(!inList && value !== "");
+  return (
+    <div className="space-y-1.5">
+      <select
+        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+        value={inList ? value : custom ? "__other__" : ""}
+        onChange={e => {
+          if (e.target.value === "__other__") { setCustom(true); onChange(""); }
+          else if (e.target.value === "") { setCustom(false); onChange(""); }
+          else { setCustom(false); onChange(e.target.value); }
+        }}
+      >
+        <option value="">Select Annex II approved input…</option>
+        {ANNEX_INPUTS.map(s => <option key={s} value={s}>{s}</option>)}
+        <option value="__other__">Other / specify below</option>
+      </select>
+      {custom && (
+        <Input autoFocus placeholder="Enter product / substance name" value={inList ? "" : value} onChange={e => onChange(e.target.value)} />
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type Tab = "certification" | "field-conversion" | "seed-sourcing" | "input-log" | "harvest-declarations";
@@ -193,69 +336,87 @@ export default function OrganicArablePage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
 
+  // ── Lookups ──
+  const cropOptions = useLookupStrings("commodity_types", DEFAULT_ARABLE_CROPS);
+  const { data: varietyLookup } = useQuery<{ items: { value: string; groupLabel?: string }[] }>({
+    queryKey: ["lookups", "crop_varieties"],
+    queryFn: () => apiFetch("lookups/crop_varieties").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const allVarietyItems = varietyLookup?.items ?? [];
+
+  const { data: fieldsData } = useQuery<{ records: { id: number; name: string }[] }>({
+    queryKey: ["farm-fields", farmId],
+    queryFn: () => apiFetch(`farms/${farmId}/fields`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const fieldOptions = fieldsData?.records ?? [];
+
+  // ── Tab ──
   const [activeTab, setActiveTab] = useState<Tab>("certification");
 
-  // ── Certification state ──
+  // ── Certification ──
+  const [certFilter, setCertFilter] = useState("all");
+  const [viewCert, setViewCert] = useState<Row | null>(null);
   const [certOpen, setCertOpen] = useState(false);
-  const [certEditing, setCertEditing] = useState<Record<string, unknown> | null>(null);
+  const [certEditing, setCertEditing] = useState<Row | null>(null);
   const [certDeleting, setCertDeleting] = useState<number | null>(null);
   const [certForm, setCertForm] = useState<Record<string, string>>({});
 
-  // ── Field Conversion state ──
+  // ── Field Conversion ──
+  const [convFilter, setConvFilter] = useState("all");
+  const [viewConv, setViewConv] = useState<Row | null>(null);
   const [convOpen, setConvOpen] = useState(false);
-  const [convEditing, setConvEditing] = useState<Record<string, unknown> | null>(null);
+  const [convEditing, setConvEditing] = useState<Row | null>(null);
   const [convDeleting, setConvDeleting] = useState<number | null>(null);
-  const [convForm, setConvForm] = useState<Record<string, string | boolean>>({});
+  const [convForm, setConvForm] = useState<Record<string, string>>({});
 
-  // ── Seed Sourcing state ──
+  // ── Seed Sourcing ──
+  const [seedFilterCrop, setSeedFilterCrop] = useState("all");
+  const [seedFilterType, setSeedFilterType] = useState("all");
+  const [viewSeed, setViewSeed] = useState<Row | null>(null);
   const [seedOpen, setSeedOpen] = useState(false);
-  const [seedEditing, setSeedEditing] = useState<Record<string, unknown> | null>(null);
+  const [seedEditing, setSeedEditing] = useState<Row | null>(null);
   const [seedDeleting, setSeedDeleting] = useState<number | null>(null);
-  const [seedForm, setSeedForm] = useState<Record<string, string | boolean>>({});
+  const [seedForm, setSeedForm] = useState<Record<string, string>>({});
 
-  // ── Input Log state ──
+  // ── Input Log ──
+  const [inputFilterYear, setInputFilterYear] = useState(String(currentYear()));
+  const [inputFilterType, setInputFilterType] = useState("all");
+  const [inputFilterStatus, setInputFilterStatus] = useState("all");
+  const [viewInput, setViewInput] = useState<Row | null>(null);
   const [inputOpen, setInputOpen] = useState(false);
-  const [inputEditing, setInputEditing] = useState<Record<string, unknown> | null>(null);
+  const [inputEditing, setInputEditing] = useState<Row | null>(null);
   const [inputDeleting, setInputDeleting] = useState<number | null>(null);
   const [inputForm, setInputForm] = useState<Record<string, string>>({});
   const [inputCustomProduct, setInputCustomProduct] = useState(false);
 
-  // ── Harvest state ──
+  // ── Harvest Declarations ──
+  const [harvestFilterYear, setHarvestFilterYear] = useState(String(currentYear()));
+  const [harvestFilterCrop, setHarvestFilterCrop] = useState("all");
+  const [harvestFilterStatus, setHarvestFilterStatus] = useState("all");
+  const [viewHarvest, setViewHarvest] = useState<Row | null>(null);
   const [harvestOpen, setHarvestOpen] = useState(false);
-  const [harvestEditing, setHarvestEditing] = useState<Record<string, unknown> | null>(null);
+  const [harvestEditing, setHarvestEditing] = useState<Row | null>(null);
   const [harvestDeleting, setHarvestDeleting] = useState<number | null>(null);
   const [harvestForm, setHarvestForm] = useState<Record<string, string>>({});
 
-  // ── Queries ──
-  const certQ = useQuery<Record<string, unknown>[]>({
-    queryKey: ["oa-cert", farmId],
-    queryFn: () => apiFetch(`farms/${farmId}/organic-arable/certification`).then(r => r.json()).then(d => d.records),
-    enabled: !!farmId,
-  });
-  const convQ = useQuery<Record<string, unknown>[]>({
-    queryKey: ["oa-conv", farmId],
-    queryFn: () => apiFetch(`farms/${farmId}/organic-arable/field-conversion`).then(r => r.json()).then(d => d.records),
-    enabled: !!farmId,
-  });
-  const seedQ = useQuery<Record<string, unknown>[]>({
-    queryKey: ["oa-seed", farmId],
-    queryFn: () => apiFetch(`farms/${farmId}/organic-arable/seed-records`).then(r => r.json()).then(d => d.records),
-    enabled: !!farmId,
-  });
-  const inputQ = useQuery<Record<string, unknown>[]>({
-    queryKey: ["oa-input", farmId],
-    queryFn: () => apiFetch(`farms/${farmId}/organic-arable/input-records`).then(r => r.json()).then(d => d.records),
-    enabled: !!farmId,
-  });
-  const harvestQ = useQuery<Record<string, unknown>[]>({
-    queryKey: ["oa-harvest", farmId],
-    queryFn: () => apiFetch(`farms/${farmId}/organic-arable/harvest-declarations`).then(r => r.json()).then(d => d.records),
-    enabled: !!farmId,
-  });
+  // ── Buyer Declaration (separate dialog) ──
+  const [buyerOpen, setBuyerOpen] = useState(false);
+  const [buyerRecord, setBuyerRecord] = useState<Row | null>(null);
+  const [buyerForm, setBuyerForm] = useState<Record<string, string>>({});
 
-  // ── Generic mutation factory ──
-  function useCrud(key: string, endpoint: string, invalidate: string[]) {
+  // ── Queries ──
+  const certQ = useQuery<Row[]>({ queryKey: ["oa-cert", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/certification`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const convQ = useQuery<Row[]>({ queryKey: ["oa-conv", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/field-conversion`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const seedQ = useQuery<Row[]>({ queryKey: ["oa-seed", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/seed-records`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const inputQ = useQuery<Row[]>({ queryKey: ["oa-input", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/input-records`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const harvestQ = useQuery<Row[]>({ queryKey: ["oa-harvest", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/harvest-declarations`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+
+  // ── Generic CRUD factory ──
+  function useCrud(endpoint: string, keys: string[]) {
     const save = useMutation({
       mutationFn: ({ id, body }: { id?: number; body: Record<string, unknown> }) =>
         apiFetch(id ? `farms/${farmId}/${endpoint}/${id}` : `farms/${farmId}/${endpoint}`, {
@@ -263,37 +424,50 @@ export default function OrganicArablePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }).then(r => r.json()),
-      onSuccess: () => {
-        invalidate.forEach(k => qc.invalidateQueries({ queryKey: [k, farmId] }));
-        toast({ title: "Saved" });
-      },
+      onSuccess: () => { keys.forEach(k => qc.invalidateQueries({ queryKey: [k, farmId] })); toast({ title: "Saved" }); },
       onError: () => toast({ title: "Error saving", variant: "destructive" }),
     });
     const del = useMutation({
-      mutationFn: (id: number) =>
-        apiFetch(`farms/${farmId}/${endpoint}/${id}`, { method: "DELETE" }),
-      onSuccess: () => {
-        invalidate.forEach(k => qc.invalidateQueries({ queryKey: [k, farmId] }));
-        toast({ title: "Deleted" });
-      },
+      mutationFn: (id: number) => apiFetch(`farms/${farmId}/${endpoint}/${id}`, { method: "DELETE" }),
+      onSuccess: () => { keys.forEach(k => qc.invalidateQueries({ queryKey: [k, farmId] })); toast({ title: "Deleted" }); },
       onError: () => toast({ title: "Error deleting", variant: "destructive" }),
     });
     return { save, del };
   }
 
-  const certMut = useCrud("cert", "organic-arable/certification", ["oa-cert"]);
-  const convMut = useCrud("conv", "organic-arable/field-conversion", ["oa-conv"]);
-  const seedMut = useCrud("seed", "organic-arable/seed-records", ["oa-seed"]);
-  const inputMut = useCrud("input", "organic-arable/input-records", ["oa-input"]);
-  const harvestMut = useCrud("harvest", "organic-arable/harvest-declarations", ["oa-harvest"]);
+  const certMut = useCrud("organic-arable/certification", ["oa-cert"]);
+  const convMut = useCrud("organic-arable/field-conversion", ["oa-conv"]);
+  const seedMut = useCrud("organic-arable/seed-records", ["oa-seed"]);
+  const inputMut = useCrud("organic-arable/input-records", ["oa-input"]);
+  const harvestMut = useCrud("organic-arable/harvest-declarations", ["oa-harvest"]);
 
-  // ── Helpers ──
-  const str = (v: unknown) => (v == null ? "" : String(v));
-  const today = new Date().toISOString().slice(0, 10);
+  // ── Filtered data ──
+  const certs = certQ.data ?? [];
+  const convs = convQ.data ?? [];
+  const seeds = seedQ.data ?? [];
+  const inputs = inputQ.data ?? [];
+  const harvests = harvestQ.data ?? [];
 
-  // ─── Certification tab ────────────────────────────────────────────────────
+  const filteredCerts = useMemo(() => certs.filter(c => certFilter === "all" || c.status === certFilter), [certs, certFilter]);
+  const filteredConvs = useMemo(() => convs.filter(c => convFilter === "all" || c.status === convFilter), [convs, convFilter]);
+  const filteredSeeds = useMemo(() => seeds.filter(s =>
+    (seedFilterCrop === "all" || s.cropName === seedFilterCrop) &&
+    (seedFilterType === "all" || s.seedType === seedFilterType)
+  ), [seeds, seedFilterCrop, seedFilterType]);
+  const filteredInputs = useMemo(() => inputs.filter(i =>
+    (inputFilterYear === "all" || str(i.applicationDate).startsWith(inputFilterYear)) &&
+    (inputFilterType === "all" || i.inputType === inputFilterType) &&
+    (inputFilterStatus === "all" || i.permittedStatus === inputFilterStatus)
+  ), [inputs, inputFilterYear, inputFilterType, inputFilterStatus]);
+  const filteredHarvests = useMemo(() => harvests.filter(h =>
+    (harvestFilterYear === "all" || str(h.harvestDate).startsWith(harvestFilterYear)) &&
+    (harvestFilterCrop === "all" || h.cropName === harvestFilterCrop) &&
+    (harvestFilterStatus === "all" || h.organicStatus === harvestFilterStatus)
+  ), [harvests, harvestFilterYear, harvestFilterCrop, harvestFilterStatus]);
 
-  function openCert(row?: Record<string, unknown>) {
+  // ─── Certification form functions ─────────────────────────────────────────
+
+  function openCertForm(row?: Row) {
     if (row) {
       setCertEditing(row);
       setCertForm({
@@ -309,23 +483,15 @@ export default function OrganicArablePage() {
     }
     setCertOpen(true);
   }
-
   function saveCert() {
-    const id = certEditing ? Number(certEditing.id) : undefined;
-    certMut.save.mutate({ id, body: certForm }, {
+    certMut.save.mutate({ id: certEditing ? Number(certEditing.id) : undefined, body: certForm }, {
       onSuccess: () => { setCertOpen(false); setCertEditing(null); setCertForm({}); },
     });
   }
 
-  const certs = certQ.data ?? [];
-  const certsDueThisYear = certs.filter(c => {
-    const d = daysUntil(str(c.renewalDate));
-    return d !== null && d >= 0 && d <= 365;
-  }).length;
+  // ─── Conversion form functions ────────────────────────────────────────────
 
-  // ─── Field Conversion tab ─────────────────────────────────────────────────
-
-  function openConv(row?: Record<string, unknown>) {
+  function openConvForm(row?: Row) {
     if (row) {
       setConvEditing(row);
       setConvForm({
@@ -344,22 +510,16 @@ export default function OrganicArablePage() {
     }
     setConvOpen(true);
   }
-
   function saveConv() {
-    const id = convEditing ? Number(convEditing.id) : undefined;
     const body = { ...convForm, parallelProduction: convForm.parallelProduction === "true" };
-    convMut.save.mutate({ id, body }, {
+    convMut.save.mutate({ id: convEditing ? Number(convEditing.id) : undefined, body }, {
       onSuccess: () => { setConvOpen(false); setConvEditing(null); setConvForm({}); },
     });
   }
 
-  const convs = convQ.data ?? [];
-  const certifiedHa = convs.filter(c => c.status === "certified").reduce((s, c) => s + (parseFloat(str(c.areaHa)) || 0), 0);
-  const conversionHa = convs.filter(c => c.status === "in-conversion").reduce((s, c) => s + (parseFloat(str(c.areaHa)) || 0), 0);
+  // ─── Seed form functions ──────────────────────────────────────────────────
 
-  // ─── Seed Sourcing tab ────────────────────────────────────────────────────
-
-  function openSeed(row?: Record<string, unknown>) {
+  function openSeedForm(row?: Row) {
     if (row) {
       setSeedEditing(row);
       setSeedForm({
@@ -379,21 +539,19 @@ export default function OrganicArablePage() {
     }
     setSeedOpen(true);
   }
-
   function saveSeed() {
-    const id = seedEditing ? Number(seedEditing.id) : undefined;
     const body = { ...seedForm, derogationGranted: seedForm.derogationGranted === "true" };
-    seedMut.save.mutate({ id, body }, {
+    seedMut.save.mutate({ id: seedEditing ? Number(seedEditing.id) : undefined, body }, {
       onSuccess: () => { setSeedOpen(false); setSeedEditing(null); setSeedForm({}); },
     });
   }
+  const seedVarieties = allVarietyItems
+    .filter(v => !seedForm.cropName || !v.groupLabel || v.groupLabel === seedForm.cropName)
+    .map(v => v.value);
 
-  const seeds = seedQ.data ?? [];
-  const derogationCount = seeds.filter(s => s.seedType !== "organic").length;
+  // ─── Input form functions ─────────────────────────────────────────────────
 
-  // ─── Input Log tab ────────────────────────────────────────────────────────
-
-  function openInput(row?: Record<string, unknown>) {
+  function openInputForm(row?: Row) {
     if (row) {
       setInputEditing(row);
       setInputForm({
@@ -413,20 +571,15 @@ export default function OrganicArablePage() {
     }
     setInputOpen(true);
   }
-
   function saveInput() {
-    const id = inputEditing ? Number(inputEditing.id) : undefined;
-    inputMut.save.mutate({ id, body: inputForm }, {
+    inputMut.save.mutate({ id: inputEditing ? Number(inputEditing.id) : undefined, body: inputForm }, {
       onSuccess: () => { setInputOpen(false); setInputEditing(null); setInputForm({}); },
     });
   }
 
-  const inputs = inputQ.data ?? [];
-  const restrictedInputs = inputs.filter(i => i.permittedStatus === "restricted").length;
+  // ─── Harvest form functions ───────────────────────────────────────────────
 
-  // ─── Harvest Declarations tab ─────────────────────────────────────────────
-
-  function openHarvest(row?: Record<string, unknown>) {
+  function openHarvestForm(row?: Row) {
     if (row) {
       setHarvestEditing(row);
       setHarvestForm({
@@ -435,13 +588,7 @@ export default function OrganicArablePage() {
         yieldTonnes: str(row.yieldTonnes), moisturePercent: str(row.moisturePercent),
         storageLocation: str(row.storageLocation),
         organicStatus: str(row.organicStatus) || "certified",
-        certifierRef: str(row.certifierRef), buyerName: str(row.buyerName),
-        buyerOrganisation: str(row.buyerOrganisation), buyerAddress: str(row.buyerAddress),
-        saleDate: str(row.saleDate), quantitySoldTonnes: str(row.quantitySoldTonnes),
-        pricePoundPerTonne: str(row.pricePoundPerTonne),
-        organicPremiumPercent: str(row.organicPremiumPercent),
-        declarationDate: str(row.declarationDate), declarationReference: str(row.declarationReference),
-        notes: str(row.notes),
+        certifierRef: str(row.certifierRef), notes: str(row.notes),
       });
     } else {
       setHarvestEditing(null);
@@ -449,37 +596,159 @@ export default function OrganicArablePage() {
     }
     setHarvestOpen(true);
   }
-
   function saveHarvest() {
-    const id = harvestEditing ? Number(harvestEditing.id) : undefined;
-    harvestMut.save.mutate({ id, body: harvestForm }, {
+    harvestMut.save.mutate({ id: harvestEditing ? Number(harvestEditing.id) : undefined, body: harvestForm }, {
       onSuccess: () => { setHarvestOpen(false); setHarvestEditing(null); setHarvestForm({}); },
     });
   }
+  const harvestVarieties = allVarietyItems
+    .filter(v => !harvestForm.cropName || !v.groupLabel || v.groupLabel === harvestForm.cropName)
+    .map(v => v.value);
 
-  const harvests = harvestQ.data ?? [];
+  // ─── Buyer Declaration functions ──────────────────────────────────────────
+
+  function openBuyer(row: Row) {
+    setBuyerRecord(row);
+    setBuyerForm({
+      buyerName: str(row.buyerName), buyerOrganisation: str(row.buyerOrganisation),
+      buyerAddress: str(row.buyerAddress), saleDate: str(row.saleDate),
+      quantitySoldTonnes: str(row.quantitySoldTonnes),
+      pricePoundPerTonne: str(row.pricePoundPerTonne),
+      organicPremiumPercent: str(row.organicPremiumPercent),
+      declarationDate: str(row.declarationDate),
+      declarationReference: str(row.declarationReference),
+    });
+    setBuyerOpen(true);
+  }
+  function saveBuyer() {
+    if (!buyerRecord) return;
+    harvestMut.save.mutate({ id: Number(buyerRecord.id), body: buyerForm }, {
+      onSuccess: () => { setBuyerOpen(false); setBuyerRecord(null); setBuyerForm({}); },
+    });
+  }
+
+  // ─── Print functions ──────────────────────────────────────────────────────
+
+  function printCerts() {
+    printProReport({
+      title: "Organic Arable — Certification Register",
+      recordCount: filteredCerts.length, recordLabel: "certificate",
+      footerNote: "Organic Arable Certification Register — UK Retained EU Organic Regulation",
+      tableHtml: `<table><thead><tr><th>Certifier</th><th>Certificate No.</th><th>Operator No.</th><th>Status</th><th>Certified</th><th>Renewal Due</th><th>Next Inspection</th><th>Scope</th></tr></thead><tbody>${
+        filteredCerts.map(r => `<tr><td>${str(r.certifier)}</td><td>${str(r.certificateNumber)||"—"}</td><td>${str(r.operatorNumber)||"—"}</td><td>${str(r.status)}</td><td>${fmt(str(r.certificationDate))}</td><td>${fmt(str(r.renewalDate))}</td><td>${fmt(str(r.nextInspectionDue))}</td><td>${str(r.scope)||"—"}</td></tr>`).join("")
+      }</tbody></table>`,
+    });
+  }
+  function printConvs() {
+    printProReport({
+      title: "Organic Arable — Field Conversion Register",
+      recordCount: filteredConvs.length, recordLabel: "field",
+      footerNote: "Organic Arable Field Conversion Register — UK Retained EU Organic Regulation",
+      landscape: false,
+      tableHtml: `<table><thead><tr><th>Field / Parcel</th><th>Area (ha)</th><th>Status</th><th>Conversion Start</th><th>Expected Cert.</th><th>Actual Cert.</th><th>Certifier Ref</th><th>Previous Land Use</th></tr></thead><tbody>${
+        filteredConvs.map(r => `<tr><td>${str(r.fieldName)}</td><td>${fmtN(r.areaHa)}</td><td>${str(r.status)}</td><td>${fmt(str(r.conversionStartDate))}</td><td>${fmt(str(r.expectedCertificationDate))}</td><td>${fmt(str(r.actualCertificationDate))}</td><td>${str(r.certifierRef)||"—"}</td><td>${str(r.previousLandUse)||"—"}</td></tr>`).join("")
+      }</tbody></table>`,
+    });
+  }
+  function printSeeds() {
+    printProReport({
+      title: "Organic Arable — Seed Sourcing Log",
+      recordCount: filteredSeeds.length, recordLabel: "record",
+      footerNote: "Organic seed sourcing log — derogation records must be retained for inspection",
+      tableHtml: `<table><thead><tr><th>Date</th><th>Crop</th><th>Variety</th><th>Seed Type</th><th>Qty (kg)</th><th>Supplier</th><th>Derogation Ref</th><th>Batch/Lot</th></tr></thead><tbody>${
+        filteredSeeds.map(r => `<tr><td>${fmt(str(r.purchaseDate))}</td><td>${str(r.cropName)}</td><td>${str(r.variety)||"—"}</td><td>${str(r.seedType)}</td><td>${fmtN(r.quantityKg)}</td><td>${str(r.supplierName)||"—"}</td><td>${str(r.derogationReference)||"—"}</td><td>${str(r.batchLotNumber)||"—"}</td></tr>`).join("")
+      }</tbody></table>`,
+    });
+  }
+  function printInputs() {
+    printProReport({
+      title: "Organic Arable — Permitted Input Register",
+      recordCount: filteredInputs.length, recordLabel: "application",
+      footerNote: "Organic Arable Input Register — Annex II permitted inputs only (UK Retained EU Reg 2018/848)",
+      tableHtml: `<table><thead><tr><th>Date</th><th>Product / Substance</th><th>Type</th><th>Status</th><th>Field</th><th>Qty Applied</th><th>Area (ha)</th><th>Certifier Approval</th></tr></thead><tbody>${
+        filteredInputs.map(r => `<tr><td>${fmt(str(r.applicationDate))}</td><td>${str(r.productName)}</td><td>${str(r.inputType)||"—"}</td><td>${str(r.permittedStatus)}</td><td>${str(r.fieldName)||"—"}</td><td>${fmtN(r.quantityApplied)} ${str(r.quantityUnit)}</td><td>${fmtN(r.areaAppliedHa)}</td><td>${str(r.certifierApproval)||"—"}</td></tr>`).join("")
+      }</tbody></table>`,
+    });
+  }
+  function printHarvests() {
+    printProReport({
+      title: "Organic Arable — Harvest Declarations",
+      recordCount: filteredHarvests.length, recordLabel: "declaration",
+      footerNote: "Organic Arable Harvest Declarations — retain for 5 years and make available at certifier inspection",
+      tableHtml: `<table><thead><tr><th>Harvest Date</th><th>Crop</th><th>Variety</th><th>Field</th><th>Yield (t)</th><th>Status</th><th>Buyer</th><th>Sale Date</th><th>Price (£/t)</th><th>Premium %</th><th>Decl. Ref</th></tr></thead><tbody>${
+        filteredHarvests.map(r => `<tr><td>${fmt(str(r.harvestDate))}</td><td>${str(r.cropName)}</td><td>${str(r.variety)||"—"}</td><td>${str(r.fieldName)||"—"}</td><td>${fmtN(r.yieldTonnes)}</td><td>${str(r.organicStatus)}</td><td>${str(r.buyerName)||"—"} ${str(r.buyerOrganisation) ? `(${str(r.buyerOrganisation)})` : ""}</td><td>${fmt(str(r.saleDate))}</td><td>${fmtN(r.pricePoundPerTonne)}</td><td>${fmtN(r.organicPremiumPercent)}</td><td>${str(r.declarationReference)||"—"}</td></tr>`).join("")
+      }</tbody></table>`,
+    });
+  }
+
+  // ─── CSV export functions ─────────────────────────────────────────────────
+
+  function exportCertsCsv() {
+    downloadCsvFile("organic-arable-certification.csv", [
+      ["Certifier","Certificate No.","Operator No.","Status","Certified Date","Renewal Date","Next Inspection","Scope","Notes"],
+      ...filteredCerts.map(r => [str(r.certifier),str(r.certificateNumber),str(r.operatorNumber),str(r.status),str(r.certificationDate),str(r.renewalDate),str(r.nextInspectionDue),str(r.scope),str(r.notes)]),
+    ]);
+  }
+  function exportConvsCsv() {
+    downloadCsvFile("organic-arable-field-conversion.csv", [
+      ["Field","Area (ha)","Status","Conversion Start","Expected Cert.","Actual Cert.","Certifier Ref","Prev. Land Use","Parallel Production","Notes"],
+      ...filteredConvs.map(r => [str(r.fieldName),str(r.areaHa),str(r.status),str(r.conversionStartDate),str(r.expectedCertificationDate),str(r.actualCertificationDate),str(r.certifierRef),str(r.previousLandUse),str(r.parallelProduction),str(r.notes)]),
+    ]);
+  }
+  function exportSeedsCsv() {
+    downloadCsvFile("organic-arable-seed-records.csv", [
+      ["Date","Crop","Variety","Seed Type","Qty (kg)","Supplier","Supplier Address","Derogation Granted","Derogation Ref","Derogation Expiry","Certifier Approval","Batch/Lot","Notes"],
+      ...filteredSeeds.map(r => [str(r.purchaseDate),str(r.cropName),str(r.variety),str(r.seedType),str(r.quantityKg),str(r.supplierName),str(r.supplierAddress),str(r.derogationGranted),str(r.derogationReference),str(r.derogationExpiryDate),str(r.certifierApproval),str(r.batchLotNumber),str(r.notes)]),
+    ]);
+  }
+  function exportInputsCsv() {
+    downloadCsvFile("organic-arable-input-records.csv", [
+      ["Date","Field","Product","Active Ingredient","Type","Status","Regulatory Basis","Supplier","Qty Applied","Unit","Area (ha)","Certifier Approval","Notes"],
+      ...filteredInputs.map(r => [str(r.applicationDate),str(r.fieldName),str(r.productName),str(r.activeIngredient),str(r.inputType),str(r.permittedStatus),str(r.regulatoryBasis),str(r.supplierName),str(r.quantityApplied),str(r.quantityUnit),str(r.areaAppliedHa),str(r.certifierApproval),str(r.notes)]),
+    ]);
+  }
+  function exportHarvestsCsv() {
+    downloadCsvFile("organic-arable-harvest-declarations.csv", [
+      ["Harvest Date","Crop","Variety","Field","Yield (t)","Moisture %","Storage","Status","Certifier Ref","Buyer","Buyer Org","Sale Date","Qty Sold (t)","Price (£/t)","Premium %","Decl. Date","Decl. Ref","Notes"],
+      ...filteredHarvests.map(r => [str(r.harvestDate),str(r.cropName),str(r.variety),str(r.fieldName),str(r.yieldTonnes),str(r.moisturePercent),str(r.storageLocation),str(r.organicStatus),str(r.certifierRef),str(r.buyerName),str(r.buyerOrganisation),str(r.saleDate),str(r.quantitySoldTonnes),str(r.pricePoundPerTonne),str(r.organicPremiumPercent),str(r.declarationDate),str(r.declarationReference),str(r.notes)]),
+    ]);
+  }
+
+  // ─── Derived summary stats ────────────────────────────────────────────────
+  const certsDueThisYear = certs.filter(c => { const d = daysUntil(str(c.renewalDate)); return d !== null && d >= 0 && d <= 365; }).length;
+  const certifiedHa = convs.filter(c => c.status === "certified").reduce((s, c) => s + (parseFloat(str(c.areaHa)) || 0), 0);
+  const conversionHa = convs.filter(c => c.status === "in-conversion").reduce((s, c) => s + (parseFloat(str(c.areaHa)) || 0), 0);
+  const derogationCount = seeds.filter(s => s.seedType !== "organic").length;
+  const restrictedInputs = inputs.filter(i => i.permittedStatus === "restricted").length;
   const totalYield = harvests.reduce((s, h) => s + (parseFloat(str(h.yieldTonnes)) || 0), 0);
   const certifiedHarvests = harvests.filter(h => h.organicStatus === "certified").length;
+
+  // ─── Crop filter options for harvest tab ─────────────────────────────────
+  const harvestCropOptions = useMemo(() => {
+    const unique = [...new Set(harvests.map(h => str(h.cropName)).filter(Boolean))].sort();
+    return [{ value: "all", label: "All Crops" }, ...unique.map(c => ({ value: c, label: c }))];
+  }, [harvests]);
+
+  const seedCropOptions = useMemo(() => {
+    const unique = [...new Set(seeds.map(s => str(s.cropName)).filter(Boolean))].sort();
+    return [{ value: "all", label: "All Crops" }, ...unique.map(c => ({ value: c, label: c }))];
+  }, [seeds]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Wheat className="w-6 h-6 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight">Organic Arable</h1>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Conversion register, seed sourcing, permitted inputs, harvest declarations and certification records
-            </p>
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Wheat className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Organic Arable</h1>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Conversion register, seed sourcing, permitted inputs, harvest declarations and certification records
+          </p>
         </div>
 
-        {/* Tabs */}
         <TabBar>
           <TabButton active={activeTab === "certification"} onClick={() => setActiveTab("certification")}>
             <ShieldCheck className="w-3.5 h-3.5" />Certification
@@ -504,17 +773,19 @@ export default function OrganicArablePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <SummaryCard icon={ShieldCheck} label="Certification Records" value={certs.length} />
               <SummaryCard icon={CheckCircle2} label="Active Certifications" value={certs.filter(c => c.status === "certified").length} />
-              <SummaryCard icon={AlertTriangle} label="Renewals Due (12 months)" value={certsDueThisYear} sub="check renewal dates" />
+              <SummaryCard icon={AlertTriangle} label="Renewals Due (12 months)" value={certsDueThisYear} sub={certsDueThisYear > 0 ? "check renewal dates" : "none due"} />
             </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => openCert()}>
-                <Plus className="w-4 h-4 mr-1.5" />Add Certificate
-              </Button>
-            </div>
+            <FilterPills
+              options={CERT_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+              value={certFilter}
+              onChange={setCertFilter}
+              counts={Object.fromEntries(CERT_STATUSES.map(s => [s.value, s.value === "all" ? certs.length : certs.filter(c => c.status === s.value).length]))}
+            />
+            <ReportBar onPrint={printCerts} onCsv={exportCertsCsv} onAdd={() => openCertForm()} addLabel="Add Certificate" />
             {certQ.isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : certs.length === 0 ? (
-              <EmptyState icon={ShieldCheck} message="No certification records yet. Add your Soil Association, OF&G, or Organic Farmers & Growers certificate." />
+            ) : filteredCerts.length === 0 ? (
+              <EmptyState icon={ShieldCheck} message={certFilter === "all" ? "No certification records yet. Add your certifying body certificate." : `No ${certFilter} records.`} />
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
@@ -522,7 +793,6 @@ export default function OrganicArablePage() {
                     <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-3 text-left">Certifier</th>
                       <th className="px-4 py-3 text-left">Certificate No.</th>
-                      <th className="px-4 py-3 text-left">Operator No.</th>
                       <th className="px-4 py-3 text-left">Status</th>
                       <th className="px-4 py-3 text-left">Certified</th>
                       <th className="px-4 py-3 text-left">Renewal Due</th>
@@ -531,30 +801,21 @@ export default function OrganicArablePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {certs.map((row, i) => {
+                    {filteredCerts.map(row => {
                       const d = daysUntil(str(row.renewalDate));
                       const urgent = d !== null && d >= 0 && d <= 60;
                       return (
-                        <tr key={String(row.id)} className={`border-b border-border last:border-0 ${urgent ? "bg-amber-50/50" : ""}`}>
+                        <tr key={String(row.id)} className={`border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer ${urgent ? "bg-amber-50/50" : ""}`} onClick={() => setViewCert(row)}>
                           <td className="px-4 py-3 font-medium">{str(row.certifier)}</td>
                           <td className="px-4 py-3 font-mono text-xs">{str(row.certificateNumber) || "—"}</td>
-                          <td className="px-4 py-3 font-mono text-xs">{str(row.operatorNumber) || "—"}</td>
-                          <td className="px-4 py-3"><StatusBadge value={str(row.status)} options={CERT_STATUSES} /></td>
+                          <td className="px-4 py-3"><StatusBadge value={str(row.status)} options={CERT_STATUSES.slice(1)} /></td>
                           <td className="px-4 py-3">{fmt(str(row.certificationDate))}</td>
-                          <td className="px-4 py-3">
-                            {str(row.renewalDate) ? (
-                              <span className={urgent ? "text-amber-700 font-medium" : ""}>{fmt(str(row.renewalDate))}</span>
-                            ) : "—"}
-                          </td>
+                          <td className="px-4 py-3"><span className={urgent ? "text-amber-700 font-medium" : ""}>{fmt(str(row.renewalDate))}</span></td>
                           <td className="px-4 py-3">{fmt(str(row.nextInspectionDue))}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1 justify-end">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openCert(row)}>
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setCertDeleting(Number(row.id))}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewCert(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setCertDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>
                           </td>
                         </tr>
@@ -573,17 +834,19 @@ export default function OrganicArablePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <SummaryCard icon={Sprout} label="Fields in Register" value={convs.length} />
               <SummaryCard icon={CheckCircle2} label="Certified Ha" value={certifiedHa > 0 ? `${certifiedHa.toFixed(2)} ha` : 0} />
-              <SummaryCard icon={AlertTriangle} label="In Conversion Ha" value={conversionHa > 0 ? `${conversionHa.toFixed(2)} ha` : 0} sub="2-year conversion period" />
+              <SummaryCard icon={AlertTriangle} label="In Conversion Ha" value={conversionHa > 0 ? `${conversionHa.toFixed(2)} ha` : 0} sub="2-year minimum period" />
             </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => openConv()}>
-                <Plus className="w-4 h-4 mr-1.5" />Add Field
-              </Button>
-            </div>
+            <FilterPills
+              options={CONV_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+              value={convFilter}
+              onChange={setConvFilter}
+              counts={Object.fromEntries(CONV_STATUSES.map(s => [s.value, s.value === "all" ? convs.length : convs.filter(c => c.status === s.value).length]))}
+            />
+            <ReportBar onPrint={printConvs} onCsv={exportConvsCsv} onAdd={() => openConvForm()} addLabel="Add Field" />
             {convQ.isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : convs.length === 0 ? (
-              <EmptyState icon={Sprout} message="No fields in the conversion register. Add each field or parcel and its conversion start date." />
+            ) : filteredConvs.length === 0 ? (
+              <EmptyState icon={Sprout} message={convFilter === "all" ? "No fields in the conversion register. Add each field or parcel and its conversion start date." : `No ${convFilter} fields.`} />
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
@@ -599,31 +862,27 @@ export default function OrganicArablePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {convs.map(row => {
+                    {filteredConvs.map(row => {
                       const pct = row.status === "certified" ? 100 : conversionProgress(str(row.conversionStartDate), str(row.expectedCertificationDate));
                       return (
-                        <tr key={String(row.id)} className="border-b border-border last:border-0">
+                        <tr key={String(row.id)} className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={() => setViewConv(row)}>
                           <td className="px-4 py-3 font-medium">{str(row.fieldName)}</td>
                           <td className="px-4 py-3">{fmtN(row.areaHa, " ha")}</td>
-                          <td className="px-4 py-3"><StatusBadge value={str(row.status)} options={CONV_STATUSES} /></td>
+                          <td className="px-4 py-3"><StatusBadge value={str(row.status)} options={CONV_STATUSES.slice(1)} /></td>
                           <td className="px-4 py-3">{fmt(str(row.conversionStartDate))}</td>
                           <td className="px-4 py-3">{fmt(str(row.expectedCertificationDate))}</td>
-                          <td className="px-4 py-3 min-w-[120px]">
+                          <td className="px-4 py-3 min-w-[130px]">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-                                <div className={`h-1.5 rounded-full transition-all ${pct === 100 ? "bg-green-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
+                                <div className={`h-1.5 rounded-full ${pct === 100 ? "bg-green-500" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
                               </div>
                               <span className="text-xs text-muted-foreground whitespace-nowrap">{pct}%</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1 justify-end">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openConv(row)}>
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setConvDeleting(Number(row.id))}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewConv(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setConvDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>
                           </td>
                         </tr>
@@ -644,15 +903,28 @@ export default function OrganicArablePage() {
               <SummaryCard icon={CheckCircle2} label="Certified Organic" value={seeds.filter(s => s.seedType === "organic").length} />
               <SummaryCard icon={AlertTriangle} label="Derogations / Non-Organic" value={derogationCount} sub={derogationCount > 0 ? "certifier approval required" : "none recorded"} />
             </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => openSeed()}>
-                <Plus className="w-4 h-4 mr-1.5" />Add Seed Record
-              </Button>
+            <div className="flex flex-wrap gap-4 items-end">
+              {seedCropOptions.length > 2 && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs whitespace-nowrap">Crop</Label>
+                  <Select value={seedFilterCrop} onValueChange={setSeedFilterCrop}>
+                    <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{seedCropOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              <FilterPills
+                options={[{ value: "all", label: "All Types" }, ...SEED_TYPES.map(s => ({ value: s.value, label: s.label }))]}
+                value={seedFilterType}
+                onChange={setSeedFilterType}
+                counts={Object.fromEntries([["all", seeds.length], ...SEED_TYPES.map(s => [s.value, seeds.filter(x => x.seedType === s.value).length])])}
+              />
             </div>
+            <ReportBar onPrint={printSeeds} onCsv={exportSeedsCsv} onAdd={() => openSeedForm()} addLabel="Add Seed Record" />
             {seedQ.isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : seeds.length === 0 ? (
-              <EmptyState icon={Package} message="No seed records yet. Log all seed purchases — organic certified or with derogation approval." />
+            ) : filteredSeeds.length === 0 ? (
+              <EmptyState icon={Package} message="No seed records. Log all seed purchases — organic certified or with derogation approval." />
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
@@ -669,11 +941,11 @@ export default function OrganicArablePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {seeds.map(row => (
-                      <tr key={String(row.id)} className="border-b border-border last:border-0">
+                    {filteredSeeds.map(row => (
+                      <tr key={String(row.id)} className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={() => setViewSeed(row)}>
                         <td className="px-4 py-3">{fmt(str(row.purchaseDate))}</td>
                         <td className="px-4 py-3 font-medium">{str(row.cropName)}</td>
-                        <td className="px-4 py-3">{str(row.variety) || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{str(row.variety) || "—"}</td>
                         <td className="px-4 py-3"><StatusBadge value={str(row.seedType)} options={SEED_TYPES} /></td>
                         <td className="px-4 py-3">{fmtN(row.quantityKg)}</td>
                         <td className="px-4 py-3">{str(row.supplierName) || "—"}</td>
@@ -682,14 +954,10 @@ export default function OrganicArablePage() {
                             ? <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300">Yes — {str(row.derogationReference) || "ref pending"}</span>
                             : <span className="text-xs text-muted-foreground">No</span>}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openSeed(row)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setSeedDeleting(Number(row.id))}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewSeed(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setSeedDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
                         </td>
                       </tr>
@@ -705,23 +973,47 @@ export default function OrganicArablePage() {
         {activeTab === "input-log" && (
           <div className="space-y-5">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
-              <p className="font-semibold mb-1">Annex II Permitted Inputs (UK retained EU organic regulation)</p>
-              <p className="text-xs">Only inputs on the UK permitted list may be used. Restricted substances require prior certifier notification. All inputs must be logged here as evidence for annual inspection.</p>
+              <p className="font-semibold mb-1">Annex II Permitted Inputs — UK Retained EU Organic Regulation</p>
+              <p className="text-xs">Only listed inputs may be used on certified or in-conversion land. Restricted substances require prior certifier notification. All applications must be recorded here as evidence for inspection.</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <SummaryCard icon={FileText} label="Input Applications" value={inputs.length} />
               <SummaryCard icon={CheckCircle2} label="Fully Permitted" value={inputs.filter(i => i.permittedStatus === "permitted").length} />
-              <SummaryCard icon={AlertTriangle} label="Restricted (certifier notified)" value={restrictedInputs} sub={restrictedInputs > 0 ? "ensure certifier approvals filed" : "none recorded"} />
+              <SummaryCard icon={AlertTriangle} label="Restricted (notify certifier)" value={restrictedInputs} sub={restrictedInputs > 0 ? "ensure approvals filed" : "none recorded"} />
             </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => openInput()}>
-                <Plus className="w-4 h-4 mr-1.5" />Log Input
-              </Button>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs whitespace-nowrap">Year</Label>
+                <Select value={inputFilterYear} onValueChange={setInputFilterYear}>
+                  <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All years</SelectItem>
+                    {yearOptions().map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs whitespace-nowrap">Type</Label>
+                <Select value={inputFilterType} onValueChange={setInputFilterType}>
+                  <SelectTrigger className="w-52 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {INPUT_TYPES_ALL.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <FilterPills
+                options={PERMITTED_STATUSES.map(s => ({ value: s.value, label: s.label.split(" —")[0] }))}
+                value={inputFilterStatus}
+                onChange={setInputFilterStatus}
+                counts={Object.fromEntries(PERMITTED_STATUSES.map(s => [s.value, s.value === "all" ? inputs.length : inputs.filter(i => i.permittedStatus === s.value).length]))}
+              />
             </div>
+            <ReportBar onPrint={printInputs} onCsv={exportInputsCsv} onAdd={() => openInputForm()} addLabel="Log Input" />
             {inputQ.isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : inputs.length === 0 ? (
-              <EmptyState icon={FileText} message="No inputs logged yet. Record every fertiliser, soil amendment, and crop protection product applied to organic fields." />
+            ) : filteredInputs.length === 0 ? (
+              <EmptyState icon={FileText} message="No input records for this filter. Log every fertiliser, soil amendment, and crop protection product applied." />
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
@@ -738,23 +1030,19 @@ export default function OrganicArablePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {inputs.map(row => (
-                      <tr key={String(row.id)} className={`border-b border-border last:border-0 ${row.permittedStatus === "restricted" ? "bg-amber-50/40" : row.permittedStatus === "prohibited" ? "bg-red-50/40" : ""}`}>
+                    {filteredInputs.map(row => (
+                      <tr key={String(row.id)} className={`border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer ${row.permittedStatus === "restricted" ? "bg-amber-50/40" : row.permittedStatus === "prohibited" ? "bg-red-50/40" : ""}`} onClick={() => setViewInput(row)}>
                         <td className="px-4 py-3">{fmt(str(row.applicationDate))}</td>
                         <td className="px-4 py-3 font-medium max-w-[200px] truncate">{str(row.productName)}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{str(row.inputType) || "—"}</td>
-                        <td className="px-4 py-3"><StatusBadge value={str(row.permittedStatus)} options={PERMITTED_STATUSES} /></td>
+                        <td className="px-4 py-3"><StatusBadge value={str(row.permittedStatus)} options={PERMITTED_STATUSES.slice(1)} /></td>
                         <td className="px-4 py-3">{str(row.fieldName) || "—"}</td>
-                        <td className="px-4 py-3">{fmtN(row.quantityApplied)} {str(row.quantityUnit) || ""}</td>
+                        <td className="px-4 py-3">{fmtN(row.quantityApplied)} {str(row.quantityUnit)}</td>
                         <td className="px-4 py-3">{fmtN(row.areaAppliedHa, " ha")}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openInput(row)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setInputDeleting(Number(row.id))}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewInput(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setInputDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
                         </td>
                       </tr>
@@ -772,17 +1060,40 @@ export default function OrganicArablePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <SummaryCard icon={Wheat} label="Harvest Records" value={harvests.length} />
               <SummaryCard icon={CheckCircle2} label="Certified Organic" value={certifiedHarvests} />
-              <SummaryCard icon={FileText} label="Total Recorded Yield" value={totalYield > 0 ? `${totalYield.toFixed(2)} t` : "—"} sub="certified + in-conversion" />
+              <SummaryCard icon={FileText} label="Total Recorded Yield" value={totalYield > 0 ? `${totalYield.toFixed(2)} t` : "—"} sub="all status types" />
             </div>
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => openHarvest()}>
-                <Plus className="w-4 h-4 mr-1.5" />Log Harvest
-              </Button>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs whitespace-nowrap">Year</Label>
+                <Select value={harvestFilterYear} onValueChange={setHarvestFilterYear}>
+                  <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All years</SelectItem>
+                    {yearOptions().map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {harvestCropOptions.length > 2 && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs whitespace-nowrap">Crop</Label>
+                  <Select value={harvestFilterCrop} onValueChange={setHarvestFilterCrop}>
+                    <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{harvestCropOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              <FilterPills
+                options={HARVEST_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+                value={harvestFilterStatus}
+                onChange={setHarvestFilterStatus}
+                counts={Object.fromEntries(HARVEST_STATUSES.map(s => [s.value, s.value === "all" ? harvests.length : harvests.filter(h => h.organicStatus === s.value).length]))}
+              />
             </div>
+            <ReportBar onPrint={printHarvests} onCsv={exportHarvestsCsv} onAdd={() => openHarvestForm()} addLabel="Log Harvest" />
             {harvestQ.isLoading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : harvests.length === 0 ? (
-              <EmptyState icon={Wheat} message="No harvest records yet. Log each organic harvest with buyer declaration and sale details." />
+            ) : filteredHarvests.length === 0 ? (
+              <EmptyState icon={Wheat} message="No harvest records for this filter. Log each organic harvest with field and yield details." />
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
@@ -790,39 +1101,32 @@ export default function OrganicArablePage() {
                     <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-3 text-left">Harvest Date</th>
                       <th className="px-4 py-3 text-left">Crop</th>
+                      <th className="px-4 py-3 text-left">Variety</th>
                       <th className="px-4 py-3 text-left">Field</th>
                       <th className="px-4 py-3 text-left">Yield (t)</th>
                       <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Buyer</th>
-                      <th className="px-4 py-3 text-left">Sale Date</th>
-                      <th className="px-4 py-3 text-left">Premium %</th>
+                      <th className="px-4 py-3 text-left">Buyer Declaration</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
-                    {harvests.map(row => (
-                      <tr key={String(row.id)} className="border-b border-border last:border-0">
+                    {filteredHarvests.map(row => (
+                      <tr key={String(row.id)} className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={() => setViewHarvest(row)}>
                         <td className="px-4 py-3">{fmt(str(row.harvestDate))}</td>
                         <td className="px-4 py-3 font-medium">{str(row.cropName)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{str(row.variety) || "—"}</td>
                         <td className="px-4 py-3">{str(row.fieldName) || "—"}</td>
-                        <td className="px-4 py-3">{fmtN(row.yieldTonnes)}</td>
-                        <td className="px-4 py-3"><StatusBadge value={str(row.organicStatus)} options={HARVEST_STATUSES} /></td>
+                        <td className="px-4 py-3">{fmtN(row.yieldTonnes, " t")}</td>
+                        <td className="px-4 py-3"><StatusBadge value={str(row.organicStatus)} options={HARVEST_STATUSES.slice(1)} /></td>
                         <td className="px-4 py-3">
-                          <div>
-                            <p>{str(row.buyerName) || "—"}</p>
-                            {str(row.buyerOrganisation) && <p className="text-xs text-muted-foreground">{str(row.buyerOrganisation)}</p>}
-                          </div>
+                          {row.buyerName
+                            ? <span className="text-xs text-green-700 font-medium">{str(row.buyerName)}</span>
+                            : <span className="text-xs text-muted-foreground italic">Not recorded</span>}
                         </td>
-                        <td className="px-4 py-3">{fmt(str(row.saleDate))}</td>
-                        <td className="px-4 py-3">{fmtN(row.organicPremiumPercent, "%")}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openHarvest(row)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setHarvestDeleting(Number(row.id))}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewHarvest(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setHarvestDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
                         </td>
                       </tr>
@@ -835,14 +1139,242 @@ export default function OrganicArablePage() {
         )}
       </div>
 
-      {/* ── Dialogs ────────────────────────────────────────────────────────── */}
+      {/* ════════════════════════════════════════════════
+          VIEW DIALOGS
+      ════════════════════════════════════════════════ */}
 
-      {/* Certification Dialog */}
+      {/* View: Certification */}
+      {viewCert && (
+        <Dialog open onOpenChange={() => setViewCert(null)}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Certification Record</DialogTitle>
+              <DialogDescription>{str(viewCert.certifier)}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-0.5">
+              <DetailRow label="Certifying Body" value={str(viewCert.certifier)} />
+              <DetailRow label="Certificate No." value={<span className="font-mono text-xs">{str(viewCert.certificateNumber) || "—"}</span>} />
+              <DetailRow label="Operator No." value={<span className="font-mono text-xs">{str(viewCert.operatorNumber) || "—"}</span>} />
+              <DetailRow label="Status" value={<StatusBadge value={str(viewCert.status)} options={CERT_STATUSES.slice(1)} />} />
+              <DetailRow label="Certified Date" value={fmt(str(viewCert.certificationDate))} />
+              <DetailRow label="Renewal Date" value={fmt(str(viewCert.renewalDate))} />
+              <DetailRow label="Annual Inspection" value={fmt(str(viewCert.annualInspectionDate))} />
+              <DetailRow label="Next Inspection Due" value={fmt(str(viewCert.nextInspectionDue))} />
+              <DetailRow label="Scope" value={str(viewCert.scope) || "—"} />
+              <DetailRow label="Notes" value={str(viewCert.notes) || "—"} />
+            </div>
+            {farmId && (
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Supporting Documents</p>
+                <RecordAttachments farmId={farmId} recordType="organic-arable-cert" recordId={Number(viewCert.id)} compact />
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewCert(null)}>Close</Button>
+              <Button onClick={() => { openCertForm(viewCert); setViewCert(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* View: Field Conversion */}
+      {viewConv && (
+        <Dialog open onOpenChange={() => setViewConv(null)}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Field Conversion Record</DialogTitle>
+              <DialogDescription>{str(viewConv.fieldName)}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-0.5">
+              <DetailRow label="Field / Parcel" value={str(viewConv.fieldName)} />
+              <DetailRow label="Area" value={fmtN(viewConv.areaHa, " ha")} />
+              <DetailRow label="Status" value={<StatusBadge value={str(viewConv.status)} options={CONV_STATUSES.slice(1)} />} />
+              <DetailRow label="Conversion Start" value={fmt(str(viewConv.conversionStartDate))} />
+              <DetailRow label="Expected Certification" value={fmt(str(viewConv.expectedCertificationDate))} />
+              <DetailRow label="Actual Certification" value={fmt(str(viewConv.actualCertificationDate))} />
+              <DetailRow label="Certifier Reference" value={str(viewConv.certifierRef) || "—"} />
+              <DetailRow label="Previous Land Use" value={str(viewConv.previousLandUse) || "—"} />
+              <DetailRow label="Parallel Production" value={viewConv.parallelProduction ? "Yes" : "No"} />
+              {viewConv.parallelProduction && <DetailRow label="Justification" value={str(viewConv.parallelProductionJustification)} />}
+              {viewConv.status !== "certified" && (
+                <DetailRow label="Conversion Progress" value={
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div className="h-2 rounded-full bg-amber-500" style={{ width: `${conversionProgress(str(viewConv.conversionStartDate), str(viewConv.expectedCertificationDate))}%` }} />
+                    </div>
+                    <span className="text-xs">{conversionProgress(str(viewConv.conversionStartDate), str(viewConv.expectedCertificationDate))}%</span>
+                  </div>
+                } />
+              )}
+              <DetailRow label="Notes" value={str(viewConv.notes) || "—"} />
+            </div>
+            {farmId && (
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Supporting Documents</p>
+                <RecordAttachments farmId={farmId} recordType="organic-arable-field-conversion" recordId={Number(viewConv.id)} compact />
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewConv(null)}>Close</Button>
+              <Button onClick={() => { openConvForm(viewConv); setViewConv(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* View: Seed Record */}
+      {viewSeed && (
+        <Dialog open onOpenChange={() => setViewSeed(null)}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Seed Sourcing Record</DialogTitle>
+              <DialogDescription>{str(viewSeed.cropName)} — {fmt(str(viewSeed.purchaseDate))}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-0.5">
+              <DetailRow label="Purchase Date" value={fmt(str(viewSeed.purchaseDate))} />
+              <DetailRow label="Crop" value={str(viewSeed.cropName)} />
+              <DetailRow label="Variety" value={str(viewSeed.variety) || "—"} />
+              <DetailRow label="Seed Type" value={<StatusBadge value={str(viewSeed.seedType)} options={SEED_TYPES} />} />
+              <DetailRow label="Quantity" value={fmtN(viewSeed.quantityKg, " kg")} />
+              <DetailRow label="Batch / Lot No." value={str(viewSeed.batchLotNumber) || "—"} />
+              <DetailRow label="Supplier" value={str(viewSeed.supplierName) || "—"} />
+              <DetailRow label="Supplier Address" value={str(viewSeed.supplierAddress) || "—"} />
+              <DetailRow label="Derogation Granted" value={viewSeed.derogationGranted ? "Yes" : "No"} />
+              {viewSeed.derogationGranted && <>
+                <DetailRow label="Derogation Reference" value={str(viewSeed.derogationReference) || "—"} />
+                <DetailRow label="Derogation Expiry" value={fmt(str(viewSeed.derogationExpiryDate))} />
+                <DetailRow label="Certifier Approval" value={str(viewSeed.certifierApproval) || "—"} />
+              </>}
+              <DetailRow label="Notes" value={str(viewSeed.notes) || "—"} />
+            </div>
+            {farmId && (
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Supporting Documents & Invoices</p>
+                <RecordAttachments farmId={farmId} recordType="organic-arable-seed" recordId={Number(viewSeed.id)} compact />
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewSeed(null)}>Close</Button>
+              <Button onClick={() => { openSeedForm(viewSeed); setViewSeed(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* View: Input Record */}
+      {viewInput && (
+        <Dialog open onOpenChange={() => setViewInput(null)}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Input Application Record</DialogTitle>
+              <DialogDescription>{str(viewInput.productName)} — {fmt(str(viewInput.applicationDate))}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-0.5">
+              <DetailRow label="Application Date" value={fmt(str(viewInput.applicationDate))} />
+              <DetailRow label="Field / Parcel" value={str(viewInput.fieldName) || "—"} />
+              <DetailRow label="Product / Substance" value={str(viewInput.productName)} />
+              <DetailRow label="Active Ingredient" value={str(viewInput.activeIngredient) || "—"} />
+              <DetailRow label="Input Type" value={str(viewInput.inputType) || "—"} />
+              <DetailRow label="Permitted Status" value={<StatusBadge value={str(viewInput.permittedStatus)} options={PERMITTED_STATUSES.slice(1)} />} />
+              <DetailRow label="Regulatory Basis" value={str(viewInput.regulatoryBasis) || "—"} />
+              <DetailRow label="Supplier" value={str(viewInput.supplierName) || "—"} />
+              <DetailRow label="Quantity Applied" value={`${fmtN(viewInput.quantityApplied)} ${str(viewInput.quantityUnit)}`} />
+              <DetailRow label="Area Applied" value={fmtN(viewInput.areaAppliedHa, " ha")} />
+              {(viewInput.permittedStatus === "restricted" || viewInput.permittedStatus === "derogation") && (
+                <DetailRow label="Certifier Approval Ref" value={str(viewInput.certifierApproval) || "—"} />
+              )}
+              <DetailRow label="Notes" value={str(viewInput.notes) || "—"} />
+            </div>
+            {farmId && (
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Supporting Documents</p>
+                <RecordAttachments farmId={farmId} recordType="organic-arable-input" recordId={Number(viewInput.id)} compact />
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewInput(null)}>Close</Button>
+              <Button onClick={() => { openInputForm(viewInput); setViewInput(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* View: Harvest Declaration */}
+      {viewHarvest && (
+        <Dialog open onOpenChange={() => setViewHarvest(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Harvest Declaration</DialogTitle>
+              <DialogDescription>{str(viewHarvest.cropName)} — {fmt(str(viewHarvest.harvestDate))}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-0.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1 pb-1">Harvest Details</p>
+              <DetailRow label="Harvest Date" value={fmt(str(viewHarvest.harvestDate))} />
+              <DetailRow label="Crop" value={str(viewHarvest.cropName)} />
+              <DetailRow label="Variety" value={str(viewHarvest.variety) || "—"} />
+              <DetailRow label="Field / Parcel" value={str(viewHarvest.fieldName) || "—"} />
+              <DetailRow label="Yield" value={fmtN(viewHarvest.yieldTonnes, " t")} />
+              <DetailRow label="Moisture %" value={fmtN(viewHarvest.moisturePercent, "%")} />
+              <DetailRow label="Storage Location" value={str(viewHarvest.storageLocation) || "—"} />
+              <DetailRow label="Organic Status" value={<StatusBadge value={str(viewHarvest.organicStatus)} options={HARVEST_STATUSES.slice(1)} />} />
+              <DetailRow label="Certifier Reference" value={str(viewHarvest.certifierRef) || "—"} />
+              <DetailRow label="Notes" value={str(viewHarvest.notes) || "—"} />
+            </div>
+            <div className="pt-3 border-t border-border space-y-0.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pb-1">Buyer Declaration</p>
+              {viewHarvest.buyerName ? (
+                <>
+                  <DetailRow label="Buyer" value={str(viewHarvest.buyerName)} />
+                  <DetailRow label="Organisation" value={str(viewHarvest.buyerOrganisation) || "—"} />
+                  <DetailRow label="Address" value={str(viewHarvest.buyerAddress) || "—"} />
+                  <DetailRow label="Sale Date" value={fmt(str(viewHarvest.saleDate))} />
+                  <DetailRow label="Qty Sold" value={fmtN(viewHarvest.quantitySoldTonnes, " t")} />
+                  <DetailRow label="Price" value={fmtN(viewHarvest.pricePoundPerTonne, " £/t")} />
+                  <DetailRow label="Organic Premium" value={fmtN(viewHarvest.organicPremiumPercent, "%")} />
+                  <DetailRow label="Declaration Date" value={fmt(str(viewHarvest.declarationDate))} />
+                  <DetailRow label="Declaration Ref" value={str(viewHarvest.declarationReference) || "—"} />
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2 italic">No buyer declaration recorded yet.</p>
+              )}
+            </div>
+            {farmId && (
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Supporting Documents</p>
+                <RecordAttachments farmId={farmId} recordType="organic-arable-harvest" recordId={Number(viewHarvest.id)} compact />
+              </div>
+            )}
+            <DialogFooter className="flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setViewHarvest(null)}>Close</Button>
+              <Button variant="outline" onClick={() => { openBuyer(viewHarvest); setViewHarvest(null); }}>
+                <FileText className="w-3.5 h-3.5 mr-1.5" />{viewHarvest.buyerName ? "Edit Buyer Declaration" : "Add Buyer Declaration"}
+              </Button>
+              <Button onClick={() => { openHarvestForm(viewHarvest); setViewHarvest(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit Harvest
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ════════════════════════════════════════════════
+          FORM DIALOGS
+      ════════════════════════════════════════════════ */}
+
+      {/* Form: Certification */}
       <Dialog open={certOpen} onOpenChange={v => !v && setCertOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{certEditing ? "Edit" : "Add"} Certification Record</DialogTitle>
-            <DialogDescription>Soil Association, OF&G, Organic Farmers & Growers or other certifying body</DialogDescription>
+            <DialogDescription>Record your certifying body certificate and key dates</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -864,7 +1396,7 @@ export default function OrganicArablePage() {
               <Label>Status *</Label>
               <Select value={certForm.status || "certified"} onValueChange={v => setCertForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CERT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{CERT_STATUSES.slice(1).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -901,68 +1433,62 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Field Conversion Dialog */}
+      {/* Form: Field Conversion */}
       <Dialog open={convOpen} onOpenChange={v => !v && setConvOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{convEditing ? "Edit" : "Add"} Field Conversion Record</DialogTitle>
-            <DialogDescription>Track conversion start date and organic status for each field or parcel</DialogDescription>
+            <DialogDescription>Track the organic conversion status for each field or parcel</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Label>Field / Parcel Name *</Label>
-              <Input value={str(convForm.fieldName)} onChange={e => setConvForm(f => ({ ...f, fieldName: e.target.value }))} placeholder="e.g. Home Field, North Block" />
+              <Label>Field / Parcel *</Label>
+              <FieldSelector value={convForm.fieldName || ""} onChange={v => setConvForm(f => ({ ...f, fieldName: v }))} fields={fieldOptions} />
             </div>
             <div>
               <Label>Area (ha)</Label>
-              <Input type="number" step="0.001" value={str(convForm.areaHa)} onChange={e => setConvForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="0.000" />
+              <Input type="number" step="0.001" value={convForm.areaHa || ""} onChange={e => setConvForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="0.000" />
             </div>
             <div>
               <Label>Status *</Label>
-              <Select value={str(convForm.status) || "in-conversion"} onValueChange={v => setConvForm(f => ({ ...f, status: v }))}>
+              <Select value={convForm.status || "in-conversion"} onValueChange={v => setConvForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CONV_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{CONV_STATUSES.slice(1).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label>Conversion Start Date *</Label>
-              <Input type="date" value={str(convForm.conversionStartDate)} onChange={e => setConvForm(f => ({ ...f, conversionStartDate: e.target.value }))} />
+              <Input type="date" value={convForm.conversionStartDate || ""} onChange={e => setConvForm(f => ({ ...f, conversionStartDate: e.target.value }))} />
             </div>
             <div>
               <Label>Expected Certification Date</Label>
-              <Input type="date" value={str(convForm.expectedCertificationDate)} onChange={e => setConvForm(f => ({ ...f, expectedCertificationDate: e.target.value }))} />
+              <Input type="date" value={convForm.expectedCertificationDate || ""} onChange={e => setConvForm(f => ({ ...f, expectedCertificationDate: e.target.value }))} />
             </div>
             <div>
               <Label>Actual Certification Date</Label>
-              <Input type="date" value={str(convForm.actualCertificationDate)} onChange={e => setConvForm(f => ({ ...f, actualCertificationDate: e.target.value }))} />
+              <Input type="date" value={convForm.actualCertificationDate || ""} onChange={e => setConvForm(f => ({ ...f, actualCertificationDate: e.target.value }))} />
             </div>
             <div>
               <Label>Certifier Reference</Label>
-              <Input value={str(convForm.certifierRef)} onChange={e => setConvForm(f => ({ ...f, certifierRef: e.target.value }))} placeholder="e.g. SA-CONV-2024-001" />
+              <Input value={convForm.certifierRef || ""} onChange={e => setConvForm(f => ({ ...f, certifierRef: e.target.value }))} placeholder="e.g. SA-CONV-2024-001" />
             </div>
             <div className="col-span-2">
               <Label>Previous Land Use</Label>
-              <Input value={str(convForm.previousLandUse)} onChange={e => setConvForm(f => ({ ...f, previousLandUse: e.target.value }))} placeholder="e.g. Conventional arable — winter wheat" />
+              <Input value={convForm.previousLandUse || ""} onChange={e => setConvForm(f => ({ ...f, previousLandUse: e.target.value }))} placeholder="e.g. Conventional arable — winter wheat" />
             </div>
             <div className="col-span-2 flex items-center gap-3 pt-1">
-              <input
-                type="checkbox"
-                id="parallelProd"
-                checked={convForm.parallelProduction === "true"}
-                onChange={e => setConvForm(f => ({ ...f, parallelProduction: e.target.checked ? "true" : "false" }))}
-                className="w-4 h-4"
-              />
-              <Label htmlFor="parallelProd" className="cursor-pointer font-normal">Parallel production (same crop grown organically and conventionally on farm)</Label>
+              <input type="checkbox" id="pp" checked={convForm.parallelProduction === "true"} onChange={e => setConvForm(f => ({ ...f, parallelProduction: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
+              <Label htmlFor="pp" className="cursor-pointer font-normal">Parallel production — same crop variety on both organic and conventional land</Label>
             </div>
             {convForm.parallelProduction === "true" && (
               <div className="col-span-2">
                 <Label>Parallel Production Justification</Label>
-                <Textarea rows={2} value={str(convForm.parallelProductionJustification)} onChange={e => setConvForm(f => ({ ...f, parallelProductionJustification: e.target.value }))} placeholder="Explain why the same variety is grown on both organic and conventional land (certifier approval required)" />
+                <Textarea rows={2} value={convForm.parallelProductionJustification || ""} onChange={e => setConvForm(f => ({ ...f, parallelProductionJustification: e.target.value }))} placeholder="Certifier approval required — explain justification" />
               </div>
             )}
             <div className="col-span-2">
               <Label>Notes</Label>
-              <Textarea rows={2} value={str(convForm.notes)} onChange={e => setConvForm(f => ({ ...f, notes: e.target.value }))} />
+              <Textarea rows={2} value={convForm.notes || ""} onChange={e => setConvForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
@@ -974,72 +1500,85 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Seed Sourcing Dialog */}
+      {/* Form: Seed Sourcing */}
       <Dialog open={seedOpen} onOpenChange={v => !v && setSeedOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{seedEditing ? "Edit" : "Add"} Seed Record</DialogTitle>
-            <DialogDescription>Log all seed purchases — organic certified preferred; derogation required for any non-organic seed</DialogDescription>
+            <DialogDescription>Log all seed purchases — organic certified preferred; derogation required for non-organic seed</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Purchase Date *</Label>
-              <Input type="date" value={str(seedForm.purchaseDate)} onChange={e => setSeedForm(f => ({ ...f, purchaseDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Crop *</Label>
-              <Input value={str(seedForm.cropName)} onChange={e => setSeedForm(f => ({ ...f, cropName: e.target.value }))} placeholder="e.g. Winter Wheat" />
-            </div>
-            <div>
-              <Label>Variety</Label>
-              <Input value={str(seedForm.variety)} onChange={e => setSeedForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
-            </div>
-            <div>
-              <Label>Quantity (kg)</Label>
-              <Input type="number" step="0.01" value={str(seedForm.quantityKg)} onChange={e => setSeedForm(f => ({ ...f, quantityKg: e.target.value }))} />
+              <Input type="date" value={seedForm.purchaseDate || ""} onChange={e => setSeedForm(f => ({ ...f, purchaseDate: e.target.value }))} />
             </div>
             <div>
               <Label>Seed Type *</Label>
-              <Select value={str(seedForm.seedType) || "organic"} onValueChange={v => setSeedForm(f => ({ ...f, seedType: v, derogationGranted: v === "organic" ? "false" : f.derogationGranted }))}>
+              <Select value={seedForm.seedType || "organic"} onValueChange={v => setSeedForm(f => ({ ...f, seedType: v, derogationGranted: v === "organic" ? "false" : f.derogationGranted }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{SEED_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
+              <Label>Crop *</Label>
+              <Select value={seedForm.cropName || ""} onValueChange={v => setSeedForm(f => ({ ...f, cropName: v, variety: "" }))}>
+                <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                <SelectContent>{cropOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Variety</Label>
+              {seedVarieties.length > 0 ? (
+                <Select value={seedForm.variety || ""} onValueChange={v => setSeedForm(f => ({ ...f, variety: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
+                  <SelectContent>
+                    {seedVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    <SelectItem value="">Other / unregistered</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={seedForm.variety || ""} onChange={e => setSeedForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
+              )}
+            </div>
+            <div>
+              <Label>Quantity (kg)</Label>
+              <Input type="number" step="0.01" value={seedForm.quantityKg || ""} onChange={e => setSeedForm(f => ({ ...f, quantityKg: e.target.value }))} />
+            </div>
+            <div>
               <Label>Batch / Lot Number</Label>
-              <Input value={str(seedForm.batchLotNumber)} onChange={e => setSeedForm(f => ({ ...f, batchLotNumber: e.target.value }))} placeholder="e.g. BL-2024-001" />
+              <Input value={seedForm.batchLotNumber || ""} onChange={e => setSeedForm(f => ({ ...f, batchLotNumber: e.target.value }))} placeholder="e.g. BL-2024-001" />
             </div>
             <div className="col-span-2">
               <Label>Supplier Name</Label>
-              <Input value={str(seedForm.supplierName)} onChange={e => setSeedForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Organic Seed Store Ltd" />
+              <Input value={seedForm.supplierName || ""} onChange={e => setSeedForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Organic Seed Store Ltd" />
             </div>
             <div className="col-span-2">
               <Label>Supplier Address</Label>
-              <Input value={str(seedForm.supplierAddress)} onChange={e => setSeedForm(f => ({ ...f, supplierAddress: e.target.value }))} />
+              <Input value={seedForm.supplierAddress || ""} onChange={e => setSeedForm(f => ({ ...f, supplierAddress: e.target.value }))} />
             </div>
-            {str(seedForm.seedType) !== "organic" && (
+            {seedForm.seedType !== "organic" && (
               <>
-                <div className="col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs font-semibold text-amber-800 mb-1">Derogation Required</p>
-                  <p className="text-xs text-amber-700">Non-organic seed requires prior written approval from your certifying body. Ensure derogation is obtained before sowing.</p>
+                <div className="col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                  <p className="font-semibold mb-1">Derogation Required</p>
+                  <p>Non-organic seed requires prior written approval from your certifying body before use. Attach the approval letter in the record view.</p>
                 </div>
                 <div className="col-span-2 flex items-center gap-3">
-                  <input type="checkbox" id="derog" checked={str(seedForm.derogationGranted) === "true"} onChange={e => setSeedForm(f => ({ ...f, derogationGranted: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
+                  <input type="checkbox" id="derog" checked={seedForm.derogationGranted === "true"} onChange={e => setSeedForm(f => ({ ...f, derogationGranted: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
                   <Label htmlFor="derog" className="cursor-pointer font-normal">Derogation granted by certifier</Label>
                 </div>
-                {str(seedForm.derogationGranted) === "true" && (
+                {seedForm.derogationGranted === "true" && (
                   <>
                     <div>
                       <Label>Derogation Reference</Label>
-                      <Input value={str(seedForm.derogationReference)} onChange={e => setSeedForm(f => ({ ...f, derogationReference: e.target.value }))} placeholder="e.g. SA-DER-2024-007" />
+                      <Input value={seedForm.derogationReference || ""} onChange={e => setSeedForm(f => ({ ...f, derogationReference: e.target.value }))} placeholder="e.g. SA-DER-2024-007" />
                     </div>
                     <div>
-                      <Label>Derogation Expiry Date</Label>
-                      <Input type="date" value={str(seedForm.derogationExpiryDate)} onChange={e => setSeedForm(f => ({ ...f, derogationExpiryDate: e.target.value }))} />
+                      <Label>Derogation Expiry</Label>
+                      <Input type="date" value={seedForm.derogationExpiryDate || ""} onChange={e => setSeedForm(f => ({ ...f, derogationExpiryDate: e.target.value }))} />
                     </div>
                     <div className="col-span-2">
                       <Label>Certifier Approval Reference</Label>
-                      <Input value={str(seedForm.certifierApproval)} onChange={e => setSeedForm(f => ({ ...f, certifierApproval: e.target.value }))} />
+                      <Input value={seedForm.certifierApproval || ""} onChange={e => setSeedForm(f => ({ ...f, certifierApproval: e.target.value }))} />
                     </div>
                   </>
                 )}
@@ -1047,7 +1586,7 @@ export default function OrganicArablePage() {
             )}
             <div className="col-span-2">
               <Label>Notes</Label>
-              <Textarea rows={2} value={str(seedForm.notes)} onChange={e => setSeedForm(f => ({ ...f, notes: e.target.value }))} />
+              <Textarea rows={2} value={seedForm.notes || ""} onChange={e => setSeedForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
@@ -1059,7 +1598,7 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Input Log Dialog */}
+      {/* Form: Input Log */}
       <Dialog open={inputOpen} onOpenChange={v => !v && setInputOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1073,25 +1612,14 @@ export default function OrganicArablePage() {
             </div>
             <div>
               <Label>Field / Parcel</Label>
-              <Input value={inputForm.fieldName || ""} onChange={e => setInputForm(f => ({ ...f, fieldName: e.target.value }))} placeholder="e.g. Home Field" />
+              <FieldSelector value={inputForm.fieldName || ""} onChange={v => setInputForm(f => ({ ...f, fieldName: v }))} fields={fieldOptions} />
             </div>
             <div className="col-span-2">
               <Label>Product / Substance *</Label>
-              <select
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                value={inputCustomProduct ? "__other__" : (inputForm.productName || "")}
-                onChange={e => {
-                  if (e.target.value === "__other__") { setInputCustomProduct(true); setInputForm(f => ({ ...f, productName: "" })); }
-                  else { setInputCustomProduct(false); setInputForm(f => ({ ...f, productName: e.target.value, inputType: "Fertiliser / Soil Amendment" })); }
-                }}
-              >
-                <option value="">Select Annex II approved input…</option>
-                {ANNEX_INPUTS.map(s => <option key={s} value={s}>{s}</option>)}
-                <option value="__other__">Other / specify below</option>
-              </select>
-              {inputCustomProduct && (
-                <Input className="mt-1.5" placeholder="Enter product name" value={inputForm.productName || ""} onChange={e => setInputForm(f => ({ ...f, productName: e.target.value }))} autoFocus />
-              )}
+              <SubstancePicker
+                value={inputForm.productName || ""}
+                onChange={v => setInputForm(f => ({ ...f, productName: v }))}
+              />
             </div>
             <div>
               <Label>Active Ingredient</Label>
@@ -1101,14 +1629,14 @@ export default function OrganicArablePage() {
               <Label>Input Type *</Label>
               <Select value={inputForm.inputType || ""} onValueChange={v => setInputForm(f => ({ ...f, inputType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
-                <SelectContent>{INPUT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectContent>{INPUT_TYPES_ALL.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label>Permitted Status *</Label>
               <Select value={inputForm.permittedStatus || "permitted"} onValueChange={v => setInputForm(f => ({ ...f, permittedStatus: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{PERMITTED_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{PERMITTED_STATUSES.slice(1).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -1130,14 +1658,14 @@ export default function OrganicArablePage() {
               <Label>Area Applied (ha)</Label>
               <Input type="number" step="0.001" value={inputForm.areaAppliedHa || ""} onChange={e => setInputForm(f => ({ ...f, areaAppliedHa: e.target.value }))} />
             </div>
-            <div className="col-span-2">
+            <div>
               <Label>Supplier</Label>
               <Input value={inputForm.supplierName || ""} onChange={e => setInputForm(f => ({ ...f, supplierName: e.target.value }))} />
             </div>
             {inputForm.permittedStatus === "restricted" && (
               <div className="col-span-2">
                 <Label>Certifier Approval Reference</Label>
-                <Input value={inputForm.certifierApproval || ""} onChange={e => setInputForm(f => ({ ...f, certifierApproval: e.target.value }))} placeholder="Reference for certifier written approval" />
+                <Input value={inputForm.certifierApproval || ""} onChange={e => setInputForm(f => ({ ...f, certifierApproval: e.target.value }))} placeholder="Reference from certifier written approval" />
               </div>
             )}
             <div className="col-span-2">
@@ -1154,98 +1682,69 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Harvest Declarations Dialog */}
+      {/* Form: Harvest Details */}
       <Dialog open={harvestOpen} onOpenChange={v => !v && setHarvestOpen(false)}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{harvestEditing ? "Edit" : "Log"} Harvest Declaration</DialogTitle>
-            <DialogDescription>Record organic harvest details and buyer declaration for each crop</DialogDescription>
+            <DialogTitle>{harvestEditing ? "Edit" : "Log"} Harvest</DialogTitle>
+            <DialogDescription>Record organic harvest details for a field or parcel. Add the buyer declaration separately from the record view.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Harvest Details</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Harvest Date *</Label>
-                <Input type="date" value={harvestForm.harvestDate || ""} onChange={e => setHarvestForm(f => ({ ...f, harvestDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Crop *</Label>
-                <Input value={harvestForm.cropName || ""} onChange={e => setHarvestForm(f => ({ ...f, cropName: e.target.value }))} placeholder="e.g. Winter Wheat" />
-              </div>
-              <div>
-                <Label>Variety</Label>
-                <Input value={harvestForm.variety || ""} onChange={e => setHarvestForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
-              </div>
-              <div>
-                <Label>Field / Parcel</Label>
-                <Input value={harvestForm.fieldName || ""} onChange={e => setHarvestForm(f => ({ ...f, fieldName: e.target.value }))} placeholder="e.g. Home Field" />
-              </div>
-              <div>
-                <Label>Yield (tonnes)</Label>
-                <Input type="number" step="0.001" value={harvestForm.yieldTonnes || ""} onChange={e => setHarvestForm(f => ({ ...f, yieldTonnes: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Moisture %</Label>
-                <Input type="number" step="0.1" value={harvestForm.moisturePercent || ""} onChange={e => setHarvestForm(f => ({ ...f, moisturePercent: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Organic Status *</Label>
-                <Select value={harvestForm.organicStatus || "certified"} onValueChange={v => setHarvestForm(f => ({ ...f, organicStatus: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{HARVEST_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Certifier Reference</Label>
-                <Input value={harvestForm.certifierRef || ""} onChange={e => setHarvestForm(f => ({ ...f, certifierRef: e.target.value }))} placeholder="e.g. SA-CROP-2025-001" />
-              </div>
-              <div className="col-span-2">
-                <Label>Storage Location</Label>
-                <Input value={harvestForm.storageLocation || ""} onChange={e => setHarvestForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store A — segregated organic bay" />
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Harvest Date *</Label>
+              <Input type="date" value={harvestForm.harvestDate || ""} onChange={e => setHarvestForm(f => ({ ...f, harvestDate: e.target.value }))} />
             </div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2 border-t border-border">Buyer Declaration</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Buyer Name</Label>
-                <Input value={harvestForm.buyerName || ""} onChange={e => setHarvestForm(f => ({ ...f, buyerName: e.target.value }))} placeholder="e.g. John Smith" />
-              </div>
-              <div>
-                <Label>Buyer Organisation</Label>
-                <Input value={harvestForm.buyerOrganisation || ""} onChange={e => setHarvestForm(f => ({ ...f, buyerOrganisation: e.target.value }))} placeholder="e.g. Organic Grain Merchants Ltd" />
-              </div>
-              <div className="col-span-2">
-                <Label>Buyer Address</Label>
-                <Input value={harvestForm.buyerAddress || ""} onChange={e => setHarvestForm(f => ({ ...f, buyerAddress: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Sale Date</Label>
-                <Input type="date" value={harvestForm.saleDate || ""} onChange={e => setHarvestForm(f => ({ ...f, saleDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Qty Sold (t)</Label>
-                <Input type="number" step="0.001" value={harvestForm.quantitySoldTonnes || ""} onChange={e => setHarvestForm(f => ({ ...f, quantitySoldTonnes: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Price (£/t)</Label>
-                <Input type="number" step="0.01" value={harvestForm.pricePoundPerTonne || ""} onChange={e => setHarvestForm(f => ({ ...f, pricePoundPerTonne: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Organic Premium %</Label>
-                <Input type="number" step="0.1" value={harvestForm.organicPremiumPercent || ""} onChange={e => setHarvestForm(f => ({ ...f, organicPremiumPercent: e.target.value }))} placeholder="e.g. 25" />
-              </div>
-              <div>
-                <Label>Declaration Date</Label>
-                <Input type="date" value={harvestForm.declarationDate || ""} onChange={e => setHarvestForm(f => ({ ...f, declarationDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Declaration Reference</Label>
-                <Input value={harvestForm.declarationReference || ""} onChange={e => setHarvestForm(f => ({ ...f, declarationReference: e.target.value }))} placeholder="e.g. DEC-2025-001" />
-              </div>
-              <div className="col-span-2">
-                <Label>Notes</Label>
-                <Textarea rows={2} value={harvestForm.notes || ""} onChange={e => setHarvestForm(f => ({ ...f, notes: e.target.value }))} />
-              </div>
+            <div>
+              <Label>Organic Status *</Label>
+              <Select value={harvestForm.organicStatus || "certified"} onValueChange={v => setHarvestForm(f => ({ ...f, organicStatus: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{HARVEST_STATUSES.slice(1).map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Crop *</Label>
+              <Select value={harvestForm.cropName || ""} onValueChange={v => setHarvestForm(f => ({ ...f, cropName: v, variety: "" }))}>
+                <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                <SelectContent>{cropOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Variety</Label>
+              {harvestVarieties.length > 0 ? (
+                <Select value={harvestForm.variety || ""} onValueChange={v => setHarvestForm(f => ({ ...f, variety: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
+                  <SelectContent>
+                    {harvestVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    <SelectItem value="">Other / unregistered</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={harvestForm.variety || ""} onChange={e => setHarvestForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
+              )}
+            </div>
+            <div className="col-span-2">
+              <Label>Field / Parcel</Label>
+              <FieldSelector value={harvestForm.fieldName || ""} onChange={v => setHarvestForm(f => ({ ...f, fieldName: v }))} fields={fieldOptions} />
+            </div>
+            <div>
+              <Label>Yield (tonnes)</Label>
+              <Input type="number" step="0.001" value={harvestForm.yieldTonnes || ""} onChange={e => setHarvestForm(f => ({ ...f, yieldTonnes: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Moisture %</Label>
+              <Input type="number" step="0.1" value={harvestForm.moisturePercent || ""} onChange={e => setHarvestForm(f => ({ ...f, moisturePercent: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <Label>Storage Location</Label>
+              <Input value={harvestForm.storageLocation || ""} onChange={e => setHarvestForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store A — segregated organic bay" />
+            </div>
+            <div className="col-span-2">
+              <Label>Certifier Reference</Label>
+              <Input value={harvestForm.certifierRef || ""} onChange={e => setHarvestForm(f => ({ ...f, certifierRef: e.target.value }))} placeholder="e.g. SA-CROP-2025-001" />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={harvestForm.notes || ""} onChange={e => setHarvestForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
@@ -1257,7 +1756,64 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete dialogs */}
+      {/* Form: Buyer Declaration */}
+      <Dialog open={buyerOpen} onOpenChange={v => !v && setBuyerOpen(false)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{buyerRecord?.buyerName ? "Edit" : "Add"} Buyer Declaration</DialogTitle>
+            <DialogDescription>
+              Record the buyer details and sale declaration for:{" "}
+              <strong>{str(buyerRecord?.cropName)}</strong> harvested {fmt(str(buyerRecord?.harvestDate))}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Buyer Name</Label>
+              <Input value={buyerForm.buyerName || ""} onChange={e => setBuyerForm(f => ({ ...f, buyerName: e.target.value }))} placeholder="e.g. John Smith" />
+            </div>
+            <div>
+              <Label>Buyer Organisation</Label>
+              <Input value={buyerForm.buyerOrganisation || ""} onChange={e => setBuyerForm(f => ({ ...f, buyerOrganisation: e.target.value }))} placeholder="e.g. Organic Grain Merchants Ltd" />
+            </div>
+            <div className="col-span-2">
+              <Label>Buyer Address</Label>
+              <Input value={buyerForm.buyerAddress || ""} onChange={e => setBuyerForm(f => ({ ...f, buyerAddress: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Sale Date</Label>
+              <Input type="date" value={buyerForm.saleDate || ""} onChange={e => setBuyerForm(f => ({ ...f, saleDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Quantity Sold (t)</Label>
+              <Input type="number" step="0.001" value={buyerForm.quantitySoldTonnes || ""} onChange={e => setBuyerForm(f => ({ ...f, quantitySoldTonnes: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Price (£/tonne)</Label>
+              <Input type="number" step="0.01" value={buyerForm.pricePoundPerTonne || ""} onChange={e => setBuyerForm(f => ({ ...f, pricePoundPerTonne: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Organic Premium %</Label>
+              <Input type="number" step="0.1" value={buyerForm.organicPremiumPercent || ""} onChange={e => setBuyerForm(f => ({ ...f, organicPremiumPercent: e.target.value }))} placeholder="e.g. 25" />
+            </div>
+            <div>
+              <Label>Declaration Date</Label>
+              <Input type="date" value={buyerForm.declarationDate || ""} onChange={e => setBuyerForm(f => ({ ...f, declarationDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Declaration Reference</Label>
+              <Input value={buyerForm.declarationReference || ""} onChange={e => setBuyerForm(f => ({ ...f, declarationReference: e.target.value }))} placeholder="e.g. DEC-2025-001" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBuyerOpen(false)}>Cancel</Button>
+            <Button onClick={saveBuyer} disabled={harvestMut.save.isPending}>
+              {harvestMut.save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Declaration"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmations */}
       <DeleteConfirmDialog open={certDeleting !== null} onClose={() => setCertDeleting(null)} saving={certMut.del.isPending}
         onConfirm={() => certMut.del.mutate(certDeleting!, { onSuccess: () => setCertDeleting(null) })} />
       <DeleteConfirmDialog open={convDeleting !== null} onClose={() => setConvDeleting(null)} saving={convMut.del.isPending}

@@ -210,6 +210,49 @@ export default function MoreScreen() {
           </>
         )}
 
+        {activeModuleKeys.includes("organic-arable") && (
+          <>
+            <SectionHeader title="Organic Arable" />
+            <View style={styles.section}>
+              <ListItem
+                title="Organic Arable Overview"
+                subtitle="Certification, conversion, seed sourcing and harvest summary"
+                icon="sun"
+                iconColor="#16a34a"
+                iconBgColor="#f0fdf4"
+                onPress={() => router.push("/organic-arable-overview")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Log Arable Input"
+                subtitle="Record fertiliser, amendment or crop protection applied"
+                icon="package"
+                iconColor="#2563eb"
+                iconBgColor="#eff6ff"
+                onPress={() => router.push("/organic-arable-input")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Log Seed Purchase"
+                subtitle="Organic certified or derogation seed record"
+                icon="box"
+                iconColor="#7c3aed"
+                iconBgColor="#f5f3ff"
+                onPress={() => router.push("/organic-arable-seed")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Log Harvest"
+                subtitle="Record harvest yield and organic status"
+                icon="truck"
+                iconColor="#d97706"
+                iconBgColor="#fffbeb"
+                onPress={() => router.push("/organic-arable-harvest")}
+              />
+            </View>
+          </>
+        )}
+
         <SectionHeader title="Equipment" />
         <View style={styles.section}>
           <ListItem
