@@ -365,9 +365,10 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "" };
+  const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "", targetCrop: "", growthStage: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [vehicleStationFilled, setVehicleStationFilled] = useState<any>(null);
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
@@ -401,9 +402,27 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       bufferZoneMetres: r.bufferZoneMetres != null ? String(r.bufferZoneMetres) : "",
       waterSourceNearby: r.waterSourceNearby || "",
       notes: r.notes || "",
+      targetCrop: r.targetCrop || "",
+      growthStage: r.growthStage || "",
     });
   }
-  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setCropAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
+
+  useEffect(() => {
+    if (!formOpen || editRecord) return;
+    if (!form.fieldId || !form.applicationDate) { setCropAutoFilled(false); return; }
+    const fieldObj = fields.find((f: any) => String(f.id) === String(form.fieldId));
+    if (!fieldObj) return;
+    fetch(`/api/farms/${farmId}/crop-for-field?fieldName=${encodeURIComponent(fieldObj.name)}&date=${form.applicationDate}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.found && d.cropName) {
+          setForm((f: any) => ({ ...f, targetCrop: d.cropName }));
+          setCropAutoFilled(true);
+        }
+      })
+      .catch(() => {});
+  }, [form.fieldId, form.applicationDate, formOpen, editRecord]);
 
   const deliveriesQ = useQuery({
     queryKey: ["spray-batch-deliveries", farmId, deliveryStockItemId],
@@ -603,7 +622,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["", "Date", "Field", "Product", "Rate", "Area (ha)", "Operator", "Reason", "Weather", ""].map((h, i) => (
+                {["", "Date", "Field", "Crop", "Product", "Rate", "Area (ha)", "Operator", "Reason", "Weather", ""].map((h, i) => (
                   <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -617,6 +636,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     </td>
                     <td style={{ padding: "0.625rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280" }}>{fmt(r.applicationDate)}</td>
                     <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.fieldName || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#065f46", fontWeight: 500 }}>{r.targetCrop || <span style={{ color: "#fca5a5", fontSize: "0.75rem", fontWeight: 400 }}>Not recorded</span>}</td>
                     <td style={{ padding: "0.625rem 0.75rem" }}>
                       <span style={{ fontWeight: 500, color: "#1e40af" }}>{r.productName || "—"}</span>
                     </td>
@@ -644,6 +664,8 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                       <td colSpan={10} style={{ padding: "0.75rem 1.25rem", borderBottom: "1px solid #f3f4f6" }}>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, fontSize: "0.8rem" }}>
                           {[
+                            ["Target Crop", r.targetCrop],
+                            ["Growth Stage", r.growthStage],
                             ["Water Volume", r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : null],
                             ["Equipment Used", r.equipmentName ? `${r.equipmentName}${r.equipmentUsed && r.equipmentUsed !== r.equipmentName ? ` — ${r.equipmentUsed}` : ""}` : r.equipmentUsed],
                             ["PA1/PA6 Certificate", r.certificateNumber],
@@ -683,6 +705,29 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               <div>
                 <Label>Application Date <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Input type="date" value={form.applicationDate} onChange={e => { const d = e.target.value; setWeatherAutoFilled(false); setVehicleStationFilled(null); setForm((f: any) => ({ ...f, applicationDate: d })); fetchWeatherForDate(d); checkVehicleWeather(form.equipmentId, d); }} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Target Crop (being sprayed) <span style={{ color: "#ef4444" }}>*</span></Label>
+                <div style={{ position: "relative" }}>
+                  <Input
+                    placeholder="e.g. Winter Wheat, OSR, Sugar Beet"
+                    value={form.targetCrop}
+                    onChange={e => { setForm((f: any) => ({ ...f, targetCrop: e.target.value })); setCropAutoFilled(false); }}
+                  />
+                  {cropAutoFilled && (
+                    <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "#dcfce7", color: "#16a34a", fontSize: "0.68rem", fontWeight: 600, borderRadius: 4, padding: "1px 6px", pointerEvents: "none" }}>Auto-filled</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <Label>Growth Stage (BBCH)</Label>
+                <Input
+                  placeholder="e.g. GS31, BBCH 31–32"
+                  value={form.growthStage}
+                  onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))}
+                />
               </div>
             </div>
             <div>

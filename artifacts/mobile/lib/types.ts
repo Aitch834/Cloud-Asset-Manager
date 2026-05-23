@@ -33,6 +33,8 @@ export interface SprayRecord {
   startTime: string;
   endTime: string;
   notes: string;
+  targetCrop?: string;
+  growthStage?: string;
   latitude?: number;
   longitude?: number;
   linkedWeatherDate: string;

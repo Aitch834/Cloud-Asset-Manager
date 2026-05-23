@@ -47,6 +47,8 @@ export const sprayApplicationsTable = pgTable("spray_applications", {
   bufferZoneMetres: numeric("buffer_zone_metres", { precision: 6, scale: 1 }),
   waterSourceNearby: text("water_source_nearby"),
   notes: text("notes"),
+  targetCrop: text("target_crop"),
+  growthStage: text("growth_stage"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

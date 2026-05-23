@@ -28,6 +28,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { sprayRecordHtml } from "@/lib/printTemplates";
@@ -73,6 +74,9 @@ export default function SprayRecordScreen() {
   const [pressure, setPressure] = useState("");
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [notes, setNotes] = useState("");
+  const [targetCrop, setTargetCrop] = useState("");
+  const [growthStage, setGrowthStage] = useState("");
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
 
   const [detectedField, setDetectedField] = useState<FieldBoundary | null>(null);
   const [linkedWeather, setLinkedWeather] = useState<WeatherEntry | null>(null);
@@ -120,9 +124,33 @@ export default function SprayRecordScreen() {
     linkTodayWeather();
   }, [detectFieldFromGPS, linkTodayWeather]);
 
+  useEffect(() => {
+    if (!fieldName.trim() || !currentFarm?.id) { setCropAutoFilled(false); return; }
+    const today = new Date().toISOString().split("T")[0];
+    const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+    (async () => {
+      try {
+        const token = await kvGet("bde_auth_token");
+        const tenantId = await kvGet("bde_current_farm");
+        const res = await fetch(
+          `${domain}/api/farms/${currentFarm.id}/crop-for-field?fieldName=${encodeURIComponent(fieldName)}&date=${today}`,
+          { headers: { Authorization: `Bearer ${token}`, "x-tenant-id": tenantId || "" } },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.found && data.cropName) {
+          setTargetCrop(data.cropName);
+          setCropAutoFilled(true);
+        } else {
+          setCropAutoFilled(false);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [fieldName, currentFarm?.id]);
+
   const handleSave = async () => {
-    if (!fieldName.trim() || !productName.trim()) {
-      Alert.alert("Required Fields", "Please select a field and enter the product name.");
+    if (!fieldName.trim() || !productName.trim() || !targetCrop.trim()) {
+      Alert.alert("Required Fields", "Please select a field, enter the target crop being sprayed, and enter the product name.");
       return;
     }
 
@@ -147,6 +175,8 @@ export default function SprayRecordScreen() {
       id: generateId(),
       farmId: currentFarm?.id || "",
       fieldName: fieldName.trim(),
+      targetCrop: targetCrop.trim(),
+      growthStage: growthStage.trim(),
       productName: productName.trim(),
       applicationRate: applicationRate.trim(),
       applicationUnit,
@@ -226,6 +256,31 @@ export default function SprayRecordScreen() {
             fields={apiFields}
             loading={fieldsLoading}
             error={fieldsError}
+          />
+
+          <View style={styles.sectionLabel}>
+            <Feather name="feather" size={14} color={colors.success} />
+            <Text style={styles.sectionTitle}>Crop Being Sprayed</Text>
+          </View>
+          {cropAutoFilled && (
+            <View style={styles.detectedBanner}>
+              <Feather name="check-circle" size={14} color={colors.success} />
+              <Text style={styles.detectedText}>Target crop auto-filled from field register</Text>
+              <Badge text="Auto" variant="success" />
+            </View>
+          )}
+          <Input
+            label="Target Crop *"
+            placeholder="e.g. Winter Wheat, OSR, Sugar Beet"
+            value={targetCrop}
+            onChangeText={(t) => { setTargetCrop(t); setCropAutoFilled(false); }}
+            required
+          />
+          <Input
+            label="Growth Stage (BBCH)"
+            placeholder="e.g. GS31, BBCH 31–32"
+            value={growthStage}
+            onChangeText={setGrowthStage}
           />
 
           <View style={styles.sectionLabel}>

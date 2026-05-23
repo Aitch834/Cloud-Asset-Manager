@@ -1490,6 +1490,8 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
       bufferZoneMetres: sprayApplicationsTable.bufferZoneMetres,
       waterSourceNearby: sprayApplicationsTable.waterSourceNearby,
       notes: sprayApplicationsTable.notes,
+      targetCrop: sprayApplicationsTable.targetCrop,
+      growthStage: sprayApplicationsTable.growthStage,
       createdAt: sprayApplicationsTable.createdAt,
     })
     .from(sprayApplicationsTable)

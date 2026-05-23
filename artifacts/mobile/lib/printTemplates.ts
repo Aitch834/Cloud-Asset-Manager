@@ -222,6 +222,8 @@ export function sprayRecordHtml(record: SprayRecord, farm: Farm | null): string 
     <div class="section-heading">Field &amp; Product</div>
     <table>
       <tr><td class="label">Field Name</td><td><strong>${fmt(record.fieldName)}</strong></td></tr>
+      <tr><td class="label">Target Crop</td><td><strong>${fmt(record.targetCrop)}</strong></td></tr>
+      ${record.growthStage ? `<tr><td class="label">Growth Stage (BBCH)</td><td>${fmt(record.growthStage)}</td></tr>` : ""}
       <tr><td class="label">Product Name</td><td><strong>${fmt(record.productName)}</strong></td></tr>
       <tr><td class="label">Application Rate</td><td>${fmt(record.applicationRate)} ${fmt(record.applicationUnit, "")}</td></tr>
       <tr><td class="label">Equipment Used</td><td>${fmt(record.equipmentUsed)}</td></tr>
