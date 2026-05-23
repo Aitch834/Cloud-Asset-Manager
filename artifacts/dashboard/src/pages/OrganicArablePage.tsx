@@ -160,12 +160,12 @@ const ANNEX_INPUTS = [
 
 function StatusBadge({ value, options }: {
   value: string;
-  options: { value: string; label: string; cls: string }[];
+  options: { value: string; label: string; cls?: string }[];
 }) {
   const opt = options.filter(o => o.value !== "all").find(o => o.value === value)
     ?? { label: value, cls: "bg-gray-100 text-gray-600 border-gray-300" };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium ${opt.cls}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium ${opt.cls ?? "bg-gray-100 text-gray-600 border-gray-300"}`}>
       {opt.label}
     </span>
   );
@@ -1197,7 +1197,7 @@ export default function OrganicArablePage() {
               <DetailRow label="Certifier Reference" value={str(viewConv.certifierRef) || "—"} />
               <DetailRow label="Previous Land Use" value={str(viewConv.previousLandUse) || "—"} />
               <DetailRow label="Parallel Production" value={viewConv.parallelProduction ? "Yes" : "No"} />
-              {viewConv.parallelProduction && <DetailRow label="Justification" value={str(viewConv.parallelProductionJustification)} />}
+              {!!viewConv.parallelProduction && <DetailRow label="Justification" value={str(viewConv.parallelProductionJustification)} />}
               {viewConv.status !== "certified" && (
                 <DetailRow label="Conversion Progress" value={
                   <div className="flex items-center gap-2 w-full">
@@ -1244,7 +1244,7 @@ export default function OrganicArablePage() {
               <DetailRow label="Supplier" value={str(viewSeed.supplierName) || "—"} />
               <DetailRow label="Supplier Address" value={str(viewSeed.supplierAddress) || "—"} />
               <DetailRow label="Derogation Granted" value={viewSeed.derogationGranted ? "Yes" : "No"} />
-              {viewSeed.derogationGranted && <>
+              {!!viewSeed.derogationGranted && <>
                 <DetailRow label="Derogation Reference" value={str(viewSeed.derogationReference) || "—"} />
                 <DetailRow label="Derogation Expiry" value={fmt(str(viewSeed.derogationExpiryDate))} />
                 <DetailRow label="Certifier Approval" value={str(viewSeed.certifierApproval) || "—"} />
