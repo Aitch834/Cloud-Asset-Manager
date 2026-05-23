@@ -1738,12 +1738,33 @@ export default function OrganicArablePage() {
               <Input value={seedForm.batchLotNumber || ""} onChange={e => setSeedForm(f => ({ ...f, batchLotNumber: e.target.value }))} placeholder="e.g. BL-2024-001" />
             </div>
             <div className="col-span-2">
-              <Label>Supplier Name</Label>
-              <Input value={seedForm.supplierName || ""} onChange={e => setSeedForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Organic Seed Store Ltd" />
+              <Label>Supplier</Label>
+              {allSuppliers.length > 0 ? (
+                <Select
+                  value={seedForm.supplierName || "__none__"}
+                  onValueChange={v => {
+                    if (v === "__none__") { setSeedForm(f => ({ ...f, supplierName: "", supplierAddress: "" })); return; }
+                    const s = allSuppliers.find((x: any) => x.name === v);
+                    setSeedForm(f => ({
+                      ...f,
+                      supplierName: v,
+                      supplierAddress: s ? [s.addressLine1, s.addressLine2, s.town, s.county, s.postcode].filter(Boolean).join(", ") : f.supplierAddress,
+                    }));
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {allSuppliers.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={seedForm.supplierName || ""} onChange={e => setSeedForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Organic Seed Store Ltd — add suppliers in Trade Contacts &amp; Stock" />
+              )}
             </div>
             <div className="col-span-2">
               <Label>Supplier Address</Label>
-              <Input value={seedForm.supplierAddress || ""} onChange={e => setSeedForm(f => ({ ...f, supplierAddress: e.target.value }))} />
+              <Input value={seedForm.supplierAddress || ""} onChange={e => setSeedForm(f => ({ ...f, supplierAddress: e.target.value }))} placeholder="Auto-filled from supplier register, or enter manually" />
             </div>
             {seedForm.seedType !== "organic" && (
               <>
