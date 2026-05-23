@@ -130,6 +130,34 @@ router.patch("/admin/tenants/:tenantId/users/:userId/alerts", requireAuth, async
   res.json({ success: true });
 });
 
+router.get("/admin/system-roles", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const roles = await db.select().from(rolesTable).where(eq(rolesTable.isSystemRole, true));
+  res.json({ roles });
+});
+
+router.patch("/admin/tenants/:tenantId/users/:userId/role", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const userId = req.params.userId;
+  const { roleId } = req.body as { roleId: number | null };
+
+  if (roleId !== null && roleId !== undefined) {
+    const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId)).limit(1);
+    if (!role) {
+      res.status(400).json({ error: "Invalid role" });
+      return;
+    }
+  }
+
+  await db
+    .update(userTenantsTable)
+    .set({ roleId: roleId !== null && roleId !== undefined ? roleId : sql`NULL` })
+    .where(and(eq(userTenantsTable.tenantId, tenantId), eq(userTenantsTable.userId, userId as any)));
+
+  res.json({ success: true });
+});
+
 router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 

@@ -13,6 +13,7 @@ import { TabButton } from "@/components/ui/tab-button";
 import {
   AlertTriangle, CheckCircle2, Info, Plus, Trash2,
   Leaf, FlaskConical, Droplets, Eye, Pencil, ClipboardList,
+  Building2, Phone, Mail, Users,
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
@@ -386,9 +387,13 @@ function NvzFieldCard({ fs, onEdit }: { fs: FieldSummary; onEdit: (fs: FieldSumm
 export default function NVZPage() {
   const { farmId } = useAppStore();
   const appMethods = useLookupStrings("nvz_application_methods", APP_METHODS);
+  const soilTypes = useLookupStrings("nvz_soil_types", [
+    "Sand", "Loamy Sand", "Sandy Loam", "Sandy Silt Loam", "Silt Loam", "Silt",
+    "Loam", "Clay Loam", "Sandy Clay Loam", "Silty Clay Loam", "Sandy Clay", "Silty Clay", "Clay",
+  ]);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments" | "closed-periods" | "budget-calc">("summary");
+  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments" | "closed-periods" | "budget-calc" | "contacts">("summary");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
@@ -419,8 +424,16 @@ export default function NVZPage() {
   const [raViewItem, setRaViewItem] = useState<any>(null);
   const [raEditItem, setRaEditItem] = useState<any>(null);
   const [raDeleteId, setRaDeleteId] = useState<number | null>(null);
-  const emptyRaForm = { assessmentDate: "", assessedBy: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
+  const emptyRaForm = { assessmentDate: "", assessedBy: "", assessorName: "", assessorOrganisation: "", assessorContactId: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
+  const [raFieldIds, setRaFieldIds] = useState<number[]>([]);
   const [raForm, setRaForm] = useState({ ...emptyRaForm });
+
+  const [contactAddOpen, setContactAddOpen] = useState(false);
+  const [contactEditItem, setContactEditItem] = useState<any>(null);
+  const [contactDeleteId, setContactDeleteId] = useState<number | null>(null);
+  const emptyContactForm = { name: "", organisation: "", email: "", phone: "", role: "", qualifications: "", notes: "" };
+  const [contactForm, setContactForm] = useState({ ...emptyContactForm });
+  const [nvzRaiseTask, setNvzRaiseTask] = useState<{ title: string; description: string } | null>(null);
 
   const summaryQ = useQuery<{ summary: FieldSummary[] }>({
     queryKey: ["nvz-summary", farmId],
@@ -446,22 +459,42 @@ export default function NVZPage() {
     enabled: !!farmId,
   });
 
+  const contactsQ = useQuery<{ contacts: any[] }>({
+    queryKey: ["farm-contacts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/contacts`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const raCreateMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nvz-risk-assessments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Risk assessment saved" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaAddOpen(false); setRaForm({ ...emptyRaForm }); },
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nvz-risk-assessments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, fieldIds: JSON.stringify(raFieldIds) }) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Risk assessment saved" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaAddOpen(false); setRaForm({ ...emptyRaForm }); setRaFieldIds([]); },
   });
   const raUpdateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Risk assessment updated" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaEditItem(null); },
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, fieldIds: JSON.stringify(raFieldIds) }) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Risk assessment updated" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaEditItem(null); setRaFieldIds([]); },
   });
   const raDeleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Risk assessment deleted" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaDeleteId(null); },
   });
 
+  const contactCreateMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Contact saved" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactAddOpen(false); setContactForm({ ...emptyContactForm }); },
+  });
+  const contactUpdateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/contacts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Contact updated" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactEditItem(null); },
+  });
+  const contactDeleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/contacts/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Contact removed" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactDeleteId(null); },
+  });
+
   const applications: NvzApplication[] = appsQ.data?.records ?? [];
   const fields: Field[] = fieldsQ.data?.records ?? [];
   const riskAssessments: any[] = riskAssessmentsQ.data?.records ?? [];
+  const contacts: any[] = contactsQ.data?.contacts ?? [];
 
   const availableYears = useMemo(() => {
     const years = new Set<number>([new Date().getFullYear()]);
@@ -660,6 +693,7 @@ export default function NVZPage() {
             <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
             <TabButton active={tab === "closed-periods"} onClick={() => setTab("closed-periods")}>Closed Periods</TabButton>
             <TabButton active={tab === "budget-calc"} onClick={() => setTab("budget-calc")}>N Budget Calculator</TabButton>
+            <TabButton active={tab === "contacts"} onClick={() => setTab("contacts")}>Contacts {contacts.length > 0 && `(${contacts.length})`}</TabButton>
           </div>
           {tab !== "risk-assessments" && (
             <div className="flex items-center gap-2 pb-1">
@@ -986,13 +1020,25 @@ export default function NVZPage() {
           <div className="flex items-center gap-3">
             <div style={{ flex: 1 }}>
               <p className="text-sm text-foreground/60">
-                Record NVZ risk assessments as required by the Nitrates Action Programme. Assessments should identify application restrictions, drainage risk, and mitigation measures.
+                Record NVZ risk assessments required by the Nitrates Action Programme. Assessments identify application restrictions, soil risk factors, and mitigation measures.
               </p>
             </div>
-            <Button size="sm" onClick={() => { setRaForm({ ...emptyRaForm }); setRaAddOpen(true); }}>
+            <Button size="sm" onClick={() => { setRaForm({ ...emptyRaForm }); setRaFieldIds([]); setRaAddOpen(true); }}>
               <Plus className="w-4 h-4 mr-1" /> Add Assessment
             </Button>
           </div>
+
+          {riskAssessments.some(r => r.applicationRestrictionsIdentified?.trim()) && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px" }}>
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">Active Application Restrictions</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  {riskAssessments.filter(r => r.applicationRestrictionsIdentified?.trim()).length} assessment{riskAssessments.filter(r => r.applicationRestrictionsIdentified?.trim()).length !== 1 ? "s" : ""} have active restrictions. Review before spreading.
+                </p>
+              </div>
+            </div>
+          )}
 
           {riskAssessmentsQ.isLoading ? (
             <p className="text-sm text-foreground/40 text-center py-10">Loading…</p>
@@ -1007,7 +1053,7 @@ export default function NVZPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
-                    {["Date", "Assessed By", "Overall Risk", "Restrictions", "Next Review", ""].map(h => (
+                    {["Date", "Assessor", "Fields", "Soil Type", "Overall Risk", "Restrictions", "Next Review", ""].map(h => (
                       <th key={h} style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em" }}>{h}</th>
                     ))}
                   </tr>
@@ -1016,19 +1062,40 @@ export default function NVZPage() {
                   {riskAssessments.map((r: any) => {
                     const riskColor = r.overallRiskLevel === "High" ? "#dc2626" : r.overallRiskLevel === "Medium" ? "#d97706" : "#16a34a";
                     const riskBg = r.overallRiskLevel === "High" ? "#fef2f2" : r.overallRiskLevel === "Medium" ? "#fffbeb" : "#f0fdf4";
+                    const riskBorder = r.overallRiskLevel === "High" ? "#fecaca" : r.overallRiskLevel === "Medium" ? "#fde68a" : "#bbf7d0";
+                    const displayAssessor = r.assessorName || r.assessedBy || "—";
+                    const linkedIds: number[] = r.fieldIds ? (() => { try { return JSON.parse(r.fieldIds); } catch { return []; } })() : [];
+                    const linkedNames = fields.filter(f => linkedIds.includes(f.id)).map(f => f.name);
+                    const hasRestrictions = !!r.applicationRestrictionsIdentified?.trim();
                     return (
                       <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                         <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
-                        <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.assessedBy}</td>
                         <td style={{ padding: "0.625rem 0.75rem" }}>
-                          {r.overallRiskLevel ? <span style={{ background: riskBg, color: riskColor, border: `1px solid ${riskBg === "#f0fdf4" ? "#bbf7d0" : riskBg === "#fffbeb" ? "#fde68a" : "#fecaca"}`, borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600 }}>{r.overallRiskLevel}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
+                          <div style={{ fontWeight: 500 }}>{displayAssessor}</div>
+                          {r.assessorOrganisation && <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{r.assessorOrganisation}</div>}
                         </td>
-                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.applicationRestrictionsIdentified || "None noted"}</td>
+                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>
+                          {linkedNames.length > 0 ? <span title={linkedNames.join(", ")}>{linkedNames.length === 1 ? linkedNames[0] : `${linkedNames.length} fields`}</span> : "—"}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.soilType || "—"}</td>
+                        <td style={{ padding: "0.625rem 0.75rem" }}>
+                          {r.overallRiskLevel ? <span style={{ background: riskBg, color: riskColor, border: `1px solid ${riskBorder}`, borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600 }}>{r.overallRiskLevel}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.75rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {hasRestrictions
+                            ? <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#d97706" }}><AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{r.applicationRestrictionsIdentified}</span></span>
+                            : <span style={{ color: "#9ca3af" }}>None noted</span>}
+                        </td>
                         <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.nextReviewDate ? new Date(r.nextReviewDate).toLocaleDateString("en-GB") : "—"}</td>
                         <td style={{ padding: "0.625rem 0.75rem" }}>
                           <div style={{ display: "flex", gap: 4 }}>
                             <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => setRaViewItem(r)}>View</Button>
-                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setRaDeleteId(r.id)}>Del</Button>
+                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => {
+                              setRaEditItem(r);
+                              setRaFieldIds(r.fieldIds ? (() => { try { return JSON.parse(r.fieldIds); } catch { return []; } })() : []);
+                              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+                            }}><Pencil style={{ width: 11, height: 11 }} /></Button>
+                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#ef4444", borderColor: "#fca5a5" }} onClick={() => setRaDeleteId(r.id)}><Trash2 style={{ width: 11, height: 11 }} /></Button>
                           </div>
                         </td>
                       </tr>
@@ -1043,39 +1110,53 @@ export default function NVZPage() {
 
       {/* ── RISK ASSESSMENT VIEW DIALOG ── */}
       <Dialog open={!!raViewItem} onOpenChange={open => { if (!open) setRaViewItem(null); }}>
-        <DialogContent style={{ maxWidth: 600 }}>
+        <DialogContent style={{ maxWidth: 620 }}>
           <DialogHeader>
             <DialogTitle>NVZ Risk Assessment</DialogTitle>
-            <DialogDescription>
-              {raViewItem?.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : ""} — {raViewItem?.assessedBy}
-            </DialogDescription>
+            <DialogDescription>{raViewItem?.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : ""}</DialogDescription>
           </DialogHeader>
           {raViewItem && (() => {
             const riskColor = raViewItem.overallRiskLevel === "High" ? "#dc2626" : raViewItem.overallRiskLevel === "Medium" ? "#d97706" : "#16a34a";
             const riskBg = raViewItem.overallRiskLevel === "High" ? "#fef2f2" : raViewItem.overallRiskLevel === "Medium" ? "#fffbeb" : "#f0fdf4";
-            const Field = ({ label, value }: { label: string; value?: string | null }) => (
+            const VField = ({ label, value }: { label: string; value?: string | null }) => (
               <div>
                 <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
                 <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div>
               </div>
             );
+            const linkedIds: number[] = raViewItem.fieldIds ? (() => { try { return JSON.parse(raViewItem.fieldIds); } catch { return []; } })() : [];
+            const linkedFieldNames = fields.filter(f => linkedIds.includes(f.id)).map(f => f.name);
             return (
-              <div style={{ display: "grid", gap: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Assessment Date" value={raViewItem.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : null} />
-                  <Field label="Assessed By" value={raViewItem.assessedBy} />
+              <div style={{ display: "grid", gap: 14 }}>
+                {raViewItem.applicationRestrictionsIdentified?.trim() && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px" }}>
+                    <AlertTriangle style={{ width: 16, height: 16, color: "#d97706", marginTop: 1, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#92400e" }}>Application Restrictions Active</div>
+                      <div style={{ fontSize: "0.8rem", color: "#78350f", marginTop: 2 }}>{raViewItem.applicationRestrictionsIdentified}</div>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <VField label="Assessment Date" value={raViewItem.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : null} />
+                  <VField label="Next Review Date" value={raViewItem.nextReviewDate ? new Date(raViewItem.nextReviewDate).toLocaleDateString("en-GB") : null} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Soil Type" value={raViewItem.soilType} />
-                  <Field label="Organic Matter Level" value={raViewItem.organicMatterLevel} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <VField label="Assessor Name" value={raViewItem.assessorName || raViewItem.assessedBy} />
+                  <VField label="Assessor Organisation" value={raViewItem.assessorOrganisation} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  <Field label="Drainage Risk" value={raViewItem.drainageRisk} />
-                  <Field label="Slope Risk" value={raViewItem.slopeRisk} />
-                  <Field label="Flood Risk" value={raViewItem.floodRisk} />
+                {linkedFieldNames.length > 0 && <VField label="Fields Covered" value={linkedFieldNames.join(", ")} />}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <VField label="Soil Type (MAFF/AHDB)" value={raViewItem.soilType} />
+                  <VField label="Organic Matter Level" value={raViewItem.organicMatterLevel} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Distance to Watercourse" value={raViewItem.distanceToWatercourse} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  <VField label="Drainage Risk" value={raViewItem.drainageRisk} />
+                  <VField label="Slope Risk" value={raViewItem.slopeRisk} />
+                  <VField label="Flood Risk" value={raViewItem.floodRisk} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <VField label="Distance to Watercourse" value={raViewItem.distanceToWatercourse} />
                   <div>
                     <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>Overall Risk Level</div>
                     {raViewItem.overallRiskLevel
@@ -1083,39 +1164,86 @@ export default function NVZPage() {
                       : <span style={{ color: "#d1d5db", fontSize: "0.875rem" }}>—</span>}
                   </div>
                 </div>
-                <Field label="Application Restrictions Identified" value={raViewItem.applicationRestrictionsIdentified} />
-                <Field label="Mitigation Measures" value={raViewItem.mitigationMeasures} />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Field label="Next Review Date" value={raViewItem.nextReviewDate ? new Date(raViewItem.nextReviewDate).toLocaleDateString("en-GB") : null} />
-                </div>
-                {raViewItem.notes && <Field label="Notes" value={raViewItem.notes} />}
+                {raViewItem.mitigationMeasures && <VField label="Mitigation Measures" value={raViewItem.mitigationMeasures} />}
+                {raViewItem.notes && <VField label="Notes" value={raViewItem.notes} />}
               </div>
             );
           })()}
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setRaViewItem(null)}>Close</Button>
+            {raViewItem?.applicationRestrictionsIdentified?.trim() && (
+              <Button variant="outline" style={{ borderColor: "#fde68a", color: "#92400e", background: "#fffbeb" }}
+                onClick={() => { setNvzRaiseTask({ title: "NVZ Application Restriction Active", description: raViewItem.applicationRestrictionsIdentified }); setRaViewItem(null); }}>
+                <AlertTriangle className="w-4 h-4 mr-1" /> Raise Task
+              </Button>
+            )}
             <Button onClick={() => {
               const r = raViewItem;
               setRaViewItem(null);
               setRaEditItem(r);
-              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+              setRaFieldIds(r.fieldIds ? (() => { try { return JSON.parse(r.fieldIds); } catch { return []; } })() : []);
+              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
             }}>Edit Assessment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── RISK ASSESSMENT ADD/EDIT DIALOG ── */}
-      <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); } }}>
-        <DialogContent style={{ maxWidth: 580 }}>
+      <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); setRaFieldIds([]); } }}>
+        <DialogContent style={{ maxWidth: 620 }}>
           <DialogHeader><DialogTitle>{raEditItem ? "Edit Risk Assessment" : "Add NVZ Risk Assessment"}</DialogTitle></DialogHeader>
-          <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: 12, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
+            <div><label className="text-sm font-medium mb-1.5 block">Assessment Date *</label><Input type="date" value={raForm.assessmentDate} onChange={e => setRaForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            {contacts.length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Select from Contacts Register</label>
+                <Select value={raForm.assessorContactId} onValueChange={v => {
+                  const c = contacts.find(x => String(x.id) === v);
+                  setRaForm(f => ({ ...f, assessorContactId: v, assessorName: c?.name ?? f.assessorName, assessorOrganisation: c?.organisation ?? f.assessorOrganisation }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Pick a contact to auto-fill assessor…" /></SelectTrigger>
+                  <SelectContent>
+                    {contacts.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}{c.organisation ? ` · ${c.organisation}` : ""}{c.role ? ` (${c.role})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><label className="text-sm font-medium mb-1.5 block">Assessment Date *</label><Input type="date" value={raForm.assessmentDate} onChange={e => setRaForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
-              <div><label className="text-sm font-medium mb-1.5 block">Assessed By *</label><Input value={raForm.assessedBy} onChange={e => setRaForm(f => ({ ...f, assessedBy: e.target.value }))} placeholder="Name / Organisation" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Assessor Name</label><Input value={raForm.assessorName} onChange={e => setRaForm(f => ({ ...f, assessorName: e.target.value }))} placeholder="Full name" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Assessor Organisation</label><Input value={raForm.assessorOrganisation} onChange={e => setRaForm(f => ({ ...f, assessorOrganisation: e.target.value }))} placeholder="Company / firm" /></div>
             </div>
+            {fields.length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Fields Covered</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fafafa" }}>
+                  {fields.map(f => (
+                    <label key={f.id} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: "0.8rem", userSelect: "none" }}>
+                      <input type="checkbox" checked={raFieldIds.includes(f.id)} onChange={e => setRaFieldIds(ids => e.target.checked ? [...ids, f.id] : ids.filter(id => id !== f.id))} style={{ cursor: "pointer" }} />
+                      {f.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><label className="text-sm font-medium mb-1.5 block">Soil Type</label><Input value={raForm.soilType} onChange={e => setRaForm(f => ({ ...f, soilType: e.target.value }))} placeholder="e.g. Sandy loam, Clay" /></div>
-              <div><label className="text-sm font-medium mb-1.5 block">Organic Matter Level</label><Input value={raForm.organicMatterLevel} onChange={e => setRaForm(f => ({ ...f, organicMatterLevel: e.target.value }))} placeholder="e.g. Low, Medium, High" /></div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Soil Type (MAFF/AHDB)</label>
+                <Select value={raForm.soilType} onValueChange={v => setRaForm(f => ({ ...f, soilType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select texture…" /></SelectTrigger>
+                  <SelectContent>{soilTypes.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Organic Matter Level</label>
+                <Select value={raForm.organicMatterLevel} onValueChange={v => setRaForm(f => ({ ...f, organicMatterLevel: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["Low", "Medium", "High"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><label className="text-sm font-medium mb-1.5 block">Drainage Risk</label>
@@ -1133,9 +1261,15 @@ export default function NVZPage() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><label className="text-sm font-medium mb-1.5 block">Flood Risk</label><Input value={raForm.floodRisk} onChange={e => setRaForm(f => ({ ...f, floodRisk: e.target.value }))} placeholder="e.g. Zone 1, Zone 3" /></div>
-              <div><label className="text-sm font-medium mb-1.5 block">Distance to Watercourse</label><Input value={raForm.distanceToWatercourse} onChange={e => setRaForm(f => ({ ...f, distanceToWatercourse: e.target.value }))} placeholder="e.g. >50m, 20m" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Distance to Watercourse</label><Input value={raForm.distanceToWatercourse} onChange={e => setRaForm(f => ({ ...f, distanceToWatercourse: e.target.value }))} placeholder="e.g. &gt;50m, 20m" /></div>
             </div>
-            <div><label className="text-sm font-medium mb-1.5 block">Application Restrictions Identified</label><Input value={raForm.applicationRestrictionsIdentified} onChange={e => setRaForm(f => ({ ...f, applicationRestrictionsIdentified: e.target.value }))} placeholder="e.g. No spreading Dec–Feb, buffer zone required" /></div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Application Restrictions Identified</label>
+              <Input value={raForm.applicationRestrictionsIdentified} onChange={e => setRaForm(f => ({ ...f, applicationRestrictionsIdentified: e.target.value }))} placeholder="e.g. No spreading Dec–Feb, 10m buffer required near drain" />
+              {raForm.applicationRestrictionsIdentified?.trim() && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> This restriction will appear as a standing notice in the Week Ahead planner.</p>
+              )}
+            </div>
             <div><label className="text-sm font-medium mb-1.5 block">Mitigation Measures</label><Input value={raForm.mitigationMeasures} onChange={e => setRaForm(f => ({ ...f, mitigationMeasures: e.target.value }))} placeholder="e.g. Trailing shoe only, maintain 10m buffer" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><label className="text-sm font-medium mb-1.5 block">Overall Risk Level</label>
@@ -1149,11 +1283,11 @@ export default function NVZPage() {
             <div><label className="text-sm font-medium mb-1.5 block">Notes</label><Input value={raForm.notes} onChange={e => setRaForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => { setRaAddOpen(false); setRaEditItem(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setRaAddOpen(false); setRaEditItem(null); setRaFieldIds([]); }}>Cancel</Button>
             <Button onClick={() => {
               if (raEditItem) raUpdateMut.mutate({ id: raEditItem.id, body: raForm });
               else raCreateMut.mutate(raForm);
-            }} disabled={!raForm.assessmentDate || !raForm.assessedBy}>Save Assessment</Button>
+            }} disabled={!raForm.assessmentDate}>Save Assessment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1167,6 +1301,112 @@ export default function NVZPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── CONTACTS TAB ── */}
+      {tab === "contacts" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div style={{ flex: 1 }}>
+              <p className="text-sm text-foreground/60">Farm contacts register for assessors, agronomists, vets, and advisers. Select a contact when recording risk assessments to auto-populate assessor details.</p>
+            </div>
+            <Button size="sm" onClick={() => { setContactForm({ ...emptyContactForm }); setContactAddOpen(true); }}>
+              <Plus className="w-4 h-4 mr-1" /> Add Contact
+            </Button>
+          </div>
+          {contactsQ.isLoading ? (
+            <p className="text-sm text-foreground/40 text-center py-10">Loading…</p>
+          ) : contacts.length === 0 ? (
+            <div className="border border-border rounded-xl p-10 text-center text-foreground/40">
+              <Users className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No contacts added yet</p>
+              <p className="text-sm mt-1">Add assessors, agronomists and advisers to quickly populate risk assessment records.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                    {["Name", "Organisation", "Role", "Email", "Phone", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map((c: any) => (
+                    <tr key={c.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>
+                        {c.name}
+                        {c.qualifications && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{c.qualifications}</div>}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{c.organisation || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{c.role || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.75rem" }}>
+                        {c.email ? <a href={`mailto:${c.email}`} style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 3 }}><Mail style={{ width: 12, height: 12 }} />{c.email}</a> : <span style={{ color: "#9ca3af" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.75rem" }}>
+                        {c.phone ? <span style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 3 }}><Phone style={{ width: 12, height: 12 }} />{c.phone}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.75rem" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => { setContactEditItem(c); setContactForm({ name: c.name, organisation: c.organisation ?? "", email: c.email ?? "", phone: c.phone ?? "", role: c.role ?? "", qualifications: c.qualifications ?? "", notes: c.notes ?? "" }); }}><Pencil style={{ width: 11, height: 11 }} /></Button>
+                          <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#ef4444", borderColor: "#fca5a5" }} onClick={() => setContactDeleteId(c.id)}><Trash2 style={{ width: 11, height: 11 }} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CONTACT ADD/EDIT DIALOG ── */}
+      <Dialog open={contactAddOpen || !!contactEditItem} onOpenChange={open => { if (!open) { setContactAddOpen(false); setContactEditItem(null); } }}>
+        <DialogContent style={{ maxWidth: 520 }}>
+          <DialogHeader><DialogTitle>{contactEditItem ? "Edit Contact" : "Add Contact"}</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div><label className="text-sm font-medium mb-1.5 block">Name *</label><Input value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Organisation</label><Input value={contactForm.organisation} onChange={e => setContactForm(f => ({ ...f, organisation: e.target.value }))} placeholder="Company or firm" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Role</label><Input value={contactForm.role} onChange={e => setContactForm(f => ({ ...f, role: e.target.value }))} placeholder="e.g. NVZ Assessor, Agronomist" /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Email</label><Input type="email" value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Phone</label><Input value={contactForm.phone} onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))} placeholder="01234 567890" /></div>
+            </div>
+            <div><label className="text-sm font-medium mb-1.5 block">Qualifications</label><Input value={contactForm.qualifications} onChange={e => setContactForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. FACTS qualified, BASIS registered" /></div>
+            <div><label className="text-sm font-medium mb-1.5 block">Notes</label><Input value={contactForm.notes} onChange={e => setContactForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setContactAddOpen(false); setContactEditItem(null); }}>Cancel</Button>
+            <Button onClick={() => {
+              if (contactEditItem) contactUpdateMut.mutate({ id: contactEditItem.id, body: contactForm });
+              else contactCreateMut.mutate(contactForm);
+            }} disabled={!contactForm.name.trim()}>Save Contact</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contactDeleteId !== null} onOpenChange={open => { if (!open) setContactDeleteId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Remove Contact</DialogTitle><DialogDescription>This will remove the contact from the register. Existing risk assessments are not affected.</DialogDescription></DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setContactDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => contactDeleteId !== null && contactDeleteMut.mutate(contactDeleteId)}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RaiseTaskDialog
+        farmId={farmId!}
+        open={!!nvzRaiseTask}
+        onClose={() => setNvzRaiseTask(null)}
+        defaultTitle={nvzRaiseTask?.title ?? ""}
+        defaultDescription={nvzRaiseTask?.description ?? ""}
+        taskType="nvz_restriction"
+        module="NVZ"
+      />
 
       {/* ── BUDGET CALC TAB ── */}
       {tab === "budget-calc" && (

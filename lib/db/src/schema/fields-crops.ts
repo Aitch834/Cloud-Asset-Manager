@@ -313,8 +313,15 @@ export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   assessmentDate: timestamp("assessment_date", { withTimezone: true }).notNull(),
-  assessedBy: text("assessed_by").notNull(),
-  soilType: text("soil_type"),
+  // Legacy single-field assessor (kept for backward compat — new records use assessorName + assessorOrganisation)
+  assessedBy: text("assessed_by"),
+  // Split assessor fields
+  assessorName: text("assessor_name"),
+  assessorOrganisation: text("assessor_organisation"),
+  assessorContactId: integer("assessor_contact_id"), // soft-ref to farmContactsTable.id
+  // Location: JSON array of field IDs this assessment covers, e.g. "[1,3,7]"
+  fieldIds: text("field_ids"),
+  soilType: text("soil_type"), // MAFF/AHDB standard classification
   drainageRisk: text("drainage_risk"),
   slopeRisk: text("slope_risk"),
   distanceToWatercourse: text("distance_to_watercourse"),

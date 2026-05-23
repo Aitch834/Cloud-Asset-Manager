@@ -7,6 +7,7 @@ const SYSTEM_ROLES = [
   { name: "Client Admin", description: "Full access to tenant management", isSystemRole: true },
   { name: "Farm Manager", description: "Full access to assigned farms", isSystemRole: true },
   { name: "Farm Staff", description: "Limited access based on permissions", isSystemRole: true },
+  { name: "NVZ Assessor", description: "Scoped access to NVZ Risk Assessment records only — for external assessors, FACTS advisers, and agronomists", isSystemRole: true },
 ];
 
 const MODULES = [

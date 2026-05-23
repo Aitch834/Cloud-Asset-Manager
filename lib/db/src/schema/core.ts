@@ -299,6 +299,27 @@ export const taskAssignmentHistoryTable = pgTable("task_assignment_history", {
   reassignedByUserId: text("reassigned_by_user_id"),
 });
 
+// ── Farm Contacts Register ──────────────────────────────────────────────────
+// Shared register of third-party contacts (agronomists, assessors, vets, etc.)
+// referenced by multiple compliance modules.  Assessors can log in with a
+// scoped "nvz-assessor" role and will auto-populate fields from this table.
+export const farmContactsTable = pgTable("farm_contacts", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  organisation: text("organisation"),
+  email: text("email"),
+  phone: text("phone"),
+  role: text("role"),            // e.g. "NVZ Assessor", "Agronomist", "Vet", "FACTS Adviser"
+  qualifications: text("qualifications"), // e.g. "FACTS qualified, BASIS registered"
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+export type FarmContact = typeof farmContactsTable.$inferSelect;
+export type NewFarmContact = typeof farmContactsTable.$inferInsert;
+
 // ── Generic record attachments (calving, lambing, farrowing, mortality, mastitis, DCT, AI) ──
 export const farmRecordAttachmentsTable = pgTable("farm_record_attachments", {
   id: serial("id").primaryKey(),

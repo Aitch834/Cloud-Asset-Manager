@@ -70,6 +70,7 @@ import {
   dairyCalvingRecordsTable,
   lambingRecordsTable,
   farmRecordAttachmentsTable,
+  farmContactsTable,
   dairyBcsRecordsTable,
   dairyMobilityScoringsTable,
   dairyBulkTanksTable,
@@ -13831,6 +13832,41 @@ router.delete("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requ
   res.json({ ok: true });
 });
 
+// ─── Farm Contacts ────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/contacts", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const contacts = await db.select().from(farmContactsTable).where(and(eq(farmContactsTable.farmId, farmId), eq(farmContactsTable.isActive, true))).orderBy(farmContactsTable.name);
+  res.json({ contacts });
+});
+
+router.post("/farms/:farmId/contacts", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, organisation, email, phone, role, qualifications, notes } = req.body as Record<string, string>;
+  if (!name?.trim()) { res.status(400).json({ error: "Name is required" }); return; }
+  const [contact] = await db.insert(farmContactsTable).values({ farmId, name: name.trim(), organisation: organisation || null, email: email || null, phone: phone || null, role: role || null, qualifications: qualifications || null, notes: notes || null }).returning();
+  res.json({ contact });
+});
+
+router.put("/farms/:farmId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const contactId = parseInt(req.params.contactId as string);
+  const { name, organisation, email, phone, role, qualifications, notes, isActive } = req.body as Record<string, any>;
+  const [contact] = await db.update(farmContactsTable).set({ name: name?.trim(), organisation: organisation || null, email: email || null, phone: phone || null, role: role || null, qualifications: qualifications || null, notes: notes || null, isActive: isActive !== undefined ? Boolean(isActive) : true }).where(and(eq(farmContactsTable.id, contactId), eq(farmContactsTable.farmId, farmId))).returning();
+  if (!contact) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ contact });
+});
+
+router.delete("/farms/:farmId/contacts/:contactId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const contactId = parseInt(req.params.contactId as string);
+  await db.update(farmContactsTable).set({ isActive: false }).where(and(eq(farmContactsTable.id, contactId), eq(farmContactsTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
 // ─── Field Inspections ───────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/field-inspections", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -14134,6 +14170,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     feedContingencyReviewRows, shopHygieneReinspRows,
     bvdNextTestRows, johnesNextTestRows, salmNextSamplingRows,
     ipmReviewRows, lerapExpiryRows,
+    nvzRiskReviewRows, nvzActiveRestrictionsRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14616,6 +14653,16 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: lerapAssessmentsTable.id, validUntil: lerapAssessmentsTable.validUntil, watercourseDescription: lerapAssessmentsTable.watercourseDescription, outcome: lerapAssessmentsTable.outcome })
       .from(lerapAssessmentsTable)
       .where(and(eq(lerapAssessmentsTable.farmId, farmId), isNotNull(lerapAssessmentsTable.validUntil), gte(lerapAssessmentsTable.validUntil, overdueStart.toISOString().split("T")[0]), lt(lerapAssessmentsTable.validUntil, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── NVZ Risk Assessments: next review due ─────────────────────────────────
+    db.select({ id: nvzRiskAssessmentsTable.id, nextReviewDate: nvzRiskAssessmentsTable.nextReviewDate, overallRiskLevel: nvzRiskAssessmentsTable.overallRiskLevel, assessorName: nvzRiskAssessmentsTable.assessorName, assessedBy: nvzRiskAssessmentsTable.assessedBy })
+      .from(nvzRiskAssessmentsTable)
+      .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.nextReviewDate), gte(nvzRiskAssessmentsTable.nextReviewDate, overdueStart as any), lt(nvzRiskAssessmentsTable.nextReviewDate, rangeEnd as any))),
+
+    // ── NVZ Active Restrictions: standing notices ─────────────────────────────
+    db.select({ id: nvzRiskAssessmentsTable.id, applicationRestrictionsIdentified: nvzRiskAssessmentsTable.applicationRestrictionsIdentified, overallRiskLevel: nvzRiskAssessmentsTable.overallRiskLevel, nextReviewDate: nvzRiskAssessmentsTable.nextReviewDate })
+      .from(nvzRiskAssessmentsTable)
+      .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.applicationRestrictionsIdentified))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -15386,6 +15433,17 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!r.validUntil) continue;
     const locationLabel = r.watercourseDescription ? ` — ${r.watercourseDescription}` : "";
     tasks.push({ id: `lerap-exp-${r.id}`, type: "lerap_expiry", title: `LERAP Assessment Expiring${locationLabel}`, description: `A LERAP assessment${r.watercourseDescription ? ` for ${r.watercourseDescription}` : ""} is approaching its validity date. Review and renew the assessment in Sprays & Inputs → LERAP Assessments before applying any qualifying products near this watercourse.`, dueDate: toISO(r.validUntil)!, module: "Sprays & Inputs", href: `/sprays?tab=lerap`, colour: "cyan" });
+  }
+  // ── NVZ Risk Assessment: review due ───────────────────────────────────────
+  for (const r of nvzRiskReviewRows) {
+    if (!r.nextReviewDate) continue;
+    const assessorLabel = r.assessorName || r.assessedBy || "";
+    tasks.push({ id: `nvz-review-${r.id}`, type: "nvz_review", title: `NVZ Risk Assessment Review Due${r.overallRiskLevel ? ` — ${r.overallRiskLevel} Risk` : ""}`, description: `NVZ risk assessment${assessorLabel ? ` (assessed by ${assessorLabel})` : ""} is due for review. Update the assessment under NVZ → Risk Assessments.`, dueDate: toISO(r.nextReviewDate)!, module: "NVZ", href: `/nvz?tab=risk-assessments`, colour: "amber" });
+  }
+  // ── NVZ Active Restrictions: standing notice ───────────────────────────────
+  for (const r of nvzActiveRestrictionsRows) {
+    if (!r.applicationRestrictionsIdentified?.trim()) continue;
+    tasks.push({ id: `nvz-restrict-${r.id}`, type: "nvz_restriction", title: "NVZ Application Restriction Active", description: r.applicationRestrictionsIdentified, dueDate: toISO(r.nextReviewDate ?? new Date())!, module: "NVZ", href: `/nvz?tab=risk-assessments`, colour: "amber" });
   }
 
   // ── Weather Device Calibration Due Dates ─────────────────────────────────

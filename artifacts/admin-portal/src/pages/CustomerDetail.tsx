@@ -17,13 +17,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function UserRow({ user, tenantId, isLast, onUpdated }: {
+function UserRow({ user, tenantId, isLast, systemRoles, onUpdated }: {
   user: TenantUser;
   tenantId: number;
   isLast: boolean;
+  systemRoles: Array<{ id: number; name: string }>;
   onUpdated: (updated: TenantUser) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
 
   async function toggleAlerts() {
     setSaving(true);
@@ -37,6 +39,21 @@ function UserRow({ user, tenantId, isLast, onUpdated }: {
     }
   }
 
+  async function handleRoleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    const roleId = val === "" ? null : parseInt(val, 10);
+    const roleName = val === "" ? null : (systemRoles.find((r) => r.id === roleId)?.name ?? null);
+    setSavingRole(true);
+    try {
+      const secret = getSecret();
+      await api.updateUserRole(tenantId, user.userId ?? "", roleId, secret ?? "");
+      onUpdated({ ...user, roleId: roleId ?? 0, roleName });
+    } catch {
+    } finally {
+      setSavingRole(false);
+    }
+  }
+
   return (
     <div className={`px-5 py-3.5 flex items-center gap-3 ${!isLast ? "border-b border-border" : ""}`}>
       <Users className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -45,9 +62,20 @@ function UserRow({ user, tenantId, isLast, onUpdated }: {
           {user.firstName} {user.lastName}
         </p>
         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-        {user.roleName && (
-          <p className="text-[11px] text-muted-foreground mt-0.5">{user.roleName}</p>
-        )}
+      </div>
+      <div className="relative">
+        {savingRole && <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-muted-foreground pointer-events-none" />}
+        <select
+          value={user.roleId ?? ""}
+          onChange={handleRoleChange}
+          disabled={savingRole}
+          className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        >
+          <option value="">— No role —</option>
+          {systemRoles.map((r) => (
+            <option key={r.id} value={r.id}>{r.name}</option>
+          ))}
+        </select>
       </div>
       <button
         onClick={toggleAlerts}
@@ -190,6 +218,7 @@ export default function CustomerDetail() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
+  const [systemRoles, setSystemRoles] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingFarmId, setDownloadingFarmId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -222,12 +251,16 @@ export default function CustomerDetail() {
   }
 
   useEffect(() => {
-    api.getTenantDetail(tenantId, secret)
-      .then((d) => {
+    Promise.all([
+      api.getTenantDetail(tenantId, secret),
+      api.getSystemRoles(secret),
+    ])
+      .then(([d, r]) => {
         setTenant(d.tenant);
         setFarms(d.farms);
         setSubscriptions(d.subscriptions);
         setUsers(d.users);
+        setSystemRoles(r.roles);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -651,6 +684,7 @@ export default function CustomerDetail() {
                 user={user}
                 tenantId={tenantId}
                 isLast={i === users.length - 1}
+                systemRoles={systemRoles}
                 onUpdated={(updated) =>
                   setUsers((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)))
                 }

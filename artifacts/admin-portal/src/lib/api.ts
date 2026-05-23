@@ -338,6 +338,12 @@ export const api = {
   updateUserReceiveAlerts: (tenantId: number, userId: string, receiveAlerts: boolean, secret: string) =>
     patch<{ success: boolean }>(`/admin/tenants/${tenantId}/users/${userId}/alerts`, { receiveAlerts }, secret),
 
+  getSystemRoles: (secret: string) =>
+    get<{ roles: Array<{ id: number; name: string; description: string | null }> }>("/admin/system-roles", secret),
+
+  updateUserRole: (tenantId: number, userId: string, roleId: number | null, secret: string) =>
+    patch<{ success: boolean }>(`/admin/tenants/${tenantId}/users/${userId}/role`, { roleId }, secret),
+
   getSupportTickets: (secret: string) =>
     get<{ tickets: SupportTicket[] }>("/admin/support-tickets", secret),
 
