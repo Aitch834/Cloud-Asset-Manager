@@ -320,6 +320,7 @@ export default function FieldInspectionsPage() {
   const [fieldNameIsCustom, setFieldNameIsCustom] = useState(false);
   const emptyForm = () => ({ fieldName: "", inspectionDate: new Date().toISOString().slice(0, 10), cropType: "", growthStage: "", pestDiseaseObservations: "", actionRequired: "none" as ActionRequired, recommendedAction: "", inspector: inspectorName, notes: "" });
   const [form, setForm] = useState(emptyForm());
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
 
   // Keep inspector pre-filled when Clerk loads asynchronously
   useEffect(() => {
@@ -327,6 +328,7 @@ export default function FieldInspectionsPage() {
   }, [inspectorName]);
   const formOpen = addOpen || !!editRecord;
   function openEditInspection(r: FieldInspection) {
+    setCropAutoFilled(false);
     setEditRecord(r);
     setFieldNameIsCustom(!!r.fieldName && registeredFields.length > 0 && !registeredFields.includes(r.fieldName));
     setForm({
@@ -341,7 +343,25 @@ export default function FieldInspectionsPage() {
       notes: r.notes ?? "",
     });
   }
-  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setFieldNameIsCustom(false); }
+  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setFieldNameIsCustom(false); setCropAutoFilled(false); }
+
+  // Auto-populate crop from field register when field name + date change (new records only)
+  useEffect(() => {
+    if (!formOpen || !farmId || !form.fieldName || !form.inspectionDate || editRecord) return;
+    let cancelled = false;
+    const params = new URLSearchParams({ fieldName: form.fieldName, date: form.inspectionDate });
+    fetch(`/api/farms/${farmId}/crop-for-field?${params}`)
+      .then(r => r.json())
+      .then((data: { found: boolean; cropName: string | null }) => {
+        if (!cancelled && data.found && data.cropName) {
+          const matched = UK_CROP_TYPES.find(c => c.toLowerCase() === (data.cropName ?? "").toLowerCase()) ?? data.cropName;
+          setForm(f => ({ ...f, cropType: matched ?? "", growthStage: "" }));
+          setCropAutoFilled(true);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [formOpen, farmId, form.fieldName, form.inspectionDate, editRecord]);
 
   const raiseAfterSave = useRef(false);
 
@@ -886,8 +906,15 @@ export default function FieldInspectionsPage() {
                 <Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} />
               </div>
               <div>
-                <Label>Crop</Label>
-                <Select value={form.cropType || "__none__"} onValueChange={v => setForm(f => ({ ...f, cropType: v === "__none__" ? "" : v, growthStage: "" }))}>
+                <Label className="flex items-center gap-2">
+                  Crop
+                  {cropAutoFilled && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 leading-none">
+                      Auto-filled
+                    </span>
+                  )}
+                </Label>
+                <Select value={form.cropType || "__none__"} onValueChange={v => { setForm(f => ({ ...f, cropType: v === "__none__" ? "" : v, growthStage: "" })); setCropAutoFilled(false); }}>
                   <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>

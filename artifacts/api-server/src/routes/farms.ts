@@ -13876,6 +13876,36 @@ router.delete("/farms/:farmId/contacts/:contactId", requireAuth, requireTenant, 
 
 // ─── Field Inspections ───────────────────────────────────────────────────────
 
+router.get("/farms/:farmId/crop-for-field", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldName, date } = req.query as { fieldName?: string; date?: string };
+  if (!fieldName) { res.json({ cropName: null, variety: null, found: false }); return; }
+  const lookupDate = date ? new Date(date as string) : new Date();
+
+  const [field] = await db
+    .select({ id: fieldsTable.id })
+    .from(fieldsTable)
+    .where(and(eq(fieldsTable.farmId, farmId), sql`LOWER(${fieldsTable.name}) = LOWER(${fieldName as string})`))
+    .limit(1);
+  if (!field) { res.json({ cropName: null, variety: null, found: false }); return; }
+
+  const [assignment] = await db
+    .select({ cropName: cropsTable.name, variety: cropsTable.variety })
+    .from(fieldCropAssignmentsTable)
+    .innerJoin(cropsTable, eq(cropsTable.id, fieldCropAssignmentsTable.cropId))
+    .where(and(
+      eq(fieldCropAssignmentsTable.fieldId, field.id),
+      sql`(${fieldCropAssignmentsTable.plantingDate} IS NULL OR ${fieldCropAssignmentsTable.plantingDate} <= ${lookupDate.toISOString()}::timestamptz)`,
+      sql`(${fieldCropAssignmentsTable.expectedHarvestDate} IS NULL OR ${fieldCropAssignmentsTable.expectedHarvestDate} >= ${lookupDate.toISOString()}::timestamptz)`
+    ))
+    .orderBy(desc(fieldCropAssignmentsTable.plantingDate))
+    .limit(1);
+
+  if (!assignment) { res.json({ cropName: null, variety: null, found: false }); return; }
+  res.json({ cropName: assignment.cropName, variety: assignment.variety ?? null, found: true });
+});
+
 router.get("/farms/:farmId/field-inspections", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

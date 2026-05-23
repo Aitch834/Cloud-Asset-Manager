@@ -28,6 +28,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { FieldInspection } from "@/lib/types";
 
 type ActionRequired = FieldInspection["actionRequired"];
@@ -132,6 +133,7 @@ export default function FieldInspectionScreen() {
 
   const [fieldName, setFieldName] = useState("");
   const [cropType, setCropType] = useState("");
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [growthStage, setGrowthStage] = useState("");
   const [pestDiseaseObservations, setPestDiseaseObservations] = useState("");
   const [actionRequired, setActionRequired] = useState<ActionRequired>("none");
@@ -140,6 +142,56 @@ export default function FieldInspectionScreen() {
   const [notes, setNotes] = useState("");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
+
+  // Auto-populate crop from field register when fieldName changes
+  useEffect(() => {
+    if (!fieldName || !currentFarm?.id) return;
+    const farmId = currentFarm.id;
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!apiDomain) return;
+
+    let cancelled = false;
+    const today = new Date().toISOString().split("T")[0];
+
+    (async () => {
+      try {
+        let token: string | null = null;
+        let tenantSlug = "";
+
+        if (Platform.OS !== "web") {
+          try {
+            const SecureStore = await import("expo-secure-store");
+            token = await SecureStore.getItemAsync("auth_session_token");
+          } catch {}
+        } else {
+          try { token = localStorage.getItem("auth_session_token"); } catch {}
+        }
+        if (!token) {
+          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
+        }
+        try {
+          const raw = await kvGet("bde_current_farm");
+          if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; }
+        } catch {}
+
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const params = new URLSearchParams({ fieldName, date: today });
+        const res = await fetch(`https://${apiDomain}/api/farms/${farmId}/crop-for-field?${params}`, { headers });
+        if (!res.ok) return;
+        const data = await res.json() as { found: boolean; cropName: string | null };
+        if (!cancelled && data.found && data.cropName) {
+          const matched = UK_CROP_TYPES.find(c => c.label.toLowerCase() === (data.cropName ?? "").toLowerCase())?.label ?? data.cropName;
+          setCropType(matched ?? "");
+          setGrowthStage("");
+          setCropAutoFilled(true);
+        }
+      } catch {}
+    })();
+
+    return () => { cancelled = true; };
+  }, [fieldName, currentFarm?.id]);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -256,12 +308,20 @@ export default function FieldInspectionScreen() {
             <Feather name="layers" size={14} color={colors.fieldGreen} />
             <Text style={styles.sectionTitle}>Crop & Growth Stage</Text>
           </View>
-          <Text style={styles.fieldLabel}>Crop</Text>
+          <View style={styles.cropLabelRow}>
+            <Text style={styles.fieldLabel}>Crop</Text>
+            {cropAutoFilled && (
+              <View style={styles.autoFillBadge}>
+                <Feather name="zap" size={10} color="#16a34a" />
+                <Text style={styles.autoFillText}>Auto-filled from field register · tap to change</Text>
+              </View>
+            )}
+          </View>
           <View style={styles.stageGrid}>
             {UK_CROP_TYPES.map((c) => (
               <Pressable
                 key={c.label}
-                onPress={() => { Haptics.selectionAsync(); setCropType(c.label); setGrowthStage(""); }}
+                onPress={() => { Haptics.selectionAsync(); setCropType(c.label); setGrowthStage(""); setCropAutoFilled(false); }}
                 style={[
                   styles.stageChip,
                   cropType === c.label && { backgroundColor: colors.fieldGreen, borderColor: colors.fieldGreen },
@@ -463,6 +523,28 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
     marginBottom: spacing.sm,
+  },
+  cropLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  autoFillBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#f0fdf4",
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  autoFillText: {
+    fontFamily: fonts.medium,
+    fontSize: 10,
+    color: "#16a34a",
   },
   stageHint: {
     fontFamily: fonts.regular,
