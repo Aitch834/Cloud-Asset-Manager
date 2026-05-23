@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -1991,6 +1991,25 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
+
+  useEffect(() => {
+    if (!form.fieldId || editing) { setCropAutoFilled(false); return; }
+    const field = fields.find((f: any) => f.id === Number(form.fieldId));
+    if (!field?.name) return;
+    let cancelled = false;
+    const today = new Date().toISOString().split("T")[0];
+    fetch(`/api/farms/${farmId}/crop-for-field?fieldName=${encodeURIComponent(field.name)}&date=${today}`, { credentials: "include" })
+      .then(r => r.json())
+      .then((data: { found: boolean; cropName: string | null }) => {
+        if (!cancelled && data.found && data.cropName) {
+          set("cropType", data.cropName);
+          setCropAutoFilled(true);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [form.fieldId]);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["lerap-assessments", farmId],
@@ -1998,8 +2017,8 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     enabled: !!farmId,
   });
 
-  function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setOpen(true); }
-  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setCropAutoFilled(false); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setCropAutoFilled(false); setOpen(true); }
 
   async function save() {
     const url = editing ? `/api/farms/${farmId}/lerap-assessments/${editing.id}` : `/api/farms/${farmId}/lerap-assessments`;
@@ -2105,7 +2124,17 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
             </div>
             <div><Label>Standard Buffer (m)</Label><Input type="number" step="0.5" min="0" value={form.standardBufferM ?? ""} onChange={e => set("standardBufferM", e.target.value)} placeholder="From product label" /></div>
             <div><Label>LERAP Buffer Achieved (m)</Label><Input type="number" step="0.5" min="0" value={form.lerapBufferM ?? ""} onChange={e => set("lerapBufferM", e.target.value)} placeholder="After LERAP assessment" /></div>
-            <div><Label>Crop Type</Label><Input value={form.cropType || ""} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Winter wheat" /></div>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label>Crop Type</Label>
+                {cropAutoFilled && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                    Auto-filled
+                  </span>
+                )}
+              </div>
+              <Input value={form.cropType || ""} onChange={e => { set("cropType", e.target.value); setCropAutoFilled(false); }} placeholder="e.g. Winter wheat" />
+            </div>
             <div><Label>Soil Type</Label><Input value={form.soilType || ""} onChange={e => set("soilType", e.target.value)} placeholder="e.g. Sandy loam, clay" /></div>
             <div><Label>Outcome *</Label>
               <Select value={form.outcome || "pending"} onValueChange={v => set("outcome", v)}>

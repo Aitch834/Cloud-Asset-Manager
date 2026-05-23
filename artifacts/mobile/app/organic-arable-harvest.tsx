@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { OrganicArableHarvest } from "@/lib/types";
 
 function todayDate(): string {
@@ -53,6 +54,7 @@ export default function OrganicArableHarvestScreen() {
   const [harvestDate, setHarvestDate] = useState(todayDate());
   const [cropName, setCropName] = useState("");
   const [variety, setVariety] = useState("");
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [fieldName, setFieldName] = useState("");
   const [yieldTonnes, setYieldTonnes] = useState("");
   const [moisturePercent, setMoisturePercent] = useState("");
@@ -60,6 +62,42 @@ export default function OrganicArableHarvestScreen() {
   const [organicStatus, setOrganicStatus] = useState("certified");
   const [certifierRef, setCertifierRef] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!fieldName || !currentFarm?.id) return;
+    const farmId = currentFarm.id;
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!apiDomain) return;
+    let cancelled = false;
+    const date = harvestDate || new Date().toISOString().split("T")[0];
+    (async () => {
+      try {
+        let token: string | null = null;
+        let tenantSlug = "";
+        if (Platform.OS !== "web") {
+          try { const SecureStore = await import("expo-secure-store"); token = await SecureStore.getItemAsync("auth_session_token"); } catch {}
+        } else {
+          try { token = localStorage.getItem("auth_session_token"); } catch {}
+        }
+        if (!token) {
+          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
+        }
+        try { const raw = await kvGet("bde_current_farm"); if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; } } catch {}
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const params = new URLSearchParams({ fieldName, date });
+        const res = await fetch(`https://${apiDomain}/api/farms/${farmId}/crop-for-field?${params}`, { headers });
+        if (!res.ok) return;
+        const data = await res.json() as { found: boolean; cropName: string | null; variety: string | null };
+        if (!cancelled && data.found && data.cropName) {
+          setCropName(data.cropName);
+          if (data.variety) setVariety(data.variety);
+          setCropAutoFilled(true);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [fieldName, harvestDate, currentFarm?.id]);
 
   const handleSave = async () => {
     if (!cropName.trim()) {
@@ -150,26 +188,34 @@ export default function OrganicArableHarvestScreen() {
             <Text style={styles.sectionTitle}>Crop</Text>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Crop *</Text>
+              <View style={styles.cropLabelRow}>
+                <Text style={styles.label}>Crop *</Text>
+                {cropAutoFilled && (
+                  <View style={styles.autoFillBadge}>
+                    <Feather name="zap" size={10} color="#16a34a" />
+                    <Text style={styles.autoFillText}>Auto-filled · tap to change</Text>
+                  </View>
+                )}
+              </View>
               <View style={styles.chipWrap}>
                 {COMMON_CROPS.map(c => (
                   <Pressable
                     key={c}
                     style={[styles.chip, cropName === c && styles.chipActive]}
-                    onPress={() => { Haptics.selectionAsync(); setCropName(c); }}
+                    onPress={() => { Haptics.selectionAsync(); setCropName(c); setCropAutoFilled(false); }}
                   >
                     <Text style={[styles.chipText, cropName === c && styles.chipTextActive]}>{c}</Text>
                   </Pressable>
                 ))}
               </View>
               {!COMMON_CROPS.includes(cropName) && (
-                <Input placeholder="Or type crop name…" value={cropName} onChangeText={setCropName} style={{ marginTop: spacing.sm }} />
+                <Input placeholder="Or type crop name…" value={cropName} onChangeText={v => { setCropName(v); setCropAutoFilled(false); }} style={{ marginTop: spacing.sm }} />
               )}
             </View>
 
             <View style={styles.field}>
               <Text style={styles.label}>Variety</Text>
-              <Input placeholder="e.g. KWS Zyatt, Skyfall, RGT Planet" value={variety} onChangeText={setVariety} />
+              <Input placeholder="e.g. KWS Zyatt, Skyfall, RGT Planet" value={variety} onChangeText={v => { setVariety(v); setCropAutoFilled(false); }} />
             </View>
           </View>
 
@@ -341,4 +387,17 @@ const styles = StyleSheet.create({
   },
   buyerNoteText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },
   textarea: { minHeight: 80, textAlignVertical: "top" },
+  cropLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  autoFillBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  autoFillText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: "#15803d" },
 });

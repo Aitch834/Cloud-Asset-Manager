@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -29,6 +29,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { HarvestRecord } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
@@ -59,6 +60,7 @@ export default function HarvestRecordScreen() {
 
   const [fieldName, setFieldName] = useState("");
   const [cropType, setCropType] = useState("");
+  const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [yieldAmount, setYieldAmount] = useState("");
   const [yieldUnit, setYieldUnit] = useState("t/ha");
   const [areaHarvestedHa, setAreaHarvestedHa] = useState("");
@@ -69,6 +71,42 @@ export default function HarvestRecordScreen() {
   const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!fieldName || !currentFarm?.id) return;
+    const farmId = currentFarm.id;
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!apiDomain) return;
+    let cancelled = false;
+    const today = new Date().toISOString().split("T")[0];
+    (async () => {
+      try {
+        let token: string | null = null;
+        let tenantSlug = "";
+        if (Platform.OS !== "web") {
+          try { const SecureStore = await import("expo-secure-store"); token = await SecureStore.getItemAsync("auth_session_token"); } catch {}
+        } else {
+          try { token = localStorage.getItem("auth_session_token"); } catch {}
+        }
+        if (!token) {
+          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
+        }
+        try { const raw = await kvGet("bde_current_farm"); if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; } } catch {}
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const params = new URLSearchParams({ fieldName, date: today });
+        const res = await fetch(`https://${apiDomain}/api/farms/${farmId}/crop-for-field?${params}`, { headers });
+        if (!res.ok) return;
+        const data = await res.json() as { found: boolean; cropName: string | null };
+        if (!cancelled && data.found && data.cropName) {
+          const matched = cropTypes.find(c => c.toLowerCase() === (data.cropName ?? "").toLowerCase()) ?? data.cropName;
+          setCropType(matched ?? "");
+          setCropAutoFilled(true);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [fieldName, currentFarm?.id]);
 
   const takeMoisturePhoto = () => {
     Alert.alert(
@@ -209,11 +247,17 @@ export default function HarvestRecordScreen() {
             <Feather name="tag" size={14} color={colors.fieldBrown} />
             <Text style={styles.sectionTitle}>Crop Type</Text>
           </View>
+          {cropAutoFilled && (
+            <View style={styles.autoFillBadge}>
+              <Feather name="zap" size={10} color="#16a34a" />
+              <Text style={styles.autoFillText}>Auto-filled from field register · tap to change</Text>
+            </View>
+          )}
           <View style={styles.chipGrid}>
             {cropTypes.map((c) => (
               <Pressable
                 key={c}
-                onPress={() => { Haptics.selectionAsync(); setCropType(c); }}
+                onPress={() => { Haptics.selectionAsync(); setCropType(c); setCropAutoFilled(false); }}
                 style={[
                   styles.chip,
                   cropType === c && { backgroundColor: colors.fieldGold, borderColor: colors.fieldGold },
@@ -504,5 +548,23 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: colors.error,
+  },
+  autoFillBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    marginBottom: spacing.sm,
+    alignSelf: "flex-start",
+  },
+  autoFillText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#15803d",
   },
 });

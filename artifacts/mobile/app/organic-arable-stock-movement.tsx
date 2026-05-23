@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontFamily: fonts.bold, fontSize: fontSize.base, color: colors.text },
+  title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, gap: spacing.lg },
   infoBox: {
