@@ -820,6 +820,16 @@ export default function WeekAheadPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
   });
 
+  const { data: organicCertData } = useQuery<any[]>({
+    queryKey: ["oa-cert", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/organic-arable/certification`, { credentials: "include" });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return (d.records ?? []).filter((c: any) => !["suspended", "withdrawn"].includes(c.status));
+    },
+  });
+
   const deleteMut = useMutation({
     mutationFn: (id: string) => {
       const numId = id.replace("planner-", "");
@@ -828,7 +838,26 @@ export default function WeekAheadPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["week-ahead", farmId, days] }),
   });
 
-  const tasks = data?.tasks ?? [];
+  // Synthesise TaskItems from organic cert key dates
+  const certTasks: TaskItem[] = [];
+  for (const cert of (organicCertData ?? [])) {
+    const certifier: string = cert.certifier ?? "Organic cert";
+    const makeTask = (dateStr: string | null | undefined, id: string, title: string, colour: string): TaskItem | null => {
+      if (!dateStr) return null;
+      const d = daysUntil(dateStr, today);
+      if (d > days && d >= 0) return null; // beyond current window (keep overdue)
+      return { id, type: "organic-cert", title, description: `${certifier}${cert.certificateNumber ? ` — ${cert.certificateNumber}` : ""}`, dueDate: dateStr, module: "Organic Arable", href: "/organic-arable", colour };
+    };
+    const r = makeTask(cert.renewalDate,         `oa-cert-renewal-${cert.id}`,    `Cert renewal — ${certifier}`,    "green");
+    const i = makeTask(cert.nextInspectionDue,   `oa-cert-inspect-${cert.id}`,   `Organic inspection — ${certifier}`, "amber");
+    const a = makeTask(cert.annualInspectionDate, `oa-cert-annual-${cert.id}`,    `Annual inspection — ${certifier}`,  "amber");
+    if (r) certTasks.push(r);
+    if (i) certTasks.push(i);
+    if (a) certTasks.push(a);
+  }
+
+  const apiTasks = data?.tasks ?? [];
+  const tasks = [...apiTasks, ...certTasks];
   const staff = staffData?.members ?? [];
   const overdue = tasks.filter(t => daysUntil(t.dueDate, today) < 0);
   const upcoming = tasks.filter(t => daysUntil(t.dueDate, today) >= 0);

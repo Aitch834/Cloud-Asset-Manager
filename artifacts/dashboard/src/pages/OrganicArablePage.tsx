@@ -156,6 +156,85 @@ const ANNEX_INPUTS: { name: string; activeIngredient: string }[] = [
   { name: "Pheromones (mating disruption traps only)", activeIngredient: "Insect sex pheromones (species-specific)" },
 ];
 
+// ─── Scope constants + helpers ────────────────────────────────────────────────
+
+const SCOPE_GROUPS = [
+  {
+    group: "Arable",
+    items: [
+      { key: "arable:cereals",  label: "Cereals" },
+      { key: "arable:oilseeds", label: "Oilseeds" },
+      { key: "arable:pulses",   label: "Pulses" },
+      { key: "arable:potatoes", label: "Potatoes" },
+      { key: "arable:forage",   label: "Forage / Cover Crops" },
+    ],
+  },
+  {
+    group: "Horticulture",
+    items: [
+      { key: "hort:field-veg",  label: "Field Vegetables" },
+      { key: "hort:protected",  label: "Protected Crops (polytunnel/glass)" },
+      { key: "hort:herbs",      label: "Herbs & Botanicals" },
+      { key: "hort:soft-fruit", label: "Soft Fruit" },
+      { key: "hort:top-fruit",  label: "Top Fruit" },
+    ],
+  },
+  {
+    group: "Livestock",
+    items: [
+      { key: "livestock:beef",        label: "Beef Cattle" },
+      { key: "livestock:dairy",       label: "Dairy Cattle" },
+      { key: "livestock:sheep-meat",  label: "Sheep (Meat)" },
+      { key: "livestock:sheep-wool",  label: "Sheep (Wool)" },
+      { key: "livestock:pigs",        label: "Pigs" },
+      { key: "livestock:laying-hens", label: "Laying Hens (Eggs)" },
+      { key: "livestock:broilers",    label: "Broilers (Meat Poultry)" },
+      { key: "livestock:goats-dairy", label: "Goats (Dairy)" },
+      { key: "livestock:goats-meat",  label: "Goats (Meat)" },
+      { key: "livestock:deer",        label: "Deer" },
+      { key: "livestock:bees",        label: "Bees / Apiculture" },
+    ],
+  },
+  {
+    group: "Land",
+    items: [
+      { key: "land:in-conversion", label: "In-Conversion Land" },
+      { key: "land:certified",     label: "Fully Certified Land" },
+      { key: "land:woodland",      label: "Woodland" },
+      { key: "land:conservation",  label: "Conservation / Wildflower Headlands" },
+    ],
+  },
+  {
+    group: "On-Farm Handling",
+    items: [
+      { key: "handling:grain-storage", label: "Grain Storage & Drying" },
+      { key: "handling:milling",       label: "On-Farm Milling / Processing" },
+      { key: "handling:packing",       label: "Packing & Preparation" },
+    ],
+  },
+];
+
+function parseScopeKeys(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
+function getScopeLabel(key: string): string {
+  for (const g of SCOPE_GROUPS) {
+    const item = g.items.find(i => i.key === key);
+    if (item) return item.label;
+  }
+  return key;
+}
+
+function formatScopeSummary(raw: string | null | undefined): string {
+  const keys = parseScopeKeys(raw);
+  if (keys.length === 0) return "—";
+  const groups = new Set(keys.map(k => SCOPE_GROUPS.find(g => g.items.some(i => i.key === k))?.group ?? k.split(":")[0]));
+  const labels = [...groups];
+  return labels.length <= 2 ? labels.join(", ") : `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+}
+
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
 function StatusBadge({ value, options }: {
@@ -385,6 +464,7 @@ export default function OrganicArablePage() {
   const [certEditing, setCertEditing] = useState<Row | null>(null);
   const [certDeleting, setCertDeleting] = useState<number | null>(null);
   const [certForm, setCertForm] = useState<Record<string, string>>({});
+  const [certScopeKeys, setCertScopeKeys] = useState<string[]>([]);
 
   // ── Field Conversion ──
   const [convFilter, setConvFilter] = useState("all");
@@ -497,17 +577,37 @@ export default function OrganicArablePage() {
         operatorNumber: str(row.operatorNumber), certificationDate: str(row.certificationDate),
         renewalDate: str(row.renewalDate), annualInspectionDate: str(row.annualInspectionDate),
         nextInspectionDue: str(row.nextInspectionDue), status: str(row.status) || "certified",
-        scope: str(row.scope), notes: str(row.notes),
+        notes: str(row.notes),
       });
+      setCertScopeKeys(parseScopeKeys(str(row.scope)));
     } else {
       setCertEditing(null);
       setCertForm({ status: "certified", certifier: CERTIFIERS[0] });
+      setCertScopeKeys([]);
     }
     setCertOpen(true);
   }
   function saveCert() {
-    certMut.save.mutate({ id: certEditing ? Number(certEditing.id) : undefined, body: certForm }, {
-      onSuccess: () => { setCertOpen(false); setCertEditing(null); setCertForm({}); },
+    const INACTIVE = ["suspended", "withdrawn"];
+    const otherActive = certs.filter(r => {
+      const isSelf = certEditing && Number(r.id) === Number(certEditing.id);
+      return !isSelf && !INACTIVE.includes(str(r.status));
+    });
+    const conflicts: string[] = [];
+    for (const other of otherActive) {
+      if (str(other.certifier) === certForm.certifier) continue;
+      const otherKeys = parseScopeKeys(str(other.scope));
+      const overlapping = certScopeKeys.filter(k => otherKeys.includes(k));
+      if (overlapping.length > 0)
+        conflicts.push(`${str(other.certifier)} already holds: ${overlapping.map(getScopeLabel).join(", ")}`);
+    }
+    if (conflicts.length > 0) {
+      toast({ title: "Scope conflict", description: conflicts.join(" | "), variant: "destructive" });
+      return;
+    }
+    const body = { ...certForm, scope: JSON.stringify(certScopeKeys) };
+    certMut.save.mutate({ id: certEditing ? Number(certEditing.id) : undefined, body }, {
+      onSuccess: () => { setCertOpen(false); setCertEditing(null); setCertForm({}); setCertScopeKeys([]); },
     });
   }
 
@@ -831,6 +931,7 @@ export default function OrganicArablePage() {
                       <th className="px-4 py-3 text-left">Certified</th>
                       <th className="px-4 py-3 text-left">Renewal Due</th>
                       <th className="px-4 py-3 text-left">Next Inspection</th>
+                      <th className="px-4 py-3 text-left">Scope</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -846,6 +947,7 @@ export default function OrganicArablePage() {
                           <td className="px-4 py-3">{fmt(str(row.certificationDate))}</td>
                           <td className="px-4 py-3"><span className={urgent ? "text-amber-700 font-medium" : ""}>{fmt(str(row.renewalDate))}</span></td>
                           <td className="px-4 py-3">{fmt(str(row.nextInspectionDue))}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{formatScopeSummary(str(row.scope))}</td>
                           <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-1 justify-end">
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewCert(row)}><Eye className="w-3.5 h-3.5" /></Button>
@@ -1194,7 +1296,17 @@ export default function OrganicArablePage() {
               <DetailRow label="Renewal Date" value={fmt(str(viewCert.renewalDate))} />
               <DetailRow label="Annual Inspection" value={fmt(str(viewCert.annualInspectionDate))} />
               <DetailRow label="Next Inspection Due" value={fmt(str(viewCert.nextInspectionDue))} />
-              <DetailRow label="Scope" value={str(viewCert.scope) || "—"} />
+              <DetailRow label="Scope" value={
+                parseScopeKeys(str(viewCert.scope)).length > 0
+                  ? <div className="flex flex-wrap gap-1 mt-0.5">
+                      {parseScopeKeys(str(viewCert.scope)).map(k => (
+                        <span key={k} className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 text-xs font-medium">
+                          {getScopeLabel(k)}
+                        </span>
+                      ))}
+                    </div>
+                  : "—"
+              } />
               <DetailRow label="Notes" value={str(viewCert.notes) || "—"} />
             </div>
             {farmId && (
@@ -1454,7 +1566,35 @@ export default function OrganicArablePage() {
             </div>
             <div className="col-span-2">
               <Label>Certification Scope</Label>
-              <Input value={certForm.scope || ""} onChange={e => setCertForm(f => ({ ...f, scope: e.target.value }))} placeholder="e.g. Arable crops — winter wheat, OSR, spring barley" />
+              <p className="text-xs text-muted-foreground mb-2 mt-0.5">Select the enterprise areas this certificate covers. No two certifiers can hold the same scope item simultaneously on this holding.</p>
+              <div className="border border-border rounded-xl overflow-hidden">
+                {SCOPE_GROUPS.map((group, gi) => (
+                  <div key={group.group} className={gi > 0 ? "border-t border-border" : ""}>
+                    <div className="px-3 py-1.5 bg-muted/40">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{group.group}</span>
+                    </div>
+                    <div className="px-3 py-2.5 flex flex-wrap gap-x-5 gap-y-2">
+                      {group.items.map(item => {
+                        const checked = certScopeKeys.includes(item.key);
+                        return (
+                          <label key={item.key} className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 rounded accent-primary"
+                              checked={checked}
+                              onChange={e => {
+                                if (e.target.checked) setCertScopeKeys(k => [...k, item.key]);
+                                else setCertScopeKeys(k => k.filter(x => x !== item.key));
+                              }}
+                            />
+                            <span className="text-sm">{item.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="col-span-2">
               <Label>Notes</Label>

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
-import { CalendarDays, ArrowRight, Landmark, ShieldCheck } from "lucide-react";
+import { CalendarDays, ArrowRight, Landmark, ShieldCheck, Leaf } from "lucide-react";
 
 export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
   const now = new Date();
@@ -17,9 +17,19 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/grants`).then(r => r.json()),
     select: d => d.records ?? [],
   });
+  const organicCertQ = useQuery({
+    queryKey: ["oa-cert", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/organic-arable/certification`, { credentials: "include" });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return (d.records ?? []).filter((c: any) => !["suspended", "withdrawn"].includes(c.status));
+    },
+  });
 
   const insurance: any[] = insuranceQ.data ?? [];
   const grants: any[] = grantsQ.data ?? [];
+  const organicCerts: any[] = organicCertQ.data ?? [];
 
   type DateItem = { label: string; date: Date; daysUntil: number; href: string; type: string; urgent: boolean };
 
@@ -58,6 +68,21 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
     }
   }
 
+  for (const cert of organicCerts) {
+    const certifier: string = cert.certifier ?? "Organic cert";
+    const addCertDate = (dateStr: string | null | undefined, label: string) => {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      if (d > in60Days) return;
+      const days = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      items.push({ label: `${label} — ${certifier}`, date: d, daysUntil: days, href: "/organic-arable", type: "Organic", urgent: days <= 14 });
+    };
+    addCertDate(cert.renewalDate, "Organic cert renewal");
+    addCertDate(cert.nextInspectionDue, "Organic inspection due");
+    if (cert.annualInspectionDate && new Date(cert.annualInspectionDate) > now)
+      addCertDate(cert.annualInspectionDate, "Annual inspection");
+  }
+
   items.sort((a, b) => a.daysUntil - b.daysUntil);
 
   if (items.length === 0) {
@@ -89,10 +114,12 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
             <Link key={i} href={item.href}>
               <div className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-black/[0.02] transition-colors cursor-pointer group">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "Grant" ? "bg-violet-50" : "bg-blue-50"}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "Grant" ? "bg-violet-50" : item.type === "Organic" ? "bg-green-50" : "bg-blue-50"}`}>
                     {item.type === "Grant"
                       ? <Landmark className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-violet-600"}`} />
-                      : <ShieldCheck className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-blue-600"}`} />
+                      : item.type === "Organic"
+                        ? <Leaf className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-green-600"}`} />
+                        : <ShieldCheck className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-blue-600"}`} />
                     }
                   </div>
                   <div className="min-w-0">
