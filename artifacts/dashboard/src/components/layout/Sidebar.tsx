@@ -116,6 +116,7 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Dairy", href: "/organic-dairy", icon: Milk, moduleKeys: ["organic-dairy"] },
   { name: "Organic Fresh Produce", href: "/organic-fresh-produce", icon: Leaf, moduleKeys: ["organic-fresh-produce"] },
   { name: "Organic Viticulture", href: "/organic-viticulture", icon: Grape, moduleKeys: ["organic-viticulture"] },
+  { name: "Organic Arable", href: "/organic-arable", icon: Wheat, moduleKeys: ["organic-arable"] },
 ];
 
 const biosecurityNav: NavItem[] = [

@@ -193,6 +193,11 @@ import {
   organicFreshProduceInputLogTable,
   organicFreshProduceCertificatesTable,
   organicFreshProduceBuyerDeclarationsTable,
+  organicArableCertificationTable,
+  organicArableFieldConversionTable,
+  organicArableSeedRecordsTable,
+  organicArableInputRecordsTable,
+  organicArableHarvestDeclarationsTable,
   carbonAuditsTable,
   carbonEmissionsRecordsTable,
   carbonSequestrationTable,
@@ -25822,4 +25827,136 @@ router.patch("/farms/:farmId/lerap-assessments/:id/document", requireAuth, requi
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
+// ── Organic Arable ───────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/organic-arable/certification", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(organicArableCertificationTable).where(eq(organicArableCertificationTable.farmId, farmId)).orderBy(organicArableCertificationTable.createdAt);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-arable/certification", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await (db.insert(organicArableCertificationTable) as any).values({ farmId, ...body }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-arable/certification/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.update(organicArableCertificationTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableCertificationTable.id, id), eq(organicArableCertificationTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-arable/certification/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicArableCertificationTable).where(and(eq(organicArableCertificationTable.id, id), eq(organicArableCertificationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-arable/field-conversion", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(organicArableFieldConversionTable).where(eq(organicArableFieldConversionTable.farmId, farmId)).orderBy(organicArableFieldConversionTable.conversionStartDate);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-arable/field-conversion", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await (db.insert(organicArableFieldConversionTable) as any).values({ farmId, ...body }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-arable/field-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.update(organicArableFieldConversionTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableFieldConversionTable.id, id), eq(organicArableFieldConversionTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-arable/field-conversion/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicArableFieldConversionTable).where(and(eq(organicArableFieldConversionTable.id, id), eq(organicArableFieldConversionTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-arable/seed-records", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(organicArableSeedRecordsTable).where(eq(organicArableSeedRecordsTable.farmId, farmId)).orderBy(organicArableSeedRecordsTable.purchaseDate);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-arable/seed-records", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await (db.insert(organicArableSeedRecordsTable) as any).values({ farmId, ...body }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-arable/seed-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.update(organicArableSeedRecordsTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableSeedRecordsTable.id, id), eq(organicArableSeedRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-arable/seed-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicArableSeedRecordsTable).where(and(eq(organicArableSeedRecordsTable.id, id), eq(organicArableSeedRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-arable/input-records", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(organicArableInputRecordsTable).where(eq(organicArableInputRecordsTable.farmId, farmId)).orderBy(organicArableInputRecordsTable.applicationDate);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-arable/input-records", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await (db.insert(organicArableInputRecordsTable) as any).values({ farmId, ...body }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-arable/input-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.update(organicArableInputRecordsTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableInputRecordsTable.id, id), eq(organicArableInputRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-arable/input-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicArableInputRecordsTable).where(and(eq(organicArableInputRecordsTable.id, id), eq(organicArableInputRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/organic-arable/harvest-declarations", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const records = await db.select().from(organicArableHarvestDeclarationsTable).where(eq(organicArableHarvestDeclarationsTable.farmId, farmId)).orderBy(organicArableHarvestDeclarationsTable.harvestDate);
+  res.json({ records });
+});
+router.post("/farms/:farmId/organic-arable/harvest-declarations", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await (db.insert(organicArableHarvestDeclarationsTable) as any).values({ farmId, ...body }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/organic-arable/harvest-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const body = sanitiseBody(req.body);
+  const [record] = await db.update(organicArableHarvestDeclarationsTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableHarvestDeclarationsTable.id, id), eq(organicArableHarvestDeclarationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/organic-arable/harvest-declarations/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(organicArableHarvestDeclarationsTable).where(and(eq(organicArableHarvestDeclarationsTable.id, id), eq(organicArableHarvestDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 export default router;
