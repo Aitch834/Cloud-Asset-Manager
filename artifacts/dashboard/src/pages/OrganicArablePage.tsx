@@ -119,41 +119,41 @@ const INPUT_TYPES_ALL = [
 
 const QUANTITY_UNITS = ["kg/ha", "l/ha", "t/ha", "kg", "l", "t", "g/ha", "units/ha"];
 
-const ANNEX_INPUTS = [
-  "Farmyard Manure (FYM) — composted or well-rotted",
-  "Composted Plant & Animal Material",
-  "Green Manure / Cover Crop Residue",
-  "Slurry (composted; restricted from non-organic units)",
-  "Dried Blood (Blood Meal)",
-  "Bone Meal / Steamed Bone Flour",
-  "Fish Meal / Fish Emulsion",
-  "Seaweed Meal",
-  "Calcified Seaweed (Lithothamnium)",
-  "Seaweed Extract (liquid)",
-  "Rock Phosphate (soft / reactive)",
-  "Potassium Sulphate (natural mineral extraction, low chloride)",
-  "Kieserite (Magnesium Sulphate, natural mineral)",
-  "Wood Ash (from untreated wood only)",
-  "Ground Limestone / Calcium Carbonate",
-  "Dolomitic Limestone / Magnesium Limestone",
-  "Gypsum (natural calcium sulphate)",
-  "Elemental Sulphur",
-  "Copper Hydroxide",
-  "Copper Oxychloride",
-  "Copper Sulphate / Bordeaux Mixture",
-  "Pyrethrin (from Chrysanthemum cinerariaefolium)",
-  "Spinosad (restricted — certifier notification required)",
-  "Bacillus thuringiensis (Bt)",
-  "Beauveria bassiana",
-  "Entomopathogenic Nematodes",
-  "Iron Phosphate (slug pellets)",
-  "Kaolin (particle film)",
-  "Diatomaceous Earth / Kieselgur",
-  "Potassium Bicarbonate",
-  "Sulphur (wettable / dust)",
-  "Soft Soap / Potassium Soap",
-  "Rapeseed Oil / Plant Oil",
-  "Pheromones (mating disruption traps only)",
+const ANNEX_INPUTS: { name: string; activeIngredient: string }[] = [
+  { name: "Farmyard Manure (FYM) — composted or well-rotted", activeIngredient: "Nitrogen, Phosphorus, Potassium (NPK); Organic matter" },
+  { name: "Composted Plant & Animal Material", activeIngredient: "Nitrogen, Phosphorus, Potassium (NPK); Organic matter" },
+  { name: "Green Manure / Cover Crop Residue", activeIngredient: "Nitrogen (fixed); Organic matter" },
+  { name: "Slurry (composted; restricted from non-organic units)", activeIngredient: "Nitrogen, Phosphorus, Potassium (NPK)" },
+  { name: "Dried Blood (Blood Meal)", activeIngredient: "Nitrogen (~12–14% N)" },
+  { name: "Bone Meal / Steamed Bone Flour", activeIngredient: "Phosphorus (P₂O₅ 20–25%); Nitrogen (~4% N)" },
+  { name: "Fish Meal / Fish Emulsion", activeIngredient: "Nitrogen (~10% N); Phosphorus; Trace elements" },
+  { name: "Seaweed Meal", activeIngredient: "Potassium; Cytokinins; Trace elements" },
+  { name: "Calcified Seaweed (Lithothamnium)", activeIngredient: "Calcium carbonate; Magnesium; Trace elements" },
+  { name: "Seaweed Extract (liquid)", activeIngredient: "Cytokinins; Auxins; Betaines; Trace elements" },
+  { name: "Rock Phosphate (soft / reactive)", activeIngredient: "Phosphorus (P₂O₅ 28–35%)" },
+  { name: "Potassium Sulphate (natural mineral extraction, low chloride)", activeIngredient: "Potassium (K₂O 48–52%); Sulphur" },
+  { name: "Kieserite (Magnesium Sulphate, natural mineral)", activeIngredient: "Magnesium (MgO 27%); Sulphur (SO₃ 55%)" },
+  { name: "Wood Ash (from untreated wood only)", activeIngredient: "Potassium; Calcium; Phosphorus" },
+  { name: "Ground Limestone / Calcium Carbonate", activeIngredient: "Calcium carbonate (CaCO₃)" },
+  { name: "Dolomitic Limestone / Magnesium Limestone", activeIngredient: "Calcium carbonate; Magnesium carbonate" },
+  { name: "Gypsum (natural calcium sulphate)", activeIngredient: "Calcium sulphate (CaSO₄); Sulphur" },
+  { name: "Elemental Sulphur", activeIngredient: "Sulphur (S)" },
+  { name: "Copper Hydroxide", activeIngredient: "Copper (Cu(OH)₂)" },
+  { name: "Copper Oxychloride", activeIngredient: "Copper (Cu₂(OH)₃Cl)" },
+  { name: "Copper Sulphate / Bordeaux Mixture", activeIngredient: "Copper sulphate (CuSO₄); Calcium hydroxide" },
+  { name: "Pyrethrin (from Chrysanthemum cinerariaefolium)", activeIngredient: "Pyrethrin I and II (natural pyrethroid)" },
+  { name: "Spinosad (restricted — certifier notification required)", activeIngredient: "Spinosyn A and D (fermentation-derived)" },
+  { name: "Bacillus thuringiensis (Bt)", activeIngredient: "Bacillus thuringiensis delta-endotoxin (biological)" },
+  { name: "Beauveria bassiana", activeIngredient: "Beauveria bassiana spores (entomopathogenic fungus)" },
+  { name: "Entomopathogenic Nematodes", activeIngredient: "Steinernema / Heterorhabditis spp." },
+  { name: "Iron Phosphate (slug pellets)", activeIngredient: "Iron(III) phosphate (FePO₄)" },
+  { name: "Kaolin (particle film)", activeIngredient: "Hydrated aluminium silicate (Al₂Si₂O₅(OH)₄)" },
+  { name: "Diatomaceous Earth / Kieselgur", activeIngredient: "Amorphous silica (SiO₂)" },
+  { name: "Potassium Bicarbonate", activeIngredient: "Potassium bicarbonate (KHCO₃)" },
+  { name: "Sulphur (wettable / dust)", activeIngredient: "Sulphur (S)" },
+  { name: "Soft Soap / Potassium Soap", activeIngredient: "Potassium salts of fatty acids" },
+  { name: "Rapeseed Oil / Plant Oil", activeIngredient: "Triglycerides / fatty acids (plant-derived)" },
+  { name: "Pheromones (mating disruption traps only)", activeIngredient: "Insect sex pheromones (species-specific)" },
 ];
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ function ReportBar({ onPrint, onCsv, onAdd, addLabel }: {
 // ─── Field Selector ────────────────────────────────────────────────────────────
 
 function FieldSelector({ value, onChange, fields }: {
-  value: string; onChange: (v: string) => void; fields: { id: number; name: string }[];
+  value: string; onChange: (v: string) => void; fields: { id: number; name: string; areaHectares?: string | null }[];
 }) {
   const inList = fields.some(f => f.name === value);
   const showText = !inList || fields.length === 0;
@@ -303,8 +303,10 @@ function FieldSelector({ value, onChange, fields }: {
 
 // ─── Substance Picker ─────────────────────────────────────────────────────────
 
-function SubstancePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const inList = ANNEX_INPUTS.includes(value);
+function SubstancePicker({ value, onChange, onIngredient }: {
+  value: string; onChange: (v: string) => void; onIngredient?: (ingredient: string) => void;
+}) {
+  const inList = ANNEX_INPUTS.some(s => s.name === value);
   const [custom, setCustom] = useState(!inList && value !== "");
   return (
     <div className="space-y-1.5">
@@ -312,13 +314,18 @@ function SubstancePicker({ value, onChange }: { value: string; onChange: (v: str
         className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
         value={inList ? value : custom ? "__other__" : ""}
         onChange={e => {
-          if (e.target.value === "__other__") { setCustom(true); onChange(""); }
-          else if (e.target.value === "") { setCustom(false); onChange(""); }
-          else { setCustom(false); onChange(e.target.value); }
+          if (e.target.value === "__other__") { setCustom(true); onChange(""); onIngredient?.(""); }
+          else if (e.target.value === "") { setCustom(false); onChange(""); onIngredient?.(""); }
+          else {
+            setCustom(false);
+            onChange(e.target.value);
+            const match = ANNEX_INPUTS.find(s => s.name === e.target.value);
+            onIngredient?.(match?.activeIngredient ?? "");
+          }
         }}
       >
         <option value="">Select Annex II approved input…</option>
-        {ANNEX_INPUTS.map(s => <option key={s} value={s}>{s}</option>)}
+        {ANNEX_INPUTS.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         <option value="__other__">Other / specify below</option>
       </select>
       {custom && (
@@ -347,12 +354,26 @@ export default function OrganicArablePage() {
   });
   const allVarietyItems = varietyLookup?.items ?? [];
 
-  const { data: fieldsData } = useQuery<{ records: { id: number; name: string }[] }>({
+  const { data: fieldsData } = useQuery<{ records: { id: number; name: string; areaHectares?: string | null }[] }>({
     queryKey: ["farm-fields", farmId],
     queryFn: () => apiFetch(`farms/${farmId}/fields`).then(r => r.json()),
     enabled: !!farmId,
   });
   const fieldOptions = fieldsData?.records ?? [];
+
+  const suppliersQ = useQuery({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => apiFetch(`farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const allSuppliers: any[] = suppliersQ.data ?? [];
+
+  const deliveriesQ = useQuery({
+    queryKey: ["stock-deliveries-all", farmId],
+    queryFn: () => apiFetch(`farms/${farmId}/stock-deliveries`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const allDeliveries: any[] = deliveriesQ.data ?? [];
 
   // ── Tab ──
   const [activeTab, setActiveTab] = useState<Tab>("certification");
@@ -392,6 +413,7 @@ export default function OrganicArablePage() {
   const [inputDeleting, setInputDeleting] = useState<number | null>(null);
   const [inputForm, setInputForm] = useState<Record<string, string>>({});
   const [inputCustomProduct, setInputCustomProduct] = useState(false);
+  const [inputAreaAutoFilled, setInputAreaAutoFilled] = useState(false);
 
   // ── Harvest Declarations ──
   const [harvestFilterYear, setHarvestFilterYear] = useState(String(currentYear()));
@@ -559,15 +581,19 @@ export default function OrganicArablePage() {
         productName: str(row.productName), activeIngredient: str(row.activeIngredient),
         inputType: str(row.inputType), permittedStatus: str(row.permittedStatus) || "permitted",
         regulatoryBasis: str(row.regulatoryBasis), supplierName: str(row.supplierName),
+        supplierId: str(row.supplierId), stockDeliveryId: str(row.stockDeliveryId),
+        batchNumber: str(row.batchNumber), lotNumber: str(row.lotNumber), grnNumber: str(row.grnNumber),
         quantityApplied: str(row.quantityApplied), quantityUnit: str(row.quantityUnit) || "kg/ha",
         areaAppliedHa: str(row.areaAppliedHa), certifierApproval: str(row.certifierApproval),
         notes: str(row.notes),
       });
-      setInputCustomProduct(!ANNEX_INPUTS.includes(str(row.productName)));
+      setInputCustomProduct(!ANNEX_INPUTS.some(s => s.name === str(row.productName)));
+      setInputAreaAutoFilled(false);
     } else {
       setInputEditing(null);
       setInputForm({ applicationDate: today, permittedStatus: "permitted", quantityUnit: "kg/ha" });
       setInputCustomProduct(false);
+      setInputAreaAutoFilled(false);
     }
     setInputOpen(true);
   }
@@ -1284,6 +1310,9 @@ export default function OrganicArablePage() {
               <DetailRow label="Permitted Status" value={<StatusBadge value={str(viewInput.permittedStatus)} options={PERMITTED_STATUSES.slice(1)} />} />
               <DetailRow label="Regulatory Basis" value={str(viewInput.regulatoryBasis) || "—"} />
               <DetailRow label="Supplier" value={str(viewInput.supplierName) || "—"} />
+              {str(viewInput.grnNumber) && <DetailRow label="GRN Reference" value={<span className="font-mono">{str(viewInput.grnNumber)}</span>} />}
+              {str(viewInput.batchNumber) && <DetailRow label="Batch Number" value={<span className="font-mono">{str(viewInput.batchNumber)}</span>} />}
+              {str(viewInput.lotNumber) && <DetailRow label="Lot Number" value={<span className="font-mono">{str(viewInput.lotNumber)}</span>} />}
               <DetailRow label="Quantity Applied" value={`${fmtN(viewInput.quantityApplied)} ${str(viewInput.quantityUnit)}`} />
               <DetailRow label="Area Applied" value={fmtN(viewInput.areaAppliedHa, " ha")} />
               {(viewInput.permittedStatus === "restricted" || viewInput.permittedStatus === "derogation") && (
@@ -1612,18 +1641,38 @@ export default function OrganicArablePage() {
             </div>
             <div>
               <Label>Field / Parcel</Label>
-              <FieldSelector value={inputForm.fieldName || ""} onChange={v => setInputForm(f => ({ ...f, fieldName: v }))} fields={fieldOptions} />
+              <FieldSelector
+                value={inputForm.fieldName || ""}
+                onChange={v => {
+                  const field = fieldOptions.find(f => f.name === v);
+                  setInputForm(f => ({
+                    ...f,
+                    fieldName: v,
+                    areaAppliedHa: field?.areaHectares ? String(field.areaHectares) : f.areaAppliedHa,
+                  }));
+                  setInputAreaAutoFilled(!!field?.areaHectares);
+                }}
+                fields={fieldOptions}
+              />
             </div>
             <div className="col-span-2">
               <Label>Product / Substance *</Label>
               <SubstancePicker
                 value={inputForm.productName || ""}
                 onChange={v => setInputForm(f => ({ ...f, productName: v }))}
+                onIngredient={ingredient => setInputForm(f => ({ ...f, activeIngredient: ingredient }))}
               />
             </div>
             <div>
               <Label>Active Ingredient</Label>
-              <Input value={inputForm.activeIngredient || ""} onChange={e => setInputForm(f => ({ ...f, activeIngredient: e.target.value }))} placeholder="e.g. Copper hydroxide" />
+              <Input
+                value={inputForm.activeIngredient || ""}
+                onChange={e => setInputForm(f => ({ ...f, activeIngredient: e.target.value }))}
+                placeholder="Auto-filled from selected substance"
+              />
+              {inputForm.activeIngredient && ANNEX_INPUTS.some(s => s.name === inputForm.productName) && (
+                <p className="text-xs text-green-700 mt-1">&#10003; Auto-filled from Annex II substance list — edit to override</p>
+              )}
             </div>
             <div>
               <Label>Input Type *</Label>
@@ -1656,12 +1705,106 @@ export default function OrganicArablePage() {
             </div>
             <div>
               <Label>Area Applied (ha)</Label>
-              <Input type="number" step="0.001" value={inputForm.areaAppliedHa || ""} onChange={e => setInputForm(f => ({ ...f, areaAppliedHa: e.target.value }))} />
+              <Input
+                type="number" step="0.001"
+                value={inputForm.areaAppliedHa || ""}
+                onChange={e => { setInputForm(f => ({ ...f, areaAppliedHa: e.target.value })); setInputAreaAutoFilled(false); }}
+              />
+              {inputAreaAutoFilled && (
+                <p className="text-xs text-green-700 mt-1">&#10003; Auto-filled from field register — edit to override</p>
+              )}
             </div>
             <div>
               <Label>Supplier</Label>
-              <Input value={inputForm.supplierName || ""} onChange={e => setInputForm(f => ({ ...f, supplierName: e.target.value }))} />
+              {(() => {
+                const agchemSuppliers = allSuppliers.filter((s: any) => s.supplierType === "agrochemicals");
+                return (
+                  <>
+                    <Select
+                      value={inputForm.supplierId || "__none__"}
+                      onValueChange={v => {
+                        if (v === "__none__") {
+                          setInputForm(f => ({ ...f, supplierId: "", supplierName: "", stockDeliveryId: "", grnNumber: "", batchNumber: "", lotNumber: "" }));
+                        } else {
+                          const supplier = allSuppliers.find((s: any) => String(s.id) === v);
+                          setInputForm(f => ({ ...f, supplierId: v, supplierName: supplier?.name || "", stockDeliveryId: "", grnNumber: "", batchNumber: "", lotNumber: "" }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        {agchemSuppliers.length === 0 ? (
+                          <SelectItem value="__empty__" disabled>No agrochemical suppliers — add in Trade Contacts</SelectItem>
+                        ) : agchemSuppliers.map((s: any) => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {agchemSuppliers.length === 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">Add agrochemical suppliers in Trade Contacts to enable this field.</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
+            {inputForm.supplierId && inputForm.supplierId !== "__none__" && (
+              <div className="col-span-2">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
+                  <p className="text-xs font-semibold text-green-800">Batch / Lot Traceability — Link to Goods Received Note</p>
+                  <div>
+                    <Label className="text-xs text-gray-600">Select Delivery (GRN)</Label>
+                    {(() => {
+                      const supplierDeliveries = allDeliveries.filter((d: any) => String(d.supplierId) === inputForm.supplierId);
+                      return (
+                        <Select
+                          value={inputForm.stockDeliveryId || "__none__"}
+                          onValueChange={v => {
+                            if (v === "__none__") {
+                              setInputForm(f => ({ ...f, stockDeliveryId: "", grnNumber: "", batchNumber: "", lotNumber: "" }));
+                            } else {
+                              const del = supplierDeliveries.find((d: any) => String(d.id) === v);
+                              setInputForm(f => ({
+                                ...f,
+                                stockDeliveryId: v,
+                                grnNumber: del?.grnNumber || "",
+                                batchNumber: del?.batchNumber || f.batchNumber,
+                                lotNumber: del?.lotNumber || f.lotNumber,
+                              }));
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select from GRN deliveries…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">No specific GRN</SelectItem>
+                            {supplierDeliveries.length === 0 ? (
+                              <SelectItem value="__no_grn__" disabled>No deliveries on file for this supplier</SelectItem>
+                            ) : supplierDeliveries.map((d: any) => (
+                              <SelectItem key={d.id} value={String(d.id)}>
+                                {d.grnNumber ? `${d.grnNumber} — ` : ""}{d.stockItemName || d.productName || "Delivery"}{d.batchNumber ? ` · Batch: ${d.batchNumber}` : ""} ({new Date(d.deliveryDate).toLocaleDateString("en-GB")})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-gray-600">Batch Number</Label>
+                      <Input className="h-8 text-sm" placeholder="e.g. BT240301" value={inputForm.batchNumber || ""} onChange={e => setInputForm(f => ({ ...f, batchNumber: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Lot Number</Label>
+                      <Input className="h-8 text-sm" placeholder="e.g. LOT-2026-001" value={inputForm.lotNumber || ""} onChange={e => setInputForm(f => ({ ...f, lotNumber: e.target.value }))} />
+                    </div>
+                  </div>
+                  {inputForm.stockDeliveryId && inputForm.stockDeliveryId !== "__none__" && (
+                    <p className="text-xs text-green-700">&#10003; Linked to GRN — batch and lot auto-filled from delivery record</p>
+                  )}
+                </div>
+              </div>
+            )}
             {inputForm.permittedStatus === "restricted" && (
               <div className="col-span-2">
                 <Label>Certifier Approval Reference</Label>

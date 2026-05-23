@@ -3,6 +3,7 @@ import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 import { herdFlockRegisterTable, livestockMedicineRecordsTable } from "./livestock";
 import { feedDeliveriesTable } from "./feed-management";
+import { suppliersTable, stockDeliveriesTable } from "./stock-suppliers";
 
 export const organicCertificationTable = pgTable("organic_certification", {
   id: serial("id").primaryKey(),
@@ -565,6 +566,11 @@ export const organicArableInputRecordsTable = pgTable("organic_arable_input_reco
   quantityApplied: numeric("quantity_applied", { precision: 10, scale: 3 }),
   quantityUnit: text("quantity_unit"),
   areaAppliedHa: numeric("area_applied_ha", { precision: 10, scale: 3 }),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  stockDeliveryId: integer("stock_delivery_id").references(() => stockDeliveriesTable.id),
+  batchNumber: text("batch_number"),
+  lotNumber: text("lot_number"),
+  grnNumber: text("grn_number"),
   certifierApproval: text("certifier_approval"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
