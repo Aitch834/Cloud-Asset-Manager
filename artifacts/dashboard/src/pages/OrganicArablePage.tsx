@@ -562,7 +562,11 @@ export default function OrganicArablePage() {
     setSeedOpen(true);
   }
   function saveSeed() {
-    const body = { ...seedForm, derogationGranted: seedForm.derogationGranted === "true" };
+    const body = {
+      ...seedForm,
+      derogationGranted: seedForm.derogationGranted === "true",
+      variety: seedForm.variety === "__other__" ? "" : (seedForm.variety || ""),
+    };
     seedMut.save.mutate({ id: seedEditing ? Number(seedEditing.id) : undefined, body }, {
       onSuccess: () => { setSeedOpen(false); setSeedEditing(null); setSeedForm({}); },
     });
@@ -623,7 +627,11 @@ export default function OrganicArablePage() {
     setHarvestOpen(true);
   }
   function saveHarvest() {
-    harvestMut.save.mutate({ id: harvestEditing ? Number(harvestEditing.id) : undefined, body: harvestForm }, {
+    const body = {
+      ...harvestForm,
+      variety: harvestForm.variety === "__other__" ? "" : (harvestForm.variety || ""),
+    };
+    harvestMut.save.mutate({ id: harvestEditing ? Number(harvestEditing.id) : undefined, body }, {
       onSuccess: () => { setHarvestOpen(false); setHarvestEditing(null); setHarvestForm({}); },
     });
   }
@@ -1558,13 +1566,25 @@ export default function OrganicArablePage() {
             <div>
               <Label>Variety</Label>
               {seedVarieties.length > 0 ? (
-                <Select value={seedForm.variety || ""} onValueChange={v => setSeedForm(f => ({ ...f, variety: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
-                  <SelectContent>
-                    {seedVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                    <SelectItem value="">Other / unregistered</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Select
+                    value={seedVarieties.includes(seedForm.variety || "") ? (seedForm.variety || "") : seedForm.variety === "__other__" ? "__other__" : ""}
+                    onValueChange={v => setSeedForm(f => ({ ...f, variety: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
+                    <SelectContent>
+                      {seedVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                      <SelectItem value="__other__">Other / unregistered</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(seedForm.variety === "__other__" || (seedForm.variety && !seedVarieties.includes(seedForm.variety))) && (
+                    <Input
+                      placeholder="Enter variety name"
+                      value={seedForm.variety === "__other__" ? "" : seedForm.variety}
+                      onChange={e => setSeedForm(f => ({ ...f, variety: e.target.value }))}
+                    />
+                  )}
+                </div>
               ) : (
                 <Input value={seedForm.variety || ""} onChange={e => setSeedForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
               )}
@@ -1854,13 +1874,25 @@ export default function OrganicArablePage() {
             <div>
               <Label>Variety</Label>
               {harvestVarieties.length > 0 ? (
-                <Select value={harvestForm.variety || ""} onValueChange={v => setHarvestForm(f => ({ ...f, variety: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
-                  <SelectContent>
-                    {harvestVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                    <SelectItem value="">Other / unregistered</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Select
+                    value={harvestVarieties.includes(harvestForm.variety || "") ? (harvestForm.variety || "") : harvestForm.variety === "__other__" ? "__other__" : ""}
+                    onValueChange={v => setHarvestForm(f => ({ ...f, variety: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
+                    <SelectContent>
+                      {harvestVarieties.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                      <SelectItem value="__other__">Other / unregistered</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(harvestForm.variety === "__other__" || (harvestForm.variety && !harvestVarieties.includes(harvestForm.variety))) && (
+                    <Input
+                      placeholder="Enter variety name"
+                      value={harvestForm.variety === "__other__" ? "" : harvestForm.variety}
+                      onChange={e => setHarvestForm(f => ({ ...f, variety: e.target.value }))}
+                    />
+                  )}
+                </div>
               ) : (
                 <Input value={harvestForm.variety || ""} onChange={e => setHarvestForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
               )}
