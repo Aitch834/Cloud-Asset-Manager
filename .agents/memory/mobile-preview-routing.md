@@ -22,19 +22,23 @@ subdomain URL.
 ### Fix 2 — Asset path proxies
 Metro's HTML page (served at `/mobile/`) embeds root-relative asset paths:
 - `src="/node_modules/.pnpm/expo-router.../entry.bundle?..."` — the main JS bundle
-- `/_expo/static/media/...` — fonts and static media
+- `/_expo/static/media/...` — Expo static media
+- `/assets/?unstable_path=...` — fonts (.ttf) and other assets loaded by Metro's
+  asset system (used by `@expo-google-fonts/inter`, `@expo/vector-icons`, etc.)
 
 Without proxy entries for these paths, Vite's SPA fallback returns `text/html`
-(the website's index.html) for the bundle request. The browser refuses to execute
-HTML as JavaScript, so the React app never starts. The proxy entries:
+which causes fonts to fail silently (`useFonts` hangs → blank white screen).
+The proxy entries:
 ```js
-"/_expo":             { target: "http://localhost:18115", changeOrigin: true }
+"/_expo":              { target: "http://localhost:18115", changeOrigin: true }
 "/node_modules/.pnpm": { target: "http://localhost:18115", changeOrigin: true }
-"/mobile":            { target: "http://localhost:18115", changeOrigin: true, ws: true }
+"/assets":             { target: "http://localhost:18115", changeOrigin: true }
+"/mobile":             { target: "http://localhost:18115", changeOrigin: true, ws: true }
 ```
-The `/node_modules/.pnpm` entry is safe because Vite's `fs.deny: ["**/.*"]` already
-blocks `.pnpm` (hidden dir) from Vite's own file serving; proxying it to Metro
-cannot conflict.
+Safe notes:
+- `/node_modules/.pnpm` safe: Vite's `fs.deny: ["**/.*"]` already blocks it
+- `/assets` safe: Vite dev mode never serves content at `/assets/` — that is only
+  a production build output path. The website's `public/` images are at root `/`.
 
 ## Port assignments
 - Website/gateway: 19161 (all external traffic arrives here)

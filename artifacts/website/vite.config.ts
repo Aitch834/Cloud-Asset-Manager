@@ -130,6 +130,14 @@ export default defineConfig({
         target: `http://localhost:${MOBILE_PORT}`,
         changeOrigin: true,
       },
+      // Metro asset serving (fonts, vector-icon .ttf files, images).
+      // Metro uses /assets/?unstable_path=... for all font/asset requests.
+      // Vite dev mode never serves anything at /assets/ itself (that is only
+      // a production-build output path), so this proxy is safe.
+      "/assets": {
+        target: `http://localhost:${MOBILE_PORT}`,
+        changeOrigin: true,
+      },
       // Mobile app HTML entry point.
       "/mobile": {
         target: `http://localhost:${MOBILE_PORT}`,
