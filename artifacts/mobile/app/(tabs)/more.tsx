@@ -242,6 +242,15 @@ export default function MoreScreen() {
               />
               <View style={styles.divider} />
               <ListItem
+                title="Log Seed Stock Movement"
+                subtitle="Goods in, seed used, adjustment or waste"
+                icon="layers"
+                iconColor="#0891b2"
+                iconBgColor="#ecfeff"
+                onPress={() => router.push("/organic-arable-stock-movement")}
+              />
+              <View style={styles.divider} />
+              <ListItem
                 title="Log Harvest"
                 subtitle="Record harvest yield and organic status"
                 icon="truck"

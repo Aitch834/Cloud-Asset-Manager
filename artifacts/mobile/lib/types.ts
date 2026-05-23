@@ -2062,6 +2062,23 @@ export interface OrganicArableHarvest {
   synced: boolean;
 }
 
+export interface OrganicArableStockMovement {
+  id: string;
+  farmId: string;
+  movementType: "goods_in" | "consumption" | "adjustment" | "waste";
+  movementDate: string;
+  cropName: string;
+  variety: string;
+  batchLotNumber: string;
+  quantityKg: string;
+  fieldName: string;
+  poReference: string;
+  grnReference: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface TbTestRecord {
   id: string;
   farmId: string;

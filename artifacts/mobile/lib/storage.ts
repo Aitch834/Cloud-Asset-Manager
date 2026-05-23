@@ -213,6 +213,7 @@ export const STORAGE_KEYS = {
   ORGANIC_ARABLE_INPUTS: "bde_organic_arable_inputs",
   ORGANIC_ARABLE_SEEDS: "bde_organic_arable_seeds",
   ORGANIC_ARABLE_HARVESTS: "bde_organic_arable_harvests",
+  ORGANIC_ARABLE_STOCK_MOVEMENTS: "bde_organic_arable_stock_movements",
   TB_TEST_RECORDS: "bde_tb_tests",
   WELFARE_OUTCOME_RECORDS: "bde_welfare_outcome_assessments",
   PPE_ISSUE_RECORDS: "bde_ppe_issue_records",

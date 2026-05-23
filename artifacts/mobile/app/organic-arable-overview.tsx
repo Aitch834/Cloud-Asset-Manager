@@ -19,6 +19,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 interface SummaryStats {
   certifications: { total: number; certified: number; renewalDue: number };
   fieldConversion: { total: number; certifiedHa: number; conversionHa: number };
+  seedStock: { lines: number; totalBalanceKg: number };
   seedRecords: { total: number; organic: number; derogations: number };
   inputRecords: { total: number; restricted: number };
   harvests: { total: number; certifiedOrganic: number; totalYield: number };
@@ -65,13 +66,15 @@ export default function OrganicArableOverviewScreen() {
       fetch(`/api/farms/${farmId}/organic-arable/seed-records`, { credentials: "include" }).then(r => r.json()),
       fetch(`/api/farms/${farmId}/organic-arable/input-records`, { credentials: "include" }).then(r => r.json()),
       fetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`, { credentials: "include" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/organic-arable/seed-stock`, { credentials: "include" }).then(r => r.json()),
     ]).then(results => {
-      const [certsRes, convRes, seedRes, inputRes, harvestRes] = results;
+      const [certsRes, convRes, seedRes, inputRes, harvestRes, stockRes] = results;
       const certs = certsRes.status === "fulfilled" ? (certsRes.value?.records ?? []) : [];
       const convs = convRes.status === "fulfilled" ? (convRes.value?.records ?? []) : [];
       const seeds = seedRes.status === "fulfilled" ? (seedRes.value?.records ?? []) : [];
       const inputs = inputRes.status === "fulfilled" ? (inputRes.value?.records ?? []) : [];
       const harvests = harvestRes.status === "fulfilled" ? (harvestRes.value?.records ?? []) : [];
+      const stockLines = stockRes.status === "fulfilled" ? (stockRes.value?.records ?? stockRes.value?.stockLines ?? []) : [];
 
       const today = new Date();
       const nextYear = new Date(today); nextYear.setFullYear(today.getFullYear() + 1);
@@ -90,6 +93,10 @@ export default function OrganicArableOverviewScreen() {
           total: convs.length,
           certifiedHa: convs.filter((c: Record<string, unknown>) => c.status === "certified").reduce((s: number, c: Record<string, unknown>) => s + (parseFloat(String(c.areaHa || 0)) || 0), 0),
           conversionHa: convs.filter((c: Record<string, unknown>) => c.status === "in-conversion").reduce((s: number, c: Record<string, unknown>) => s + (parseFloat(String(c.areaHa || 0)) || 0), 0),
+        },
+        seedStock: {
+          lines: stockLines.length,
+          totalBalanceKg: stockLines.reduce((s: number, l: Record<string, unknown>) => s + (parseFloat(String(l.currentBalanceKg || 0)) || 0), 0),
         },
         seedRecords: {
           total: seeds.length,
@@ -129,7 +136,7 @@ export default function OrganicArableOverviewScreen() {
         <View style={styles.infoBanner}>
           <Feather name="sun" size={14} color="#16a34a" />
           <Text style={styles.infoText}>
-            Certification, conversion register, seed sourcing, input log and harvest declarations for organic arable production.
+            Certification, conversion register, seed stock ledger, input log and harvest declarations for organic arable production.
           </Text>
         </View>
 
@@ -169,6 +176,24 @@ export default function OrganicArableOverviewScreen() {
                   label="In Conversion"
                   value={stats.fieldConversion.conversionHa > 0 ? `${stats.fieldConversion.conversionHa.toFixed(1)} ha` : "—"}
                   color={stats.fieldConversion.conversionHa > 0 ? "#d97706" : undefined}
+                />
+              </View>
+            </View>
+
+            {/* Seed Stock Ledger */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seed Stock</Text>
+              <View style={styles.statsRow}>
+                <StatCard label="Stock Lines" value={stats.seedStock.lines} />
+                <StatCard
+                  label="Total Balance"
+                  value={stats.seedStock.totalBalanceKg > 0 ? `${stats.seedStock.totalBalanceKg.toFixed(0)} kg` : "—"}
+                  color={stats.seedStock.totalBalanceKg > 0 ? "#16a34a" : undefined}
+                />
+                <StatCard
+                  label="Status"
+                  value={stats.seedStock.lines === 0 ? "No Stock" : stats.seedStock.totalBalanceKg > 0 ? "In Stock" : "Zero Balance"}
+                  color={stats.seedStock.lines === 0 ? colors.textTertiary : stats.seedStock.totalBalanceKg > 0 ? "#16a34a" : "#d97706"}
                 />
               </View>
             </View>
@@ -216,6 +241,12 @@ export default function OrganicArableOverviewScreen() {
             label="Log Seed Purchase"
             sub="Organic or derogation seed"
             onPress={() => router.push("/organic-arable-seed")}
+          />
+          <QuickAction
+            icon="layers"
+            label="Seed Stock Movement"
+            sub="Goods in, used, adjustment"
+            onPress={() => router.push("/organic-arable-stock-movement")}
           />
           <QuickAction
             icon="truck"
