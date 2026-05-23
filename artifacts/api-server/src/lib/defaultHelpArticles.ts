@@ -229,6 +229,11 @@ const TITLES: [string, string][] = [
   ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
   ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
   ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
+  ["Organic Arable — Certification Tab and Field Conversion Tracker", "Organic Arable"],
+  ["Organic Arable — Seed Sourcing Register and Derogation Approval Flow", "Organic Arable"],
+  ["Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow", "Organic Arable"],
+  ["Organic Arable — Harvest Declarations and Buyer Declaration Record", "Organic Arable"],
+  ["Mobile App — Organic Arable: Input, Seed, and Harvest Recording", "Mobile App"],
   ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance (Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production)", "Organic Viticulture"],
   ["Accident Book — Four-Stage Investigation Workflow", "Health, Safety & Risk"],
   ["Vet Health Plans — Recording Action Completion and Manager Sign-Off", "Livestock"],
@@ -4058,7 +4063,153 @@ const CONTENT: [string, string][] = [
 <p>The organic-specific additions — Input Log, Input Derogations — are available from the same navigation alongside this complete standard record set.</p>`,
   ],
 
-  // 211 — Organic Viticulture — Full Viticulture Tab Access
+  // 211 — Organic Arable — Certification Tab and Field Conversion Tracker
+  [
+    "How to record organic arable certification status, certifying body details, and per-field conversion tracking with progress bars in BDE Farm Trac.",
+    `<h2>Organic Arable — Certification Tab and Field Conversion Tracker</h2>
+<p>The Organic Arable module in BDE Farm Trac provides a complete audit trail for organic arable holdings — from the holding's overall certification status down to the per-field conversion history required by UK Organic Regulations 2020 and your certifying body.</p>
+<h3>Certification Tab</h3>
+<p>Navigate to <strong>Organic Arable → Certification</strong> to record the holding-level certification card:</p>
+<ul>
+<li><strong>Certifying body:</strong> Soil Association, OF&amp;G, Organic Farmers &amp; Growers, Biodynamic, or other (free text).</li>
+<li><strong>Certificate number and operator number:</strong> as shown on the certificate issued by your certifying body.</li>
+<li><strong>Certification date and next renewal date:</strong> amber and red alerts surface in advance of the renewal date so it is never missed.</li>
+<li><strong>Status:</strong> In Conversion / Certified / Suspended / Withdrawn — displayed as a colour-coded badge on the certification card.</li>
+<li><strong>Parallel production flag:</strong> tick if the holding runs both organic and non-organic arable on the same unit. An amber compliance notice appears citing the UK Organic Regulations 2020 requirement for prior written certifier approval and the annual notification obligation. Record the certifier's written approval against the certification record and attach a scanned copy.</li>
+</ul>
+<p>Click the paperclip icon on any certification record to attach scanned certificates, certifier correspondence, or outcome letters directly to the record.</p>
+<h3>Field Conversion Tracker</h3>
+<p>Navigate to <strong>Organic Arable → Field Conversion</strong>. Each row represents a single field's conversion record:</p>
+<ul>
+<li><strong>Field:</strong> selected from your registered field list using the FieldSelector picker (type to filter by field name or number; switch to free text if the field is not yet registered).</li>
+<li><strong>Conversion start date:</strong> the date on which the statutory two-year conversion period began for this field.</li>
+<li><strong>Expected certification date:</strong> auto-calculated as two years from conversion start; override if the certifying body has confirmed a different date.</li>
+<li><strong>Actual certification date:</strong> fill in once the certifying body confirms the field is fully certified organic.</li>
+<li><strong>Previous land use:</strong> what the field was used for immediately before conversion — required by certifiers to assess the pre-conversion status of the land.</li>
+<li><strong>Status:</strong> In Conversion / Certified / Suspended / Withdrawn.</li>
+</ul>
+<p>A visual progress bar on each field conversion record shows the percentage through the statutory conversion period, with a days-remaining countdown. Conversion records follow the view-before-edit pattern: click a row to open the structured view dialog; click Edit within the dialog to modify the record. Attach certifier confirmation letters directly to each field conversion record using RecordAttachments within the view dialog.</p>
+<h3>Reporting</h3>
+<p>The Print Register button on the Field Conversion tab generates a formatted A4 landscape report of all field conversion records, suitable for presentation to your certifying body at an annual inspection. The Export CSV button exports all records with the current filter applied.</p>`,
+  ],
+
+  // 212 — Organic Arable — Seed Sourcing Register and Derogation Approval Flow
+  [
+    "How to record organic arable seed sourcing, certified organic seed status, and the derogation approval flow when no certified organic equivalent is available.",
+    `<h2>Organic Arable — Seed Sourcing Register and Derogation Approval Flow</h2>
+<p>Under UK Organic Regulations 2020, organic arable producers must use certified organic seed wherever it is commercially available. Where no certified organic equivalent can be sourced, a seed derogation is required from your certifying body before untreated conventional seed may be used. BDE Farm Trac's Seed Sourcing register records all seed purchases alongside their organic status and manages the derogation approval evidence trail.</p>
+<h3>Recording a Seed Purchase</h3>
+<p>Navigate to <strong>Organic Arable → Seed Sourcing</strong> and click <strong>Add Seed Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Crop:</strong> selected from your registered commodity types.</li>
+<li><strong>Variety:</strong> variety name; auto-filtered by the selected crop where variety data is available.</li>
+<li><strong>Seed lot number:</strong> the batch or lot number from the seed label — essential for traceability back to the supplier batch if a recall or quality query arises.</li>
+<li><strong>Certified organic seed:</strong> tick if the seed is certified organic (carrying an organic seed certificate from an accredited certifying body). If ticked, no further approval fields are required.</li>
+<li><strong>Treatment status:</strong> Untreated / Heat Treated / Derogation Approved — only Untreated or Heat Treated seed may be used without a derogation; if you are using treated conventional seed a derogation is required regardless of organic status.</li>
+<li><strong>Supplier, quantity, area drilled (ha), and drilling date.</strong></li>
+</ul>
+<h3>Derogation Approval Flow</h3>
+<p>When <strong>Treatment status: Derogation Approved</strong> is selected, two additional fields appear and an amber advisory panel is displayed:</p>
+<blockquote><em>"Organic seed derogation required — you must verify that no certified organic equivalent is commercially available (OFAS/UKOAS search) before applying for derogation from your certifying body."</em></blockquote>
+<ul>
+<li><strong>Certifier approval reference:</strong> the reference number of the written approval issued by your certifying body for this derogation. Required — the record cannot be saved without it once Derogation Approved is selected.</li>
+<li><strong>Derogation expiry date:</strong> the date until which the approval is valid. Records with an expiry date within 30 days display an amber urgency badge; expired records display a red badge.</li>
+</ul>
+<p>Attach the certifier's derogation approval letter and the OFAS/UKOAS availability search evidence directly to the seed record using RecordAttachments within the view dialog.</p>
+<h3>Filtering and Reporting</h3>
+<p>The Seed Sourcing tab has FilterPills for Certified Organic, Untreated, Heat Treated, and Derogation Approved status, plus a crop-year selector. The Print Register generates a formatted A4 report of all seed records for certifier inspection; Export CSV exports the current filtered view.</p>`,
+  ],
+
+  // 213 — Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow
+  [
+    "How to record organic arable inputs using the Annex II SubstancePicker, manage Permitted and Restricted status, and capture certifier approval for restricted inputs.",
+    `<h2>Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow</h2>
+<p>Organic arable production is governed by UK Organic Regulations 2020 (retained EU Reg 834/2007 and 889/2008 as amended). Only substances listed in Annex II may be used on organic arable land. BDE Farm Trac's Input Log provides a searchable list of 33 Annex II approved inputs and manages the mandatory certifier approval trail for any restricted substance.</p>
+<h3>Logging an Input Application</h3>
+<p>Navigate to <strong>Organic Arable → Input Log</strong> and click <strong>Add Input</strong>. Complete the form:</p>
+<ul>
+<li><strong>Substance name:</strong> select from the SubstancePicker — a searchable list of 33 Annex II approved inputs across all categories (plant protection products, fertilisers and soil conditioners, pest control agents, cleaning agents). If the substance you need is not listed, switch the picker to free-text entry and record the name manually.</li>
+<li><strong>Input category:</strong> auto-populated from the selected substance; edit if entering free text.</li>
+<li><strong>Permitted status:</strong> Permitted / Restricted / Derogation Required — assigned automatically from the SubstancePicker selection; override if needed for free-text entries.</li>
+<li><strong>Field:</strong> FieldSelector picker (filtered from your registered field list).</li>
+<li><strong>Crop, application date, quantity, unit, area applied (ha), and applied by.</strong></li>
+</ul>
+<h3>Restricted Input Workflow</h3>
+<p>When <strong>Permitted status: Restricted</strong> or <strong>Derogation Required</strong> is selected, an amber advisory panel appears:</p>
+<blockquote><em>"Restricted input — certifier approval is required before application. Record the certifier approval reference and confirm the certifier has been notified."</em></blockquote>
+<p>Two additional fields become mandatory:</p>
+<ul>
+<li><strong>Certifier approval reference:</strong> the written approval reference from your certifying body — required before the record can be saved.</li>
+<li><strong>Certifier notified:</strong> a checkbox confirming the certifier has been informed of the application. Records where this box is unticked display an amber "Certifier not yet notified" badge in the table and view dialog, prompting follow-up.</li>
+</ul>
+<p>Attach the certifier's written approval, any supporting technical justification, and label instructions directly to the input record using RecordAttachments within the view dialog.</p>
+<h3>Filtering and Reporting</h3>
+<p>FilterPills above the table show live record counts by permitted status. Combine with the year and crop dropdowns to narrow the view for a specific inspection period. Print Register and Export CSV apply the active filter to the output.</p>`,
+  ],
+
+  // 214 — Organic Arable — Harvest Declarations and Buyer Declaration Record
+  [
+    "How to record organic arable harvest events and attach a separate buyer declaration from within the harvest view dialog in BDE Farm Trac.",
+    `<h2>Organic Arable — Harvest Declarations and Buyer Declaration Record</h2>
+<p>Organic arable producers must be able to demonstrate the organic provenance of grain and combinable crops at every point in the supply chain — from the field through to the first buyer. BDE Farm Trac records the harvest event and the buyer declaration separately, keeping agronomic harvest data and commercial buyer information cleanly partitioned while linking both to the same crop and field record.</p>
+<h3>Recording a Harvest Event</h3>
+<p>Navigate to <strong>Organic Arable → Harvest Declarations</strong> and click <strong>Add Harvest</strong>:</p>
+<ul>
+<li><strong>Crop and variety:</strong> from registered commodity types and associated variety data.</li>
+<li><strong>Field:</strong> FieldSelector picker from your registered field list.</li>
+<li><strong>Harvest date, yield (t/ha), total yield (t), moisture (%), and grade.</strong></li>
+<li><strong>Organic certified:</strong> flag confirming the crop was harvested from land with current organic certification — a certifier harvest reference field appears when this is ticked.</li>
+<li><strong>Storage destination:</strong> where the grain was placed at harvest — grain store name or merchant position.</li>
+</ul>
+<p>Click any row to open the view dialog. From within the view dialog, the <strong>Add / View Buyer Declaration</strong> button opens a second dialog for the buyer record.</p>
+<h3>Buyer Declaration</h3>
+<p>The Buyer Declaration dialog captures the commercial transaction details separately from the harvest record:</p>
+<ul>
+<li><strong>Buyer name and buyer address.</strong></li>
+<li><strong>Buyer certifier reference:</strong> the organic certification reference of the first buyer — required for the organic supply chain audit trail.</li>
+<li><strong>Declared quantity (t):</strong> the tonnage covered by this declaration (may differ from total harvest if grain is sold in tranches).</li>
+<li><strong>Declaration date.</strong></li>
+<li><strong>Transport and identity preservation notes:</strong> any segregation or transport conditions applying to this load.</li>
+</ul>
+<p>Both the harvest record and the buyer declaration support document attachments via RecordAttachments — attach weighbridge tickets, dispatch notes, identity preservation declarations, and buyer certifier correspondence directly to each record.</p>
+<h3>Filtering and Reporting</h3>
+<p>Filter by crop year, crop type, and organic certified status using the dropdowns and FilterPills. Print Register generates an A4 landscape harvest register; Export CSV exports the filtered harvest records.</p>`,
+  ],
+
+  // 215 — Mobile App — Organic Arable: Input, Seed, and Harvest Recording
+  [
+    "How to record organic arable inputs, seed sourcing, and harvest declarations offline in the BDE Farm Trac mobile app.",
+    `<h2>Mobile App — Organic Arable: Input, Seed, and Harvest Recording</h2>
+<p>The BDE Farm Trac mobile app provides four dedicated screens for organic arable recording. All three field screens (Input Recording, Seed Sourcing, Harvest Recording) save locally when offline and sync to the dashboard automatically when network connectivity is restored — essential for in-field use where signal is intermittent.</p>
+<h3>Overview Screen</h3>
+<p>The Organic Arable hub screen displays a summary of your certification status and live counts pulled from the API (field conversions in progress, input records this season, seed records this season, harvest declarations). Quick-action buttons navigate directly to each of the three field recording screens without going back through the menu.</p>
+<h3>Input Recording</h3>
+<p>The Input Recording screen allows you to log an approved organic input in the field:</p>
+<ul>
+<li>Select the <strong>permitted status</strong> using chips: Permitted (green) / Restricted (amber) / Derogation Required (red). Selecting Restricted or Derogation Required displays an amber advisory and makes the Certifier Approval Reference field mandatory before saving.</li>
+<li><strong>FieldPicker</strong> loads your registered fields from the last successful API sync; falls back to free text when offline.</li>
+<li>Enter substance name, quantity, unit, area (ha), crop, and applied-by name.</li>
+<li>For restricted inputs: enter the certifier approval reference and confirm the certifier has been notified using the toggle.</li>
+</ul>
+<h3>Seed Sourcing</h3>
+<p>The Seed Sourcing screen records a seed purchase on the go:</p>
+<ul>
+<li>Select the crop using a chip picker (loaded from the last API sync).</li>
+<li>Enter variety, seed lot number, supplier, quantity, area, and drilling date.</li>
+<li>Toggle <strong>Certified Organic Seed</strong> on or off. If off, select treatment status from chips: Untreated / Heat Treated / Derogation Approved.</li>
+<li>When Derogation Approved is selected, an amber advisory appears and the Certifier Approval Reference field becomes required.</li>
+</ul>
+<h3>Harvest Recording</h3>
+<p>The Harvest Recording screen captures a harvest event from the combine cab or grain store:</p>
+<ul>
+<li>Select the <strong>organic certified</strong> status using chips (Certified Organic / Conventional). Selecting Certified Organic displays the Certifier Harvest Reference field.</li>
+<li><strong>FieldPicker</strong> for field selection (with offline free-text fallback).</li>
+<li>Enter crop, variety, harvest date, yield (t/ha), total yield (t), moisture (%), and grade.</li>
+</ul>
+<p>All records created offline are queued in local device storage (AsyncStorage) and uploaded to the API automatically on the next successful connection. The sync badge on the Overview screen shows the number of unsynced records outstanding.</p>`,
+  ],
+
+  // 216 — Organic Viticulture — Full Viticulture Tab Access
   [
     "How Organic Viticulture subscribers access the complete set of standard Viticulture tabs from within the Organic Viticulture section of BDE Farm Trac.",
     `<h2>Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance</h2>
