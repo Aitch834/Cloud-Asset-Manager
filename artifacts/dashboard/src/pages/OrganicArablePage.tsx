@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle, Wheat,
   ShieldCheck, FileText, Sprout, Package, CheckCircle2,
-  Eye, Printer, Download,
+  Eye, Printer, Download, ArrowDownToLine, ArrowUpFromLine,
+  BarChart3, BookOpen,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -475,6 +476,7 @@ export default function OrganicArablePage() {
   const [convForm, setConvForm] = useState<Record<string, string>>({});
 
   // ── Seed Sourcing ──
+  const [seedSubTab, setSeedSubTab] = useState<"declarations" | "stock">("declarations");
   const [seedFilterCrop, setSeedFilterCrop] = useState("all");
   const [seedFilterType, setSeedFilterType] = useState("all");
   const [viewSeed, setViewSeed] = useState<Row | null>(null);
@@ -482,6 +484,18 @@ export default function OrganicArablePage() {
   const [seedEditing, setSeedEditing] = useState<Row | null>(null);
   const [seedDeleting, setSeedDeleting] = useState<number | null>(null);
   const [seedForm, setSeedForm] = useState<Record<string, string>>({});
+
+  // ── Seed Stock ──
+  const [selectedStockId, setSelectedStockId] = useState<number | null>(null);
+  const [stockOpen, setStockOpen] = useState(false);
+  const [stockEditing, setStockEditing] = useState<Row | null>(null);
+  const [stockDeleting, setStockDeleting] = useState<number | null>(null);
+  const [stockForm, setStockForm] = useState<Record<string, string>>({});
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveType, setMoveType] = useState<"goods_in" | "consumption" | "adjustment" | "waste">("goods_in");
+  const [moveStockId, setMoveStockId] = useState<number | null>(null);
+  const [moveForm, setMoveForm] = useState<Record<string, string>>({});
+  const [moveDeleting, setMoveDeleting] = useState<number | null>(null);
 
   // ── Input Log ──
   const [inputFilterYear, setInputFilterYear] = useState(String(currentYear()));
@@ -514,6 +528,8 @@ export default function OrganicArablePage() {
   const certQ = useQuery<Row[]>({ queryKey: ["oa-cert", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/certification`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
   const convQ = useQuery<Row[]>({ queryKey: ["oa-conv", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/field-conversion`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
   const seedQ = useQuery<Row[]>({ queryKey: ["oa-seed", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/seed-records`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const stockQ = useQuery<Row[]>({ queryKey: ["oa-seed-stock", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/seed-stock`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
+  const movementsQ = useQuery<Row[]>({ queryKey: ["oa-seed-movements", farmId, selectedStockId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/seed-movements${selectedStockId ? `?stockId=${selectedStockId}` : ""}`).then(r => r.json()).then(d => d.records), enabled: !!farmId && seedSubTab === "stock" });
   const inputQ = useQuery<Row[]>({ queryKey: ["oa-input", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/input-records`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
   const harvestQ = useQuery<Row[]>({ queryKey: ["oa-harvest", farmId], queryFn: () => apiFetch(`farms/${farmId}/organic-arable/harvest-declarations`).then(r => r.json()).then(d => d.records), enabled: !!farmId });
 
@@ -540,13 +556,41 @@ export default function OrganicArablePage() {
   const certMut = useCrud("organic-arable/certification", ["oa-cert"]);
   const convMut = useCrud("organic-arable/field-conversion", ["oa-conv"]);
   const seedMut = useCrud("organic-arable/seed-records", ["oa-seed"]);
+  const stockMut = useCrud("organic-arable/seed-stock", ["oa-seed-stock"]);
   const inputMut = useCrud("organic-arable/input-records", ["oa-input"]);
   const harvestMut = useCrud("organic-arable/harvest-declarations", ["oa-harvest"]);
+
+  const moveSaveMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch(`farms/${farmId}/organic-arable/seed-movements`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["oa-seed-stock", farmId] });
+      qc.invalidateQueries({ queryKey: ["oa-seed-movements", farmId] });
+      toast({ title: "Movement recorded" });
+      setMoveOpen(false); setMoveForm({});
+    },
+    onError: () => toast({ title: "Error recording movement", variant: "destructive" }),
+  });
+  const moveDelMut = useMutation({
+    mutationFn: (id: number) => apiFetch(`farms/${farmId}/organic-arable/seed-movements/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["oa-seed-stock", farmId] });
+      qc.invalidateQueries({ queryKey: ["oa-seed-movements", farmId] });
+      toast({ title: "Movement deleted" });
+      setMoveDeleting(null);
+    },
+    onError: () => toast({ title: "Error deleting", variant: "destructive" }),
+  });
 
   // ── Filtered data ──
   const certs = certQ.data ?? [];
   const convs = convQ.data ?? [];
   const seeds = seedQ.data ?? [];
+  const stockLines = stockQ.data ?? [];
+  const movements = movementsQ.data ?? [];
+  const selectedStock = selectedStockId ? stockLines.find(s => Number(s.id) === selectedStockId) ?? null : null;
   const inputs = inputQ.data ?? [];
   const harvests = harvestQ.data ?? [];
 
@@ -653,7 +697,9 @@ export default function OrganicArablePage() {
         derogationReference: str(row.derogationReference),
         derogationExpiryDate: str(row.derogationExpiryDate),
         certifierApproval: str(row.certifierApproval),
-        batchLotNumber: str(row.batchLotNumber), notes: str(row.notes),
+        batchLotNumber: str(row.batchLotNumber),
+        poReference: str(row.poReference), grnReference: str(row.grnReference),
+        notes: str(row.notes),
       });
     } else {
       setSeedEditing(null);
@@ -789,8 +835,8 @@ export default function OrganicArablePage() {
       title: "Organic Arable — Seed Sourcing Log",
       recordCount: filteredSeeds.length, recordLabel: "record",
       footerNote: "Organic seed sourcing log — derogation records must be retained for inspection",
-      tableHtml: `<table><thead><tr><th>Date</th><th>Crop</th><th>Variety</th><th>Seed Type</th><th>Qty (kg)</th><th>Supplier</th><th>Derogation Ref</th><th>Batch/Lot</th></tr></thead><tbody>${
-        filteredSeeds.map(r => `<tr><td>${fmt(str(r.purchaseDate))}</td><td>${str(r.cropName)}</td><td>${str(r.variety)||"—"}</td><td>${str(r.seedType)}</td><td>${fmtN(r.quantityKg)}</td><td>${str(r.supplierName)||"—"}</td><td>${str(r.derogationReference)||"—"}</td><td>${str(r.batchLotNumber)||"—"}</td></tr>`).join("")
+      tableHtml: `<table><thead><tr><th>Date</th><th>Crop</th><th>Variety</th><th>Seed Type</th><th>Qty (kg)</th><th>Supplier</th><th>PO Ref</th><th>GRN Ref</th><th>Derogation Ref</th><th>Batch/Lot</th></tr></thead><tbody>${
+        filteredSeeds.map(r => `<tr><td>${fmt(str(r.purchaseDate))}</td><td>${str(r.cropName)}</td><td>${str(r.variety)||"—"}</td><td>${str(r.seedType)}</td><td>${fmtN(r.quantityKg)}</td><td>${str(r.supplierName)||"—"}</td><td>${str(r.poReference)||"—"}</td><td>${str(r.grnReference)||"—"}</td><td>${str(r.derogationReference)||"—"}</td><td>${str(r.batchLotNumber)||"—"}</td></tr>`).join("")
       }</tbody></table>`,
     });
   }
@@ -831,8 +877,8 @@ export default function OrganicArablePage() {
   }
   function exportSeedsCsv() {
     downloadCsvFile("organic-arable-seed-records.csv", [
-      ["Date","Crop","Variety","Seed Type","Qty (kg)","Supplier","Supplier Address","Derogation Granted","Derogation Ref","Derogation Expiry","Certifier Approval","Batch/Lot","Notes"],
-      ...filteredSeeds.map(r => [str(r.purchaseDate),str(r.cropName),str(r.variety),str(r.seedType),str(r.quantityKg),str(r.supplierName),str(r.supplierAddress),str(r.derogationGranted),str(r.derogationReference),str(r.derogationExpiryDate),str(r.certifierApproval),str(r.batchLotNumber),str(r.notes)]),
+      ["Date","Crop","Variety","Seed Type","Qty (kg)","Supplier","Supplier Address","PO Reference","GRN Reference","Derogation Granted","Derogation Ref","Derogation Expiry","Certifier Approval","Batch/Lot","Notes"],
+      ...filteredSeeds.map(r => [str(r.purchaseDate),str(r.cropName),str(r.variety),str(r.seedType),str(r.quantityKg),str(r.supplierName),str(r.supplierAddress),str(r.poReference),str(r.grnReference),str(r.derogationGranted),str(r.derogationReference),str(r.derogationExpiryDate),str(r.certifierApproval),str(r.batchLotNumber),str(r.notes)]),
     ]);
   }
   function exportInputsCsv() {
@@ -1034,72 +1080,229 @@ export default function OrganicArablePage() {
         {/* ── Seed Sourcing ── */}
         {activeTab === "seed-sourcing" && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <SummaryCard icon={Package} label="Seed Records" value={seeds.length} />
-              <SummaryCard icon={CheckCircle2} label="Certified Organic" value={seeds.filter(s => s.seedType === "organic").length} />
-              <SummaryCard icon={AlertTriangle} label="Derogations / Non-Organic" value={derogationCount} sub={derogationCount > 0 ? "certifier approval required" : "none recorded"} />
+            {/* Sub-tab bar */}
+            <div className="flex gap-1 border-b border-border pb-0">
+              {([
+                { key: "declarations", label: "Sourcing Declarations", icon: BookOpen },
+                { key: "stock", label: "Seed Stock Ledger", icon: BarChart3 },
+              ] as const).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setSeedSubTab(key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${seedSubTab === key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </button>
+              ))}
             </div>
-            <div className="flex flex-wrap gap-4 items-end">
-              {seedCropOptions.length > 2 && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs whitespace-nowrap">Crop</Label>
-                  <Select value={seedFilterCrop} onValueChange={setSeedFilterCrop}>
-                    <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{seedCropOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
+
+            {/* ── Sourcing Declarations sub-tab ── */}
+            {seedSubTab === "declarations" && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <SummaryCard icon={Package} label="Seed Records" value={seeds.length} />
+                  <SummaryCard icon={CheckCircle2} label="Certified Organic" value={seeds.filter(s => s.seedType === "organic").length} />
+                  <SummaryCard icon={AlertTriangle} label="Derogations / Non-Organic" value={derogationCount} sub={derogationCount > 0 ? "certifier approval required" : "none recorded"} />
                 </div>
-              )}
-              <FilterPills
-                options={[{ value: "all", label: "All Types" }, ...SEED_TYPES.map(s => ({ value: s.value, label: s.label }))]}
-                value={seedFilterType}
-                onChange={setSeedFilterType}
-                counts={Object.fromEntries([["all", seeds.length], ...SEED_TYPES.map(s => [s.value, seeds.filter(x => x.seedType === s.value).length])])}
-              />
-            </div>
-            <ReportBar onPrint={printSeeds} onCsv={exportSeedsCsv} onAdd={() => openSeedForm()} addLabel="Add Seed Record" />
-            {seedQ.isLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : filteredSeeds.length === 0 ? (
-              <EmptyState icon={Package} message="No seed records. Log all seed purchases — organic certified or with derogation approval." />
-            ) : (
-              <div className="bg-card border border-border rounded-xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Crop</th>
-                      <th className="px-4 py-3 text-left">Variety</th>
-                      <th className="px-4 py-3 text-left">Seed Type</th>
-                      <th className="px-4 py-3 text-left">Qty (kg)</th>
-                      <th className="px-4 py-3 text-left">Supplier</th>
-                      <th className="px-4 py-3 text-left">Derogation</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSeeds.map(row => (
-                      <tr key={String(row.id)} className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={() => setViewSeed(row)}>
-                        <td className="px-4 py-3">{fmt(str(row.purchaseDate))}</td>
-                        <td className="px-4 py-3 font-medium">{str(row.cropName)}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{str(row.variety) || "—"}</td>
-                        <td className="px-4 py-3"><StatusBadge value={str(row.seedType)} options={SEED_TYPES} /></td>
-                        <td className="px-4 py-3">{fmtN(row.quantityKg)}</td>
-                        <td className="px-4 py-3">{str(row.supplierName) || "—"}</td>
-                        <td className="px-4 py-3">
-                          {row.derogationGranted
-                            ? <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300">Yes — {str(row.derogationReference) || "ref pending"}</span>
-                            : <span className="text-xs text-muted-foreground">No</span>}
-                        </td>
-                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewSeed(row)}><Eye className="w-3.5 h-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setSeedDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                <div className="flex flex-wrap gap-4 items-end">
+                  {seedCropOptions.length > 2 && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs whitespace-nowrap">Crop</Label>
+                      <Select value={seedFilterCrop} onValueChange={setSeedFilterCrop}>
+                        <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{seedCropOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <FilterPills
+                    options={[{ value: "all", label: "All Types" }, ...SEED_TYPES.map(s => ({ value: s.value, label: s.label }))]}
+                    value={seedFilterType}
+                    onChange={setSeedFilterType}
+                    counts={Object.fromEntries([["all", seeds.length], ...SEED_TYPES.map(s => [s.value, seeds.filter(x => x.seedType === s.value).length])])}
+                  />
+                </div>
+                <ReportBar onPrint={printSeeds} onCsv={exportSeedsCsv} onAdd={() => openSeedForm()} addLabel="Add Seed Record" />
+                {seedQ.isLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                ) : filteredSeeds.length === 0 ? (
+                  <EmptyState icon={Package} message="No seed records. Log all seed purchases — organic certified or with derogation approval." />
+                ) : (
+                  <div className="bg-card border border-border rounded-xl overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+                          <th className="px-4 py-3 text-left">Date</th>
+                          <th className="px-4 py-3 text-left">Crop</th>
+                          <th className="px-4 py-3 text-left">Variety</th>
+                          <th className="px-4 py-3 text-left">Seed Type</th>
+                          <th className="px-4 py-3 text-left">Qty (kg)</th>
+                          <th className="px-4 py-3 text-left">Supplier</th>
+                          <th className="px-4 py-3 text-left">PO / GRN</th>
+                          <th className="px-4 py-3 text-left">Derogation</th>
+                          <th className="px-4 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSeeds.map(row => (
+                          <tr key={String(row.id)} className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer" onClick={() => setViewSeed(row)}>
+                            <td className="px-4 py-3">{fmt(str(row.purchaseDate))}</td>
+                            <td className="px-4 py-3 font-medium">{str(row.cropName)}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{str(row.variety) || "—"}</td>
+                            <td className="px-4 py-3"><StatusBadge value={str(row.seedType)} options={SEED_TYPES} /></td>
+                            <td className="px-4 py-3">{fmtN(row.quantityKg)}</td>
+                            <td className="px-4 py-3">{str(row.supplierName) || "—"}</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
+                              {str(row.poReference) ? <span>PO: {str(row.poReference)}</span> : null}
+                              {str(row.poReference) && str(row.grnReference) ? <br /> : null}
+                              {str(row.grnReference) ? <span>GRN: {str(row.grnReference)}</span> : null}
+                              {!str(row.poReference) && !str(row.grnReference) ? <span className="text-muted-foreground">—</span> : null}
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.derogationGranted
+                                ? <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300">Yes — {str(row.derogationReference) || "ref pending"}</span>
+                                : <span className="text-xs text-muted-foreground">No</span>}
+                            </td>
+                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                              <div className="flex gap-1 justify-end">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewSeed(row)}><Eye className="w-3.5 h-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setSeedDeleting(Number(row.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Seed Stock Ledger sub-tab ── */}
+            {seedSubTab === "stock" && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <SummaryCard icon={Package} label="Stock Lines" value={stockLines.length} />
+                  <SummaryCard icon={CheckCircle2} label="In Stock" value={stockLines.filter(s => parseFloat(str(s.currentStockKg)) > 0).length} />
+                  <SummaryCard icon={AlertTriangle} label="Low / Empty" value={stockLines.filter(s => parseFloat(str(s.currentStockKg)) <= 0).length} sub="zero balance" />
+                  <SummaryCard icon={BarChart3} label="Total Stock" value={`${stockLines.reduce((a, s) => a + (parseFloat(str(s.currentStockKg)) || 0), 0).toFixed(0)} kg`} />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button size="sm" onClick={() => { setStockEditing(null); setStockForm({ seedType: "organic" }); setStockOpen(true); }}>
+                    <Plus className="w-4 h-4 mr-1.5" />New Stock Line
+                  </Button>
+                </div>
+
+                {stockQ.isLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                ) : stockLines.length === 0 ? (
+                  <EmptyState icon={Package} message="No stock lines. Create a stock line for each crop/variety/batch you hold, then record goods-in and consumption movements." />
+                ) : (
+                  <div className="space-y-3">
+                    {stockLines.map(line => {
+                      const kg = parseFloat(str(line.currentStockKg)) || 0;
+                      const threshold = parseFloat(str(line.reorderThresholdKg)) || 0;
+                      const isLow = threshold > 0 && kg <= threshold;
+                      const isSelected = selectedStockId === Number(line.id);
+                      return (
+                        <div key={String(line.id)} className="bg-card border border-border rounded-xl overflow-hidden">
+                          {/* Stock line header */}
+                          <div
+                            className={`flex items-center justify-between gap-4 px-4 py-3 cursor-pointer hover:bg-muted/20 transition-colors ${isSelected ? "bg-green-50/60" : ""}`}
+                            onClick={() => setSelectedStockId(isSelected ? null : Number(line.id))}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${kg <= 0 ? "bg-red-400" : isLow ? "bg-amber-400" : "bg-green-400"}`} />
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm">{str(line.cropName)}{str(line.variety) ? ` — ${str(line.variety)}` : ""}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {str(line.batchLotNumber) ? `Batch: ${str(line.batchLotNumber)} · ` : ""}
+                                  <StatusBadge value={str(line.seedType)} options={SEED_TYPES} />
+                                  {str(line.supplierName) ? ` · ${str(line.supplierName)}` : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 flex-shrink-0">
+                              <div className="text-right">
+                                <p className={`text-lg font-bold tabular-nums ${kg <= 0 ? "text-red-600" : isLow ? "text-amber-600" : "text-green-600"}`}>{kg.toFixed(1)}</p>
+                                <p className="text-xs text-muted-foreground">kg in stock</p>
+                              </div>
+                              <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setMoveType("goods_in"); setMoveStockId(Number(line.id)); setMoveForm({ movementDate: today, quantityKg: "" }); setMoveOpen(true); }}>
+                                  <ArrowDownToLine className="w-3 h-3" />Goods In
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setMoveType("consumption"); setMoveStockId(Number(line.id)); setMoveForm({ movementDate: today, quantityKg: "" }); setMoveOpen(true); }}>
+                                  <ArrowUpFromLine className="w-3 h-3" />Consumed
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setStockEditing(line); setStockForm({ cropName: str(line.cropName), variety: str(line.variety), batchLotNumber: str(line.batchLotNumber), seedType: str(line.seedType) || "organic", supplierName: str(line.supplierName), reorderThresholdKg: str(line.reorderThresholdKg), storageLocation: str(line.storageLocation), notes: str(line.notes) }); setStockOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setStockDeleting(Number(line.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+                          {/* Movements ledger — expanded when selected */}
+                          {isSelected && (
+                            <div className="border-t border-border">
+                              <div className="flex items-center justify-between px-4 py-2 bg-muted/20">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Movement History</p>
+                                <div className="flex gap-1.5">
+                                  <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => { setMoveType("adjustment"); setMoveStockId(Number(line.id)); setMoveForm({ movementDate: today, quantityKg: "" }); setMoveOpen(true); }}>Adjustment</Button>
+                                  <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => { setMoveType("waste"); setMoveStockId(Number(line.id)); setMoveForm({ movementDate: today, quantityKg: "" }); setMoveOpen(true); }}>Waste</Button>
+                                </div>
+                              </div>
+                              {movementsQ.isLoading ? (
+                                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                              ) : movements.filter(m => Number(m.stockId) === Number(line.id)).length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-5">No movements yet — record a Goods In to start the ledger.</p>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border bg-muted/10 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                      <th className="px-4 py-2 text-left">Date</th>
+                                      <th className="px-4 py-2 text-left">Type</th>
+                                      <th className="px-4 py-2 text-right">Qty (kg)</th>
+                                      <th className="px-4 py-2 text-left">Reference</th>
+                                      <th className="px-4 py-2 text-left">Field / Operator</th>
+                                      <th className="px-4 py-2" />
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {movements.filter(m => Number(m.stockId) === Number(line.id)).map(mv => {
+                                      const isIn = mv.movementType === "goods_in" || mv.movementType === "adjustment";
+                                      return (
+                                        <tr key={String(mv.id)} className="border-b border-border last:border-0 hover:bg-muted/10">
+                                          <td className="px-4 py-2">{fmt(str(mv.movementDate))}</td>
+                                          <td className="px-4 py-2">
+                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${mv.movementType === "goods_in" ? "bg-green-50 text-green-700" : mv.movementType === "consumption" ? "bg-blue-50 text-blue-700" : mv.movementType === "waste" ? "bg-red-50 text-red-700" : "bg-muted text-muted-foreground"}`}>
+                                              {mv.movementType === "goods_in" ? <ArrowDownToLine className="w-2.5 h-2.5" /> : <ArrowUpFromLine className="w-2.5 h-2.5" />}
+                                              {String(mv.movementType).replace("_", " ")}
+                                            </span>
+                                          </td>
+                                          <td className={`px-4 py-2 text-right font-mono font-semibold ${isIn ? "text-green-600" : "text-red-600"}`}>
+                                            {isIn ? "+" : "-"}{str(mv.quantityKg)} kg
+                                          </td>
+                                          <td className="px-4 py-2 font-mono text-muted-foreground">
+                                            {[str(mv.poReference) ? `PO:${str(mv.poReference)}` : "", str(mv.grnReference) ? `GRN:${str(mv.grnReference)}` : "", str(mv.invoiceReference) ? `Inv:${str(mv.invoiceReference)}` : "", str(mv.reference) || ""].filter(Boolean).join(" · ") || "—"}
+                                          </td>
+                                          <td className="px-4 py-2 text-muted-foreground">
+                                            {[str(mv.fieldName), str(mv.operatorName), str(mv.reason)].filter(Boolean).join(" · ") || "—"}
+                                          </td>
+                                          <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => setMoveDeleting(Number(mv.id))}><Trash2 className="w-3 h-3" /></Button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1387,6 +1590,8 @@ export default function OrganicArablePage() {
               <DetailRow label="Seed Type" value={<StatusBadge value={str(viewSeed.seedType)} options={SEED_TYPES} />} />
               <DetailRow label="Quantity" value={fmtN(viewSeed.quantityKg, " kg")} />
               <DetailRow label="Batch / Lot No." value={str(viewSeed.batchLotNumber) || "—"} />
+              <DetailRow label="PO Reference" value={str(viewSeed.poReference) || "—"} />
+              <DetailRow label="GRN Reference" value={str(viewSeed.grnReference) || "—"} />
               <DetailRow label="Supplier" value={str(viewSeed.supplierName) || "—"} />
               <DetailRow label="Supplier Address" value={str(viewSeed.supplierAddress) || "—"} />
               <DetailRow label="Derogation Granted" value={viewSeed.derogationGranted ? "Yes" : "No"} />
@@ -1677,6 +1882,193 @@ export default function OrganicArablePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Form: Seed Stock Line */}
+      <Dialog open={stockOpen} onOpenChange={v => !v && setStockOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{stockEditing ? "Edit" : "New"} Seed Stock Line</DialogTitle>
+            <DialogDescription>A stock line represents a specific crop / variety / batch you hold in store. Goods-in and consumption movements debit and credit this line.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div>
+              <Label>Crop *</Label>
+              <Select value={stockForm.cropName || ""} onValueChange={v => setStockForm(f => ({ ...f, cropName: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                <SelectContent>{cropOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Variety</Label>
+              <Input value={stockForm.variety || ""} onChange={e => setStockForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
+            </div>
+            <div>
+              <Label>Seed Type</Label>
+              <Select value={stockForm.seedType || "organic"} onValueChange={v => setStockForm(f => ({ ...f, seedType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{SEED_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Batch / Lot Number</Label>
+              <Input value={stockForm.batchLotNumber || ""} onChange={e => setStockForm(f => ({ ...f, batchLotNumber: e.target.value }))} placeholder="e.g. BL-2024-001" />
+            </div>
+            <div>
+              <Label>Supplier</Label>
+              {allSuppliers.length > 0 ? (
+                <Select value={stockForm.supplierName || "__none__"} onValueChange={v => setStockForm(f => ({ ...f, supplierName: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {allSuppliers.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={stockForm.supplierName || ""} onChange={e => setStockForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Supplier name" />
+              )}
+            </div>
+            <div>
+              <Label>Reorder Threshold (kg)</Label>
+              <Input type="number" step="1" value={stockForm.reorderThresholdKg || ""} onChange={e => setStockForm(f => ({ ...f, reorderThresholdKg: e.target.value }))} placeholder="e.g. 500" />
+            </div>
+            <div className="col-span-2">
+              <Label>Storage Location</Label>
+              <Input value={stockForm.storageLocation || ""} onChange={e => setStockForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store bay 3" />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={stockForm.notes || ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStockOpen(false)}>Cancel</Button>
+            <Button disabled={!stockForm.cropName || stockMut.save.isPending} onClick={() => {
+              stockMut.save.mutate({ id: stockEditing ? Number(stockEditing.id) : undefined, body: stockForm }, {
+                onSuccess: () => { setStockOpen(false); setStockEditing(null); setStockForm({}); },
+              });
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Form: Seed Movement */}
+      <Dialog open={moveOpen} onOpenChange={v => !v && setMoveOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {moveType === "goods_in" ? "Record Goods In" : moveType === "consumption" ? "Record Consumption" : moveType === "waste" ? "Record Waste" : "Stock Adjustment"}
+            </DialogTitle>
+            <DialogDescription>
+              {moveType === "goods_in" && "Record seed delivered to store. Include PO and GRN references for a full audit trail."}
+              {moveType === "consumption" && "Record seed used for drilling. Link to field and operator."}
+              {moveType === "waste" && "Record seed disposed of — include reason for inspection records."}
+              {moveType === "adjustment" && "Correct stock balance — include reason (e.g. stock count, spillage)."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div>
+              <Label>Date *</Label>
+              <Input type="date" value={moveForm.movementDate || today} onChange={e => setMoveForm(f => ({ ...f, movementDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Quantity (kg) *</Label>
+              <Input type="number" step="0.01" value={moveForm.quantityKg || ""} onChange={e => setMoveForm(f => ({ ...f, quantityKg: e.target.value }))} />
+            </div>
+            {(moveType === "goods_in") && (<>
+              <div>
+                <Label>PO Reference</Label>
+                <Input value={moveForm.poReference || ""} onChange={e => setMoveForm(f => ({ ...f, poReference: e.target.value }))} placeholder="e.g. PO-2024-007" />
+              </div>
+              <div>
+                <Label>GRN Reference</Label>
+                <Input value={moveForm.grnReference || ""} onChange={e => setMoveForm(f => ({ ...f, grnReference: e.target.value }))} placeholder="e.g. GRN-2024-042" />
+              </div>
+              <div>
+                <Label>Supplier</Label>
+                {allSuppliers.length > 0 ? (
+                  <Select value={moveForm.supplierName || "__none__"} onValueChange={v => setMoveForm(f => ({ ...f, supplierName: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {allSuppliers.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={moveForm.supplierName || ""} onChange={e => setMoveForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Supplier name" />
+                )}
+              </div>
+              <div>
+                <Label>Invoice Reference</Label>
+                <Input value={moveForm.invoiceReference || ""} onChange={e => setMoveForm(f => ({ ...f, invoiceReference: e.target.value }))} placeholder="e.g. INV-2024-1234" />
+              </div>
+              <div>
+                <Label>Unit Cost (£/tonne)</Label>
+                <Input type="number" step="0.01" value={moveForm.unitCostPoundPerTonne || ""} onChange={e => setMoveForm(f => ({ ...f, unitCostPoundPerTonne: e.target.value }))} placeholder="e.g. 850.00" />
+              </div>
+            </>)}
+            {(moveType === "consumption") && (<>
+              <div>
+                <Label>Field</Label>
+                <Select value={moveForm.fieldId || "__none__"} onValueChange={v => {
+                  const f = fieldOptions.find(x => String(x.id) === v);
+                  setMoveForm(fm => ({ ...fm, fieldId: v === "__none__" ? "" : v, fieldName: f ? f.name : fm.fieldName }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {fieldOptions.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{f.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Operator</Label>
+                <Input value={moveForm.operatorName || ""} onChange={e => setMoveForm(f => ({ ...f, operatorName: e.target.value }))} placeholder="Name of driller" />
+              </div>
+              <div>
+                <Label>Seed Rate (kg/ha)</Label>
+                <Input type="number" step="0.1" value={moveForm.seedRateKgHa || ""} onChange={e => setMoveForm(f => ({ ...f, seedRateKgHa: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Area Drilled (ha)</Label>
+                <Input type="number" step="0.01" value={moveForm.areaDrilledHa || ""} onChange={e => setMoveForm(f => ({ ...f, areaDrilledHa: e.target.value }))} />
+              </div>
+            </>)}
+            {(moveType === "adjustment" || moveType === "waste") && (
+              <div className="col-span-2">
+                <Label>Reason *</Label>
+                <Input value={moveForm.reason || ""} onChange={e => setMoveForm(f => ({ ...f, reason: e.target.value }))} placeholder={moveType === "waste" ? "e.g. Condemned — contamination" : "e.g. Stocktake correction"} />
+              </div>
+            )}
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={moveForm.notes || ""} onChange={e => setMoveForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
+            <Button disabled={!moveForm.quantityKg || !moveStockId || moveSaveMut.isPending} onClick={() => {
+              moveSaveMut.mutate({
+                stockId: moveStockId,
+                movementType: moveType,
+                movementDate: moveForm.movementDate || today,
+                quantityKg: moveForm.quantityKg,
+                poReference: moveForm.poReference || null,
+                grnReference: moveForm.grnReference || null,
+                supplierName: moveForm.supplierName || null,
+                invoiceReference: moveForm.invoiceReference || null,
+                unitCostPoundPerTonne: moveForm.unitCostPoundPerTonne || null,
+                fieldId: moveForm.fieldId ? Number(moveForm.fieldId) : null,
+                fieldName: moveForm.fieldName || null,
+                seedRateKgHa: moveForm.seedRateKgHa || null,
+                areaDrilledHa: moveForm.areaDrilledHa || null,
+                operatorName: moveForm.operatorName || null,
+                reason: moveForm.reason || null,
+                notes: moveForm.notes || null,
+              });
+            }}>Save Movement</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Form: Seed Sourcing */}
       <Dialog open={seedOpen} onOpenChange={v => !v && setSeedOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1736,6 +2128,14 @@ export default function OrganicArablePage() {
             <div>
               <Label>Batch / Lot Number</Label>
               <Input value={seedForm.batchLotNumber || ""} onChange={e => setSeedForm(f => ({ ...f, batchLotNumber: e.target.value }))} placeholder="e.g. BL-2024-001" />
+            </div>
+            <div>
+              <Label>PO Reference</Label>
+              <Input value={seedForm.poReference || ""} onChange={e => setSeedForm(f => ({ ...f, poReference: e.target.value }))} placeholder="e.g. PO-2024-007" />
+            </div>
+            <div>
+              <Label>GRN Reference</Label>
+              <Input value={seedForm.grnReference || ""} onChange={e => setSeedForm(f => ({ ...f, grnReference: e.target.value }))} placeholder="e.g. GRN-2024-042" />
             </div>
             <div className="col-span-2">
               <Label>Supplier</Label>
@@ -2156,6 +2556,10 @@ export default function OrganicArablePage() {
         onConfirm={() => convMut.del.mutate(convDeleting!, { onSuccess: () => setConvDeleting(null) })} />
       <DeleteConfirmDialog open={seedDeleting !== null} onClose={() => setSeedDeleting(null)} saving={seedMut.del.isPending}
         onConfirm={() => seedMut.del.mutate(seedDeleting!, { onSuccess: () => setSeedDeleting(null) })} />
+      <DeleteConfirmDialog open={stockDeleting !== null} onClose={() => setStockDeleting(null)} saving={stockMut.del.isPending}
+        onConfirm={() => stockMut.del.mutate(stockDeleting!, { onSuccess: () => setStockDeleting(null) })} />
+      <DeleteConfirmDialog open={moveDeleting !== null} onClose={() => setMoveDeleting(null)} saving={moveDelMut.isPending}
+        onConfirm={() => moveDelMut.mutate(moveDeleting!)} />
       <DeleteConfirmDialog open={inputDeleting !== null} onClose={() => setInputDeleting(null)} saving={inputMut.del.isPending}
         onConfirm={() => inputMut.del.mutate(inputDeleting!, { onSuccess: () => setInputDeleting(null) })} />
       <DeleteConfirmDialog open={harvestDeleting !== null} onClose={() => setHarvestDeleting(null)} saving={harvestMut.del.isPending}

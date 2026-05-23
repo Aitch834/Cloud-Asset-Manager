@@ -546,9 +546,59 @@ export const organicArableSeedRecordsTable = pgTable("organic_arable_seed_record
   derogationExpiryDate: date("derogation_expiry_date"),
   certifierApproval: text("certifier_approval"),
   batchLotNumber: text("batch_lot_number"),
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ─── Organic Arable Seed Stock Ledger ─────────────────────────────────────────
+// Each row is a stock line (crop + variety + batch/lot). Movements (goods_in,
+// consumption, adjustment, waste) debit/credit this line and the current
+// balance is maintained on the stock row for quick display.
+
+export const organicArableSeedStockTable = pgTable("organic_arable_seed_stock", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  cropName: text("crop_name").notNull(),
+  variety: text("variety"),
+  batchLotNumber: text("batch_lot_number"),
+  seedType: text("seed_type").notNull().default("organic"),       // organic | treated | untreated | derogation
+  supplierName: text("supplier_name"),
+  currentStockKg: numeric("current_stock_kg", { precision: 10, scale: 2 }).notNull().default("0"),
+  reorderThresholdKg: numeric("reorder_threshold_kg", { precision: 10, scale: 2 }),
+  storageLocation: text("storage_location"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicArableSeedMovementsTable = pgTable("organic_arable_seed_movements", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stockId: integer("stock_id").notNull().references(() => organicArableSeedStockTable.id, { onDelete: "cascade" }),
+  seedRecordId: integer("seed_record_id").references(() => organicArableSeedRecordsTable.id), // optional link to sourcing declaration
+  movementType: text("movement_type").notNull(),  // goods_in | consumption | adjustment | waste
+  movementDate: date("movement_date").notNull(),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }).notNull(),
+  // goods_in fields
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
+  supplierName: text("supplier_name"),
+  invoiceReference: text("invoice_reference"),
+  unitCostPoundPerTonne: numeric("unit_cost_pound_per_tonne", { precision: 10, scale: 2 }),
+  // consumption fields
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  fieldName: text("field_name"),
+  seedRateKgHa: numeric("seed_rate_kg_ha", { precision: 8, scale: 2 }),
+  areaDrilledHa: numeric("area_drilled_ha", { precision: 10, scale: 4 }),
+  operatorName: text("operator_name"),
+  // shared
+  reference: text("reference"),          // free reference for adjustments / waste
+  reason: text("reason"),                // reason for adjustment or waste
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const organicArableInputRecordsTable = pgTable("organic_arable_input_records", {

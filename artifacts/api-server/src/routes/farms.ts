@@ -196,6 +196,8 @@ import {
   organicArableCertificationTable,
   organicArableFieldConversionTable,
   organicArableSeedRecordsTable,
+  organicArableSeedStockTable,
+  organicArableSeedMovementsTable,
   organicArableInputRecordsTable,
   organicArableHarvestDeclarationsTable,
   carbonAuditsTable,
@@ -25956,6 +25958,86 @@ router.delete("/farms/:farmId/organic-arable/harvest-declarations/:id", requireA
   const farmId = parseInt(req.params.farmId as string);
   const id = parseInt(req.params.id as string);
   await db.delete(organicArableHarvestDeclarationsTable).where(and(eq(organicArableHarvestDeclarationsTable.id, id), eq(organicArableHarvestDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Arable Seed Stock ────────────────────────────────────────────────
+
+router.get("/farms/:farmId/organic-arable/seed-stock", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(organicArableSeedStockTable).where(eq(organicArableSeedStockTable.farmId, farmId)).orderBy(organicArableSeedStockTable.cropName);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-arable/seed-stock", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = req.body;
+  const [record] = await (db.insert(organicArableSeedStockTable) as any).values({ farmId, ...body }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/organic-arable/seed-stock/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = req.body;
+  const [record] = await db.update(organicArableSeedStockTable).set({ ...body, updatedAt: new Date() }).where(and(eq(organicArableSeedStockTable.id, id), eq(organicArableSeedStockTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-arable/seed-stock/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  await db.delete(organicArableSeedStockTable).where(and(eq(organicArableSeedStockTable.id, id), eq(organicArableSeedStockTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Arable Seed Movements ───────────────────────────────────────────
+
+router.get("/farms/:farmId/organic-arable/seed-movements", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const stockId = req.query.stockId ? Number(req.query.stockId) : null;
+  const baseWhere = eq(organicArableSeedMovementsTable.farmId, farmId);
+  const records = await db.select().from(organicArableSeedMovementsTable)
+    .where(stockId ? and(baseWhere, eq(organicArableSeedMovementsTable.stockId, stockId)) : baseWhere)
+    .orderBy(desc(organicArableSeedMovementsTable.movementDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-arable/seed-movements", requireAuth, requireTenant, requireModuleByKey("organic-arable", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = req.body;
+  const stockId = Number(body.stockId);
+  const qty = parseFloat(body.quantityKg) || 0;
+  const movementType: string = body.movementType;
+
+  // Update stock balance
+  const [stock] = await db.select().from(organicArableSeedStockTable).where(and(eq(organicArableSeedStockTable.id, stockId), eq(organicArableSeedStockTable.farmId, farmId)));
+  if (!stock) { res.status(404).json({ error: "Stock line not found" }); return; }
+  const current = parseFloat(String(stock.currentStockKg)) || 0;
+  const delta = (movementType === "goods_in" || movementType === "adjustment") ? qty : -qty;
+  const newBalance = Math.max(0, current + delta);
+  await db.update(organicArableSeedStockTable).set({ currentStockKg: String(newBalance), updatedAt: new Date() }).where(eq(organicArableSeedStockTable.id, stockId));
+
+  const [record] = await (db.insert(organicArableSeedMovementsTable) as any).values({ farmId, ...body }).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-arable/seed-movements/:id", requireAuth, requireTenant, requireModuleByKey("organic-arable", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  // Reverse the balance before deleting
+  const [movement] = await db.select().from(organicArableSeedMovementsTable).where(and(eq(organicArableSeedMovementsTable.id, id), eq(organicArableSeedMovementsTable.farmId, farmId)));
+  if (movement) {
+    const [stock] = await db.select().from(organicArableSeedStockTable).where(and(eq(organicArableSeedStockTable.id, movement.stockId), eq(organicArableSeedStockTable.farmId, farmId)));
+    if (stock) {
+      const current = parseFloat(String(stock.currentStockKg)) || 0;
+      const qty = parseFloat(String(movement.quantityKg)) || 0;
+      const delta = (movement.movementType === "goods_in" || movement.movementType === "adjustment") ? -qty : qty;
+      const newBalance = Math.max(0, current + delta);
+      await db.update(organicArableSeedStockTable).set({ currentStockKg: String(newBalance), updatedAt: new Date() }).where(eq(organicArableSeedStockTable.id, movement.stockId));
+    }
+  }
+  await db.delete(organicArableSeedMovementsTable).where(and(eq(organicArableSeedMovementsTable.id, id), eq(organicArableSeedMovementsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
