@@ -84,7 +84,7 @@ const coreNav: NavItem[] = [
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Labour", href: "/labour", icon: Clock, moduleKeys: ["staff-training"] },
   { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
-  { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce", "organic-compliance", "organic-fresh-produce", "biofuel-rtfo"] },
+  { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce", "organic-compliance", "organic-fresh-produce", "organic-arable", "biofuel-rtfo"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce"] },
   { name: "Field Operations", href: "/field-operations", icon: Shovel, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce"] },
   { name: "Field Inspections", href: "/field-inspections", icon: ClipboardCheck, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce"] },
