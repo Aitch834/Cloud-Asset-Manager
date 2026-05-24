@@ -66,8 +66,7 @@ function ProductBarTooltip({ active, payload }: any) {
   );
 }
 
-function SprayAnalyticsTab({ applications, products, fields }: { applications: any[]; products: any[]; fields: any[] }) {
-  const [cropYear, setCropYear] = useState<number>(currentCropYear());
+function SprayAnalyticsTab({ applications, products, fields, cropYear, setCropYear }: { applications: any[]; products: any[]; fields: any[]; cropYear: number; setCropYear: (y: number) => void }) {
 
   const fieldMap = new Map(fields.map((f: any) => [f.id, f.name]));
   const productMap = new Map(products.map((p: any) => [p.id, p]));
@@ -285,6 +284,7 @@ export default function SprayPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap">("applications");
 
+  const [cropYear, setCropYear] = useState<number>(currentCropYear());
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -295,14 +295,22 @@ export default function SprayPage() {
   const currentFarm = farmQ.data?.record ?? null;
   const initialFieldSearch = new URLSearchParams(window.location.search).get("field") ?? "";
 
+  const yearApplications = applications.filter((a: any) =>
+    a.applicationDate && isInCropYear(a.applicationDate, cropYear)
+  );
+
   return (
     <AppLayout title="Spray Records">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <p className="text-sm text-gray-500 mb-4">Field spray application records, product register, and printable assessor log — required for Red Tractor Crop Inputs compliance.</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+          <CropYearSelector value={cropYear} onChange={setCropYear} />
+          <span className="text-xs text-gray-400">{cropYearLabel(cropYear)}</span>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
-          <StatCard icon={<Droplets size={18} color="#0369a1" />} label="Applications" value={applications.length} bg="#f0f9ff" iconBg="#e0f2fe" />
+          <StatCard icon={<Droplets size={18} color="#0369a1" />} label="Applications" value={yearApplications.length} bg="#f0f9ff" iconBg="#e0f2fe" />
           <StatCard icon={<FlaskConical size={18} color="#7c3aed" />} label="Products Registered" value={products.length} bg="#f5f3ff" iconBg="#ede9fe" />
-          <StatCard icon={<Droplets size={18} color="#166534" />} label="Fields Treated" value={new Set(applications.map((a: any) => a.fieldId)).size} bg="#f0fdf4" iconBg="#dcfce7" />
+          <StatCard icon={<Droplets size={18} color="#166534" />} label="Fields Treated" value={new Set(yearApplications.map((a: any) => a.fieldId)).size} bg="#f0fdf4" iconBg="#dcfce7" />
         </div>
         <TabBar className="mb-5">
           <TabButton active={tab === "applications"} onClick={() => setTab("applications")}>Applications Log</TabButton>
@@ -313,11 +321,11 @@ export default function SprayPage() {
           <TabButton active={tab === "ipm"} onClick={() => setTab("ipm")}>IPM Plan</TabButton>
           <TabButton active={tab === "lerap"} onClick={() => setTab("lerap")}>LERAP</TabButton>
         </TabBar>
-        {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} />}
+        {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
-        {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}
-        {tab === "analytics" && <SprayAnalyticsTab applications={applications} products={products} fields={fields} />}
+        {tab === "print" && <PrintTab applications={applications} farm={currentFarm} cropYear={cropYear} setCropYear={setCropYear} />}
+        {tab === "analytics" && <SprayAnalyticsTab applications={applications} products={products} fields={fields} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "ipm" && <IpmPlanTab farmId={farmId!} />}
         {tab === "lerap" && <LerapTab farmId={farmId!} products={products} fields={fields} />}
       </div>
@@ -334,7 +342,7 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
   );
 }
 
-function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast, initialSearch }: any) {
+function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast, initialSearch, cropYear, setCropYear }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const activeMembers: any[] = (membersData?.members ?? []).filter((m: any) => m.isActive);
 
@@ -362,7 +370,6 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const bbchStages = useLookupStrings("spray_bbch_stages");
 
   const [search, setSearch] = useState<string>(initialSearch ?? "");
-  const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -1529,8 +1536,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   );
 }
 
-function PrintTab({ applications, farm }: any) {
-  const [cropYear, setCropYear] = useState(currentCropYear());
+function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
   const [reportType, setReportType] = useState<"summary" | "detail">("summary");
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const previewRef = useRef<HTMLDivElement>(null);
