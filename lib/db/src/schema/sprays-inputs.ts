@@ -18,6 +18,8 @@ export const sprayProductsTable = pgTable("spray_products", {
   storageRequirements: text("storage_requirements"),
   coshhRecordId: integer("coshh_record_id").references(() => coshhRecordsTable.id),
   stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  lerapCategory: text("lerap_category"),                                             // null = none, "A" = fixed buffer, "B" = reducible via LERAP
+  lerapStandardBufferM: numeric("lerap_standard_buffer_m", { precision: 6, scale: 1 }), // buffer distance printed on product label
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

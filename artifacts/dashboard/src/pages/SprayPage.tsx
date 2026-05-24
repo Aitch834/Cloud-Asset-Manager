@@ -791,6 +791,34 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 </div>
               );
             })()}
+            {(() => {
+              const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
+              if (!selectedProduct?.lerapCategory) return null;
+              const isCatA = selectedProduct.lerapCategory === "A";
+              return (
+                <div style={{ background: isCatA ? "#fef2f2" : "#fffbeb", border: `1px solid ${isCatA ? "#fecaca" : "#fcd34d"}`, borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.78rem", color: isCatA ? "#991b1b" : "#92400e", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      LERAP — Category {selectedProduct.lerapCategory}
+                    </span>
+                    {selectedProduct.lerapStandardBufferM != null && (
+                      <span style={{ marginLeft: "auto", background: isCatA ? "#fee2e2" : "#fef3c7", color: isCatA ? "#991b1b" : "#92400e", fontSize: "0.7rem", fontWeight: 700, borderRadius: 4, padding: "1px 7px" }}>
+                        {selectedProduct.lerapStandardBufferM}m standard buffer
+                      </span>
+                    )}
+                  </div>
+                  {isCatA ? (
+                    <p style={{ fontSize: "0.77rem", color: "#7f1d1d", margin: 0 }}>
+                      This product carries a <strong>Category A LERAP label</strong>. The buffer zone printed on the label is <strong>fixed</strong> and cannot be reduced. Maintain the full buffer from any watercourse, ditch or drain.
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: "0.77rem", color: "#78350f", margin: 0 }}>
+                      This product carries a <strong>Category B LERAP label</strong>. If spraying near surface water, a LERAP assessment must be completed before application — record it in the <strong>LERAP tab</strong>. A valid assessment may allow a reduced buffer.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             {deliveryStockItemId && (
               <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem" }}>
                 <Label style={{ marginBottom: 6, display: "block", color: "#166534", fontWeight: 600, fontSize: "0.8rem" }}>Batch / Lot Traceability</Label>
@@ -1119,7 +1147,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
-  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__" };
+  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "" };
   const [form, setForm] = useState<any>(emptyForm);
 
   function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
@@ -1135,17 +1163,26 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       maxApplicationsPerSeason: p.maxApplicationsPerSeason ?? "",
       storageRequirements: p.storageRequirements ?? "",
       coshhRecordId: p.coshhRecordId ? String(p.coshhRecordId) : "__none__",
+      lerapCategory: p.lerapCategory ?? "__none__",
+      lerapStandardBufferM: p.lerapStandardBufferM != null ? String(p.lerapStandardBufferM) : "",
     });
     setDialogOpen(true);
   }
   const [mappaError, setMappaError] = useState<string | null>(null);
   function closeDialog() { setDialogOpen(false); setEditRecord(null); setForm(emptyForm); setMappaError(null); }
   function formBody() {
-    const { coshhRecordId, mappaNumber, ...rest } = form;
+    const { coshhRecordId, mappaNumber, lerapCategory, lerapStandardBufferM, ...rest } = form;
     const paddedMappa = mappaNumber && /^\d{1,5}$/.test(mappaNumber)
       ? mappaNumber.padStart(5, "0")
       : mappaNumber;
-    return { ...rest, mappaNumber: paddedMappa || null, coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null };
+    const lerap = lerapCategory && lerapCategory !== "__none__" ? lerapCategory : null;
+    return {
+      ...rest,
+      mappaNumber: paddedMappa || null,
+      coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null,
+      lerapCategory: lerap,
+      lerapStandardBufferM: lerap && lerapStandardBufferM ? lerapStandardBufferM : null,
+    };
   }
   function hseMappUrl(mapp: string) {
     return `https://secure.pesticides.gov.uk/pestreg/prodresults.asp?reg=MAPP${mapp.padStart(5, "0")}`;
@@ -1197,7 +1234,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "Manufacturer", "Harvest Interval", "Max Apps/Season", ""].map((h, i) => (
+                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "LERAP", "Manufacturer", "Harvest Interval", "Max Apps/Season", ""].map((h, i) => (
                   <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1209,6 +1246,13 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                   <td style={{ padding: "0.625rem 0.75rem", color: "#374151" }}>{p.activeIngredient || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>{p.mappaNumber ? <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem", fontFamily: "monospace" }}>{p.mappaNumber}</Badge> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>{p.category ? <CategoryBadge cat={p.category} /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                  <td style={{ padding: "0.625rem 0.75rem" }}>
+                    {p.lerapCategory === "A" ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fee2e2", color: "#991b1b", fontSize: "0.7rem", fontWeight: 700, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>Cat A{p.lerapStandardBufferM ? ` · ${p.lerapStandardBufferM}m` : ""}</span>
+                    ) : p.lerapCategory === "B" ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fef3c7", color: "#92400e", fontSize: "0.7rem", fontWeight: 700, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>Cat B{p.lerapStandardBufferM ? ` · ${p.lerapStandardBufferM}m` : ""}</span>
+                    ) : <span style={{ color: "#d1d5db" }}>—</span>}
+                  </td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.manufacturer || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.harvestInterval ? `${p.harvestInterval} days` : "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.maxApplicationsPerSeason || "—"}</td>
@@ -1271,6 +1315,25 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                   <p className="text-gray-700">{viewRecord.maxApplicationsPerSeason || <span className="text-gray-400">—</span>}</p>
                 </div>
               </div>
+              {viewRecord.lerapCategory && (
+                <div style={{ background: viewRecord.lerapCategory === "A" ? "#fef2f2" : "#fffbeb", border: `1px solid ${viewRecord.lerapCategory === "A" ? "#fecaca" : "#fcd34d"}`, borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.05em", color: viewRecord.lerapCategory === "A" ? "#991b1b" : "#92400e" }}>
+                      LERAP — Category {viewRecord.lerapCategory}
+                    </span>
+                    {viewRecord.lerapStandardBufferM != null && (
+                      <span style={{ marginLeft: "auto", background: viewRecord.lerapCategory === "A" ? "#fee2e2" : "#fef3c7", color: viewRecord.lerapCategory === "A" ? "#991b1b" : "#92400e", fontSize: "0.72rem", fontWeight: 700, borderRadius: 4, padding: "1px 7px" }}>
+                        {viewRecord.lerapStandardBufferM}m standard buffer
+                      </span>
+                    )}
+                  </div>
+                  {viewRecord.lerapCategory === "A" ? (
+                    <p style={{ fontSize: "0.78rem", color: "#7f1d1d", margin: 0 }}>Category A — buffer zone printed on label is <strong>fixed</strong>. A LERAP assessment cannot reduce it. Always maintain the full buffer when spraying near water.</p>
+                  ) : (
+                    <p style={{ fontSize: "0.78rem", color: "#78350f", margin: 0 }}>Category B — a LERAP assessment <strong>may</strong> allow a reduced buffer zone. Record the assessment in the LERAP tab before spraying near surface water.</p>
+                  )}
+                </div>
+              )}
               {viewRecord.storageRequirements && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem" }}>
                   <p className="text-xs font-medium text-green-700 uppercase tracking-wide mb-1">Storage Requirements</p>
@@ -1383,6 +1446,40 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
             <div>
               <Label>Storage Requirements</Label>
               <Textarea placeholder="e.g. Store in original container, locked chemical store, above 5°C" value={form.storageRequirements} onChange={e => setForm((f: any) => ({ ...f, storageRequirements: e.target.value }))} rows={2} />
+            </div>
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
+              <Label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.3rem" }}>LERAP Label</Label>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: "0 0 0.4rem" }}>
+                Does this product carry a LERAP label? Sets the category shown in the product list and triggers a reminder in the Applications Log when spraying near water.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={form.lerapCategory || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, lerapCategory: v, lerapStandardBufferM: v === "__none__" ? "" : f.lerapStandardBufferM }))}>
+                  <SelectTrigger><SelectValue placeholder="No LERAP label" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No LERAP label</SelectItem>
+                    <SelectItem value="A">Category A — fixed buffer</SelectItem>
+                    <SelectItem value="B">Category B — reducible via LERAP</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.lerapCategory && form.lerapCategory !== "__none__" && (
+                  <div>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      placeholder="Standard buffer (m)"
+                      value={form.lerapStandardBufferM}
+                      onChange={e => setForm((f: any) => ({ ...f, lerapStandardBufferM: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+              {form.lerapCategory === "A" && (
+                <p style={{ fontSize: "0.72rem", color: "#991b1b", marginTop: 4 }}>Cat A: the buffer on the label is fixed — a LERAP cannot reduce it.</p>
+              )}
+              {form.lerapCategory === "B" && (
+                <p style={{ fontSize: "0.72rem", color: "#92400e", marginTop: 4 }}>Cat B: a LERAP assessment may allow a reduced buffer near surface water.</p>
+              )}
             </div>
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
               <Label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
