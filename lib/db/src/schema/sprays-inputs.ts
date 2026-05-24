@@ -101,16 +101,27 @@ export const ipmPlansTable = pgTable("ipm_plans", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   planYear: integer("plan_year").notNull(),
+  cropName: text("crop_name"),
+  status: text("status").default("active"),               // draft | active | under_review | archived
+  validFrom: date("valid_from"),
+  validTo: date("valid_to"),
   reviewDate: date("review_date"),
+  agronomistName: text("agronomist_name"),
+  agronomistId: integer("agronomist_id"),
+  basisNumber: text("basis_number"),
+  pestMonitoringFrequency: text("pest_monitoring_frequency").default("weekly"),
+  overallStrategy: text("overall_strategy"),
+  rotationAndCulturalControls: text("rotation_and_cultural_controls"),
+  biologicalControls: text("biological_controls"),
   preparedBy: text("prepared_by"),
   approvedBy: text("approved_by"),
   approvedDate: date("approved_date"),
   cropRotationNotes: text("crop_rotation_notes"),
-  monitoringFrequency: text("monitoring_frequency"),        // "weekly" | "fortnightly" | "as_needed" | other
-  monitoringMethods: text("monitoring_methods"),            // free text — traps, visual scouting, pheromone lures etc
-  nonChemicalMethods: text("non_chemical_methods"),        // biological, cultural, physical controls
+  monitoringFrequency: text("monitoring_frequency"),
+  monitoringMethods: text("monitoring_methods"),
+  nonChemicalMethods: text("non_chemical_methods"),
   resistanceManagementNotes: text("resistance_management_notes"),
-  economicThresholds: text("economic_thresholds"),         // general notes on thresholds used
+  economicThresholds: text("economic_thresholds"),
   sprayDecisionRationale: text("spray_decision_rationale"),
   notes: text("notes"),
   documentPath: text("document_path"),
@@ -126,8 +137,28 @@ export const ipmThresholdEntriesTable = pgTable("ipm_threshold_entries", {
   pestOrDisease: text("pest_or_disease").notNull(),
   targetCrop: text("target_crop"),
   monitoringMethod: text("monitoring_method"),
-  actionThreshold: text("action_threshold"),              // e.g. "3 aphids per tiller"
+  monitoringFrequency: text("monitoring_frequency"),
+  actionThreshold: text("action_threshold"),
+  chemicalThreshold: text("chemical_threshold"),
   nonChemicalOption: text("non_chemical_option"),
+  resistanceManagementGroup: text("resistance_management_group"),
+  actionTaken: text("action_taken").default("none"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ipmMonitoringLogsTable = pgTable("ipm_monitoring_logs", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => ipmPlansTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  logDate: date("log_date").notNull(),
+  pestOrWeed: text("pest_or_weed").notNull(),
+  observation: text("observation"),
+  severity: text("severity"),
+  thresholdBreached: boolean("threshold_breached").default(false),
+  actionTaken: text("action_taken"),
+  inspector: text("inspector"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -136,6 +167,8 @@ export type IpmPlan = typeof ipmPlansTable.$inferSelect;
 export type NewIpmPlan = typeof ipmPlansTable.$inferInsert;
 export type IpmThresholdEntry = typeof ipmThresholdEntriesTable.$inferSelect;
 export type NewIpmThresholdEntry = typeof ipmThresholdEntriesTable.$inferInsert;
+export type IpmMonitoringLog = typeof ipmMonitoringLogsTable.$inferSelect;
+export type NewIpmMonitoringLog = typeof ipmMonitoringLogsTable.$inferInsert;
 
 // ─── LERAP Assessments ────────────────────────────────────────────────────────
 export const lerapAssessmentsTable = pgTable("lerap_assessments", {

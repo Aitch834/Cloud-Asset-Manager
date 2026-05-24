@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -1990,29 +1990,92 @@ const THRESHOLD_PESTS = [
   "Slugs", "Stem canker (sclerotinia)", "Take-all", "Tan spot", "Yellow rust",
 ];
 
+const MONITORING_METHODS = [
+  { value: "field_walk", label: "Field Walk" },
+  { value: "suction_trap", label: "Suction Trap" },
+  { value: "pheromone_trap", label: "Pheromone Trap" },
+  { value: "sticky_yellow_trap", label: "Sticky Yellow Trap" },
+  { value: "weather_model", label: "Weather Model" },
+  { value: "lab_test", label: "Lab Test" },
+  { value: "other", label: "Other" },
+];
+
+const SEVERITY_OPTIONS = ["Low", "Medium", "High", "Critical"];
+
+function ipmStatusBadge(status: string) {
+  const cls: Record<string, string> = {
+    active: "bg-green-100 text-green-700",
+    draft: "bg-amber-100 text-amber-700",
+    under_review: "bg-blue-100 text-blue-700",
+    archived: "bg-gray-100 text-gray-500",
+  };
+  const label = IPM_STATUSES.find(s => s.value === status)?.label ?? status;
+  return <span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium ${cls[status] ?? "bg-gray-100 text-gray-600"}`}>{label}</span>;
+}
+
 function IpmPlanTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [planOpen, setPlanOpen] = useState(false);
   const [threshOpen, setThreshOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [editingThresh, setEditingThresh] = useState<any>(null);
+  const [editingLog, setEditingLog] = useState<any>(null);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [planForm, setPlanForm] = useState<any>({});
   const [threshForm, setThreshForm] = useState<any>({});
+  const [logForm, setLogForm] = useState<any>({});
+  const [detailTab, setDetailTab] = useState<"thresholds" | "monitoring">("thresholds");
   const setP = (k: string, v: any) => setPlanForm((f: any) => ({ ...f, [k]: v }));
   const setT = (k: string, v: any) => setThreshForm((f: any) => ({ ...f, [k]: v }));
+  const setL = (k: string, v: any) => setLogForm((f: any) => ({ ...f, [k]: v }));
 
-  const { data: plans = [], isLoading } = useQuery({
+  const thisYear = currentCropYear();
+  const planYearOptions = [thisYear - 1, thisYear, thisYear + 1, thisYear + 2];
+
+  const { data: plansRaw = [], isLoading } = useQuery({
     queryKey: ["ipm-plans", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans`).then(r => r.json()).then(d => d.records ?? []),
+    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans`).then(r => r.json()).then(d => d.plans ?? d.records ?? []),
     enabled: !!farmId,
   });
+  const plans: any[] = plansRaw;
 
   const { data: thresholds = [] } = useQuery({
     queryKey: ["ipm-thresholds", farmId, selectedPlan?.id],
     queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId && !!selectedPlan,
+  });
+
+  const { data: monitoringLogs = [] } = useQuery({
+    queryKey: ["ipm-monitoring-logs", farmId, selectedPlan?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/monitoring-logs`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && !!selectedPlan,
+  });
+
+  const { data: agronomists = [] } = useQuery({
+    queryKey: ["suppliers-agronomist", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => (d.records ?? []).filter((s: any) => s.supplierType === "agronomist" && s.isActive !== false)),
+    enabled: !!farmId,
+  });
+
+  const { data: farmFields = [] } = useQuery({
+    queryKey: ["fields-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()).then(d => d.fields ?? d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const fmtDate = (d: string | null) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-GB") : "—";
+
+  // Upcoming alerts: plans expiring or review overdue
+  const now = new Date();
+  const soon = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const alertPlans = plans.filter((p: any) => {
+    if (p.status === "archived") return false;
+    const expired = p.validTo && new Date(p.validTo) < now;
+    const reviewDue = p.reviewDate && new Date(p.reviewDate) <= soon;
+    return expired || reviewDue;
   });
 
   async function savePlan() {
@@ -2025,7 +2088,7 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
   }
 
   async function deletePlan(id: number) {
-    if (!confirm("Delete this IPM Plan? All threshold entries will also be deleted.")) return;
+    if (!confirm("Delete this IPM Plan? All threshold entries and monitoring logs will also be deleted.")) return;
     await fetch(`/api/farms/${farmId}/ipm-plans/${id}`, { method: "DELETE" });
     qc.invalidateQueries({ queryKey: ["ipm-plans", farmId] });
     if (selectedPlan?.id === id) setSelectedPlan(null);
@@ -2033,27 +2096,79 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
   }
 
   async function saveThreshold() {
-    const url = editingThresh ? `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds/${editingThresh.id}` : `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds`;
-    await fetch(url, { method: editingThresh ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...threshForm, ipmPlanId: selectedPlan.id }) });
+    const url = editingThresh
+      ? `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds/${editingThresh.id}`
+      : `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds`;
+    const res = await fetch(url, { method: editingThresh ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(threshForm) });
+    if (!res.ok) { toast({ title: "Error saving threshold", variant: "destructive" }); return; }
     qc.invalidateQueries({ queryKey: ["ipm-thresholds", farmId, selectedPlan?.id] });
     setThreshOpen(false);
+    toast({ title: editingThresh ? "Threshold updated" : "Threshold added" });
   }
 
   async function deleteThreshold(id: number) {
     await fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/thresholds/${id}`, { method: "DELETE" });
     qc.invalidateQueries({ queryKey: ["ipm-thresholds", farmId, selectedPlan?.id] });
+    toast({ title: "Threshold removed" });
   }
 
-  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  async function saveLog() {
+    const url = editingLog
+      ? `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/monitoring-logs/${editingLog.id}`
+      : `/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/monitoring-logs`;
+    const res = await fetch(url, { method: editingLog ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logForm) });
+    if (!res.ok) { toast({ title: "Error saving log entry", variant: "destructive" }); return; }
+    qc.invalidateQueries({ queryKey: ["ipm-monitoring-logs", farmId, selectedPlan?.id] });
+    setLogOpen(false);
+    toast({ title: editingLog ? "Log entry updated" : "Monitoring entry recorded" });
+  }
+
+  async function deleteLog(id: number) {
+    await fetch(`/api/farms/${farmId}/ipm-plans/${selectedPlan.id}/monitoring-logs/${id}`, { method: "DELETE" });
+    qc.invalidateQueries({ queryKey: ["ipm-monitoring-logs", farmId, selectedPlan?.id] });
+  }
+
+  function openNewPlan() {
+    setEditingPlan(null);
+    setPlanForm({ planYear: thisYear, status: "active", pestMonitoringFrequency: "weekly" });
+    setPlanOpen(true);
+  }
+
+  const thresholdPestNames: string[] = (thresholds as any[]).map((t: any) => t.pestOrDisease).filter(Boolean);
+
+  const detailTabBtn = (tab: "thresholds" | "monitoring", label: string, count: number) => (
+    <button
+      onClick={() => setDetailTab(tab)}
+      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${detailTab === tab ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+    >
+      {label} {count > 0 && <span className={`ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-xs ${detailTab === tab ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}>{count}</span>}
+    </button>
+  );
 
   return (
     <div>
+      {/* Alerts */}
+      {alertPlans.length > 0 && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-amber-800">
+            <span className="font-semibold">Action required:</span>{" "}
+            {alertPlans.map((p: any, i: number) => {
+              const expired = p.validTo && new Date(p.validTo) < now;
+              const label = `${cropYearLabel(p.planYear)}${p.cropName ? ` ${p.cropName}` : ""}`;
+              return <span key={p.id}>{i > 0 ? ", " : ""}<strong>{label}</strong> — {expired ? "plan has expired" : "review due"}</span>;
+            })}
+            . Visit the Week Ahead Planner once review date / validity reminders are wired in.
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900">Integrated Pest Management (IPM) Plan</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a written IPM plan covering monitoring, thresholds, and non-chemical control. Create a plan per crop year and add pest/weed thresholds below.</p>
+          <h3 className="font-semibold text-gray-900">Integrated Pest Management (IPM) Plans</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a written IPM plan per crop per year, covering monitoring, economic thresholds, and non-chemical controls. Select a plan to log monitoring observations.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditingPlan(null); setPlanForm({ status: "active", pestMonitoringFrequency: "weekly" }); setPlanOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" />New IPM Plan</Button>
+        <Button size="sm" onClick={openNewPlan}><Plus className="w-3.5 h-3.5 mr-1" />New IPM Plan</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -2061,24 +2176,39 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
         <div className="lg:col-span-1 border rounded-lg overflow-hidden">
           <div className="bg-gray-50 px-3 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wide">Plans</div>
           {isLoading ? <div className="p-4 text-sm text-gray-400">Loading…</div> : plans.length === 0 ? (
-            <div className="p-6 text-center text-sm text-gray-400">No IPM plans yet</div>
+            <div className="p-6 text-center text-sm text-gray-400">No IPM plans yet. Create your first plan above.</div>
           ) : (
             <div className="divide-y">
-              {plans.map((p: any) => (
-                <button key={p.id} className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors ${selectedPlan?.id === p.id ? "bg-green-50 border-l-2 border-green-600" : ""}`} onClick={() => setSelectedPlan(p)}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{p.planYear ?? "—"} IPM Plan</span>
-                    <span className={`inline-flex px-1.5 py-0.5 rounded text-xs ${p.status === "active" ? "bg-green-100 text-green-700" : p.status === "draft" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>{IPM_STATUSES.find(s => s.value === p.status)?.label ?? p.status}</span>
-                  </div>
-                  {p.agronomistName && <div className="text-xs text-gray-500 mt-0.5">Agronomist: {p.agronomistName}</div>}
-                  <div className="text-xs text-gray-400 mt-0.5">Valid: {fmtDate(p.validFrom)} – {fmtDate(p.validTo)}</div>
-                  <div className="flex gap-1 mt-1" onClick={e => e.stopPropagation()}>
-                    <button className="text-xs text-blue-600 hover:underline" onClick={() => { setEditingPlan(p); setPlanForm({ ...p }); setPlanOpen(true); }}>Edit</button>
-                    <span className="text-gray-300">|</span>
-                    <button className="text-xs text-red-600 hover:underline" onClick={() => deletePlan(p.id)}>Delete</button>
-                  </div>
-                </button>
-              ))}
+              {plans.map((p: any) => {
+                const expired = p.validTo && new Date(p.validTo) < now;
+                const reviewDue = p.reviewDate && new Date(p.reviewDate) <= soon;
+                return (
+                  <button key={p.id} className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors ${selectedPlan?.id === p.id ? "bg-green-50 border-l-2 border-green-600" : ""}`} onClick={() => { setSelectedPlan(p); setDetailTab("thresholds"); }}>
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm leading-tight">{cropYearLabel(p.planYear)}{p.cropName ? ` — ${p.cropName}` : ""}</div>
+                        {p.agronomistName && <div className="text-xs text-gray-500 mt-0.5">{p.agronomistName}{p.basisNumber ? ` · BASIS ${p.basisNumber}` : ""}</div>}
+                      </div>
+                      <div className="flex-shrink-0">{ipmStatusBadge(p.status ?? "active")}</div>
+                    </div>
+                    {(p.validFrom || p.validTo) && (
+                      <div className={`text-xs mt-0.5 ${expired ? "text-red-600 font-medium" : "text-gray-400"}`}>
+                        Valid: {fmtDate(p.validFrom)} – {fmtDate(p.validTo)}{expired ? " ⚠ Expired" : ""}
+                      </div>
+                    )}
+                    {p.reviewDate && (
+                      <div className={`text-xs mt-0.5 ${reviewDue ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                        Review: {fmtDate(p.reviewDate)}{reviewDue ? " ⚠ Due" : ""}
+                      </div>
+                    )}
+                    <div className="flex gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
+                      <button className="text-xs text-blue-600 hover:underline" onClick={() => { setEditingPlan(p); setPlanForm({ ...p }); setPlanOpen(true); }}>Edit</button>
+                      <span className="text-gray-300">|</span>
+                      <button className="text-xs text-red-600 hover:underline" onClick={() => deletePlan(p.id)}>Delete</button>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -2087,123 +2217,325 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
         <div className="lg:col-span-2">
           {!selectedPlan ? (
             <div className="border-2 border-dashed rounded-lg p-8 text-center text-sm text-gray-400">
-              Select a plan to view its pest monitoring thresholds and control measures
+              Select a plan to view thresholds and log monitoring observations
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-3 py-2 border-b flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{selectedPlan.planYear} — Thresholds &amp; Control Measures</span>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditingThresh(null); setThreshForm({ monitoringMethod: "field_walk", actionTaken: "none" }); setThreshOpen(true); }}><Plus className="w-3 h-3 mr-1" />Add Pest/Weed</Button>
-              </div>
-              {thresholds.length === 0 ? (
-                <div className="p-6 text-center text-sm text-gray-400">No threshold entries yet. Add pests, weeds, or diseases to monitor.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-xs text-gray-500 bg-gray-50"><tr>{["Pest / Weed / Disease","Monitoring Method","Economic Threshold","Non-Chemical Control","Chemical Threshold","Resistance Group",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr></thead>
-                    <tbody className="divide-y">
-                      {thresholds.map((t: any) => (
-                        <tr key={t.id} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-medium">{t.pestOrWeedName}</td>
-                          <td className="px-3 py-2 text-xs">{t.monitoringMethod?.replace(/_/g, " ") ?? "—"}</td>
-                          <td className="px-3 py-2 text-xs">{t.economicThreshold ?? "—"}</td>
-                          <td className="px-3 py-2 text-xs max-w-[120px] truncate" title={t.nonChemicalControl}>{t.nonChemicalControl ?? "—"}</td>
-                          <td className="px-3 py-2 text-xs">{t.chemicalThreshold ?? "—"}</td>
-                          <td className="px-3 py-2 text-xs">{t.resistanceManagementGroup ?? "—"}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingThresh(t); setThreshForm({ ...t }); setThreshOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                              <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteThreshold(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* Plan metadata header */}
+              <div className="bg-gray-50 px-4 py-3 border-b">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <span className="font-semibold text-gray-900 text-sm">{cropYearLabel(selectedPlan.planYear)}{selectedPlan.cropName ? ` — ${selectedPlan.cropName}` : ""}</span>
+                    {ipmStatusBadge(selectedPlan.status ?? "active")}
+                  </div>
+                  <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg">
+                    {detailTabBtn("thresholds", "Thresholds & Actions", (thresholds as any[]).length)}
+                    {detailTabBtn("monitoring", "Monitoring Log", (monitoringLogs as any[]).length)}
+                  </div>
                 </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  {selectedPlan.agronomistName && <span>Agronomist: <strong className="text-gray-700">{selectedPlan.agronomistName}</strong></span>}
+                  {selectedPlan.basisNumber && <span>BASIS: <strong className="text-gray-700 font-mono">{selectedPlan.basisNumber}</strong></span>}
+                  {selectedPlan.pestMonitoringFrequency && <span>Monitoring: <strong className="text-gray-700">{selectedPlan.pestMonitoringFrequency.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</strong></span>}
+                  {selectedPlan.validTo && <span className={new Date(selectedPlan.validTo) < now ? "text-red-600 font-medium" : ""}>Valid to: {fmtDate(selectedPlan.validTo)}</span>}
+                  {selectedPlan.reviewDate && <span className={new Date(selectedPlan.reviewDate) <= soon ? "text-amber-600 font-medium" : ""}>Review: {fmtDate(selectedPlan.reviewDate)}</span>}
+                </div>
+              </div>
+
+              {/* Thresholds tab */}
+              {detailTab === "thresholds" && (
+                <>
+                  <div className="px-3 py-2 border-b flex items-center justify-between bg-white">
+                    <span className="text-xs text-gray-500">{(thresholds as any[]).length} pest / weed / disease entr{(thresholds as any[]).length === 1 ? "y" : "ies"}</span>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditingThresh(null); setThreshForm({ monitoringMethod: "field_walk", actionTaken: "none" }); setThreshOpen(true); }}>
+                      <Plus className="w-3 h-3 mr-1" />Add Pest / Weed
+                    </Button>
+                  </div>
+                  {(thresholds as any[]).length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-400">No threshold entries yet. Add the pests, weeds, or diseases you monitor for this crop.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-xs text-gray-500 bg-gray-50">
+                          <tr>{["Pest / Weed / Disease", "Method / Frequency", "Decision Threshold", "Chemical Threshold", "Non-Chemical Control", "Resistance Group", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(thresholds as any[]).map((t: any) => (
+                            <tr key={t.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-xs">{t.pestOrDisease}</td>
+                              <td className="px-3 py-2 text-xs text-gray-500">
+                                {MONITORING_METHODS.find(m => m.value === t.monitoringMethod)?.label ?? t.monitoringMethod ?? "—"}
+                                {t.monitoringFrequency && <div className="text-gray-400">{t.monitoringFrequency}</div>}
+                              </td>
+                              <td className="px-3 py-2 text-xs">{t.actionThreshold ?? "—"}</td>
+                              <td className="px-3 py-2 text-xs">{t.chemicalThreshold ?? "—"}</td>
+                              <td className="px-3 py-2 text-xs max-w-[140px] truncate" title={t.nonChemicalOption}>{t.nonChemicalOption ?? "—"}</td>
+                              <td className="px-3 py-2 text-xs">{t.resistanceManagementGroup ?? "—"}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingThresh(t); setThreshForm({ ...t }); setThreshOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteThreshold(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {(selectedPlan.overallStrategy || selectedPlan.rotationAndCulturalControls || selectedPlan.biologicalControls) && (
+                    <div className="border-t grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x bg-gray-50">
+                      {selectedPlan.overallStrategy && <div className="px-3 py-3"><p className="text-xs font-medium text-gray-500 mb-1">Overall Strategy</p><p className="text-xs text-gray-700">{selectedPlan.overallStrategy}</p></div>}
+                      {selectedPlan.rotationAndCulturalControls && <div className="px-3 py-3"><p className="text-xs font-medium text-gray-500 mb-1">Rotation / Cultural Controls</p><p className="text-xs text-gray-700">{selectedPlan.rotationAndCulturalControls}</p></div>}
+                      {selectedPlan.biologicalControls && <div className="px-3 py-3"><p className="text-xs font-medium text-gray-500 mb-1">Biological Controls</p><p className="text-xs text-gray-700">{selectedPlan.biologicalControls}</p></div>}
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Plan detail overview */}
-              {selectedPlan.overallStrategy && (
-                <div className="px-3 py-3 border-t bg-gray-50">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Overall IPM Strategy</p>
-                  <p className="text-sm text-gray-700">{selectedPlan.overallStrategy}</p>
-                </div>
+              {/* Monitoring log tab */}
+              {detailTab === "monitoring" && (
+                <>
+                  <div className="px-3 py-2 border-b flex items-center justify-between bg-white">
+                    <span className="text-xs text-gray-500">{(monitoringLogs as any[]).length} monitoring entr{(monitoringLogs as any[]).length === 1 ? "y" : "ies"} · Frequency: <strong>{selectedPlan.pestMonitoringFrequency?.replace(/_/g, " ") ?? "not set"}</strong></span>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditingLog(null); setLogForm({ logDate: today, thresholdBreached: false }); setLogOpen(true); }}>
+                      <Plus className="w-3 h-3 mr-1" />Log Observation
+                    </Button>
+                  </div>
+                  {(monitoringLogs as any[]).length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-400">No monitoring observations logged yet. Record field observations to track pest and disease pressure over the season.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-xs text-gray-500 bg-gray-50">
+                          <tr>{["Date", "Pest / Weed", "Severity", "Threshold?", "Observation / Count", "Action Taken", "Inspector", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(monitoringLogs as any[]).map((l: any) => (
+                            <tr key={l.id} className={`hover:bg-gray-50 ${l.thresholdBreached ? "bg-red-50" : ""}`}>
+                              <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDate(l.logDate)}</td>
+                              <td className="px-3 py-2 text-xs font-medium">{l.pestOrWeed}</td>
+                              <td className="px-3 py-2 text-xs">
+                                {l.severity ? <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${l.severity === "Critical" ? "bg-red-100 text-red-700" : l.severity === "High" ? "bg-orange-100 text-orange-700" : l.severity === "Medium" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{l.severity}</span> : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-xs">{l.thresholdBreached ? <span className="text-red-600 font-medium">⚠ Yes</span> : <span className="text-gray-400">No</span>}</td>
+                              <td className="px-3 py-2 text-xs max-w-[140px] truncate" title={l.observation}>{l.observation ?? "—"}</td>
+                              <td className="px-3 py-2 text-xs max-w-[100px] truncate" title={l.actionTaken}>{l.actionTaken ?? "—"}</td>
+                              <td className="px-3 py-2 text-xs">{l.inspector ?? "—"}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingLog(l); setLogForm({ ...l }); setLogOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteLog(l.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Plan dialog */}
+      {/* ── Plan dialog ───────────────────────────────────────────────────── */}
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingPlan ? "Edit" : "New"} IPM Plan</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Crop Year *</Label><Input placeholder="e.g. 2024/25" value={planForm.planYear || ""} onChange={e => setP("planYear", e.target.value)} /></div>
-            <div><Label>Status</Label>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+
+            {/* Crop Year */}
+            <div>
+              <Label>Crop Year *</Label>
+              <Select value={String(planForm.planYear ?? thisYear)} onValueChange={v => setP("planYear", Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{planYearOptions.map(y => <SelectItem key={y} value={String(y)}>{cropYearLabel(y)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label>Status</Label>
               <Select value={planForm.status || "active"} onValueChange={v => setP("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{IPM_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+
+            {/* Crop Name */}
+            <div className="col-span-2">
+              <Label>Crop *</Label>
+              <Input value={planForm.cropName || ""} onChange={e => setP("cropName", e.target.value)} placeholder="e.g. Winter Wheat, OSR, Spring Barley…" />
+              <p className="text-xs text-gray-400 mt-1">IPM plans are per-crop — create a separate plan for each crop grown in this year.</p>
+            </div>
+
+            {/* Valid From / To */}
             <div><Label>Valid From</Label><Input type="date" value={planForm.validFrom || ""} onChange={e => setP("validFrom", e.target.value)} /></div>
             <div><Label>Valid To</Label><Input type="date" value={planForm.validTo || ""} onChange={e => setP("validTo", e.target.value)} /></div>
-            <div><Label>Agronomist Name</Label><Input value={planForm.agronomistName || ""} onChange={e => setP("agronomistName", e.target.value)} /></div>
-            <div><Label>BASIS Number</Label><Input value={planForm.basisNumber || ""} onChange={e => setP("basisNumber", e.target.value)} /></div>
-            <div><Label>Pest Monitoring Frequency</Label>
+
+            {/* Pest Monitoring Frequency */}
+            <div>
+              <Label>Pest Monitoring Frequency</Label>
               <Select value={planForm.pestMonitoringFrequency || "weekly"} onValueChange={v => setP("pestMonitoringFrequency", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["daily","twice_weekly","weekly","fortnightly","monthly","as_needed"].map(f => <SelectItem key={f} value={f}>{f.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+                <SelectContent>{["daily", "twice_weekly", "weekly", "fortnightly", "monthly", "as_needed"].map(f => <SelectItem key={f} value={f}>{f.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+
+            {/* Review Date */}
             <div><Label>Review Date</Label><Input type="date" value={planForm.reviewDate || ""} onChange={e => setP("reviewDate", e.target.value)} /></div>
+
+            {/* Agronomist */}
+            <div className="col-span-2 border-t pt-3">
+              <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Agronomist</p>
+              <div className="grid grid-cols-2 gap-3">
+                {(agronomists as any[]).length > 0 ? (
+                  <div>
+                    <Label>Select Agronomist</Label>
+                    <Select
+                      value={planForm.agronomistId ? String(planForm.agronomistId) : "__manual__"}
+                      onValueChange={v => {
+                        if (v === "__manual__") {
+                          setP("agronomistId", null);
+                        } else {
+                          const found = (agronomists as any[]).find((a: any) => String(a.id) === v);
+                          if (found) {
+                            setP("agronomistId", found.id);
+                            setP("agronomistName", found.name);
+                            if (found.basisNumber) setP("basisNumber", found.basisNumber);
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select agronomist…" /></SelectTrigger>
+                      <SelectContent>
+                        {(agronomists as any[]).map((a: any) => <SelectItem key={a.id} value={String(a.id)}>{a.name}{a.basisNumber ? ` (${a.basisNumber})` : ""}</SelectItem>)}
+                        <SelectItem value="__manual__">— Enter manually</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Agronomist Name</Label>
+                    <p className="text-xs text-gray-400 mb-1">Add suppliers with type "Agronomist" to enable lookup and auto-fill.</p>
+                  </div>
+                )}
+                <div>
+                  <Label>Agronomist Name</Label>
+                  <Input value={planForm.agronomistName || ""} onChange={e => { setP("agronomistName", e.target.value); setP("agronomistId", null); }} placeholder="Name" />
+                </div>
+                <div>
+                  <Label>BASIS Registration No.</Label>
+                  <Input value={planForm.basisNumber || ""} onChange={e => setP("basisNumber", e.target.value)} placeholder="e.g. 12345/6789" className="font-mono" />
+                </div>
+              </div>
+            </div>
+
+            {/* IPM Strategy text fields */}
+            <div className="col-span-2 border-t pt-3">
+              <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Plan Content</p>
+            </div>
             <div className="col-span-2"><Label>Overall IPM Strategy</Label><Textarea rows={3} value={planForm.overallStrategy || ""} onChange={e => setP("overallStrategy", e.target.value)} placeholder="Describe your overall approach to integrated pest management…" /></div>
-            <div className="col-span-2"><Label>Rotation / Cultural Controls</Label><Textarea rows={2} value={planForm.rotationAndCulturalControls || ""} onChange={e => setP("rotationAndCulturalControls", e.target.value)} placeholder="Crop rotation, variety selection, seed rates, drilling dates…" /></div>
-            <div className="col-span-2"><Label>Biological Controls Used</Label><Textarea rows={2} value={planForm.biologicalControls || ""} onChange={e => setP("biologicalControls", e.target.value)} placeholder="Beneficial insects, biocontrol agents, habitat management…" /></div>
+            <div className="col-span-2"><Label>Rotation / Cultural Controls</Label><Textarea rows={2} value={planForm.rotationAndCulturalControls || ""} onChange={e => setP("rotationAndCulturalControls", e.target.value)} placeholder="Crop rotation plan, variety selection rationale, drilling date adjustments, seed rates…" /></div>
+            <div className="col-span-2"><Label>Biological Controls Used</Label><Textarea rows={2} value={planForm.biologicalControls || ""} onChange={e => setP("biologicalControls", e.target.value)} placeholder="Beneficial insect habitat, biocontrol agents, beetle banks, buffer strips…" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={planForm.notes || ""} onChange={e => setP("notes", e.target.value)} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPlanOpen(false)}>Cancel</Button>
-            <Button onClick={savePlan}>{editingPlan ? "Save Changes" : "Create Plan"}</Button>
+            <Button onClick={savePlan} disabled={!planForm.planYear || !planForm.cropName}>{editingPlan ? "Save Changes" : "Create Plan"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Threshold dialog */}
+      {/* ── Threshold dialog ──────────────────────────────────────────────── */}
       <Dialog open={threshOpen} onOpenChange={setThreshOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingThresh ? "Edit" : "Add"} Threshold Entry</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Pest / Weed / Disease *</Label>
-              <Select value={threshForm.pestOrWeedName || "__custom__"} onValueChange={v => { if (v !== "__custom__") setT("pestOrWeedName", v); }}>
+          <DialogHeader><DialogTitle>{editingThresh ? "Edit" : "Add"} Pest / Weed Threshold</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="col-span-2">
+              <Label>Pest / Weed / Disease *</Label>
+              <Select value={threshForm.pestOrDisease || "__custom__"} onValueChange={v => { if (v !== "__custom__") setT("pestOrDisease", v); }}>
                 <SelectTrigger><SelectValue placeholder="Select or type below" /></SelectTrigger>
                 <SelectContent>{THRESHOLD_PESTS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="__custom__">— Other (type below)</SelectItem></SelectContent>
               </Select>
-              <Input className="mt-1" placeholder="Or type pest / weed name" value={threshForm.pestOrWeedName || ""} onChange={e => setT("pestOrWeedName", e.target.value)} />
+              <Input className="mt-1" placeholder="Or type pest / weed name" value={threshForm.pestOrDisease || ""} onChange={e => setT("pestOrDisease", e.target.value)} />
             </div>
-            <div><Label>Monitoring Method</Label>
+            <div>
+              <Label>Monitoring Method</Label>
               <Select value={threshForm.monitoringMethod || "field_walk"} onValueChange={v => setT("monitoringMethod", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["field_walk","suction_trap","pheromone_trap","sticky_yellow_trap","weather_model","lab_test","other"].map(m => <SelectItem key={m} value={m}>{m.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+                <SelectContent>{MONITORING_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label>Monitoring Frequency</Label><Input value={threshForm.monitoringFrequency || ""} onChange={e => setT("monitoringFrequency", e.target.value)} placeholder="e.g. Weekly from GS31" /></div>
-            <div><Label>Economic (Decision) Threshold</Label><Input value={threshForm.economicThreshold || ""} onChange={e => setT("economicThreshold", e.target.value)} placeholder="e.g. 5 aphids/tiller at GS37-45" /></div>
-            <div><Label>Chemical Threshold</Label><Input value={threshForm.chemicalThreshold || ""} onChange={e => setT("chemicalThreshold", e.target.value)} placeholder="e.g. 1 plant/m² black-grass" /></div>
-            <div className="col-span-2"><Label>Non-Chemical Control Measures</Label><Textarea rows={2} value={threshForm.nonChemicalControl || ""} onChange={e => setT("nonChemicalControl", e.target.value)} placeholder="Variety choice, drilling date, delayed drilling, rotation, biocontrol…" /></div>
+            <div><Label>Decision (Economic) Threshold</Label><Input value={threshForm.actionThreshold || ""} onChange={e => setT("actionThreshold", e.target.value)} placeholder="e.g. 5 aphids/tiller at GS37–45" /></div>
+            <div><Label>Chemical Spray Threshold</Label><Input value={threshForm.chemicalThreshold || ""} onChange={e => setT("chemicalThreshold", e.target.value)} placeholder="e.g. 1 plant/m² black-grass" /></div>
+            <div className="col-span-2"><Label>Non-Chemical Control Measures</Label><Textarea rows={2} value={threshForm.nonChemicalOption || ""} onChange={e => setT("nonChemicalOption", e.target.value)} placeholder="Variety choice, delayed drilling, rotation, biocontrol, mechanical weeding…" /></div>
             <div><Label>Resistance Management Group</Label><Input value={threshForm.resistanceManagementGroup || ""} onChange={e => setT("resistanceManagementGroup", e.target.value)} placeholder="e.g. SDHI (Group 7)" /></div>
-            <div><Label>Action Taken</Label>
+            <div>
+              <Label>Current Season Action</Label>
               <Select value={threshForm.actionTaken || "none"} onValueChange={v => setT("actionTaken", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["none","monitoring_only","cultural_control","biological_control","chemical_control","combination"].map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+                <SelectContent>{["none", "monitoring_only", "cultural_control", "biological_control", "chemical_control", "combination"].map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={threshForm.notes || ""} onChange={e => setT("notes", e.target.value)} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setThreshOpen(false)}>Cancel</Button>
-            <Button onClick={saveThreshold}>{editingThresh ? "Save Changes" : "Add Entry"}</Button>
+            <Button onClick={saveThreshold} disabled={!threshForm.pestOrDisease}>{editingThresh ? "Save Changes" : "Add Entry"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Monitoring log dialog ─────────────────────────────────────────── */}
+      <Dialog open={logOpen} onOpenChange={setLogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingLog ? "Edit" : "Log"} Monitoring Observation</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><Label>Date *</Label><Input type="date" value={logForm.logDate || today} onChange={e => setL("logDate", e.target.value)} /></div>
+            <div>
+              <Label>Field</Label>
+              <Select value={logForm.fieldId ? String(logForm.fieldId) : ""} onValueChange={v => setL("fieldId", v || null)}>
+                <SelectTrigger><SelectValue placeholder="All fields / general" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All fields / general</SelectItem>
+                  {(farmFields as any[]).map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Label>Pest / Weed / Disease *</Label>
+              {thresholdPestNames.length > 0 ? (
+                <Select value={logForm.pestOrWeed || "__custom__"} onValueChange={v => { if (v !== "__custom__") setL("pestOrWeed", v); }}>
+                  <SelectTrigger><SelectValue placeholder="Select from plan thresholds" /></SelectTrigger>
+                  <SelectContent>{thresholdPestNames.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}<SelectItem value="__custom__">— Other (type below)</SelectItem></SelectContent>
+                </Select>
+              ) : null}
+              <Input className={thresholdPestNames.length > 0 ? "mt-1" : ""} placeholder="Pest / weed observed" value={logForm.pestOrWeed || ""} onChange={e => setL("pestOrWeed", e.target.value)} />
+            </div>
+            <div><Label>Observation / Count</Label><Input value={logForm.observation || ""} onChange={e => setL("observation", e.target.value)} placeholder="e.g. 3 aphids/tiller, 5% leaf damage" /></div>
+            <div>
+              <Label>Severity</Label>
+              <Select value={logForm.severity || ""} onValueChange={v => setL("severity", v)}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent><SelectItem value="">—</SelectItem>{SEVERITY_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 flex items-center gap-3 py-1">
+              <input type="checkbox" id="threshBreached" checked={!!logForm.thresholdBreached} onChange={e => setL("thresholdBreached", e.target.checked)} className="w-4 h-4 accent-red-600" />
+              <label htmlFor="threshBreached" className="text-sm font-medium text-gray-700 cursor-pointer">Economic threshold breached — action required</label>
+            </div>
+            <div className="col-span-2"><Label>Action Taken</Label><Input value={logForm.actionTaken || ""} onChange={e => setL("actionTaken", e.target.value)} placeholder="e.g. Monitoring only, applied fungicide T1, cultural control…" /></div>
+            <div><Label>Inspector / Scout</Label><Input value={logForm.inspector || ""} onChange={e => setL("inspector", e.target.value)} placeholder="Name" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={logForm.notes || ""} onChange={e => setL("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogOpen(false)}>Cancel</Button>
+            <Button onClick={saveLog} disabled={!logForm.logDate || !logForm.pestOrWeed}>{editingLog ? "Save Changes" : "Save Observation"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -348,6 +348,7 @@ import {
   salmMonitoringTable,
   ipmPlansTable,
   ipmThresholdEntriesTable,
+  ipmMonitoringLogsTable,
   lerapAssessmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
@@ -25719,23 +25720,35 @@ router.post("/farms/:farmId/ipm-plans", requireAuth, requireTenant, requireModul
   const farmId = parseInt(req.params.farmId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.planYear) { res.status(400).json({ error: "planYear is required" }); return; }
+  const str = (v: unknown) => (v != null && v !== "" ? String(v) : null);
   const [plan] = await db.insert(ipmPlansTable).values({
     farmId,
     planYear: Number(b.planYear),
-    reviewDate: b.reviewDate ? String(b.reviewDate) : null,
-    preparedBy: b.preparedBy ? String(b.preparedBy) : null,
-    approvedBy: b.approvedBy ? String(b.approvedBy) : null,
-    approvedDate: b.approvedDate ? String(b.approvedDate) : null,
-    cropRotationNotes: b.cropRotationNotes ? String(b.cropRotationNotes) : null,
-    monitoringFrequency: b.monitoringFrequency ? String(b.monitoringFrequency) : null,
-    monitoringMethods: b.monitoringMethods ? String(b.monitoringMethods) : null,
-    nonChemicalMethods: b.nonChemicalMethods ? String(b.nonChemicalMethods) : null,
-    resistanceManagementNotes: b.resistanceManagementNotes ? String(b.resistanceManagementNotes) : null,
-    economicThresholds: b.economicThresholds ? String(b.economicThresholds) : null,
-    sprayDecisionRationale: b.sprayDecisionRationale ? String(b.sprayDecisionRationale) : null,
-    notes: b.notes ? String(b.notes) : null,
-    documentPath: b.documentPath ? String(b.documentPath) : null,
-    documentName: b.documentName ? String(b.documentName) : null,
+    cropName: str(b.cropName),
+    status: str(b.status) ?? "active",
+    validFrom: str(b.validFrom),
+    validTo: str(b.validTo),
+    reviewDate: str(b.reviewDate),
+    agronomistName: str(b.agronomistName),
+    agronomistId: b.agronomistId ? Number(b.agronomistId) : null,
+    basisNumber: str(b.basisNumber),
+    pestMonitoringFrequency: str(b.pestMonitoringFrequency) ?? "weekly",
+    overallStrategy: str(b.overallStrategy),
+    rotationAndCulturalControls: str(b.rotationAndCulturalControls),
+    biologicalControls: str(b.biologicalControls),
+    preparedBy: str(b.preparedBy),
+    approvedBy: str(b.approvedBy),
+    approvedDate: str(b.approvedDate),
+    cropRotationNotes: str(b.cropRotationNotes),
+    monitoringFrequency: str(b.monitoringFrequency),
+    monitoringMethods: str(b.monitoringMethods),
+    nonChemicalMethods: str(b.nonChemicalMethods),
+    resistanceManagementNotes: str(b.resistanceManagementNotes),
+    economicThresholds: str(b.economicThresholds),
+    sprayDecisionRationale: str(b.sprayDecisionRationale),
+    notes: str(b.notes),
+    documentPath: str(b.documentPath),
+    documentName: str(b.documentName),
   }).returning();
   res.json({ plan });
 });
@@ -25745,7 +25758,7 @@ router.put("/farms/:farmId/ipm-plans/:id", requireAuth, requireTenant, requireMo
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["planYear","reviewDate","preparedBy","approvedBy","approvedDate","cropRotationNotes","monitoringFrequency","monitoringMethods","nonChemicalMethods","resistanceManagementNotes","economicThresholds","sprayDecisionRationale","notes","documentPath","documentName"];
+  const fields = ["planYear","cropName","status","validFrom","validTo","reviewDate","agronomistName","agronomistId","basisNumber","pestMonitoringFrequency","overallStrategy","rotationAndCulturalControls","biologicalControls","preparedBy","approvedBy","approvedDate","cropRotationNotes","monitoringFrequency","monitoringMethods","nonChemicalMethods","resistanceManagementNotes","economicThresholds","sprayDecisionRationale","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [plan] = await db.update(ipmPlansTable).set(updates).where(and(eq(ipmPlansTable.id, id), eq(ipmPlansTable.farmId, farmId))).returning();
   if (!plan) { res.status(404).json({ error: "Not found" }); return; }
@@ -25774,14 +25787,19 @@ router.post("/farms/:farmId/ipm-plans/:planId/thresholds", requireAuth, requireT
   const planId = parseInt(req.params.planId as string);
   const b = req.body as Record<string, unknown>;
   if (!b.pestOrDisease) { res.status(400).json({ error: "pestOrDisease is required" }); return; }
+  const ts = (v: unknown) => (v != null && v !== "" ? String(v) : null);
   const [entry] = await db.insert(ipmThresholdEntriesTable).values({
     planId, farmId,
     pestOrDisease: String(b.pestOrDisease),
-    targetCrop: b.targetCrop ? String(b.targetCrop) : null,
-    monitoringMethod: b.monitoringMethod ? String(b.monitoringMethod) : null,
-    actionThreshold: b.actionThreshold ? String(b.actionThreshold) : null,
-    nonChemicalOption: b.nonChemicalOption ? String(b.nonChemicalOption) : null,
-    notes: b.notes ? String(b.notes) : null,
+    targetCrop: ts(b.targetCrop),
+    monitoringMethod: ts(b.monitoringMethod),
+    monitoringFrequency: ts(b.monitoringFrequency),
+    actionThreshold: ts(b.actionThreshold),
+    chemicalThreshold: ts(b.chemicalThreshold),
+    nonChemicalOption: ts(b.nonChemicalOption),
+    resistanceManagementGroup: ts(b.resistanceManagementGroup),
+    actionTaken: ts(b.actionTaken) ?? "none",
+    notes: ts(b.notes),
   }).returning();
   res.json({ entry });
 });
@@ -25791,7 +25809,7 @@ router.put("/farms/:farmId/ipm-plans/:planId/thresholds/:id", requireAuth, requi
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["pestOrDisease","targetCrop","monitoringMethod","actionThreshold","nonChemicalOption","notes"];
+  const fields = ["pestOrDisease","targetCrop","monitoringMethod","monitoringFrequency","actionThreshold","chemicalThreshold","nonChemicalOption","resistanceManagementGroup","actionTaken","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [entry] = await db.update(ipmThresholdEntriesTable).set(updates).where(and(eq(ipmThresholdEntriesTable.id, id), eq(ipmThresholdEntriesTable.farmId, farmId))).returning();
   if (!entry) { res.status(404).json({ error: "Not found" }); return; }
@@ -25802,6 +25820,55 @@ router.delete("/farms/:farmId/ipm-plans/:planId/thresholds/:id", requireAuth, re
   const farmId = parseInt(req.params.farmId as string);
   const id = parseInt(req.params.id as string);
   await db.delete(ipmThresholdEntriesTable).where(and(eq(ipmThresholdEntriesTable.id, id), eq(ipmThresholdEntriesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── IPM Monitoring Logs ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/ipm-plans/:planId/monitoring-logs", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const planId = parseInt(req.params.planId as string);
+  const records = await db.select().from(ipmMonitoringLogsTable).where(and(eq(ipmMonitoringLogsTable.planId, planId), eq(ipmMonitoringLogsTable.farmId, farmId))).orderBy(desc(ipmMonitoringLogsTable.logDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/ipm-plans/:planId/monitoring-logs", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const planId = parseInt(req.params.planId as string);
+  const b = req.body as Record<string, unknown>;
+  if (!b.logDate || !b.pestOrWeed) { res.status(400).json({ error: "logDate and pestOrWeed are required" }); return; }
+  const ms = (v: unknown) => (v != null && v !== "" ? String(v) : null);
+  const [record] = await db.insert(ipmMonitoringLogsTable).values({
+    planId, farmId,
+    fieldId: b.fieldId ? Number(b.fieldId) : null,
+    logDate: String(b.logDate),
+    pestOrWeed: String(b.pestOrWeed),
+    observation: ms(b.observation),
+    severity: ms(b.severity),
+    thresholdBreached: Boolean(b.thresholdBreached),
+    actionTaken: ms(b.actionTaken),
+    inspector: ms(b.inspector),
+    notes: ms(b.notes),
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/ipm-plans/:planId/monitoring-logs/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const mf = ["logDate","pestOrWeed","observation","severity","thresholdBreached","actionTaken","inspector","notes","fieldId"];
+  for (const f of mf) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
+  if (updates.fieldId) updates.fieldId = Number(updates.fieldId);
+  const [record] = await db.update(ipmMonitoringLogsTable).set(updates).where(and(eq(ipmMonitoringLogsTable.id, id), eq(ipmMonitoringLogsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/ipm-plans/:planId/monitoring-logs/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  await db.delete(ipmMonitoringLogsTable).where(and(eq(ipmMonitoringLogsTable.id, id), eq(ipmMonitoringLogsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

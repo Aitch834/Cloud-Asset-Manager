@@ -1,2 +1,3 @@
 - [Mobile preview routing](mobile-preview-routing.md) — do NOT use router=expo-domain; use configure+proxyReq (not headers) to override Origin for Metro CORS
 - [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten
+- [IPM plan field name mismatches](ipm-field-names.md) — threshold dialog field names corrected; DB columns and API field names for IPM plans documented

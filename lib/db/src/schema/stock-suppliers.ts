@@ -21,6 +21,7 @@ export const suppliersTable = pgTable("suppliers", {
   certificationBody: text("certification_body"),
   certificationExpiry: timestamp("certification_expiry", { withTimezone: true }),
   cph: text("cph"),
+  basisNumber: text("basis_number"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
