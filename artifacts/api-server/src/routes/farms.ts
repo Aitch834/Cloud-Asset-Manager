@@ -12080,7 +12080,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 
 <h3>Recording the IPM Plan</h3>
-<p>Navigate to <strong>Sprays &amp; Inputs → IPM Plan</strong>. The plan is structured into five sections covering the areas above, each with a free-text editor for your farm-specific arrangements. Document control fields record the author, last review date, and next review due date. The plan version is tracked automatically on each save.</p>
+<p>Navigate to <strong>Sprays &amp; Inputs → IPM Plan</strong>. The plan is structured into five sections covering the areas above, each with a free-text editor for your farm-specific arrangements. Document control fields record the author, last review date, and next review due date. The plan version is tracked automatically on each save. The <strong>Crop</strong> field is a dropdown populated from your farm's registered crop records, ensuring the plan is linked to a recognised crop rather than free-text entry.</p>
 <p>Click <strong>Print Plan</strong> to generate a formatted A4 compliance document with your farm name, review date, and version number — suitable for presenting to a Red Tractor assessor or attaching to your Compliance Documents Register.</p>
 
 <h3>Spray Application Rationale</h3>
@@ -12096,30 +12096,51 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Category A and Category B Products</h3>
 <ul>
-<li><strong>Category A</strong> — products that must always maintain the full label buffer zone. No reduction is permitted regardless of conditions.</li>
-<li><strong>Category B</strong> — products where a LERAP can be carried out to justify a reduced buffer zone, subject to the CRD star-rating system and sprayer NSTS status.</li>
+<li><strong>Category A</strong> — products that must always maintain the full label buffer zone. No buffer reduction is permitted regardless of conditions. A LERAP assessment confirms compliance with this requirement.</li>
+<li><strong>Category B</strong> — products where a LERAP can be carried out to evaluate whether the standard label buffer may be reduced, subject to field conditions, watercourse characteristics, and equipment in use.</li>
 </ul>
+
+<h3>CRD Assessment Steps</h3>
+<p>The CRD LERAP scheme defines three assessment levels. When recording an assessment, select the step that describes the approach taken — these are scheme classification levels, not sequential steps to follow in order:</p>
+<ul>
+<li><strong>Step 1</strong> — Notify only: the product registrant has been notified; no buffer reduction is required or sought.</li>
+<li><strong>Step 2</strong> — Standard label buffer maintained: the full label buffer distance is applied with no reduction sought.</li>
+<li><strong>Step 3</strong> — Full LERAP assessment performed: a complete site-specific assessment has been carried out and a buffer reduction may be justified based on the findings.</li>
+</ul>
+
+<h3>Document Reference</h3>
+<p>Every LERAP assessment is automatically assigned a unique document reference in the format <strong>LERAP-{id}</strong> (e.g. LERAP-42) when it is saved. This reference is shown in the assessment register and in the confirmation message after saving. Quote this reference when linking the assessment to a spray record or presenting evidence to an assessor.</p>
 
 <h3>Recording a LERAP Assessment</h3>
 <p>Navigate to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> and click <strong>Add Assessment</strong>. The form captures:</p>
 <ul>
 <li><strong>Assessment Date</strong> — date the risk assessment was carried out (must be before or on the application date)</li>
+<li><strong>CRD Assessment Step</strong> — the applicable CRD scheme level (Step 1, 2, or 3 — see above)</li>
 <li><strong>Field</strong> — field to which the assessment applies, selected from your Field Register</li>
-<li><strong>Product</strong> — the pesticide product being assessed, with its CRD LERAP category (A or B) pre-filled from the product label data</li>
-<li><strong>Watercourse Type</strong> — static water body, flowing water, or dry ditch / drain</li>
-<li><strong>Label Buffer Zone</strong> — the standard buffer distance printed on the product label (m)</li>
-<li><strong>LERAP Star Rating</strong> — one-star, two-star, or three-star product rating from the CRD LERAP scheme (Category B only)</li>
-<li><strong>Sprayer NSTS Status</strong> — whether the sprayer used holds a current NSTS test certificate (required for any buffer reduction)</li>
-<li><strong>Buffer Zone Decision</strong> — the outcome of the assessment: maintain full label buffer, or reduced buffer with distance recorded (m)</li>
-<li><strong>Assessor Name</strong> — person carrying out the assessment (pre-filled from your logged-in user)</li>
-<li><strong>Notes</strong> — any relevant site conditions (e.g. presence of aquatic plants, bankside vegetation, wind direction at time of application)</li>
+<li><strong>Product</strong> — the pesticide product being assessed, selected from your product register; the standard label buffer distance auto-fills from the product record</li>
+<li><strong>Watercourse Description &amp; Type</strong> — description of the specific watercourse (e.g. "River Severn — main channel"), and its type (flowing water, static water body, or dry ditch/drain)</li>
+<li><strong>Standard Buffer (m)</strong> — the label buffer zone distance, auto-filled from the product but editable</li>
+<li><strong>LERAP Buffer Achieved (m)</strong> — the buffer distance applied following the assessment (may equal or be less than the standard buffer for Step 3 assessments)</li>
+<li><strong>Crop Type</strong> — crop present in the field at time of application (auto-fills from the field's crop record if available)</li>
+<li><strong>Soil Type</strong> — soil type in the field (auto-fills from the field record if recorded; relevant to CRD Category B run-off risk calculations)</li>
+<li><strong>Outcome</strong> — full standard buffer maintained, reduced buffer achieved via LERAP, no spray (risk too high), or pending review</li>
+<li><strong>Reduction Justification</strong> — where a buffer reduction is sought, record the equipment type, weather conditions, and field characteristics that support it</li>
+<li><strong>Valid Until</strong> — the date until which this assessment remains valid</li>
+<li><strong>Assessor Name</strong> — must be selected from your farm's Staff register; assessors must hold a current PA1 certificate plus the relevant extension certificate (PA2 for boom sprayers, PA6 for hand-held equipment). The form will block saving if no staff records exist — add staff under Settings → Staff &amp; Training first.</li>
+<li><strong>Notes</strong> — any relevant site conditions (e.g. presence of aquatic plants, bankside vegetation, prevailing wind direction)</li>
 </ul>
 
-<h3>Linking LERAP to Spray Records</h3>
-<p>When adding a spray application record for a field adjacent to a watercourse, a <strong>LERAP Assessment</strong> picker appears. Selecting an existing assessment links it to the spray record — the assessed buffer distance is displayed on the spray record and in the print-ready spray application certificate, providing the complete evidence chain from assessment to application required by Red Tractor and HSE.</p>
+<h3>Pending Review and Email Notifications</h3>
+<p>If the assessment outcome is set to <strong>Pending Review</strong>, a <strong>Pending Review By</strong> field appears where you can assign the assessment to a named farm member for completion. The selected person receives an automatic email notification containing the LERAP document reference and a prompt to log in and complete the review. Only farm members with a registered email address appear in this selector.</p>
+
+<h3>Recording LERAP Assessments on Mobile</h3>
+<p>LERAP assessments can also be recorded directly from the field using the BDE Farm Trac mobile app. Go to the <strong>Record</strong> tab and tap <strong>LERAP Assessment</strong> (visible when the Sprays &amp; Inputs module is active). The mobile form includes all the same fields as the dashboard, with product auto-filling the standard buffer, a staff-only assessor selector, and the CRD Assessment Step picker. The assessment is submitted directly to your farm record and a document reference is shown immediately on save. When you select a Category B product in the Spray Record screen, a tappable banner appears that links directly to the LERAP Assessment screen.</p>
+
+<h3>LERAP Assessment Register</h3>
+<p>All assessments are listed in the LERAP Assessments register (Sprays &amp; Inputs → LERAP Assessments) with columns showing the document reference, date, field, product, CRD Assessment Step, standard and LERAP buffer distances, outcome, valid-until date, and assessor. Click any row to edit the assessment — the document reference is shown as read-only in the edit form as it cannot be changed after creation.</p>
 
 <h3>Red Tractor Context</h3>
-<p>Red Tractor requires completed LERAP assessments to be retained alongside the spray records for the applications they cover — the assessor name, date, assessment decision, and buffer zone applied must all be on file. Assessments should be reviewed annually or whenever the field boundary, watercourse, or product changes. Records must be retained for a minimum of three years.</p>`,
+<p>Red Tractor requires completed LERAP assessments to be retained alongside the spray records for the applications they cover — the assessor name, date, assessment decision, and buffer zone applied must all be on file. The assessor must hold the appropriate PA certificate. Assessments should be reviewed annually or whenever the field boundary, watercourse, or product changes. Records must be retained for a minimum of three years.</p>`,
     },
   ];
 
