@@ -6,13 +6,12 @@ export interface ApiStaffMember {
   email: string | null;
   name: string;
   role: string | null;
-  qualifications: string | null;
 }
 
 const useApiStaffHook = buildCachedApiHook<ApiStaffMember>(
   (farmId) => `bde_cache_farm_staff_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/staff`,
-  (json) => (Array.isArray(json) ? json : []) as ApiStaffMember[],
+  (json) => ((json as any).staff ?? []) as ApiStaffMember[],
 );
 
 export function useApiStaff(farmId: string | undefined) {

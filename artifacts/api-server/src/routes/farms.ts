@@ -4616,6 +4616,7 @@ router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Reque
       id: usersTable.id,
       name: sql<string>`trim(concat(${usersTable.firstName}, ' ', ${usersTable.lastName}))`,
       role: staffFarmAssignmentsTable.farmRole,
+      email: usersTable.email,
     })
     .from(staffFarmAssignmentsTable)
     .innerJoin(usersTable, eq(staffFarmAssignmentsTable.userId, usersTable.id))
@@ -4626,7 +4627,6 @@ router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Reque
       email: farmMembersTable.email,
       name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
       role: farmMembersTable.farmRole,
-      qualifications: farmMembersTable.qualifications,
     })
     .from(farmMembersTable)
     .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.isActive, true)))
@@ -25906,6 +25906,8 @@ router.get("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requi
 
 router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string);
+  const userId = (req as any).userId as string;
+  const tenantId = (req as any).tenantId as number;
   const b = req.body as Record<string, unknown>;
   if (!b.assessmentDate) { res.status(400).json({ error: "assessmentDate is required" }); return; }
   const [record] = await db.insert(lerapAssessmentsTable).values({
@@ -25931,29 +25933,71 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
     pendingReviewBy: b.pendingReviewBy ? String(b.pendingReviewBy) : null,
     pendingReviewByMemberId: b.pendingReviewByMemberId != null ? Number(b.pendingReviewByMemberId) : null,
   }).returning();
-  // Fire-and-forget review notification email
+  // Fire-and-forget review notification + Task Board assignment
   if (b.outcome === "pending" && b.pendingReviewByMemberId) {
     try {
       const reviewerId = Number(b.pendingReviewByMemberId);
       const [reviewer] = await db.select({
         name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
         email: farmMembersTable.email,
+        phone: farmMembersTable.phone,
       }).from(farmMembersTable).where(and(eq(farmMembersTable.id, reviewerId), eq(farmMembersTable.farmId, farmId)));
-      if (reviewer?.email) {
+      if (reviewer) {
         const docRef = `LERAP-${record.id}`;
         const firstName = reviewer.name.split(" ")[0] || reviewer.name;
-        await sendAdminEmail({
-          to: reviewer.email,
-          toName: reviewer.name,
-          subject: `LERAP Assessment Review Required — ${docRef}`,
-          body: `<p>Hi ${firstName},</p>
-            <p>A LERAP assessment (<strong>${docRef}</strong>) has been recorded and is awaiting your review.</p>
-            <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
-            <p>Kind regards,<br>BDE Farm Trac</p>`,
+        // Email notification
+        if (reviewer.email) {
+          await sendAdminEmail({
+            to: reviewer.email,
+            toName: reviewer.name,
+            subject: `LERAP Assessment Review Required — ${docRef}`,
+            body: `<p>Hi ${firstName},</p>
+              <p>A LERAP assessment (<strong>${docRef}</strong>) has been recorded and is awaiting your review.</p>
+              <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
+              <p>Kind regards,<br>BDE Farm Trac</p>`,
+          });
+          console.log(`[LERAP] Review notification sent to ${reviewer.email} for ${docRef}`);
+        }
+        // Task Board assignment
+        await db.insert(farmTaskAssignmentsTable).values({
+          farmId,
+          tenantId: typeof tenantId === "number" ? tenantId : farmId,
+          assignedToMemberId: reviewerId,
+          assignedByUserId: userId || "system",
+          taskType: "lerap_review",
+          taskSourceId: String(record.id),
+          title: `LERAP Review Required — ${docRef}`,
+          description: `A LERAP assessment (${docRef}) dated ${record.assessmentDate} is awaiting your review. Open Sprays & Inputs → LERAP Assessments to complete it.`,
+          module: "Spray",
+          href: "/sprays?tab=lerap-assessments",
+          staffName: reviewer.name,
+          staffPhone: reviewer.phone ?? null,
+          assignmentNote: `Assessment reference ${docRef} — pending review before spray application proceeds.`,
+          status: "pending",
+          smsSent: false,
         });
-        console.log(`[LERAP] Review notification sent to ${reviewer.email} for ${docRef}`);
+        console.log(`[LERAP] Task Board assignment created for ${reviewer.name} — ${docRef}`);
       }
-    } catch (err) { console.warn("[LERAP] Failed to send review notification:", err); }
+    } catch (err) { console.warn("[LERAP] Failed to send review notification / create task:", err); }
+  }
+  // Fire-and-forget email for system-user reviewers (no farmMember record, email passed directly)
+  if (b.outcome === "pending" && !b.pendingReviewByMemberId && b.pendingReviewByEmail) {
+    try {
+      const reviewerEmail = String(b.pendingReviewByEmail);
+      const reviewerName = b.pendingReviewBy ? String(b.pendingReviewBy) : "Reviewer";
+      const firstName = reviewerName.split(" ")[0] || reviewerName;
+      const docRef = `LERAP-${record.id}`;
+      await sendAdminEmail({
+        to: reviewerEmail,
+        toName: reviewerName,
+        subject: `LERAP Assessment Review Required — ${docRef}`,
+        body: `<p>Hi ${firstName},</p>
+          <p>A LERAP assessment (<strong>${docRef}</strong>) has been recorded and is awaiting your review.</p>
+          <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
+          <p>Kind regards,<br>BDE Farm Trac</p>`,
+      });
+      console.log(`[LERAP] Review notification sent to system user ${reviewerEmail} for ${docRef}`);
+    } catch (err) { console.warn("[LERAP] Failed to send system-user review notification:", err); }
   }
   res.json({ record });
 });

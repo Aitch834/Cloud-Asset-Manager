@@ -330,7 +330,7 @@ export default function LerapAssessmentScreen() {
                 <SelectRow
                   options={[
                     { value: "", label: "— Not assigned" },
-                    ...reviewableStaff.map((s) => ({ value: String(s.memberId), label: s.name + (s.qualifications ? ` — ${s.qualifications}` : "") })),
+                    ...reviewableStaff.map((s) => ({ value: String(s.memberId), label: s.name + (s.role ? ` — ${s.role}` : "") })),
                   ]}
                   value={pendingReviewByMemberId ? String(pendingReviewByMemberId) : ""}
                   onChange={(v) => {
@@ -371,7 +371,7 @@ export default function LerapAssessmentScreen() {
               <SelectRow
                 options={[
                   { value: "", label: "— Select assessor" },
-                  ...staff.map((s) => ({ value: s.name, label: s.name + (s.qualifications ? ` — ${s.qualifications}` : "") })),
+                  ...staff.map((s) => ({ value: s.name, label: s.name + (s.role ? ` — ${s.role}` : "") })),
                 ]}
                 value={assessorName}
                 onChange={setAssessorName}

@@ -2778,7 +2778,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                 {soilAutoFilled && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Auto-filled</span>}
               </div>
               <Input value={form.soilType || ""} onChange={e => { set("soilType", e.target.value); setSoilAutoFilled(false); }} placeholder="e.g. Sandy loam, clay" />
-              <p className="text-xs text-gray-400 mt-1">Soil type affects run-off risk in CRD Category B calculations. Auto-fills from the field record if recorded.</p>
+              <p className="text-xs text-gray-400 mt-1">Record the soil type present in the field — this is a site characteristic for the assessment record. The CRD LERAP scheme takes soil type into account when evaluating run-off risk for Category B products; the actual buffer zone calculation is done using CRD tables or the product approval documents. Auto-fills from the field record if recorded there.</p>
             </div>
             <div>
               <Label>Outcome *</Label>
@@ -2788,31 +2788,40 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
               </Select>
             </div>
             {form.outcome === "pending" && (() => {
-              const reviewableStaff = (staffList as any[]).filter((s: any) => s.memberId != null);
-              const selectedId = form.pendingReviewByMemberId ? String(form.pendingReviewByMemberId) : "__none__";
+              const reviewableStaff = (staffList as any[]).filter((s: any) => s.email != null && s.email !== "");
+              const selectedVal = form.pendingReviewByMemberId
+                ? `m:${form.pendingReviewByMemberId}`
+                : form.pendingReviewByEmail
+                  ? `u:${form.pendingReviewBy}`
+                  : "__none__";
               return (
                 <div className="col-span-2">
-                  <Label>Pending Review By *</Label>
+                  <Label>Pending Review By</Label>
                   {reviewableStaff.length > 0 ? (
-                    <Select value={selectedId} onValueChange={v => {
-                      if (v === "__none__") { set("pendingReviewBy", null); set("pendingReviewByMemberId", null); }
-                      else {
-                        const m = reviewableStaff.find((s: any) => String(s.memberId) === v);
-                        if (m) { set("pendingReviewBy", m.name); set("pendingReviewByMemberId", m.memberId); }
+                    <Select value={selectedVal} onValueChange={v => {
+                      if (v === "__none__") {
+                        set("pendingReviewBy", null); set("pendingReviewByMemberId", null); set("pendingReviewByEmail", null);
+                      } else if (v.startsWith("m:")) {
+                        const m = reviewableStaff.find((s: any) => s.memberId && `m:${s.memberId}` === v);
+                        if (m) { set("pendingReviewBy", m.name); set("pendingReviewByMemberId", m.memberId); set("pendingReviewByEmail", null); }
+                      } else if (v.startsWith("u:")) {
+                        const m = reviewableStaff.find((s: any) => !s.memberId && `u:${s.name}` === v);
+                        if (m) { set("pendingReviewBy", m.name); set("pendingReviewByMemberId", null); set("pendingReviewByEmail", m.email); }
                       }
                     }}>
                       <SelectTrigger><SelectValue placeholder="Select reviewer…" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— Select reviewer</SelectItem>
-                        {reviewableStaff.map((s: any) => (
-                          <SelectItem key={s.memberId} value={String(s.memberId)}>{s.name}{s.qualifications ? ` — ${s.qualifications}` : ""}</SelectItem>
-                        ))}
+                        <SelectItem value="__none__">— Not assigned</SelectItem>
+                        {reviewableStaff.map((s: any) => {
+                          const val = s.memberId ? `m:${s.memberId}` : `u:${s.name}`;
+                          return <SelectItem key={val} value={val}>{s.name}{s.role ? ` — ${s.role}` : ""}</SelectItem>;
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">No staff members found. Add staff records to assign a reviewer.</div>
+                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">No staff with an email address found. Staff members and account holders with a registered email will appear here.</div>
                   )}
-                  <p className="text-xs text-gray-400 mt-1">The selected person will receive an email notification with the assessment reference and a link to review it.</p>
+                  <p className="text-xs text-gray-400 mt-1">The selected person will receive an email notification with the assessment reference. If they are a staff member (not just an account holder), a task will also be raised on the Task Board so progress can be tracked.</p>
                 </div>
               );
             })()}
@@ -2826,7 +2835,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                     <SelectItem value="__none__">— Select assessor</SelectItem>
                     {(staffList as any[]).map((s: any) => (
                       <SelectItem key={s.name} value={s.name}>
-                        {s.name}{s.qualifications ? ` — ${s.qualifications}` : ""}
+                        {s.name}{s.role ? ` — ${s.role}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
