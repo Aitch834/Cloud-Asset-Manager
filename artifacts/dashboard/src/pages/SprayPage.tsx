@@ -2065,6 +2065,13 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  const { data: farmCrops = [] } = useQuery({
+    queryKey: ["crops-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crops`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const uniqueCropNames: string[] = Array.from(new Set((farmCrops as any[]).map((c: any) => c.name).filter(Boolean))).sort() as string[];
+
   const today = new Date().toISOString().slice(0, 10);
   const fmtDate = (d: string | null) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-GB") : "—";
 
@@ -2368,8 +2375,15 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
             {/* Crop Name */}
             <div className="col-span-2">
               <Label>Crop *</Label>
-              <Input value={planForm.cropName || ""} onChange={e => setP("cropName", e.target.value)} placeholder="e.g. Winter Wheat, OSR, Spring Barley…" />
-              <p className="text-xs text-gray-400 mt-1">IPM plans are per-crop — create a separate plan for each crop grown in this year.</p>
+              {uniqueCropNames.length > 0 ? (
+                <Select value={planForm.cropName || ""} onValueChange={v => setP("cropName", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                  <SelectContent>{uniqueCropNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+                </Select>
+              ) : (
+                <Input value={planForm.cropName || ""} onChange={e => setP("cropName", e.target.value)} placeholder="e.g. Winter Wheat, OSR, Spring Barley…" />
+              )}
+              <p className="text-xs text-gray-400 mt-1">IPM plans are per-crop — create a separate plan for each crop grown in this year.{uniqueCropNames.length === 0 && " Add crops in Field &amp; Crop Management to enable the lookup."}</p>
             </div>
 
             {/* Valid From / To */}
