@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, helpArticlesTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
+import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
 import {
@@ -4621,6 +4622,8 @@ router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Reque
     .where(eq(staffFarmAssignmentsTable.farmId, farmId)),
     db.select({
       id: farmMembersTable.linkedUserId,
+      memberId: farmMembersTable.id,
+      email: farmMembersTable.email,
       name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
       role: farmMembersTable.farmRole,
       qualifications: farmMembersTable.qualifications,
@@ -25905,7 +25908,32 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
     documentPath: b.documentPath ? String(b.documentPath) : null,
     documentName: b.documentName ? String(b.documentName) : null,
     pendingReviewBy: b.pendingReviewBy ? String(b.pendingReviewBy) : null,
+    pendingReviewByMemberId: b.pendingReviewByMemberId != null ? Number(b.pendingReviewByMemberId) : null,
   }).returning();
+  // Fire-and-forget review notification email
+  if (b.outcome === "pending" && b.pendingReviewByMemberId) {
+    try {
+      const reviewerId = Number(b.pendingReviewByMemberId);
+      const [reviewer] = await db.select({
+        name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
+        email: farmMembersTable.email,
+      }).from(farmMembersTable).where(and(eq(farmMembersTable.id, reviewerId), eq(farmMembersTable.farmId, farmId)));
+      if (reviewer?.email) {
+        const docRef = `LERAP-${record.id}`;
+        const firstName = reviewer.name.split(" ")[0] || reviewer.name;
+        await sendAdminEmail({
+          to: reviewer.email,
+          toName: reviewer.name,
+          subject: `LERAP Assessment Review Required — ${docRef}`,
+          body: `<p>Hi ${firstName},</p>
+            <p>A LERAP assessment (<strong>${docRef}</strong>) has been recorded and is awaiting your review.</p>
+            <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
+            <p>Kind regards,<br>BDE Farm Trac</p>`,
+        });
+        console.log(`[LERAP] Review notification sent to ${reviewer.email} for ${docRef}`);
+      }
+    } catch (err) { console.warn("[LERAP] Failed to send review notification:", err); }
+  }
   res.json({ record });
 });
 
@@ -25914,7 +25942,7 @@ router.put("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","pendingReviewBy","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
+  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","pendingReviewBy","pendingReviewByMemberId","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(lerapAssessmentsTable).set(updates).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }

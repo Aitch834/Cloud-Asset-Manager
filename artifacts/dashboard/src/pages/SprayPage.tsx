@@ -2559,9 +2559,9 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
 
 // ─── LERAP Assessment Tab ──────────────────────────────────────────────────────
 const LERAP_STEPS = [
-  { value: "1", label: "Step 1 — Notify only (no buffer required)" },
-  { value: "2", label: "Step 2 — Standard buffer applies" },
-  { value: "3", label: "Step 3 — LERAP assessment performed" },
+  { value: "1", label: "Step 1 — Notify only (product registrant notified; no buffer reduction required)" },
+  { value: "2", label: "Step 2 — Standard label buffer maintained (no reduction sought)" },
+  { value: "3", label: "Step 3 — Full LERAP assessment performed (buffer reduction possible)" },
 ];
 const LERAP_OUTCOMES = [
   { value: "full_buffer_maintained", label: "Full standard buffer maintained" },
@@ -2638,9 +2638,15 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     const url = editing ? `/api/farms/${farmId}/lerap-assessments/${editing.id}` : `/api/farms/${farmId}/lerap-assessments`;
     const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (!res.ok) { toast({ title: "Error saving assessment", variant: "destructive" }); return; }
+    const data = await res.json();
     qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] });
     setOpen(false);
-    toast({ title: editing ? "Assessment updated" : "LERAP assessment recorded" });
+    if (editing) {
+      toast({ title: "Assessment updated" });
+    } else {
+      const docRef = `LERAP-${data.record?.id ?? ""}`;
+      toast({ title: "LERAP assessment recorded", description: `Document reference: ${docRef}` });
+    }
   }
 
   async function del(id: number) {
@@ -2678,15 +2684,16 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
-              <tr>{["Date","Field","Product","Step","Watercourse","Standard Buffer (m)","LERAP Buffer (m)","Outcome","Valid Until","Assessor",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+              <tr>{["Ref","Date","Field","Product","Assessment Level","Watercourse","Std. Buffer","LERAP Buffer","Outcome","Valid Until","Assessor",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">LERAP-{r.id}</td>
                   <td className="px-3 py-2">{fmtDate(r.assessmentDate)}</td>
                   <td className="px-3 py-2">{getFieldName(r.fieldId)}</td>
                   <td className="px-3 py-2">{getProductName(r.productId)}</td>
-                  <td className="px-3 py-2">Step {r.step ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">Step {r.step ?? "—"}</td>
                   <td className="px-3 py-2 text-xs">{r.watercourseDescription ?? "—"}</td>
                   <td className="px-3 py-2">{r.standardBufferM != null ? `${r.standardBufferM}m` : "—"}</td>
                   <td className="px-3 py-2">{r.lerapBufferM != null ? <span className={r.lerapBufferM < r.standardBufferM ? "text-blue-700 font-medium" : ""}>{r.lerapBufferM}m</span> : "—"}</td>
@@ -2709,13 +2716,22 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} LERAP Assessment</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="flex items-center gap-2 px-1 py-2 bg-gray-50 rounded-md border text-sm">
+              <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Document Reference</span>
+              <span className="font-mono font-semibold text-gray-800">LERAP-{editing.id}</span>
+              <span className="text-xs text-gray-400 ml-1">(read-only)</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate || ""} onChange={e => set("assessmentDate", e.target.value)} /></div>
-            <div><Label>LERAP Step</Label>
+            <div>
+              <Label>CRD Assessment Step</Label>
               <Select value={form.step || "3"} onValueChange={v => set("step", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{LERAP_STEPS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
+              <p className="text-xs text-gray-400 mt-1">Steps 1–3 are the CRD LERAP scheme levels, not sequential actions. Select the one that describes this assessment.</p>
             </div>
             <div><Label>Field</Label>
               <Select value={String(form.fieldId || "__none__")} onValueChange={v => set("fieldId", v === "__none__" ? null : Number(v))}>
@@ -2771,20 +2787,43 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                 <SelectContent>{LERAP_OUTCOMES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            {form.outcome === "pending" && (
-              <div className="col-span-2">
-                <Label>Pending Review By</Label>
-                <Input value={form.pendingReviewBy || ""} onChange={e => set("pendingReviewBy", e.target.value)} placeholder="Name or role of person responsible for completing the review" />
-              </div>
-            )}
+            {form.outcome === "pending" && (() => {
+              const reviewableStaff = (staffList as any[]).filter((s: any) => s.memberId != null);
+              const selectedId = form.pendingReviewByMemberId ? String(form.pendingReviewByMemberId) : "__none__";
+              return (
+                <div className="col-span-2">
+                  <Label>Pending Review By *</Label>
+                  {reviewableStaff.length > 0 ? (
+                    <Select value={selectedId} onValueChange={v => {
+                      if (v === "__none__") { set("pendingReviewBy", null); set("pendingReviewByMemberId", null); }
+                      else {
+                        const m = reviewableStaff.find((s: any) => String(s.memberId) === v);
+                        if (m) { set("pendingReviewBy", m.name); set("pendingReviewByMemberId", m.memberId); }
+                      }
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select reviewer…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Select reviewer</SelectItem>
+                        {reviewableStaff.map((s: any) => (
+                          <SelectItem key={s.memberId} value={String(s.memberId)}>{s.name}{s.qualifications ? ` — ${s.qualifications}` : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">No staff members found. Add staff records to assign a reviewer.</div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">The selected person will receive an email notification with the assessment reference and a link to review it.</p>
+                </div>
+              );
+            })()}
             <div><Label>Valid Until</Label><Input type="date" value={form.validUntil || ""} onChange={e => set("validUntil", e.target.value)} /></div>
-            <div>
-              <Label>Assessor Name</Label>
+            <div className="col-span-2">
+              <Label>Assessor Name *</Label>
               {(staffList as any[]).length > 0 ? (
                 <Select value={form.assessorName || "__none__"} onValueChange={v => set("assessorName", v === "__none__" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Select assessor…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— Not specified</SelectItem>
+                    <SelectItem value="__none__">— Select assessor</SelectItem>
                     {(staffList as any[]).map((s: any) => (
                       <SelectItem key={s.name} value={s.name}>
                         {s.name}{s.qualifications ? ` — ${s.qualifications}` : ""}
@@ -2793,11 +2832,12 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                   </SelectContent>
                 </Select>
               ) : (
-                <Input value={form.assessorName || ""} onChange={e => set("assessorName", e.target.value)} placeholder="Name of LERAP assessor" />
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  <strong>No staff records found.</strong> LERAP assessors must hold PA1 plus the relevant extension certificate (PA2 for boom sprayers, PA6 for hand-held). Add staff members in <a href="/staff" className="underline font-medium">Staff &amp; Training</a> before recording an assessment.
+                </div>
               )}
-              <p className="text-xs text-gray-400 mt-1">Must hold PA1 and relevant extension certificate (PA2, PA6 etc.). Add qualifications to staff records to show them here.</p>
+              {(staffList as any[]).length > 0 && <p className="text-xs text-gray-400 mt-1">Only staff listed here may be selected. LERAP assessors must hold PA1 + relevant certificate (PA2, PA6 etc.). Record qualifications against each staff member to evidence compliance.</p>}
             </div>
-            <div><Label>Document Reference</Label><Input value={form.documentRef || ""} onChange={e => set("documentRef", e.target.value)} placeholder="Your internal file reference for this assessment" /></div>
             <div className="col-span-2"><Label>Reduction Justification</Label><Textarea rows={2} value={form.reductionJustification || ""} onChange={e => set("reductionJustification", e.target.value)} placeholder="Why buffer was reduced — equipment type, weather conditions, field characteristics…" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
