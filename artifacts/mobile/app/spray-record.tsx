@@ -377,19 +377,21 @@ export default function SprayRecordScreen() {
             </View>
           )}
           {lerapCategory === "B" && (
-            <View style={styles.lerapBannerB}>
+            <Pressable style={styles.lerapBannerB} onPress={() => router.push("/lerap-assessment")}>
               <Feather name="alert-triangle" size={15} color={colors.warning} />
               <View style={styles.lerapBannerBody}>
                 <Text style={[styles.lerapBannerTitle, { color: "#92400E" }]}>
                   LERAP Category B{lerapBufferM ? ` — ${lerapBufferM} m standard buffer` : ""}
                 </Text>
                 <Text style={[styles.lerapBannerMsg, { color: "#78350F" }]}>
-                  A LERAP assessment must be completed before applying near surface water. The
-                  {lerapBufferM ? ` ${lerapBufferM} m` : ""} standard buffer may be reduced — record your
-                  assessment in the dashboard under Sprays & Inputs → LERAP Assessments.
+                  A CRD LERAP assessment must be completed before applying near surface water. The
+                  {lerapBufferM ? ` ${lerapBufferM} m` : ""} standard buffer may be reduced.{" "}
+                  <Text style={{ fontFamily: fonts.semiBold, textDecorationLine: "underline" }}>
+                    Tap to record a LERAP assessment →
+                  </Text>
                 </Text>
               </View>
-            </View>
+            </Pressable>
           )}
 
           <View style={styles.row}>

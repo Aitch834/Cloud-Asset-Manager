@@ -85,6 +85,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["sprays-inputs"],
   },
   {
+    id: "lerap-assessment",
+    title: "LERAP Assessment",
+    description: "Record a CRD LERAP assessment for Category B products applied near surface water — generates a LERAP document reference",
+    icon: "shield",
+    color: "#7C3AED",
+    bgColor: "#F5F3FF",
+    route: "/lerap-assessment",
+    moduleKeys: ["sprays-inputs"],
+  },
+  {
     id: "nvz",
     title: "NVZ Fertiliser Application",
     description: "Log organic and synthetic fertiliser applications in Nitrate Vulnerable Zones",
