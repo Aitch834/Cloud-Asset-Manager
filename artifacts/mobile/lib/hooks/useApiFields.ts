@@ -6,6 +6,8 @@ export interface ApiField {
   id: number;
   name: string;
   areaSqMetres?: number;
+  areaHectares?: string | number;
+  computedFarmableAreaHa?: string | number;
   soilType?: string;
   currentUse?: string;
   isActive?: boolean;
