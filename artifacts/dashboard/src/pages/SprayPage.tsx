@@ -2585,11 +2585,15 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
+  const [soilAutoFilled, setSoilAutoFilled] = useState(false);
+  const [bufferAutoFilled, setBufferAutoFilled] = useState(false);
 
   useEffect(() => {
-    if (!form.fieldId || editing) { setCropAutoFilled(false); return; }
+    if (!form.fieldId || editing) { setCropAutoFilled(false); setSoilAutoFilled(false); return; }
     const field = fields.find((f: any) => f.id === Number(form.fieldId));
     if (!field?.name) return;
+    // Auto-fill soil type from field record
+    if (field.soilType) { set("soilType", field.soilType); setSoilAutoFilled(true); } else { setSoilAutoFilled(false); }
     let cancelled = false;
     const today = new Date().toISOString().split("T")[0];
     fetch(`/api/farms/${farmId}/crop-for-field?fieldName=${encodeURIComponent(field.name)}&date=${today}`, { credentials: "include" })
@@ -2604,14 +2608,31 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     return () => { cancelled = true; };
   }, [form.fieldId]);
 
+  useEffect(() => {
+    if (!form.productId || editing) { setBufferAutoFilled(false); return; }
+    const product = products.find((p: any) => p.id === Number(form.productId));
+    if (product?.lerapStandardBufferM != null) {
+      set("standardBufferM", String(product.lerapStandardBufferM));
+      setBufferAutoFilled(true);
+    } else {
+      setBufferAutoFilled(false);
+    }
+  }, [form.productId]);
+
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["lerap-assessments", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/lerap-assessments`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
 
-  function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setCropAutoFilled(false); setOpen(true); }
-  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setCropAutoFilled(false); setOpen(true); }
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/staff`).then(r => r.json()).then(d => d.staff ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setCropAutoFilled(false); setSoilAutoFilled(false); setBufferAutoFilled(false); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setCropAutoFilled(false); setSoilAutoFilled(false); setBufferAutoFilled(false); setOpen(true); }
 
   async function save() {
     const url = editing ? `/api/farms/${farmId}/lerap-assessments/${editing.id}` : `/api/farms/${farmId}/lerap-assessments`;
@@ -2715,7 +2736,14 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                 <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{WATERCOURSE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Standard Buffer (m)</Label><Input type="number" step="0.5" min="0" value={form.standardBufferM ?? ""} onChange={e => set("standardBufferM", e.target.value)} placeholder="From product label" /></div>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label>Standard Buffer (m)</Label>
+                {bufferAutoFilled && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Auto-filled</span>}
+              </div>
+              <Input type="number" step="0.5" min="0" value={form.standardBufferM ?? ""} onChange={e => { set("standardBufferM", e.target.value); setBufferAutoFilled(false); }} placeholder="From product label" />
+              {!bufferAutoFilled && <p className="text-xs text-gray-400 mt-1">Auto-fills from the product's label data when a product is selected.</p>}
+            </div>
             <div><Label>LERAP Buffer Achieved (m)</Label><Input type="number" step="0.5" min="0" value={form.lerapBufferM ?? ""} onChange={e => set("lerapBufferM", e.target.value)} placeholder="After LERAP assessment" /></div>
             <div>
               <div className="flex items-center gap-2 mb-1.5">
@@ -2728,16 +2756,48 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
               </div>
               <Input value={form.cropType || ""} onChange={e => { set("cropType", e.target.value); setCropAutoFilled(false); }} placeholder="e.g. Winter wheat" />
             </div>
-            <div><Label>Soil Type</Label><Input value={form.soilType || ""} onChange={e => set("soilType", e.target.value)} placeholder="e.g. Sandy loam, clay" /></div>
-            <div><Label>Outcome *</Label>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label>Soil Type</Label>
+                {soilAutoFilled && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Auto-filled</span>}
+              </div>
+              <Input value={form.soilType || ""} onChange={e => { set("soilType", e.target.value); setSoilAutoFilled(false); }} placeholder="e.g. Sandy loam, clay" />
+              <p className="text-xs text-gray-400 mt-1">Soil type affects run-off risk in CRD Category B calculations. Auto-fills from the field record if recorded.</p>
+            </div>
+            <div>
+              <Label>Outcome *</Label>
               <Select value={form.outcome || "pending"} onValueChange={v => set("outcome", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{LERAP_OUTCOMES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {form.outcome === "pending" && (
+              <div className="col-span-2">
+                <Label>Pending Review By</Label>
+                <Input value={form.pendingReviewBy || ""} onChange={e => set("pendingReviewBy", e.target.value)} placeholder="Name or role of person responsible for completing the review" />
+              </div>
+            )}
             <div><Label>Valid Until</Label><Input type="date" value={form.validUntil || ""} onChange={e => set("validUntil", e.target.value)} /></div>
-            <div><Label>Assessor Name</Label><Input value={form.assessorName || ""} onChange={e => set("assessorName", e.target.value)} /></div>
-            <div><Label>Document Reference</Label><Input value={form.documentRef || ""} onChange={e => set("documentRef", e.target.value)} placeholder="LERAP record ref / file number" /></div>
+            <div>
+              <Label>Assessor Name</Label>
+              {(staffList as any[]).length > 0 ? (
+                <Select value={form.assessorName || "__none__"} onValueChange={v => set("assessorName", v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select assessor…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not specified</SelectItem>
+                    {(staffList as any[]).map((s: any) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name}{s.qualifications ? ` — ${s.qualifications}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={form.assessorName || ""} onChange={e => set("assessorName", e.target.value)} placeholder="Name of LERAP assessor" />
+              )}
+              <p className="text-xs text-gray-400 mt-1">Must hold PA1 and relevant extension certificate (PA2, PA6 etc.). Add qualifications to staff records to show them here.</p>
+            </div>
+            <div><Label>Document Reference</Label><Input value={form.documentRef || ""} onChange={e => set("documentRef", e.target.value)} placeholder="Your internal file reference for this assessment" /></div>
             <div className="col-span-2"><Label>Reduction Justification</Label><Textarea rows={2} value={form.reductionJustification || ""} onChange={e => set("reductionJustification", e.target.value)} placeholder="Why buffer was reduced — equipment type, weather conditions, field characteristics…" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>

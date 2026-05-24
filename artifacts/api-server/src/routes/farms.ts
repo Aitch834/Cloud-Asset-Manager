@@ -4623,6 +4623,7 @@ router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Reque
       id: farmMembersTable.linkedUserId,
       name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
       role: farmMembersTable.farmRole,
+      qualifications: farmMembersTable.qualifications,
     })
     .from(farmMembersTable)
     .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.isActive, true)))
@@ -25903,6 +25904,7 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
     notes: b.notes ? String(b.notes) : null,
     documentPath: b.documentPath ? String(b.documentPath) : null,
     documentName: b.documentName ? String(b.documentName) : null,
+    pendingReviewBy: b.pendingReviewBy ? String(b.pendingReviewBy) : null,
   }).returning();
   res.json({ record });
 });
@@ -25912,7 +25914,7 @@ router.put("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
+  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","pendingReviewBy","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(lerapAssessmentsTable).set(updates).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }

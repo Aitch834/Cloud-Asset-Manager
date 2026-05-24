@@ -192,6 +192,7 @@ export const lerapAssessmentsTable = pgTable("lerap_assessments", {
   notes: text("notes"),
   documentPath: text("document_path"),
   documentName: text("document_name"),
+  pendingReviewBy: text("pending_review_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
