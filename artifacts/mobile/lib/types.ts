@@ -21,6 +21,10 @@ export interface SprayRecord {
   farmId: string;
   fieldName: string;
   productName: string;
+  productId?: number;
+  lerapCategory?: string;
+  lerapStandardBufferM?: string;
+  areaSprayedHa?: string;
   applicationRate: string;
   applicationUnit: string;
   windSpeed: string;

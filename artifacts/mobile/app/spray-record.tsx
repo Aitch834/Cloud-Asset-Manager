@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -20,13 +20,17 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FieldPicker } from "@/components/ui/FieldPicker";
+import { LookupPicker } from "@/components/ui/LookupPicker";
+import { SprayProductPicker } from "@/components/ui/SprayProductPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiFields, type ApiField } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
+import { useApiSprayProducts, type ApiSprayProduct } from "@/lib/hooks/useApiSprayProducts";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
@@ -57,6 +61,8 @@ export default function SprayRecordScreen() {
   const { print, savePdf } = usePrint();
   const { fields: apiFields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
+  const { products, loading: productsLoading } = useApiSprayProducts(currentFarm?.id);
+  const bbchStages = useMobileLookup("spray_bbch_stages", []);
   const [saving, setSaving] = useState(false);
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
@@ -64,7 +70,12 @@ export default function SprayRecordScreen() {
   const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
 
   const [fieldName, setFieldName] = useState("");
-  const [productName, setProductName] = useState("");
+  const [areaSprayedHa, setAreaSprayedHa] = useState("");
+  const [areaAutoFilled, setAreaAutoFilled] = useState(false);
+
+  const [selectedProduct, setSelectedProduct] = useState<ApiSprayProduct | null>(null);
+  const [manualProductName, setManualProductName] = useState("");
+
   const [applicationRate, setApplicationRate] = useState("");
   const [applicationUnit, setApplicationUnit] = useState("L/ha");
   const [windSpeed, setWindSpeed] = useState("");
@@ -81,6 +92,45 @@ export default function SprayRecordScreen() {
   const [detectedField, setDetectedField] = useState<FieldBoundary | null>(null);
   const [linkedWeather, setLinkedWeather] = useState<WeatherEntry | null>(null);
   const [fields, setFields] = useState<FieldBoundary[]>([]);
+
+  const productName = selectedProduct ? selectedProduct.productName : manualProductName;
+
+  const lerapCategory = selectedProduct?.lerapCategory ?? null;
+  const lerapBufferM = selectedProduct?.lerapStandardBufferM ?? null;
+
+  const bbchOptions = useMemo(
+    () => bbchStages.map((s) => ({ id: s, label: s })),
+    [bbchStages],
+  );
+
+  const estimatedQty = useMemo(() => {
+    const rate = parseFloat(applicationRate);
+    const area = parseFloat(areaSprayedHa);
+    if (!isNaN(rate) && rate > 0 && !isNaN(area) && area > 0) {
+      return (rate * area).toFixed(2);
+    }
+    return null;
+  }, [applicationRate, areaSprayedHa]);
+
+  const handleFieldChange = useCallback((name: string) => {
+    setFieldName(name);
+    if (!name) { setAreaAutoFilled(false); }
+  }, []);
+
+  const handleFieldSelect = useCallback((field: ApiField) => {
+    const ha =
+      field.computedFarmableAreaHa != null
+        ? String(field.computedFarmableAreaHa)
+        : field.areaHectares != null
+          ? String(field.areaHectares)
+          : null;
+    if (ha && parseFloat(ha) > 0) {
+      setAreaSprayedHa(parseFloat(ha).toFixed(2));
+      setAreaAutoFilled(true);
+    } else {
+      setAreaAutoFilled(false);
+    }
+  }, []);
 
   const detectFieldFromGPS = useCallback(async () => {
     try {
@@ -150,7 +200,7 @@ export default function SprayRecordScreen() {
 
   const handleSave = async () => {
     if (!fieldName.trim() || !productName.trim() || !targetCrop.trim()) {
-      Alert.alert("Required Fields", "Please select a field, enter the target crop being sprayed, and enter the product name.");
+      Alert.alert("Required Fields", "Please select a field, select the product, and enter the target crop.");
       return;
     }
 
@@ -178,6 +228,10 @@ export default function SprayRecordScreen() {
       targetCrop: targetCrop.trim(),
       growthStage: growthStage.trim(),
       productName: productName.trim(),
+      productId: selectedProduct?.id,
+      lerapCategory: lerapCategory ?? undefined,
+      lerapStandardBufferM: lerapBufferM ?? undefined,
+      areaSprayedHa: areaSprayedHa.trim() || undefined,
       applicationRate: applicationRate.trim(),
       applicationUnit,
       windSpeed: windSpeed.trim(),
@@ -245,6 +299,7 @@ export default function SprayRecordScreen() {
             </View>
           )}
 
+          {/* ── Location ── */}
           <View style={styles.sectionLabel}>
             <Feather name="map-pin" size={14} color={colors.primary} />
             <Text style={styles.sectionTitle}>Location</Text>
@@ -252,12 +307,14 @@ export default function SprayRecordScreen() {
           <FieldPicker
             label="Field"
             value={fieldName}
-            onChange={setFieldName}
+            onChange={handleFieldChange}
+            onChangeField={handleFieldSelect}
             fields={apiFields}
             loading={fieldsLoading}
             error={fieldsError}
           />
 
+          {/* ── Crop ── */}
           <View style={styles.sectionLabel}>
             <Feather name="feather" size={14} color={colors.success} />
             <Text style={styles.sectionTitle}>Crop Being Sprayed</Text>
@@ -276,24 +333,65 @@ export default function SprayRecordScreen() {
             onChangeText={(t) => { setTargetCrop(t); setCropAutoFilled(false); }}
             required
           />
-          <Input
+          <Text style={styles.fieldLabel}>Growth Stage (BBCH)</Text>
+          <LookupPicker
             label="Growth Stage (BBCH)"
-            placeholder="e.g. GS31, BBCH 31–32"
             value={growthStage}
-            onChangeText={setGrowthStage}
+            onSelect={(_id, label) => setGrowthStage(label)}
+            options={bbchOptions}
+            placeholder="e.g. BBCH 30 – Beginning of stem elongation"
+            allowFreeText
+            emptyMessage="Sync when online to load BBCH growth stages, or enter manually."
+            icon="bar-chart-2"
           />
 
+          {/* ── Product ── */}
           <View style={styles.sectionLabel}>
             <Feather name="droplet" size={14} color={colors.info} />
             <Text style={styles.sectionTitle}>Product Details</Text>
           </View>
-          <Input
-            label="Product Name"
-            placeholder="e.g. Roundup, Galaxy"
-            value={productName}
-            onChangeText={setProductName}
-            required
+
+          <SprayProductPicker
+            selected={selectedProduct}
+            manualName={manualProductName}
+            onSelect={(p) => { setSelectedProduct(p); setManualProductName(""); }}
+            onManual={(name) => { setManualProductName(name); setSelectedProduct(null); }}
+            onClear={() => { setSelectedProduct(null); setManualProductName(""); }}
+            products={products}
+            loading={productsLoading}
           />
+
+          {/* LERAP warning */}
+          {lerapCategory === "A" && (
+            <View style={styles.lerapBannerA}>
+              <Feather name="alert-triangle" size={15} color={colors.error} />
+              <View style={styles.lerapBannerBody}>
+                <Text style={[styles.lerapBannerTitle, { color: colors.error }]}>
+                  LERAP Category A{lerapBufferM ? ` — ${lerapBufferM} m buffer` : ""}
+                </Text>
+                <Text style={[styles.lerapBannerMsg, { color: "#7F1D1D" }]}>
+                  This product carries a fixed buffer zone that cannot be reduced. Maintain the full
+                  {lerapBufferM ? ` ${lerapBufferM} m` : ""} buffer from any surface watercourse.
+                </Text>
+              </View>
+            </View>
+          )}
+          {lerapCategory === "B" && (
+            <View style={styles.lerapBannerB}>
+              <Feather name="alert-triangle" size={15} color={colors.warning} />
+              <View style={styles.lerapBannerBody}>
+                <Text style={[styles.lerapBannerTitle, { color: "#92400E" }]}>
+                  LERAP Category B{lerapBufferM ? ` — ${lerapBufferM} m standard buffer` : ""}
+                </Text>
+                <Text style={[styles.lerapBannerMsg, { color: "#78350F" }]}>
+                  A LERAP assessment must be completed before applying near surface water. The
+                  {lerapBufferM ? ` ${lerapBufferM} m` : ""} standard buffer may be reduced — record your
+                  assessment in the dashboard under Sprays & Inputs → LERAP Assessments.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.row}>
             <Input
               label="Application Rate"
@@ -312,6 +410,31 @@ export default function SprayRecordScreen() {
             />
           </View>
 
+          <View style={styles.areaRow}>
+            <Input
+              label="Area Sprayed (ha)"
+              placeholder="e.g. 12.5"
+              value={areaSprayedHa}
+              onChangeText={(t) => { setAreaSprayedHa(t); setAreaAutoFilled(false); }}
+              keyboardType="decimal-pad"
+              containerStyle={styles.flex}
+            />
+            {areaAutoFilled && (
+              <Badge text="Auto-filled" variant="info" style={styles.areaBadge} />
+            )}
+          </View>
+
+          {estimatedQty && (
+            <View style={styles.qtyBanner}>
+              <Feather name="package" size={14} color={colors.info} />
+              <Text style={styles.qtyText}>
+                Estimated quantity: <Text style={styles.qtyValue}>{estimatedQty} {applicationUnit.replace("/ha", "")}</Text>
+                {" "}({applicationRate} {applicationUnit} × {areaSprayedHa} ha)
+              </Text>
+            </View>
+          )}
+
+          {/* ── Weather ── */}
           <View style={styles.sectionLabel}>
             <Feather name="cloud" size={14} color={colors.accent} />
             <Text style={styles.sectionTitle}>Weather Conditions</Text>
@@ -335,7 +458,7 @@ export default function SprayRecordScreen() {
           </View>
           <View style={styles.row}>
             <Input
-              label="Temperature (\u00B0C)"
+              label="Temperature (°C)"
               placeholder="e.g. 14"
               value={temperature}
               onChangeText={setTemperature}
@@ -359,6 +482,7 @@ export default function SprayRecordScreen() {
             keyboardType="decimal-pad"
           />
 
+          {/* ── Operator & Equipment ── */}
           <View style={styles.sectionLabel}>
             <Feather name="tool" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Operator & Equipment</Text>
@@ -486,31 +610,65 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
   },
-  fieldSuggestions: {
+  areaRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  suggestionLabel: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.xs,
-    color: colors.textTertiary,
-    marginBottom: spacing.xs,
+  areaBadge: {
+    marginTop: 28,
   },
-  chipRow: {
+  qtyBanner: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.infoBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
-  fieldChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+  qtyText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.info,
+    lineHeight: 20,
   },
-  fieldChipText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.xs,
-    color: colors.primary,
+  qtyValue: {
+    fontFamily: fonts.semiBold,
+  },
+  lerapBannerA: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.errorBg,
+    borderRadius: radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  lerapBannerB: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderRadius: radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  lerapBannerBody: { flex: 1 },
+  lerapBannerTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    marginBottom: 4,
+  },
+  lerapBannerMsg: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
   },
 });

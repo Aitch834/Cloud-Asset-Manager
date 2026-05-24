@@ -1397,6 +1397,8 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       storageRequirements: sprayProductsTable.storageRequirements,
       coshhRecordId: sprayProductsTable.coshhRecordId,
       stockItemId: sprayProductsTable.stockItemId,
+      lerapCategory: sprayProductsTable.lerapCategory,
+      lerapStandardBufferM: sprayProductsTable.lerapStandardBufferM,
       createdAt: sprayProductsTable.createdAt,
       coshhSubstanceName: coshhRecordsTable.substanceName,
       coshhHazardClassification: coshhRecordsTable.hazardClassification,
@@ -1416,6 +1418,8 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
     harvestInterval: r.harvestInterval, maxApplicationsPerSeason: r.maxApplicationsPerSeason,
     storageRequirements: r.storageRequirements, coshhRecordId: r.coshhRecordId,
     stockItemId: r.stockItemId, createdAt: r.createdAt,
+    lerapCategory: r.lerapCategory ?? null,
+    lerapStandardBufferM: r.lerapStandardBufferM ?? null,
     unitCostPence: r.stockUnitCostPence ?? null,
     coshhRecord: r.coshhRecordId ? {
       id: r.coshhRecordId,
