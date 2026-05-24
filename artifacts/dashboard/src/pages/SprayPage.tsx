@@ -358,6 +358,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     enabled: !!farmId,
   });
   const allSuppliers: any[] = suppliersQ.data ?? [];
+  const sprayReasons = useLookupStrings("spray_application_reasons");
 
   const [search, setSearch] = useState<string>(initialSearch ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
@@ -989,7 +990,26 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Reason for Application <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+                {(() => {
+                  const isCustom = !!form.reasonForApplication && sprayReasons.length > 0 && !sprayReasons.includes(form.reasonForApplication);
+                  const selectVal = isCustom ? "__other__" : (form.reasonForApplication || "");
+                  return sprayReasons.length === 0 ? (
+                    <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+                  ) : (
+                    <>
+                      <Select value={selectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, reasonForApplication: "" })); return; } setForm((f: any) => ({ ...f, reasonForApplication: v })); }}>
+                        <SelectTrigger><SelectValue placeholder="Select reason for application..." /></SelectTrigger>
+                        <SelectContent>
+                          {sprayReasons.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          <SelectItem value="__other__">Other (specify below)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(isCustom || selectVal === "__other__") && (
+                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="Describe the reason for application..." value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
