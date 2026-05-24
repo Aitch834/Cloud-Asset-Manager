@@ -359,6 +359,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   });
   const allSuppliers: any[] = suppliersQ.data ?? [];
   const sprayReasons = useLookupStrings("spray_application_reasons");
+  const bbchStages = useLookupStrings("spray_bbch_stages");
 
   const [search, setSearch] = useState<string>(initialSearch ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
@@ -370,6 +371,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
+  const [areaAutoFilled, setAreaAutoFilled] = useState(false);
   const [vehicleStationFilled, setVehicleStationFilled] = useState<any>(null);
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherFetchMsg, setWeatherFetchMsg] = useState<string | null>(null);
@@ -407,7 +409,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       growthStage: r.growthStage || "",
     });
   }
-  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setCropAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setCropAutoFilled(false); setAreaAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
 
   useEffect(() => {
     if (!formOpen || editRecord) return;
@@ -698,9 +700,14 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Field <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Select value={form.fieldId} onValueChange={v => setForm((f: any) => ({ ...f, fieldId: v }))}>
+                <Select value={form.fieldId} onValueChange={v => {
+                  const fieldObj = fields.find((f: any) => String(f.id) === v);
+                  const fieldArea = fieldObj ? (fieldObj.computedFarmableAreaHa ?? fieldObj.areaHectares ?? "") : "";
+                  setForm((f: any) => ({ ...f, fieldId: v, areaSprayedHa: fieldArea ? String(parseFloat(String(fieldArea)).toFixed(2)) : f.areaSprayedHa }));
+                  if (fieldArea) setAreaAutoFilled(true); else setAreaAutoFilled(false);
+                }}>
                   <SelectTrigger><SelectValue placeholder="Select field..." /></SelectTrigger>
-                  <SelectContent>{fields.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{fields.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.name}{f.areaHectares ? ` (${parseFloat(String(f.areaHectares)).toFixed(2)} ha)` : ""}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
@@ -724,11 +731,26 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Growth Stage (BBCH)</Label>
-                <Input
-                  placeholder="e.g. GS31, BBCH 31–32"
-                  value={form.growthStage}
-                  onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))}
-                />
+                {(() => {
+                  const isCustomGs = !!form.growthStage && bbchStages.length > 0 && !bbchStages.includes(form.growthStage);
+                  const gsSelectVal = isCustomGs ? "__other__" : (form.growthStage || "");
+                  return bbchStages.length === 0 ? (
+                    <Input placeholder="e.g. GS31, BBCH 31–32" value={form.growthStage} onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))} />
+                  ) : (
+                    <>
+                      <Select value={gsSelectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, growthStage: "" })); return; } setForm((f: any) => ({ ...f, growthStage: v })); }}>
+                        <SelectTrigger><SelectValue placeholder="Select growth stage..." /></SelectTrigger>
+                        <SelectContent>
+                          {bbchStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          <SelectItem value="__other__">Other (specify below)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(isCustomGs || gsSelectVal === "__other__") && (
+                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="e.g. GS31, BBCH 31–32, flag leaf" value={form.growthStage} onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))} />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div>
@@ -830,9 +852,29 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Area Sprayed (ha)</Label>
-                <Input type="number" step="0.01" placeholder="0.00" value={form.areaSprayedHa} onChange={e => setForm((f: any) => ({ ...f, areaSprayedHa: e.target.value }))} />
+                <div style={{ position: "relative" }}>
+                  <Input type="number" step="0.01" placeholder="0.00" value={form.areaSprayedHa} onChange={e => { setForm((f: any) => ({ ...f, areaSprayedHa: e.target.value })); setAreaAutoFilled(false); }} />
+                  {areaAutoFilled && (
+                    <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "#dcfce7", color: "#16a34a", fontSize: "0.68rem", fontWeight: 600, borderRadius: 4, padding: "1px 6px", pointerEvents: "none" }}>Auto-filled</span>
+                  )}
+                </div>
               </div>
             </div>
+            {(() => {
+              const rate = parseFloat(form.applicationRate);
+              const area = parseFloat(form.areaSprayedHa);
+              if (isNaN(rate) || isNaN(area) || rate <= 0 || area <= 0) return null;
+              const qty = rate * area;
+              const unit = (form.rateUnit ?? "L/ha").replace(/\/ha$/i, "").trim() || "units";
+              const qtyDisplay = qty % 1 === 0 ? qty.toFixed(0) : qty < 10 ? qty.toFixed(3).replace(/\.?0+$/, "") : qty.toFixed(1);
+              return (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.6rem 0.9rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.78rem", color: "#1d4ed8", fontWeight: 600 }}>&#9679; Estimated product needed:</span>
+                  <span style={{ fontSize: "0.88rem", color: "#1e3a8a", fontWeight: 700 }}>{qtyDisplay} {unit}</span>
+                  <span style={{ fontSize: "0.72rem", color: "#3b82f6", marginLeft: "auto" }}>{rate} {form.rateUnit} × {area} ha</span>
+                </div>
+              );
+            })()}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Water Volume (L/ha)</Label>
