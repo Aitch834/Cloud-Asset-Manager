@@ -25959,7 +25959,7 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
           console.log(`[LERAP] Review notification sent to ${reviewer.email} for ${docRef}`);
         }
         // Task Board assignment
-        await db.insert(farmTaskAssignmentsTable).values({
+        const [lerapTask] = await (db.insert(farmTaskAssignmentsTable) as any).values({
           farmId,
           tenantId: typeof tenantId === "number" ? tenantId : farmId,
           assignedToMemberId: reviewerId,
@@ -25975,8 +25975,12 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
           assignmentNote: `Assessment reference ${docRef} — pending review before spray application proceeds.`,
           status: "pending",
           smsSent: false,
-        });
-        console.log(`[LERAP] Task Board assignment created for ${reviewer.name} — ${docRef}`);
+        }).returning();
+        // Store the task ID back on the LERAP record so it can be auto-closed when review is completed
+        if (lerapTask) {
+          await db.update(lerapAssessmentsTable).set({ pendingReviewTaskId: lerapTask.id }).where(eq(lerapAssessmentsTable.id, record.id));
+        }
+        console.log(`[LERAP] Task Board assignment created (task #${lerapTask?.id}) for ${reviewer.name} — ${docRef}`);
       }
     } catch (err) { console.warn("[LERAP] Failed to send review notification / create task:", err); }
   }
@@ -26007,7 +26011,7 @@ router.put("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","pendingReviewBy","pendingReviewByMemberId","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName"];
+  const fields = ["fieldId","productId","assessmentDate","assessorName","step","watercourseDescription","watercourseType","standardBufferM","lerapBufferM","outcome","pendingReviewBy","pendingReviewByMemberId","reductionJustification","cropType","soilType","validUntil","documentRef","notes","documentPath","documentName","reviewNotes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(lerapAssessmentsTable).set(updates).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -26019,6 +26023,45 @@ router.delete("/farms/:farmId/lerap-assessments/:id", requireAuth, requireTenant
   const id = parseInt(req.params.id as string);
   await db.delete(lerapAssessmentsTable).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// Mark a LERAP assessment as reviewed — stamps reviewer identity, confirmed outcome, and closes the linked Task Board task
+router.patch("/farms/:farmId/lerap-assessments/:id/review", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const id = parseInt(req.params.id as string);
+  const userId = (req as any).userId as string | null;
+  const { confirmedOutcome, reviewNotes } = req.body as { confirmedOutcome?: string; reviewNotes?: string };
+  if (!confirmedOutcome) { res.status(400).json({ error: "confirmedOutcome is required" }); return; }
+  // Resolve reviewer display name from the logged-in user
+  let reviewedBy = "Unknown";
+  if (userId) {
+    const [userRow] = await db.select({ firstName: usersTable.firstName, lastName: usersTable.lastName }).from(usersTable).where(eq(usersTable.id, userId));
+    if (userRow) reviewedBy = [userRow.firstName, userRow.lastName].filter(Boolean).join(" ").trim() || "Unknown";
+  }
+  // Fetch existing record to get linked task ID
+  const [existing] = await db.select({ pendingReviewTaskId: lerapAssessmentsTable.pendingReviewTaskId }).from(lerapAssessmentsTable).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId)));
+  if (!existing) { res.status(404).json({ error: "Assessment not found" }); return; }
+  // Auto-complete the linked Task Board task
+  if (existing.pendingReviewTaskId) {
+    const today = new Date().toISOString().slice(0, 10);
+    await db.update(farmTaskAssignmentsTable).set({
+      status: "completed",
+      completedAt: new Date(),
+      completionNote: `LERAP assessment LERAP-${id} reviewed by ${reviewedBy} on ${today}. Outcome confirmed: ${confirmedOutcome.replace(/_/g, " ")}.`,
+    }).where(eq(farmTaskAssignmentsTable.id, existing.pendingReviewTaskId));
+  }
+  // Stamp the review on the LERAP record and clear pending fields
+  const [record] = await db.update(lerapAssessmentsTable).set({
+    outcome: confirmedOutcome,
+    reviewedBy,
+    reviewedAt: new Date(),
+    reviewNotes: reviewNotes?.trim() || null,
+    pendingReviewBy: null,
+    pendingReviewByMemberId: null,
+    pendingReviewTaskId: null,
+  }).where(and(eq(lerapAssessmentsTable.id, id), eq(lerapAssessmentsTable.farmId, farmId))).returning();
+  console.log(`[LERAP] LERAP-${id} reviewed by ${reviewedBy} — outcome: ${confirmedOutcome}`);
+  res.json({ record });
 });
 
 router.patch("/farms/:farmId/lerap-assessments/:id/document", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {

@@ -194,6 +194,10 @@ export const lerapAssessmentsTable = pgTable("lerap_assessments", {
   documentName: text("document_name"),
   pendingReviewBy: text("pending_review_by"),
   pendingReviewByMemberId: integer("pending_review_by_member_id"),
+  pendingReviewTaskId: integer("pending_review_task_id"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNotes: text("review_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

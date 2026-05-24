@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -2587,6 +2587,15 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [soilAutoFilled, setSoilAutoFilled] = useState(false);
   const [bufferAutoFilled, setBufferAutoFilled] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewRecord, setReviewRecord] = useState<any>(null);
+  const [reviewForm, setReviewForm] = useState<{ confirmedOutcome: string; reviewNotes: string }>({ confirmedOutcome: "full_buffer_maintained", reviewNotes: "" });
+  const reviewMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/lerap-assessments/${id}/review`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] }); setReviewOpen(false); toast({ title: "Review recorded", description: "The LERAP assessment has been marked as reviewed and the Task Board task closed." }); },
+    onError: () => toast({ title: "Error recording review", variant: "destructive" }),
+  });
 
   useEffect(() => {
     if (!form.fieldId || editing) { setCropAutoFilled(false); setSoilAutoFilled(false); return; }
@@ -2697,11 +2706,28 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                   <td className="px-3 py-2 text-xs">{r.watercourseDescription ?? "—"}</td>
                   <td className="px-3 py-2">{r.standardBufferM != null ? `${r.standardBufferM}m` : "—"}</td>
                   <td className="px-3 py-2">{r.lerapBufferM != null ? <span className={r.lerapBufferM < r.standardBufferM ? "text-blue-700 font-medium" : ""}>{r.lerapBufferM}m</span> : "—"}</td>
-                  <td className="px-3 py-2">{r.outcome ? outcomeBadge(r.outcome) : "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.outcome ? outcomeBadge(r.outcome) : "—"}
+                    {r.outcome === "pending" && r.pendingReviewBy && (
+                      <div className="text-xs text-amber-600 mt-0.5">Awaiting: {r.pendingReviewBy}</div>
+                    )}
+                    {r.reviewedBy && (
+                      <div className="flex items-center gap-1 text-xs text-green-700 mt-0.5">
+                        <CheckCircle className="w-3 h-3" />
+                        {r.reviewedBy} · {fmtDate(r.reviewedAt)}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{fmtDate(r.validUntil)}</td>
                   <td className="px-3 py-2">{r.assessorName ?? "—"}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
+                      {r.outcome === "pending" && (
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50" title="Mark as Reviewed"
+                          onClick={() => { setReviewRecord(r); setReviewForm({ confirmedOutcome: "full_buffer_maintained", reviewNotes: "" }); setReviewOpen(true); }}>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
@@ -2853,6 +2879,51 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save}>{editing ? "Save Changes" : "Record Assessment"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Review Dialog ──────────────────────────────────────────────────── */}
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Complete LERAP Review — LERAP-{reviewRecord?.id}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-1">
+            {reviewRecord && (
+              <div className="p-3 bg-gray-50 rounded-md text-sm space-y-1 border">
+                <div className="flex gap-2"><span className="text-gray-500 w-20 shrink-0">Reference</span><span className="font-mono font-semibold">LERAP-{reviewRecord.id}</span></div>
+                <div className="flex gap-2"><span className="text-gray-500 w-20 shrink-0">Field</span><span>{getFieldName(reviewRecord.fieldId)}</span></div>
+                <div className="flex gap-2"><span className="text-gray-500 w-20 shrink-0">Product</span><span>{getProductName(reviewRecord.productId)}</span></div>
+                {reviewRecord.pendingReviewBy && <div className="flex gap-2"><span className="text-gray-500 w-20 shrink-0">Assigned to</span><span>{reviewRecord.pendingReviewBy}</span></div>}
+              </div>
+            )}
+            <div>
+              <Label>Confirmed Outcome *</Label>
+              <Select value={reviewForm.confirmedOutcome} onValueChange={v => setReviewForm(f => ({ ...f, confirmedOutcome: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LERAP_OUTCOMES.filter(o => o.value !== "pending").map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">Confirm the LERAP outcome following your review. This replaces the Pending Review status.</p>
+            </div>
+            <div>
+              <Label>Review Notes</Label>
+              <Textarea rows={3} value={reviewForm.reviewNotes} onChange={e => setReviewForm(f => ({ ...f, reviewNotes: e.target.value }))} placeholder="What was verified, any issues found, buffer zone changes confirmed…" />
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800">
+              Your name and the current date/time will be stamped on this record as reviewer. The linked Task Board task will be automatically closed. This creates a permanent audit trail entry visible in the assessments register.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!reviewForm.confirmedOutcome || reviewMut.isPending}
+              onClick={() => { if (reviewRecord) reviewMut.mutate({ id: reviewRecord.id, body: reviewForm }); }}
+            >
+              {reviewMut.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : <><CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark as Reviewed</>}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
