@@ -1574,7 +1574,7 @@ function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
     farm?.redTractorId ? `RT ID: ${farm.redTractorId}` : null,
   ].filter(Boolean).join(" · ");
 
-  const COLS = ["Date", "Field", "Product", "Rate", "Area", "Water Vol.", "Wind / Temp", "Operator", "PA Cert No.", "Reason / Notes"];
+  const COLS = ["Date", "Field", "Product", "Crop / Stage", "Rate", "Area", "Water Vol.", "Wind / Temp", "Operator", "PA Cert No.", "Reason / Notes"];
 
   const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "5px 14px", borderRadius: 6, border: "1px solid",
@@ -1659,6 +1659,16 @@ function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0" }}>
                           <span style={{ fontWeight: 600, color: "#111827" }}>{r.productName || "—"}</span>
                           {r.productCategory && <span style={{ display: "block", fontSize: "0.6rem", color: "#555" }}>{r.productCategory}</span>}
+                          {r.lerapCategory && (
+                            <span style={{ display: "inline-block", marginTop: 2, fontSize: "0.55rem", fontWeight: 700, padding: "1px 5px", borderRadius: 2, background: r.lerapCategory === "A" ? "#fee2e2" : "#fef3c7", color: r.lerapCategory === "A" ? "#991b1b" : "#92400e", letterSpacing: "0.04em" }}>
+                              LERAP {r.lerapCategory}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", color: "#374151" }}>
+                          {r.targetCrop && <span style={{ display: "block", fontSize: "0.68rem" }}>{r.targetCrop}</span>}
+                          {r.growthStage && <span style={{ display: "block", fontSize: "0.6rem", color: "#555" }}>{r.growthStage}</span>}
+                          {!r.targetCrop && !r.growthStage && "—"}
                         </td>
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td>
@@ -1729,6 +1739,8 @@ function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
                       <div style={{ flex: 1, borderRight: "1px solid #e5e7eb" }}>
                         <div style={sectionHead}>Application Details</div>
                         <div style={{ ...sectionBody, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 12px" }}>
+                          <div><span style={cellLabel}>Target Crop</span><span style={cellValue}>{r.targetCrop || "—"}</span></div>
+                          <div><span style={cellLabel}>Growth Stage (BBCH)</span><span style={cellValue}>{r.growthStage || "—"}</span></div>
                           <div><span style={cellLabel}>Rate</span><span style={cellValue}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</span></div>
                           <div><span style={cellLabel}>Area Sprayed</span><span style={cellValue}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</span></div>
                           <div><span style={cellLabel}>Water Volume</span><span style={cellValue}>{r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—"}</span></div>
@@ -1760,6 +1772,31 @@ function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
                         </div>
                       </div>
                     </div>
+
+                    {/* LERAP */}
+                    {r.lerapCategory && (
+                      <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <div style={{ ...sectionHead, background: r.lerapCategory === "A" ? "#991b1b" : "#92400e" }}>LERAP Classification</div>
+                        <div style={{ ...sectionBody, display: "flex", gap: 24, flexWrap: "wrap" as const, alignItems: "center" }}>
+                          <div>
+                            <span style={cellLabel}>Category</span>
+                            <span style={{ ...cellValue, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ display: "inline-block", padding: "1px 8px", borderRadius: 3, fontSize: "0.7rem", fontWeight: 700, background: r.lerapCategory === "A" ? "#fee2e2" : "#fef3c7", color: r.lerapCategory === "A" ? "#991b1b" : "#92400e" }}>Cat {r.lerapCategory}</span>
+                              {r.lerapCategory === "A" ? "No-spray buffer required" : "Buffer may be reduced by LERAP assessment"}
+                            </span>
+                          </div>
+                          {r.lerapStandardBufferM != null && (
+                            <div><span style={cellLabel}>Standard Buffer (label)</span><span style={cellValue}>{r.lerapStandardBufferM} m</span></div>
+                          )}
+                          {r.bufferZoneMetres != null && (
+                            <div><span style={cellLabel}>Recorded Buffer</span><span style={cellValue}>{r.bufferZoneMetres} m</span></div>
+                          )}
+                          {r.waterSourceNearby != null && (
+                            <div><span style={cellLabel}>Water Source Nearby</span><span style={cellValue}>{r.waterSourceNearby ? "Yes" : "No"}</span></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Traceability */}
                     {(traceability.length > 0 || r.supplierName || r.batchNumber || r.lotNumber) && (
