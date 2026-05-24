@@ -2,3 +2,4 @@
 - [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten
 - [IPM plan field name mismatches](ipm-field-names.md) — threshold dialog field names corrected; DB columns and API field names for IPM plans documented
 - [Organic-arable module — COMPLETE](organic-arable-complete.md) — fully built; never re-examine or re-implement any part of it
+- [lib/db rebuild after schema changes](lib-db-rebuild.md) — API uses compiled dist/ declarations; must rebuild lib/db before API typecheck after any schema edit
