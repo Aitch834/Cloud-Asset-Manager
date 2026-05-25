@@ -1082,6 +1082,66 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "ArcGIS tile template URL for the Environment Agency Nitrate Vulnerable Zone overlay. Use {z}, {y}, {x} placeholders. Change this here if the EA service path changes without redeploying the app.",
     value: "https://environment.data.gov.uk/arcgis/rest/services/EA/NVZ2017/MapServer/tile/{z}/{y}/{x}",
   },
+  "company.legalName": {
+    label: "Legal Business Name",
+    description: "Registered company name shown on all platform invoices.",
+    value: "Barnett Davies Enterprises Ltd",
+  },
+  "company.tradingName": {
+    label: "Trading / Product Name",
+    description: "Sub-label shown beneath the logo on invoices (e.g. the product name).",
+    value: "BDE Farm Trac",
+  },
+  "company.address": {
+    label: "Registered Address",
+    description: "Full postal address printed on invoices.",
+    value: "",
+  },
+  "company.email": {
+    label: "Contact Email",
+    description: "Email address shown on invoices for customer queries.",
+    value: "hello@bdefarmtrac.co.uk",
+  },
+  "company.vatNumber": {
+    label: "VAT Registration Number",
+    description: "VAT number displayed on all VAT invoices.",
+    value: "",
+  },
+  "company.registrationNumber": {
+    label: "Companies House Number",
+    description: "8-digit Companies House registration number for the invoice footer.",
+    value: "",
+  },
+  "company.bankName": {
+    label: "Bank Name",
+    description: "Name of the bank for BACS payment details on invoices.",
+    value: "",
+  },
+  "company.bankAccountName": {
+    label: "Bank Account Name",
+    description: "Account holder name for BACS payment details.",
+    value: "",
+  },
+  "company.bankSortCode": {
+    label: "Sort Code",
+    description: "Bank sort code in 00-00-00 format.",
+    value: "",
+  },
+  "company.bankAccountNumber": {
+    label: "Account Number",
+    description: "Bank account number for BACS payments.",
+    value: "",
+  },
+  "company.paymentTermsDays": {
+    label: "Payment Terms (Days)",
+    description: "Default number of days from invoice date that payment is due.",
+    value: "14",
+  },
+  "company.logoDataUrl": {
+    label: "Invoice Logo (Data URL)",
+    description: "Base64-encoded image shown top-left on printed invoices. Set via the Company & Billing settings page.",
+    value: "",
+  },
 };
 
 router.get("/platform-config", async (_req: Request, res: Response): Promise<void> => {
