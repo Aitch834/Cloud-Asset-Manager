@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useUpload } from "@workspace/object-storage-web";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -17,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2 } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
@@ -84,6 +86,15 @@ interface FarmFormData {
   bcmsHoldingNumber: string;
   scotEidNumber: string;
   eidCymruNumber: string;
+  companyNumber: string;
+  vatNumber: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankSortCode: string;
+  paymentTermsDays: string;
+  invoiceFooterText: string;
+  invoiceLogoPath: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -136,6 +147,15 @@ function farmToFormData(farm: Farm & {
     bcmsHoldingNumber: (farm as any).bcmsHoldingNumber || "",
     scotEidNumber: (farm as any).scotEidNumber || "",
     eidCymruNumber: (farm as any).eidCymruNumber || "",
+    companyNumber: (farm as any).companyNumber || "",
+    vatNumber: (farm as any).vatNumber || "",
+    bankName: (farm as any).bankName || "",
+    bankAccountName: (farm as any).bankAccountName || "",
+    bankAccountNumber: (farm as any).bankAccountNumber || "",
+    bankSortCode: (farm as any).bankSortCode || "",
+    paymentTermsDays: (farm as any).paymentTermsDays?.toString() || "30",
+    invoiceFooterText: (farm as any).invoiceFooterText || "",
+    invoiceLogoPath: (farm as any).invoiceLogoPath || "",
   };
 }
 
@@ -508,6 +528,259 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   );
 }
 
+const PAYMENT_TERMS_OPTIONS = [
+  { value: "7", label: "7 days" },
+  { value: "14", label: "14 days" },
+  { value: "21", label: "21 days" },
+  { value: "30", label: "30 days" },
+  { value: "45", label: "45 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+] as const;
+
+function InvoicingCard({
+  farmId,
+  formData,
+  updateField,
+  onLogoPathChange,
+}: {
+  farmId: number | null;
+  formData: FarmFormData;
+  updateField: (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated">, value: string) => void;
+  onLogoPathChange: (path: string) => void;
+}) {
+  const { toast } = useToast();
+  const { uploadFile } = useUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (formData.invoiceLogoPath) {
+      setLogoPreviewUrl(`/api/storage/objects/${formData.invoiceLogoPath}`);
+    } else {
+      setLogoPreviewUrl(null);
+    }
+  }, [formData.invoiceLogoPath]);
+
+  const handleLogoUpload = async (file: File) => {
+    if (!farmId) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Logo too large", description: "Maximum file size is 2 MB.", variant: "destructive" });
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file type", description: "Please upload a PNG, JPG or WebP image.", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const response = await uploadFile(file);
+      if (!response?.objectPath) throw new Error("Upload failed");
+      onLogoPathChange(response.objectPath);
+      const objectUrl = URL.createObjectURL(file);
+      setLogoPreviewUrl(objectUrl);
+      toast({ title: "Logo uploaded" });
+    } catch {
+      toast({ title: "Upload failed", description: "Could not upload logo. Please try again.", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    onLogoPathChange("");
+    setLogoPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast({ title: "Logo removed", description: "Save changes to apply." });
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-6">
+        <SectionHeader
+          title="Invoicing & Documents"
+          description="Business information, bank details and branding that appear on invoices, agreements and other printed documents."
+        />
+
+        {/* Logo */}
+        <div>
+          <p className="text-sm font-semibold mb-3 flex items-center gap-2"><ImageIcon size={14} /> Farm Logo</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            Appears at the top of printed invoices and documents. Recommended: PNG or JPG, landscape format, max 2 MB.
+          </p>
+          <div className="flex items-start gap-4">
+            {logoPreviewUrl ? (
+              <div className="relative border border-border rounded-lg p-2 bg-muted/30">
+                <img
+                  src={logoPreviewUrl}
+                  alt="Invoice logo preview"
+                  className="max-w-[200px] max-h-[70px] object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                style={{ minWidth: 200 }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImageIcon size={20} className="mx-auto text-muted-foreground mb-2" />
+                <p className="text-xs text-muted-foreground">Click to upload logo</p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-1.5"
+              >
+                {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                {logoPreviewUrl ? "Replace Logo" : "Upload Logo"}
+              </Button>
+              {logoPreviewUrl && (
+                <Button variant="ghost" size="sm" onClick={handleRemoveLogo} className="gap-1.5 text-destructive hover:text-destructive">
+                  <X size={13} />Remove
+                </Button>
+              )}
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }}
+          />
+        </div>
+
+        {/* Company Details */}
+        <div>
+          <p className="text-sm font-semibold mb-3 flex items-center gap-2"><Building2 size={14} /> Company Details</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <Label htmlFor="inv-company-number">Companies House Number</Label>
+              <Input
+                id="inv-company-number"
+                className="mt-1"
+                placeholder="e.g. 12345678"
+                value={formData.companyNumber}
+                onChange={e => updateField("companyNumber", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">8-digit Companies House registration number</p>
+            </div>
+            <div>
+              <Label htmlFor="inv-vat-number">VAT Registration Number</Label>
+              <Input
+                id="inv-vat-number"
+                className="mt-1"
+                placeholder="e.g. GB 123 4567 89"
+                value={formData.vatNumber}
+                onChange={e => updateField("vatNumber", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Shown on all invoices where VAT is charged</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bank Details */}
+        <div>
+          <p className="text-sm font-semibold mb-3 flex items-center gap-2"><CreditCard size={14} /> Bank Details</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            Shown in the payment details panel at the bottom of printed invoices so customers know where to send payment.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <Label htmlFor="inv-bank-name">Bank Name</Label>
+              <Input
+                id="inv-bank-name"
+                className="mt-1"
+                placeholder="e.g. Lloyds Bank"
+                value={formData.bankName}
+                onChange={e => updateField("bankName", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="inv-account-name">Account Name</Label>
+              <Input
+                id="inv-account-name"
+                className="mt-1"
+                placeholder="e.g. Acme Farms Ltd"
+                value={formData.bankAccountName}
+                onChange={e => updateField("bankAccountName", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="inv-account-number">Account Number</Label>
+              <Input
+                id="inv-account-number"
+                className="mt-1"
+                placeholder="e.g. 12345678"
+                value={formData.bankAccountNumber}
+                onChange={e => updateField("bankAccountNumber", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="inv-sort-code">Sort Code</Label>
+              <Input
+                id="inv-sort-code"
+                className="mt-1"
+                placeholder="e.g. 30-96-26"
+                value={formData.bankSortCode}
+                onChange={e => updateField("bankSortCode", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Settings */}
+        <div>
+          <p className="text-sm font-semibold mb-3">Invoice Settings</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <Label htmlFor="inv-payment-terms">Default Payment Terms</Label>
+              <Select
+                value={formData.paymentTermsDays || "30"}
+                onValueChange={v => updateField("paymentTermsDays", v)}
+              >
+                <SelectTrigger id="inv-payment-terms" className="mt-1">
+                  <SelectValue placeholder="Select terms" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_TERMS_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Shown on printed invoices as "Payment due within X days"</p>
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="inv-footer-text">Invoice Footer Text</Label>
+              <Textarea
+                id="inv-footer-text"
+                className="mt-1 text-sm"
+                rows={3}
+                placeholder="e.g. Thank you for your business. Late payments may be subject to interest under the Late Payment of Commercial Debts Act 1998."
+                value={formData.invoiceFooterText}
+                onChange={e => updateField("invoiceFooterText", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Appears at the bottom of every printed invoice and credit note</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function FarmSettings() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -685,6 +958,15 @@ export default function FarmSettings() {
       bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
       scotEidNumber: formData.scotEidNumber.trim() || undefined,
       eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
+      companyNumber: formData.companyNumber.trim() || undefined,
+      vatNumber: formData.vatNumber.trim() || undefined,
+      bankName: formData.bankName.trim() || undefined,
+      bankAccountName: formData.bankAccountName.trim() || undefined,
+      bankAccountNumber: formData.bankAccountNumber.trim() || undefined,
+      bankSortCode: formData.bankSortCode.trim() || undefined,
+      paymentTermsDays: formData.paymentTermsDays ? parseInt(formData.paymentTermsDays, 10) : undefined,
+      invoiceFooterText: formData.invoiceFooterText.trim() || undefined,
+      invoiceLogoPath: formData.invoiceLogoPath.trim() || undefined,
     });
   };
 
@@ -1172,6 +1454,14 @@ export default function FarmSettings() {
 
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
+
+        {/* ── Invoicing & Documents ── */}
+        <InvoicingCard
+          farmId={farmId}
+          formData={formData}
+          updateField={updateField}
+          onLogoPathChange={(path) => setFormData(prev => prev ? { ...prev, invoiceLogoPath: path } : prev)}
+        />
 
         {/* ── Emergency Contact ── */}
         <Card>

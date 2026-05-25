@@ -73,6 +73,9 @@ interface ServiceInvoice {
 interface FarmRecord {
   id: number; name: string; address?: string | null; postcode?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; bcmsHoldingNumber?: string | null;
+  companyNumber?: string | null; vatNumber?: string | null;
+  bankName?: string | null; bankAccountName?: string | null; bankAccountNumber?: string | null; bankSortCode?: string | null;
+  paymentTermsDays?: number | null; invoiceFooterText?: string | null; invoiceLogoPath?: string | null;
 }
 
 interface FarmMember {
@@ -274,10 +277,21 @@ function docStyles() {
 
 function docHeader(farm: FarmRecord | undefined) {
   const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const logoHtml = farm?.invoiceLogoPath
+    ? `<img src="${window.location.origin}/api/storage/objects/${farm.invoiceLogoPath}" style="max-width:200px;max-height:70px;object-fit:contain;display:block;margin-bottom:6px" onerror="this.style.display='none'" />`
+    : "";
+  const metaParts = [
+    farm?.address || "",
+    farm?.postcode || "",
+    farm?.bcmsHoldingNumber ? `CPH No: ${farm.bcmsHoldingNumber}` : "",
+    farm?.companyNumber ? `Co. Reg: ${farm.companyNumber}` : "",
+    farm?.vatNumber ? `VAT Reg: ${farm.vatNumber}` : "",
+  ].filter(Boolean).join("<br>");
   return `<div class="doc-header">
     <div>
+      ${logoHtml}
       <div class="farm-name">${farm?.name ?? "BDE Farm Trac"}</div>
-      <div class="farm-meta">${farm?.address ? farm.address + "<br>" : ""}${farm?.postcode ? farm.postcode + "<br>" : ""}${farm?.bcmsHoldingNumber ? "CPH No: " + farm.bcmsHoldingNumber : ""}</div>
+      <div class="farm-meta">${metaParts}</div>
     </div>
     <div class="doc-meta">
       <div style="font-weight:700;color:#2d5a27;font-size:13px;margin-bottom:4px">BDE Farm Trac</div>
@@ -1992,6 +2006,18 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
         </tfoot>
       </table>
       ${inv.notes ? `<p style="margin-top:16px;color:#555;font-size:11px"><strong>Notes:</strong> ${inv.notes}</p>` : ""}
+      ${(farm?.bankAccountNumber || farm?.bankSortCode || farm?.bankName) ? `
+      <div style="margin-top:20px;padding:12px 16px;background:#f0f5ef;border:1px solid #c5d9c2;border-radius:6px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#2d5a27;font-weight:700;margin-bottom:8px">Payment Details</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+          ${farm.bankName ? `<div><span style="color:#888">Bank:</span> ${farm.bankName}</div>` : ""}
+          ${farm.bankAccountName ? `<div><span style="color:#888">Account Name:</span> ${farm.bankAccountName}</div>` : ""}
+          ${farm.bankAccountNumber ? `<div><span style="color:#888">Account Number:</span> ${farm.bankAccountNumber}</div>` : ""}
+          ${farm.bankSortCode ? `<div><span style="color:#888">Sort Code:</span> ${farm.bankSortCode}</div>` : ""}
+          ${farm?.paymentTermsDays ? `<div style="grid-column:1/-1;margin-top:4px;color:#2d5a27;font-weight:600">Payment due within ${farm.paymentTermsDays} days of invoice date.</div>` : ""}
+        </div>
+      </div>` : ""}
+      ${farm?.invoiceFooterText ? `<p style="margin-top:14px;font-size:10.5px;color:#555;border-top:1px solid #e5e7eb;padding-top:10px">${farm.invoiceFooterText}</p>` : ""}
       <div class="footer">
         <span>Invoice ${invNumber} — ${customer?.name ?? ""}</span>
         <span>Produced by BDE Farm Trac · Barnett Davies Enterprises Ltd</span>
