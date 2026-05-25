@@ -5,3 +5,4 @@
 - [lib/db rebuild after schema changes](lib-db-rebuild.md) — API uses compiled dist/ declarations; must rebuild lib/db before API typecheck after any schema edit
 - [Invoice branding & business info](invoice-branding.md) — farm logo/company/VAT/bank fields in farmsTable + FarmSettings + invoice print headers
 - [Platform config key whitelist](platform-config-whitelist.md) — new config keys must be added to PLATFORM_CONFIG_DEFAULTS in admin.ts or PUT returns 400
+- [Test-dashboard Vite cache fix](test-dashboard-vite-cache.md) — clear node_modules/.vite on startup; "Invalid hook call" on CompliancePage = stale browserHash, not a hooks bug
