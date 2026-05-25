@@ -507,6 +507,13 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
   });
   const issues: any[] = q.data ?? [];
 
+  const { data: staffRaw } = useQuery({
+    queryKey: ["staff", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/staff`).then(r => r.json()).then(d => d.staff ?? []),
+    enabled: !!farmId,
+  });
+  const staffList: any[] = staffRaw ?? [];
+
   // Auto-expand NC containing the deep-linked corrective action
   useEffect(() => {
     if (!openCaId || !q.data) return;
@@ -804,7 +811,25 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date Identified <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={ncForm.identifiedDate} onChange={e => setNcForm((f: any) => ({ ...f, identifiedDate: e.target.value }))} /></div>
-              <div><Label>Identified By</Label><Input placeholder="Name" value={ncForm.identifiedBy} onChange={e => setNcForm((f: any) => ({ ...f, identifiedBy: e.target.value }))} /></div>
+              <div>
+                <Label>Identified By</Label>
+                {staffList.length > 0 ? (
+                  <Select value={ncForm.identifiedBy || "__none__"} onValueChange={v => setNcForm((f: any) => ({ ...f, identifiedBy: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select person…" /></SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      <SelectItem value="__none__">— Select person</SelectItem>
+                      {staffList.map((s: any) => (
+                        <SelectItem key={s.name} value={s.name}>{s.name}{s.role ? ` — ${s.role}` : ""}</SelectItem>
+                      ))}
+                      {ncForm.identifiedBy && !staffList.some((s: any) => s.name === ncForm.identifiedBy) && (
+                        <SelectItem value={ncForm.identifiedBy}>{ncForm.identifiedBy} (previous)</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input placeholder="Name" value={ncForm.identifiedBy} onChange={e => setNcForm((f: any) => ({ ...f, identifiedBy: e.target.value }))} />
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
