@@ -86,6 +86,15 @@ function DocCell({ endpoint, queryKey, documentPath, documentName, portalUrl }: 
 
 type Tab = "inspections" | "issues-register" | "assurance-certs";
 
+const ORGANIC_BODIES = ["Organic Farmers & Growers", "Soil Association", "OF&G", "Certification of Environmental Farm Management (CEFM)", "Other (Organic)"];
+const TYPE_BODY_MAP: Record<string, { body: string; locked: boolean; hint: string }> = {
+  "Red Tractor":       { body: "Red Tractor Assurance", locked: true,  hint: "Red Tractor inspections must be conducted by Red Tractor Assurance Ltd." },
+  "LEAF Marque":       { body: "Linking Environment and Farming", locked: true,  hint: "LEAF Marque inspections are conducted by LEAF (Linking Environment and Farming)." },
+  "EHO":               { body: "Environmental Health", locked: false, hint: "Usually carried out by your local authority Environmental Health Office." },
+  "Trading Standards": { body: "Trading Standards", locked: false, hint: "Conducted by your local Trading Standards office." },
+  "Internal Audit":    { body: "Internal", locked: true,  hint: "Internal audits are carried out by your own team — no external body applies." },
+};
+
 function SeverityBadge({ severity }: { severity: string | null }) {
   const map: Record<string, { bg: string; color: string }> = {
     critical: { bg: "#fee2e2", color: "#991b1b" },
@@ -120,7 +129,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: number }) {
+function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: number; openInspId?: number; onSwitchToIssues?: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
@@ -134,6 +143,7 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [docUploading, setDocUploading] = useState(false);
   const addFileRef = useRef<HTMLInputElement>(null);
+  const [postSavePrompt, setPostSavePrompt] = useState<{ result: string; inspType: string } | null>(null);
 
   const q = useQuery({
     queryKey: ["inspections", farmId],
@@ -161,12 +171,22 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       if (pendingFile && data.record?.id) {
         setDocUploading(true);
         try { await uploadDoc(data.record.id, pendingFile); } finally { setDocUploading(false); }
       }
-      toast({ title: "Inspection saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); setPendingFile(null);
+      invalidate(); setAddOpen(false); setForm(emptyForm); setPendingFile(null);
+      const result = variables.overallResult ?? "";
+      if (result === "fail") {
+        toast({ title: "Inspection recorded as Failed", description: "Log any non-conformances raised in the Issues Register tab.", variant: "destructive" });
+        setPostSavePrompt({ result: "fail", inspType: variables.inspectionType ?? "" });
+      } else if (result === "conditional_pass") {
+        toast({ title: "Conditional pass recorded", description: "Log any non-conformances in the Issues Register tab." });
+        setPostSavePrompt({ result: "conditional_pass", inspType: variables.inspectionType ?? "" });
+      } else {
+        toast({ title: "Inspection saved" });
+      }
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
@@ -340,7 +360,10 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
                 <OtherSelect
                   options={inspectionTypes}
                   value={form.inspectionType}
-                  onValueChange={v => setForm((f: any) => ({ ...f, inspectionType: v }))}
+                  onValueChange={v => {
+                    const mapped = TYPE_BODY_MAP[v ?? ""];
+                    setForm((f: any) => ({ ...f, inspectionType: v, ...(mapped ? { inspectionBody: mapped.body } : {}) }));
+                  }}
                   placeholder="Select type..."
                   specifyPlaceholder="Specify inspection type…"
                 />
@@ -348,14 +371,45 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inspector Name <span style={{ color: "#ef4444" }}>*</span></Label><Input value={form.inspectorName} onChange={e => setForm((f: any) => ({ ...f, inspectorName: e.target.value }))} /></div>
-              <div><Label>Inspection Body</Label>
-                <OtherSelect
-                  options={certificationBodies}
-                  value={form.inspectionBody}
-                  onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v }))}
-                  placeholder="Select body..."
-                  specifyPlaceholder="Specify certification body…"
-                />
+              <div>
+                <Label>Inspection Body</Label>
+                {(() => {
+                  const mapped = TYPE_BODY_MAP[form.inspectionType ?? ""];
+                  if (mapped?.locked) {
+                    return (
+                      <div>
+                        <div style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#f9fafb", fontSize: "0.875rem", color: "#374151" }}>{mapped.body}</div>
+                        <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 3 }}>{mapped.hint}</p>
+                      </div>
+                    );
+                  }
+                  if (form.inspectionType === "Organic") {
+                    return (
+                      <div>
+                        <Select value={form.inspectionBody || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v === "__none__" ? "" : v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select certifier…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Select certifier</SelectItem>
+                            {ORGANIC_BODIES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 3 }}>Select your organic certification body.</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div>
+                      <OtherSelect
+                        options={certificationBodies}
+                        value={form.inspectionBody}
+                        onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v }))}
+                        placeholder="Select body..."
+                        specifyPlaceholder="Specify certification body…"
+                      />
+                      {mapped && <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 3 }}>{mapped.hint}</p>}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -415,6 +469,45 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Post-save: NC prompt for Fail / Conditional Pass ── */}
+      <Dialog open={postSavePrompt !== null} onOpenChange={o => { if (!o) setPostSavePrompt(null); }}>
+        <DialogContent style={{ maxWidth: 460 }}>
+          <DialogHeader>
+            <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertTriangle size={18} color={postSavePrompt?.result === "fail" ? "#dc2626" : "#d97706"} />
+              {postSavePrompt?.result === "fail" ? "Inspection Failed — Log Non-Conformance?" : "Conditional Pass — Log Non-Conformances?"}
+            </DialogTitle>
+          </DialogHeader>
+          <div style={{ padding: "4px 0 8px" }}>
+            {postSavePrompt?.result === "fail" ? (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: "0.875rem", color: "#991b1b", margin: 0, lineHeight: 1.5 }}>
+                  This <strong>{postSavePrompt.inspType || "inspection"}</strong> was recorded as <strong>Failed</strong>. One or more non-conformances should be raised and tracked to closure.
+                </p>
+              </div>
+            ) : (
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: "0.875rem", color: "#92400e", margin: 0, lineHeight: 1.5 }}>
+                  This <strong>{postSavePrompt?.inspType || "inspection"}</strong> was recorded as a <strong>Conditional Pass</strong>. Any conditions or minor non-conformances raised should be logged and tracked.
+                </p>
+              </div>
+            )}
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: 0 }}>
+              Switch to the <strong>Issues Register</strong> tab to log a non-conformance and assign a corrective action with a due date.
+            </p>
+          </div>
+          <DialogFooter style={{ gap: 8 }}>
+            <Button variant="outline" onClick={() => setPostSavePrompt(null)}>Not now</Button>
+            <Button
+              style={{ background: postSavePrompt?.result === "fail" ? "#dc2626" : "#d97706", color: "#fff" }}
+              onClick={() => { setPostSavePrompt(null); onSwitchToIssues?.(); }}
+            >
+              Go to Issues Register
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1948,7 +2041,7 @@ export default function InspectionsPageFull() {
           <TabButton active={tab === "issues-register"} onClick={() => setTab("issues-register")}>Issues Register</TabButton>
           <TabButton active={tab === "assurance-certs"} onClick={() => setTab("assurance-certs")}>Assurance Certificates</TabButton>
         </TabBar>
-        {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} openInspId={urlInspId} />}
+        {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} openInspId={urlInspId} onSwitchToIssues={() => setTab("issues-register")} />}
         {farmId && tab === "issues-register" && <IssuesRegisterTab farmId={farmId} openCaId={urlCaId} />}
         {farmId && tab === "assurance-certs"  && <AssuranceCertsTab farmId={farmId} />}
         {farmId && reportOpen && <ComplianceReportModal farmId={farmId} onClose={() => setReportOpen(false)} />}
