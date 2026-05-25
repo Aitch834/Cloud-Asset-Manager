@@ -211,6 +211,7 @@ function PrintModal({ invoice, company, onClose }: { invoice: Invoice; company: 
       </style></head><body>${content}</body></html>`);
     w.document.close();
     w.focus();
+    w.addEventListener("afterprint", () => w.close());
     setTimeout(() => { w.print(); }, 300);
   }
 
