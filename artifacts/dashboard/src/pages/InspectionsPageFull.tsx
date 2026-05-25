@@ -425,6 +425,48 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const NC_CATEGORIES = ["Animal Health & Welfare", "Biosecurity", "Crop Production", "Documentation", "Equipment & Machinery", "Environmental", "Food Safety", "Hygiene", "Record Keeping", "Staff Training", "Traceability", "Other"];
 
+const NC_CA_SUGGESTIONS: Record<string, Record<string, string>> = {
+  critical: {
+    "Animal Health & Welfare": "Immediately segregate affected animals and contact your vet. Notify your certifying body within 24 hours. Document all affected animals by ear tag or identifier.",
+    "Biosecurity": "Implement immediate quarantine protocols. Restrict all livestock and personnel movement on farm. Notify APHA and your vet today.",
+    "Crop Production": "Halt all operations on affected areas. Review crop inputs and application records. Notify certifying body immediately if organic status may be compromised.",
+    "Documentation": "Audit all records for the relevant period. Reconstruct missing data from source documents. Implement immediate corrective controls and notify certifying body.",
+    "Equipment & Machinery": "Take affected equipment out of service immediately. Arrange emergency inspection or repair. Do not return to use until safety-cleared in writing.",
+    "Environmental": "Stop all operations contributing to the issue. Notify the Environment Agency if water or land has been affected. Implement containment measures immediately.",
+    "Food Safety": "Immediately withdraw and quarantine all potentially affected batches. Notify your certifying body and relevant authorities within 24 hours. Initiate root cause investigation.",
+    "Hygiene": "Cease all processing/handling operations immediately. Deep-clean and disinfect affected areas. Do not resume until re-tested and cleared.",
+    "Record Keeping": "Reconstruct all missing records from source documents. Conduct a full record audit. Brief all relevant staff on recording requirements today.",
+    "Staff Training": "Immediately withdraw untrained staff from affected tasks. Arrange emergency training or supervision. Document who was involved and when.",
+    "Traceability": "Place a hold on all potentially affected products. Map the full traceability chain. Notify certifying body and trading partners within 24 hours.",
+    "Other": "Implement immediate containment measures. Notify your certifying body within 24 hours. Conduct root cause analysis and document all findings.",
+  },
+  major: {
+    "Animal Health & Welfare": "Review and update your herd health plan with your vet within 7 days. Schedule re-training for relevant staff on animal welfare procedures.",
+    "Biosecurity": "Review biosecurity protocols and update the farm biosecurity plan within 7 days. Brief all staff on changes.",
+    "Crop Production": "Review crop management procedures and input records. Update risk assessments and brief relevant staff within 7 days.",
+    "Documentation": "Review documentation procedures and schedule staff re-briefing on record-keeping requirements within 7 days.",
+    "Equipment & Machinery": "Schedule full inspection and maintenance of affected equipment within 7 days. Update maintenance log.",
+    "Environmental": "Review environmental risk assessments and implement revised controls within 7 days. Brief all relevant staff.",
+    "Food Safety": "Review food safety procedures and conduct re-training for relevant staff within 7 days. Update HACCP documentation.",
+    "Hygiene": "Review cleaning and hygiene schedules. Re-train relevant staff within 7 days and update documented procedures.",
+    "Record Keeping": "Review record-keeping procedures and schedule staff re-training within 7 days. Implement a spot-check system.",
+    "Staff Training": "Identify training gaps and schedule required training within 7 days. Update staff training records.",
+    "Traceability": "Review traceability procedures end-to-end. Update systems and re-brief staff within 7 days.",
+    "Other": "Develop a corrective action plan with clear milestones. Review relevant procedures and schedule staff re-briefing within 7 days.",
+  },
+};
+
+function getCaSuggestion(severity: "critical" | "major", category: string): string {
+  const map = NC_CA_SUGGESTIONS[severity] ?? {};
+  return map[category] ?? map["Other"] ?? "";
+}
+
+function defaultDueDate(severity: string): string {
+  const d = new Date();
+  d.setDate(d.getDate() + (severity === "critical" ? 1 : severity === "major" ? 7 : 14));
+  return d.toISOString().slice(0, 10);
+}
+
 function computeNcStatus(nc: { status: string; correctiveActions: { status: string }[] }) {
   const cas = nc.correctiveActions;
   if (cas.length === 0) return nc.status ?? "open";
@@ -531,13 +573,33 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
 
   // ── NC mutations ──
   const createNc = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nonconformances`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: (_, vars: any) => {
-      toast({ title: "Non-conformance logged" });
+    mutationFn: async (body: any) => {
+      const res = await fetch(`/api/farms/${farmId}/nonconformances`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return res.json();
+    },
+    onSuccess: (data: any, vars: any) => {
       invalidate();
       setNcAddOpen(false);
       setNcForm(emptyNcForm);
-      // Auto-expand the new NC on next render
+
+      if (vars.severity === "critical") {
+        const newNc = data.record ?? {};
+        const suggestion = getCaSuggestion("critical", vars.category ?? "");
+        setCaForm({ description: suggestion, assignedTo: "", dueDate: defaultDueDate("critical"), verifiedBy: "", notes: "" });
+        setCaAddForNc(newNc);
+        toast({
+          title: "Critical non-conformance logged",
+          description: "An immediate corrective action is required — complete the form below and assign it now.",
+          variant: "destructive",
+        });
+      } else if (vars.severity === "major") {
+        toast({
+          title: "Major non-conformance logged",
+          description: "A corrective action is recommended within 7 days. Expand the issue to add one.",
+        });
+      } else {
+        toast({ title: "Non-conformance logged" });
+      }
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
@@ -754,8 +816,29 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
                         })}
                       </div>
                     )}
+                    {nc.severity === "major" && cas.length === 0 && (
+                      <div style={{ margin: "0 14px 0 40px", padding: "9px 12px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 7, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <AlertTriangle size={13} color="#d97706" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: "0.8rem", color: "#92400e", flex: 1 }}>
+                          <strong>Major non-conformance</strong> — a corrective action is recommended within 7 days.
+                        </span>
+                      </div>
+                    )}
+                    {nc.severity === "critical" && cas.length === 0 && (
+                      <div style={{ margin: "0 14px 0 40px", padding: "9px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <AlertTriangle size={13} color="#dc2626" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: "0.8rem", color: "#991b1b", flex: 1 }}>
+                          <strong>Critical non-conformance</strong> — an immediate corrective action is required. No actions have been assigned yet.
+                        </span>
+                      </div>
+                    )}
                     <div style={{ padding: "8px 14px 12px 40px" }}>
-                      <Button size="sm" variant="outline" onClick={() => { setCaForm(emptyCaForm); setCaAddForNc(nc); }}>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const sev = nc.severity as "critical" | "major" | string;
+                        const suggestion = (sev === "critical" || sev === "major") ? getCaSuggestion(sev as "critical" | "major", nc.category ?? "") : "";
+                        setCaForm({ ...emptyCaForm, description: suggestion, dueDate: defaultDueDate(sev) });
+                        setCaAddForNc(nc);
+                      }}>
                         <Plus size={13} className="mr-1" />Add Corrective Action
                       </Button>
                     </div>
