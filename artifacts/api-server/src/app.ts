@@ -104,7 +104,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next();
     return;
   }
-  express.json()(req, res, next);
+  express.json({ limit: "5mb" })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true }));
 
