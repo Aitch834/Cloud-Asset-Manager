@@ -4525,6 +4525,7 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean | number>>({});
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["vet-prescriptions", farmId],
@@ -4605,6 +4606,7 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
                           : <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"><AlertTriangle className="h-3 w-3" />None</span>}
                       </td>
                       <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                        <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                       </td>
@@ -4615,6 +4617,48 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
             </div>
           )}
         </CardContent></Card>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "48rem", maxHeight: "90vh", overflowY: "auto" }}>
+            <DialogHeader><DialogTitle>Prescription Record — {String(viewRecord.productName ?? "")}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Date</p><p className="font-medium">{viewRecord.prescriptionDate ? new Date(viewRecord.prescriptionDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Ref</p><p className="font-medium">{String(viewRecord.prescriptionRef || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{String(viewRecord.vetName || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Practice</p><p className="font-medium">{String(viewRecord.vetPractice || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet RCVS Number</p><p className="font-medium">{String(viewRecord.vetRcvsNumber || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Valid Until</p><p className="font-medium">{viewRecord.prescriptionValidUntil ? new Date(viewRecord.prescriptionValidUntil as string).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div className="col-span-2 border-t pt-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{String(viewRecord.productName || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{String(viewRecord.activeIngredient || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Route of Administration</p><p className="font-medium">{String(viewRecord.routeOfAdministration || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dose</p><p className="font-medium">{String(viewRecord.dose || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Frequency</p><p className="font-medium">{String(viewRecord.frequency || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Duration</p><p className="font-medium">{String(viewRecord.treatmentDuration || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity Authorised</p><p className="font-medium">{String(viewRecord.quantityAuthorised || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity Dispensed</p><p className="font-medium">{String(viewRecord.dispensedQuantity || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Batch Number</p><p className="font-medium">{String(viewRecord.batchNumber || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expiry Date</p><p className="font-medium">{viewRecord.expiryDate ? new Date(viewRecord.expiryDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal — Meat</p><p className="font-medium">{viewRecord.withdrawalPeriodMeat ? `${viewRecord.withdrawalPeriodMeat}d` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal — Milk</p><p className="font-medium">{viewRecord.withdrawalPeriodMilk ? `${viewRecord.withdrawalPeriodMilk}d` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal — Eggs</p><p className="font-medium">{viewRecord.withdrawalPeriodEggs ? `${viewRecord.withdrawalPeriodEggs}d` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Species</p><p className="font-medium">{String(viewRecord.targetSpecies || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cascade / Off-label</p><p className="font-medium">{viewRecord.isCascade ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Signed by Vet</p><p className="font-medium">{viewRecord.signedByVet ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farm Registered</p><p className="font-medium">{viewRecord.farmRegistered ? "Yes" : "No"}</p></div>
+              {!!viewRecord.cascadeJustification && (
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Cascade Justification</p><p className="font-medium">{String(viewRecord.cascadeJustification)}</p></div>
+              )}
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Indication / Diagnosis</p><p className="font-medium">{String(viewRecord.indicationOrDiagnosis || "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes || "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditing(viewRecord); setForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <ConfirmDialog
