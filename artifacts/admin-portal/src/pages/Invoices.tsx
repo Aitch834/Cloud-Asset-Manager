@@ -206,8 +206,126 @@ function PrintModal({ invoice, company, onClose }: { invoice: Invoice; company: 
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${invoice.invoiceNumber}</title>
       <style>
-        body { margin: 0; font-family: -apple-system, sans-serif; background: white; }
-        @media print { @page { margin: 0; size: A4; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+          margin: 0;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+          background: white;
+          color: #111827;
+          font-size: 10px;
+          line-height: 1.5;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        /* Remove container padding — @page margin handles all whitespace */
+        body > div { width: auto !important; min-height: unset !important; padding: 0 !important; }
+
+        /* ── Layout ── */
+        .flex { display: flex; }
+        .grid { display: grid; }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .items-start { align-items: flex-start; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-8 { gap: 2rem; }
+        .w-full { width: 100%; }
+        .w-64 { width: 16rem; }
+        .w-8 { width: 2rem; }
+        .h-8 { height: 2rem; }
+        .ml-auto { margin-left: auto; }
+        .min-w-0 { min-width: 0; }
+
+        /* ── Spacing ── */
+        .mb-1 { margin-bottom: 0.3rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-3 { margin-bottom: 0.75rem; }
+        .mb-6 { margin-bottom: 1.25rem; }
+        .mb-8 { margin-bottom: 1.5rem; }
+        .mb-10 { margin-bottom: 2rem; }
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-3 { margin-top: 0.75rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mt-auto { margin-top: auto; }
+        .px-3 { padding-left: 0.6rem; padding-right: 0.6rem; }
+        .py-0\\.5 { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+        .py-1 { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+        .py-1\\.5 { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+        .py-2 { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+        .p-3 { padding: 0.6rem; }
+        .p-4 { padding: 0.8rem; }
+        .pt-6 { padding-top: 1rem; }
+        .pr-3 { padding-right: 0.6rem; }
+
+        /* ── Typography ── */
+        .text-3xl { font-size: 1.5rem; line-height: 2rem; }
+        .text-base { font-size: 0.75rem; line-height: 1.2rem; }
+        .text-sm { font-size: 0.7rem; line-height: 1.1rem; }
+        .text-xs { font-size: 0.65rem; line-height: 1rem; }
+        .font-bold { font-weight: 700; }
+        .font-semibold { font-weight: 600; }
+        .font-medium { font-weight: 500; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .uppercase { text-transform: uppercase; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .whitespace-pre-line { white-space: pre-line; }
+
+        /* ── Colours ── */
+        .text-gray-900 { color: #111827; }
+        .text-gray-800 { color: #1f2937; }
+        .text-gray-700 { color: #374151; }
+        .text-gray-600 { color: #4b5563; }
+        .text-gray-500 { color: #6b7280; }
+        .text-gray-400 { color: #9ca3af; }
+        .text-green-900 { color: #14532d; }
+        .text-white { color: #ffffff; }
+        .text-amber-700 { color: #b45309; }
+        .bg-white { background-color: #ffffff; }
+        .bg-gray-50 { background-color: #f9fafb; }
+        .bg-gray-100 { background-color: #f3f4f6; }
+        .bg-green-900 { background-color: #14532d; }
+        .bg-amber-50 { background-color: #fffbeb; }
+
+        /* ── Borders ── */
+        .border { border: 1px solid #e5e7eb; }
+        .border-t { border-top: 1px solid #e5e7eb; }
+        .border-b { border-bottom: 1px solid #e5e7eb; }
+        .border-gray-100 { border-color: #f3f4f6; }
+        .border-gray-200 { border-color: #e5e7eb; }
+        .border-amber-100 { border-color: #fef3c7; }
+        .border-border { border-color: #e5e7eb; }
+        .rounded { border-radius: 0.25rem; }
+        .rounded-md { border-radius: 0.375rem; }
+        .rounded-tl-md { border-top-left-radius: 0.375rem; }
+        .rounded-tr-md { border-top-right-radius: 0.375rem; }
+
+        /* ── Space-y ── */
+        .space-y-0\\.5 > * + * { margin-top: 0.125rem; }
+        .space-y-1 > * + * { margin-top: 0.25rem; }
+
+        /* ── Table ── */
+        table { border-collapse: collapse; width: 100%; }
+        thead { display: table-header-group; }
+        thead tr { background-color: #14532d !important; }
+        thead th { color: #ffffff !important; }
+        tbody tr { break-inside: avoid; }
+
+        /* ── Page breaks ── */
+        @page {
+          size: A4;
+          margin: 14mm 18mm;
+          @bottom-right {
+            content: "Page " counter(page) " of " counter(pages);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            font-size: 7pt;
+            color: #6b7280;
+          }
+        }
       </style></head><body>${content}</body></html>`);
     w.document.close();
     w.focus();
