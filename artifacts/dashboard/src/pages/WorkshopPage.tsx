@@ -2515,11 +2515,226 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts" | "analytics";
+// ─── Customers tab ───────────────────────────────────────────────────────────
+
+const EMPTY_CUSTOMER = { name: "", contactName: "", contactPhone: "", contactEmail: "", address: "", holdingNumber: "", vatNumber: "", notes: "" };
+
+function CustomersTab({ farmId, onViewJobs }: { farmId: number; onViewJobs: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [showInactive, setShowInactive] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [deactivateId, setDeactivateId] = useState<number | null>(null);
+  const [form, setForm] = useState<any>(EMPTY_CUSTOMER);
+
+  const q = useQuery({
+    queryKey: ["farm-customers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-customers`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const records: any[] = q.data?.records ?? [];
+
+  const jobsQ = useQuery({
+    queryKey: ["workshop-jobs", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => (d.jobs ?? []).map((j: any) => ({ ...j.job, customerName: j.customerName })),
+  });
+  const jobs: any[] = jobsQ.data ?? [];
+
+  const jobCountByCustomer = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const j of jobs) {
+      if (j.customerId) map[j.customerId] = (map[j.customerId] ?? 0) + 1;
+    }
+    return map;
+  }, [jobs]);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["farm-customers", farmId] });
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      if (editRecord) {
+        return fetch(api(`farms/${farmId}/farm-customers/${editRecord.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+      }
+      return fetch(api(`farms/${farmId}/farm-customers`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { toast({ title: editRecord ? "Customer updated" : "Customer added" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY_CUSTOMER); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deactivateMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Customer deactivated" }); invalidate(); setDeactivateId(null); },
+    onError: () => toast({ title: "Failed to deactivate", variant: "destructive" }),
+  });
+
+  const reactivateMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ isActive: true }) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Customer reactivated" }); invalidate(); },
+    onError: () => toast({ title: "Failed to reactivate", variant: "destructive" }),
+  });
+
+  function openAdd() { setEditRecord(null); setForm(EMPTY_CUSTOMER); setAddOpen(true); }
+  function openEdit(r: any) {
+    setEditRecord(r);
+    setForm({ name: r.name ?? "", contactName: r.contactName ?? "", contactPhone: r.contactPhone ?? "", contactEmail: r.contactEmail ?? "", address: r.address ?? "", holdingNumber: r.holdingNumber ?? "", vatNumber: r.vatNumber ?? "", notes: r.notes ?? "" });
+    setAddOpen(true);
+  }
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const visible = records.filter(r => showInactive || r.isActive);
+  const inactiveCount = records.filter(r => !r.isActive).length;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Workshop Customers</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Neighbouring farms and third parties for whom you carry out workshop jobs or machinery hire.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {inactiveCount > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowInactive(s => !s)}>
+              {showInactive ? <EyeOff className="h-3.5 w-3.5 mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
+              {showInactive ? "Hide inactive" : `Show ${inactiveCount} inactive`}
+            </Button>
+          )}
+          <Button size="sm" onClick={openAdd}><Plus className="h-3.5 w-3.5 mr-1" />Add Customer</Button>
+        </div>
+      </div>
+
+      {q.isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+      ) : visible.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+          <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">No customers yet</p>
+          <p className="text-gray-400 text-sm mt-1">Add a neighbouring farm or contractor to assign workshop jobs and raise invoices for them.</p>
+          <Button size="sm" className="mt-4" onClick={openAdd}><Plus className="h-3.5 w-3.5 mr-1" />Add first customer</Button>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {visible.map(r => {
+            const jobCount = jobCountByCustomer[r.id] ?? 0;
+            return (
+              <div key={r.id} className={cn("border rounded-xl p-4 bg-white flex items-start gap-4", !r.isActive && "opacity-55 bg-gray-50")}>
+                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Users className="h-5 w-5 text-amber-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900">{r.name}</span>
+                    {!r.isActive && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 font-medium">Inactive</span>
+                    )}
+                    {r.holdingNumber && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">CPH: {r.holdingNumber}</span>
+                    )}
+                    {jobCount > 0 && (
+                      <button
+                        onClick={onViewJobs}
+                        className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                        title="Click to view job cards"
+                      >
+                        {jobCount} job{jobCount !== 1 ? "s" : ""}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5 text-sm text-gray-500">
+                    {r.contactName && <span className="font-medium text-gray-600">{r.contactName}</span>}
+                    {r.contactPhone && <span>{r.contactPhone}</span>}
+                    {r.contactEmail && (
+                      <a href={`mailto:${r.contactEmail}`} className="text-blue-600 hover:underline">{r.contactEmail}</a>
+                    )}
+                    {r.vatNumber && <span className="text-xs text-gray-400">VAT: {r.vatNumber}</span>}
+                  </div>
+                  {r.address && <p className="text-xs text-gray-400 mt-1">{r.address}</p>}
+                  {r.notes && <p className="text-xs text-gray-400 mt-1 italic">"{r.notes}"</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {r.isActive ? (
+                    <>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" title="Deactivate" onClick={() => setDeactivateId(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => reactivateMut.mutate(r.id)} disabled={reactivateMut.isPending}>
+                      {reactivateMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Reactivate"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add / Edit dialog ── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(EMPTY_CUSTOMER); } }}>
+        <DialogContent style={{ maxWidth: 520 }}>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Customer" : "Add Customer"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label>Business / Farm Name <span className="text-red-500">*</span></Label>
+              <Input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Greenfields Farm" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Contact Name</Label><Input value={form.contactName} onChange={e => set("contactName", e.target.value)} placeholder="e.g. John Smith" /></div>
+              <div><Label>CPH / Holding Number</Label><Input value={form.holdingNumber} onChange={e => set("holdingNumber", e.target.value)} placeholder="e.g. 12/345/6789" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Phone</Label><Input type="tel" value={form.contactPhone} onChange={e => set("contactPhone", e.target.value)} placeholder="01234 567890" /></div>
+              <div><Label>Email</Label><Input type="email" value={form.contactEmail} onChange={e => set("contactEmail", e.target.value)} placeholder="john@farm.co.uk" /></div>
+            </div>
+            <div>
+              <Label>Address</Label>
+              <Textarea rows={2} value={form.address} onChange={e => set("address", e.target.value)} placeholder="Farm address…" />
+            </div>
+            <div>
+              <Label>VAT Number</Label>
+              <Input value={form.vatNumber} onChange={e => set("vatNumber", e.target.value)} placeholder="GB 123456789" />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Any notes about this customer…" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(EMPTY_CUSTOMER); }}>Cancel</Button>
+            <Button
+              onClick={() => { if (!form.name.trim()) { toast({ title: "Name is required", variant: "destructive" }); return; } saveMut.mutate(form); }}
+              disabled={saveMut.isPending}
+            >
+              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editRecord ? "Save Changes" : "Add Customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Deactivate confirm ── */}
+      <Dialog open={deactivateId !== null} onOpenChange={o => { if (!o) setDeactivateId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Deactivate Customer</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">This customer will be hidden from job card dropdowns but their history is fully preserved. You can reactivate them at any time.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivateId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deactivateId !== null && deactivateMut.mutate(deactivateId)} disabled={deactivateMut.isPending}>
+              {deactivateMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Deactivate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts" | "analytics" | "customers";
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts","analytics"]; return t && valid.includes(t) ? t : "assets"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts","analytics","customers"]; return t && valid.includes(t) ? t : "assets"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [jobNavStatus, setJobNavStatus] = useState<string>("all");
   const [jobNavKey, setJobNavKey] = useState(0);
@@ -2549,6 +2764,7 @@ export default function WorkshopPage() {
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>Fleet Overview</TabButton>
           <TabButton active={tab === "parts"} onClick={() => setTab("parts")}><Package className="h-3.5 w-3.5 mr-1 inline-block" />Parts Store</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</TabButton>
+          <TabButton active={tab === "customers"} onClick={() => setTab("customers")}><Users className="h-3.5 w-3.5 mr-1 inline-block" />Customers</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -2558,6 +2774,7 @@ export default function WorkshopPage() {
           {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={navigateTo} />}
           {tab === "parts" && <PartsStoreTab farmId={farmId} />}
           {tab === "analytics" && <WorkshopAnalyticsTab farmId={farmId} />}
+          {tab === "customers" && <CustomersTab farmId={farmId} onViewJobs={() => navigateTo("jobs")} />}
         </div>
       </div>
     </AppLayout>
