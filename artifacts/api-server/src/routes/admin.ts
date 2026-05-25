@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable } from "@workspace/db";
-import { eq, and, count, desc, sql, asc } from "drizzle-orm";
+import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
@@ -1049,7 +1049,7 @@ router.post("/admin/invoices", requireAuth, async (req: Request, res: Response):
 router.patch("/admin/invoices/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const id = parseInt(req.params.id as string, 10);
-  const { status, paymentMethod, paymentReference, notes, paidAt, sentAt } = req.body;
+  const { status, paymentMethod, paymentReference, notes, paidAt, sentAt, sentMethod } = req.body;
   const updates: Partial<typeof invoicesTable.$inferInsert> = {};
   if (status !== undefined) updates.status = status;
   if (paymentMethod !== undefined) updates.paymentMethod = paymentMethod;
@@ -1057,6 +1057,7 @@ router.patch("/admin/invoices/:id", requireAuth, async (req: Request, res: Respo
   if (notes !== undefined) updates.notes = notes;
   if (paidAt !== undefined) updates.paidAt = paidAt ? new Date(paidAt) : null;
   if (sentAt !== undefined) updates.sentAt = sentAt ? new Date(sentAt) : null;
+  if (sentMethod !== undefined) updates.sentMethod = sentMethod;
   if (status === "paid" && !paidAt) updates.paidAt = new Date();
   if (status === "sent" && !sentAt) updates.sentAt = new Date();
   const [invoice] = await db.update(invoicesTable).set(updates).where(eq(invoicesTable.id, id)).returning();
@@ -1074,6 +1075,270 @@ router.delete("/admin/invoices/:id", requireAuth, async (req: Request, res: Resp
   }
   await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
   res.json({ success: true });
+});
+
+// ─── Invoice Email Helpers ────────────────────────────────────────────────────
+
+type InvoiceRow = typeof invoicesTable.$inferSelect;
+type LineItem = { description: string; quantity: number; unitPricePence: number; netPence: number };
+
+function generateInvoiceEmailHtml(invoice: InvoiceRow, company: Record<string, string>): string {
+  const legalName = company["company.legalName"] || "Barnett Davies Enterprises Ltd";
+  const tradingName = company["company.tradingName"] || "BDE Farm Trac";
+  const companyEmail = company["company.email"] || "";
+  const vatNumber = company["company.vatNumber"] || "";
+  const registrationNumber = company["company.registrationNumber"] || "";
+  const bankName = company["company.bankName"] || "";
+  const bankSortCode = company["company.bankSortCode"] || "";
+  const bankAccountNumber = company["company.bankAccountNumber"] || "";
+  const bankAccountName = company["company.bankAccountName"] || "";
+
+  const firstName = invoice.billingName.split(" ")[0] || invoice.billingName;
+  const items = (invoice.lineItems as LineItem[]) || [];
+
+  const fmtGBP = (pence: number) =>
+    new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
+  const fmtDt = (d: Date | string) =>
+    new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const lineRows = items.map((item, i) => `
+    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"};">
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">${item.description}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;text-align:center;color:#374151;width:50px;">${item.quantity}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;text-align:right;color:#374151;width:90px;">${fmtGBP(item.unitPricePence)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;text-align:right;font-weight:600;color:#111827;width:90px;">${fmtGBP(item.netPence)}</td>
+    </tr>
+  `).join("");
+
+  const bankBlock = bankName ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:24px 0 16px;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#14532d;text-transform:uppercase;letter-spacing:0.05em;">Payment by BACS Bank Transfer</p>
+        ${bankName ? `<p style="margin:2px 0;font-size:12px;color:#374151;"><strong>Bank:</strong> ${bankName}</p>` : ""}
+        ${bankAccountName ? `<p style="margin:2px 0;font-size:12px;color:#374151;"><strong>Account Name:</strong> ${bankAccountName}</p>` : ""}
+        ${bankSortCode ? `<p style="margin:2px 0;font-size:12px;color:#374151;"><strong>Sort Code:</strong> ${bankSortCode}</p>` : ""}
+        ${bankAccountNumber ? `<p style="margin:2px 0;font-size:12px;color:#374151;"><strong>Account Number:</strong> ${bankAccountNumber}</p>` : ""}
+        <p style="margin:10px 0 0;font-size:12px;font-weight:600;color:#14532d;">Payment Reference: ${invoice.invoiceNumber}</p>
+      </td></tr>
+    </table>
+  ` : "";
+
+  const notesBlock = invoice.notes ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fef3c7;border-radius:6px;margin:16px 0;">
+      <tr><td style="padding:12px 16px;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#92400e;">Notes</p>
+        <p style="margin:0;font-size:12px;color:#374151;white-space:pre-wrap;">${invoice.notes}</p>
+      </td></tr>
+    </table>
+  ` : "";
+
+  return `
+    <p>Hi ${firstName},</p>
+    <p>Please find your invoice from <strong>${legalName}</strong> for the period <strong>${fmtDt(invoice.billingPeriodStart)} to ${fmtDt(invoice.billingPeriodEnd)}</strong>.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#14532d;border-radius:8px;margin:24px 0;">
+      <tr><td style="padding:20px 24px;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#a7d9b8;text-transform:uppercase;letter-spacing:0.05em;">Invoice ${invoice.invoiceNumber}</p>
+        <p style="margin:0;font-size:28px;font-weight:bold;color:#ffffff;">${fmtGBP(invoice.grossAmountPence)}</p>
+        <p style="margin:6px 0 0;font-size:12px;color:#d1fae5;">Due by ${fmtDt(invoice.dueDate)}</p>
+      </td></tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin:16px 0;">
+      <thead>
+        <tr style="background:#374151;">
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#f9fafb;text-align:left;text-transform:uppercase;letter-spacing:0.05em;">Description</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#f9fafb;text-align:center;width:50px;">Qty</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#f9fafb;text-align:right;width:90px;">Unit Price</th>
+          <th style="padding:9px 12px;font-size:11px;font-weight:600;color:#f9fafb;text-align:right;width:90px;">Net</th>
+        </tr>
+      </thead>
+      <tbody>${lineRows}</tbody>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" style="margin-left:auto;margin-right:0;min-width:260px;margin-bottom:8px;">
+      <tr>
+        <td style="padding:4px 16px 4px 0;font-size:12px;color:#6b7280;">Subtotal (Net)</td>
+        <td style="padding:4px 0;font-size:12px;text-align:right;color:#374151;">${fmtGBP(invoice.netAmountPence)}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 16px 4px 0;font-size:12px;color:#6b7280;">VAT (${invoice.vatRatePct}%)</td>
+        <td style="padding:4px 0;font-size:12px;text-align:right;color:#374151;">${fmtGBP(invoice.vatAmountPence)}</td>
+      </tr>
+      <tr style="border-top:2px solid #e5e7eb;">
+        <td style="padding:8px 16px 4px 0;font-size:14px;font-weight:bold;color:#111827;">Total Due (GBP)</td>
+        <td style="padding:8px 0 4px;font-size:14px;font-weight:bold;text-align:right;color:#14532d;">${fmtGBP(invoice.grossAmountPence)}</td>
+      </tr>
+    </table>
+
+    ${bankBlock}
+    ${notesBlock}
+
+    <p>${companyEmail ? `If you have any questions about this invoice, please reply to this email or contact us at <a href="mailto:${companyEmail}" style="color:#15803d;">${companyEmail}</a>.` : "If you have any questions about this invoice, please reply to this email."}</p>
+    <p>Kind regards,<br><strong>The ${tradingName} Team</strong><br>
+    <span style="font-size:11px;color:#9ca3af;">${legalName}${registrationNumber ? " · Company No. " + registrationNumber : ""}${vatNumber ? " · VAT No. " + vatNumber : ""}</span></p>
+  `;
+}
+
+async function getCompanyConfig(): Promise<Record<string, string>> {
+  const rows = await db.select().from(platformConfigTable);
+  const out: Record<string, string> = {};
+  for (const r of rows) if (r.value) out[r.key] = r.value;
+  return out;
+}
+
+async function createInvoiceForTenant(
+  tenantId: number,
+  billingPeriodStart: string,
+  billingPeriodEnd: string,
+  vatRatePct: number,
+  notes?: string
+): Promise<typeof invoicesTable.$inferSelect> {
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+  if (!tenant) throw new Error("Tenant not found");
+
+  const subs = await db
+    .select({ moduleName: modulesTable.name, pricePence: modulesTable.monthlyPricePence, farmId: subscriptionsTable.farmId, farmName: farmsTable.name })
+    .from(subscriptionsTable)
+    .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
+    .innerJoin(farmsTable, eq(subscriptionsTable.farmId, farmsTable.id))
+    .where(and(eq(subscriptionsTable.tenantId, tenantId), eq(subscriptionsTable.status, "active")));
+
+  const periodLabel = new Date(billingPeriodStart).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const lineItems: LineItem[] = [
+    { description: `Platform base fee — ${periodLabel}`, quantity: 1, unitPricePence: BASE_FEE_PENCE, netPence: BASE_FEE_PENCE },
+  ];
+  for (const sub of subs) {
+    lineItems.push({ description: `${sub.moduleName} — ${sub.farmName} (${periodLabel})`, quantity: 1, unitPricePence: sub.pricePence, netPence: sub.pricePence });
+  }
+  const netAmountPence = lineItems.reduce((a, i) => a + i.netPence, 0);
+  const vatAmountPence = Math.round(netAmountPence * (vatRatePct / 100));
+  const grossAmountPence = netAmountPence + vatAmountPence;
+  const invoiceDate = new Date();
+  const dueDate = new Date(invoiceDate);
+  dueDate.setDate(dueDate.getDate() + 14);
+  const invoiceNumber = await nextInvoiceNumber();
+
+  const [invoice] = await db.insert(invoicesTable).values({
+    tenantId,
+    invoiceNumber,
+    status: "draft",
+    billingPeriodStart: new Date(billingPeriodStart),
+    billingPeriodEnd: new Date(billingPeriodEnd),
+    invoiceDate,
+    dueDate,
+    billingName: tenant.name,
+    billingAddress: (tenant as any).address ?? null,
+    billingEmail: tenant.contactEmail,
+    lineItems,
+    netAmountPence,
+    vatRatePct,
+    vatAmountPence,
+    grossAmountPence,
+    notes: notes ?? null,
+  }).returning();
+  return invoice;
+}
+
+// ─── POST /admin/invoices/bulk-generate ───────────────────────────────────────
+
+router.post("/admin/invoices/bulk-generate", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { billingPeriodStart, billingPeriodEnd, vatRatePct = 20, notes } = req.body;
+  if (!billingPeriodStart || !billingPeriodEnd) { res.status(400).json({ error: "billingPeriodStart and billingPeriodEnd required" }); return; }
+
+  const allTenants = await db.select().from(tenantsTable).where(eq(tenantsTable.isActive, true));
+
+  const generated: Array<{ tenantId: number; tenantName: string; invoiceNumber: string }> = [];
+  const skipped: Array<{ tenantId: number; tenantName: string; reason: string }> = [];
+  const errors: Array<{ tenantId: number; tenantName: string; error: string }> = [];
+
+  for (const tenant of allTenants) {
+    const existing = await db.select({ id: invoicesTable.id }).from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.tenantId, tenant.id),
+        eq(invoicesTable.billingPeriodStart, new Date(billingPeriodStart))
+      )).limit(1);
+
+    if (existing.length > 0) {
+      skipped.push({ tenantId: tenant.id, tenantName: tenant.name, reason: "Invoice already exists for this period" });
+      continue;
+    }
+
+    try {
+      const invoice = await createInvoiceForTenant(tenant.id, billingPeriodStart, billingPeriodEnd, Number(vatRatePct), notes);
+      generated.push({ tenantId: tenant.id, tenantName: tenant.name, invoiceNumber: invoice.invoiceNumber });
+    } catch (err) {
+      errors.push({ tenantId: tenant.id, tenantName: tenant.name, error: String(err) });
+    }
+  }
+
+  res.json({ generated, skipped, errors });
+});
+
+// ─── POST /admin/invoices/bulk-email ─────────────────────────────────────────
+
+router.post("/admin/invoices/bulk-email", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { invoiceIds } = req.body as { invoiceIds: number[] };
+  if (!invoiceIds?.length) { res.status(400).json({ error: "invoiceIds required" }); return; }
+
+  const company = await getCompanyConfig();
+  const tradingName = company["company.tradingName"] || "BDE Farm Trac";
+  const fmtGBP = (p: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(p / 100);
+  const fmtDt = (d: Date | string) => new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  const invList = await db.select().from(invoicesTable).where(inArray(invoicesTable.id, invoiceIds));
+
+  const results: Array<{ invoiceId: number; invoiceNumber: string; billingName: string; sent: boolean; reason?: string }> = [];
+
+  for (const inv of invList) {
+    const emailBody = generateInvoiceEmailHtml(inv, company);
+    const subject = `Invoice ${inv.invoiceNumber} from ${tradingName} — ${fmtGBP(inv.grossAmountPence)} due ${fmtDt(inv.dueDate)}`;
+    const result = await sendAdminEmail({ to: inv.billingEmail, toName: inv.billingName, subject, body: emailBody });
+
+    if (result.sent) {
+      await db.update(invoicesTable).set({ status: "sent", sentAt: new Date(), sentMethod: "email" }).where(eq(invoicesTable.id, inv.id));
+      await db.insert(adminEmailsSentTable).values({ toAddress: inv.billingEmail, toName: inv.billingName, subject, body: emailBody, status: "sent" });
+    } else {
+      await db.insert(adminEmailsSentTable).values({ toAddress: inv.billingEmail, toName: inv.billingName, subject, body: emailBody, status: "failed", errorMessage: result.reason ?? null });
+    }
+
+    results.push({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, billingName: inv.billingName, sent: result.sent, reason: result.reason });
+  }
+
+  res.json({ results });
+});
+
+// ─── POST /admin/invoices/:id/email ──────────────────────────────────────────
+
+router.post("/admin/invoices/:id/email", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id as string, 10);
+
+  const [inv] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
+  if (!inv) { res.status(404).json({ error: "Invoice not found" }); return; }
+
+  const company = await getCompanyConfig();
+  const tradingName = company["company.tradingName"] || "BDE Farm Trac";
+  const fmtGBP = (p: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(p / 100);
+  const fmtDt = (d: Date | string) => new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  const subject = `Invoice ${inv.invoiceNumber} from ${tradingName} — ${fmtGBP(inv.grossAmountPence)} due ${fmtDt(inv.dueDate)}`;
+  const emailBody = generateInvoiceEmailHtml(inv, company);
+
+  const result = await sendAdminEmail({ to: inv.billingEmail, toName: inv.billingName, subject, body: emailBody });
+
+  if (result.sent) {
+    const [updated] = await db.update(invoicesTable)
+      .set({ status: "sent", sentAt: new Date(), sentMethod: "email" })
+      .where(eq(invoicesTable.id, id)).returning();
+    await db.insert(adminEmailsSentTable).values({ toAddress: inv.billingEmail, toName: inv.billingName, subject, body: emailBody, status: "sent" });
+    res.json({ sent: true, invoice: updated });
+  } else {
+    await db.insert(adminEmailsSentTable).values({ toAddress: inv.billingEmail, toName: inv.billingName, subject, body: emailBody, status: "failed", errorMessage: result.reason ?? null });
+    res.status(500).json({ sent: false, reason: result.reason });
+  }
 });
 
 const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: string; value: string }> = {

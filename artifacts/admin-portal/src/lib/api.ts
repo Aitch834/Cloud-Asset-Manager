@@ -241,6 +241,7 @@ export interface Invoice {
   paymentMethod?: string | null;
   paymentReference?: string | null;
   sentAt?: string | null;
+  sentMethod?: string | null;
   paidAt?: string | null;
   createdAt: string;
   tenantName?: string;
@@ -439,6 +440,24 @@ export const api = {
 
   deleteInvoice: (id: number, secret: string) =>
     del<{ success: boolean }>(`/admin/invoices/${id}`, secret),
+
+  emailInvoice: (id: number, secret: string) =>
+    post<{ sent: boolean; invoice?: Invoice; reason?: string }>(`/admin/invoices/${id}/email`, {}, secret),
+
+  bulkGenerateInvoices: (
+    body: { billingPeriodStart: string; billingPeriodEnd: string; vatRatePct: number; notes?: string },
+    secret: string
+  ) =>
+    post<{
+      generated: Array<{ tenantId: number; tenantName: string; invoiceNumber: string }>;
+      skipped: Array<{ tenantId: number; tenantName: string; reason: string }>;
+      errors: Array<{ tenantId: number; tenantName: string; error: string }>;
+    }>("/admin/invoices/bulk-generate", body, secret),
+
+  bulkEmailInvoices: (body: { invoiceIds: number[] }, secret: string) =>
+    post<{
+      results: Array<{ invoiceId: number; invoiceNumber: string; billingName: string; sent: boolean; reason?: string }>;
+    }>("/admin/invoices/bulk-email", body, secret),
 
   getPlatformConfig: (secret: string) =>
     get<{ items: PlatformConfigItem[] }>("/admin/platform-config", secret),

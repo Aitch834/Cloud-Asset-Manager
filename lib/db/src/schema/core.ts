@@ -203,6 +203,7 @@ export const invoicesTable = pgTable("invoices", {
   paymentMethod: text("payment_method"),
   paymentReference: text("payment_reference"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  sentMethod: text("sent_method"),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

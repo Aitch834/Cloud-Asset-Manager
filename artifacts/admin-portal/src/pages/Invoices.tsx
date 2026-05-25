@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2 } from "lucide-react";
+import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2, Mail, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -442,6 +442,221 @@ function GenerateDialog({ tenants, onClose, onDone }: { tenants: Tenant[]; onClo
   );
 }
 
+// ─── Mark Sent Dialog ─────────────────────────────────────────────────────────
+
+const SEND_METHODS = [
+  { value: "email", label: "Email (sent manually)" },
+  { value: "post", label: "Post" },
+  { value: "hand_delivered", label: "Hand Delivered" },
+  { value: "portal", label: "Portal / Online" },
+  { value: "other", label: "Other" },
+];
+
+function MarkSentDialog({ invoice, onClose, onDone }: { invoice: Invoice; onClose: () => void; onDone: (method: string) => void }) {
+  const [method, setMethod] = useState("post");
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Mark as Sent — {invoice.invoiceNumber}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground mt-1">How was this invoice sent to <strong>{invoice.billingName}</strong>?</p>
+        <div className="space-y-1 mt-3">
+          {SEND_METHODS.map(m => (
+            <label key={m.value} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg hover:bg-muted/40 transition-colors">
+              <input type="radio" name="sentMethod" value={m.value} checked={method === m.value} onChange={() => setMethod(m.value)} className="w-4 h-4 accent-green-800" />
+              <span className="text-sm">{m.label}</span>
+            </label>
+          ))}
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onDone(method)} className="bg-green-800 hover:bg-green-900 text-white">Mark as Sent</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Bulk Generate Dialog ─────────────────────────────────────────────────────
+
+function BulkGenerateDialog({ onClose }: { onClose: () => void }) {
+  const secret = getSecret()!;
+  const qc = useQueryClient();
+  const now = new Date();
+  const [start, setStart] = useState(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
+  const [end, setEnd] = useState(new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10));
+  const [vatRatePct, setVatRatePct] = useState(20);
+  const [notes, setNotes] = useState("");
+  const [results, setResults] = useState<{
+    generated: Array<{ tenantName: string; invoiceNumber: string }>;
+    skipped: Array<{ tenantName: string; reason: string }>;
+    errors: Array<{ tenantName: string; error: string }>;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await api.bulkGenerateInvoices({ billingPeriodStart: start, billingPeriodEnd: end, vatRatePct, notes: notes || undefined }, secret);
+      setResults(res);
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+      qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Bulk Generate Invoices</DialogTitle></DialogHeader>
+        {!results ? (
+          <>
+            <p className="text-sm text-muted-foreground mt-1">Generates draft invoices for all active customers for the selected period. Customers who already have an invoice for this period will be skipped automatically.</p>
+            <div className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Period Start</label>
+                  <input type="date" value={start} onChange={e => setStart(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Period End</label>
+                  <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">VAT Rate</label>
+                <select value={vatRatePct} onChange={e => setVatRatePct(Number(e.target.value))} className="w-full border border-border rounded-md px-3 py-2 text-sm">
+                  <option value={20}>20% Standard Rate</option>
+                  <option value={0}>0% Zero-rated</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Notes (optional — added to all invoices)</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="e.g. Thank you for your continued subscription." className="w-full border border-border rounded-md px-3 py-2 text-sm resize-none" />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleGenerate} disabled={loading || !start || !end} className="bg-green-800 hover:bg-green-900 text-white">
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Users className="w-4 h-4 mr-2" />Generate for All Customers</>}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-3 mt-2">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-green-800 mb-1.5">✓ {results.generated.length} invoice{results.generated.length !== 1 ? "s" : ""} generated</p>
+                {results.generated.length > 0 && <ul className="text-xs text-green-700 space-y-0.5">{results.generated.map((r, i) => <li key={i}>{r.tenantName} — {r.invoiceNumber}</li>)}</ul>}
+              </div>
+              {results.skipped.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-amber-800 mb-1.5">→ {results.skipped.length} skipped (invoice already exists for this period)</p>
+                  <ul className="text-xs text-amber-700 space-y-0.5">{results.skipped.map((r, i) => <li key={i}>{r.tenantName}</li>)}</ul>
+                </div>
+              )}
+              {results.errors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1.5">✗ {results.errors.length} failed</p>
+                  <ul className="text-xs text-red-700 space-y-0.5">{results.errors.map((r, i) => <li key={i}>{r.tenantName}: {r.error}</li>)}</ul>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button onClick={onClose} className="bg-green-800 hover:bg-green-900 text-white">Done</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Bulk Email Dialog ────────────────────────────────────────────────────────
+
+function BulkEmailDialog({ invoices, onClose }: { invoices: Invoice[]; onClose: () => void }) {
+  const secret = getSecret()!;
+  const qc = useQueryClient();
+  const [results, setResults] = useState<Array<{ invoiceNumber: string; billingName: string; sent: boolean; reason?: string }> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSend() {
+    setLoading(true);
+    try {
+      const res = await api.bulkEmailInvoices({ invoiceIds: invoices.map(i => i.id) }, secret);
+      setResults(res.results);
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+      qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Email Invoices to Customers</DialogTitle></DialogHeader>
+        {!results ? (
+          <>
+            <p className="text-sm text-muted-foreground mt-1">
+              The following <strong>{invoices.length} draft invoice{invoices.length !== 1 ? "s" : ""}</strong> will be emailed to their billing contacts and automatically marked as <strong>Sent</strong>.
+            </p>
+            <div className="max-h-60 overflow-y-auto border border-border rounded-lg mt-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border sticky top-0">
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Invoice</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Customer</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">Amount</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Recipient</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map(inv => (
+                    <tr key={inv.id} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2 font-mono font-semibold">{inv.invoiceNumber}</td>
+                      <td className="px-3 py-2">{inv.billingName}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(inv.grossAmountPence)}</td>
+                      <td className="px-3 py-2 text-muted-foreground truncate max-w-[130px]">{inv.billingEmail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleSend} disabled={loading} className="bg-green-800 hover:bg-green-900 text-white">
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Mail className="w-4 h-4 mr-2" />Send All Emails</>}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2 mt-2 max-h-72 overflow-y-auto">
+              {results.map((r, i) => (
+                <div key={i} className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${r.sent ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                  <span className={`text-base leading-none mt-0.5 ${r.sent ? "text-green-700" : "text-red-600"}`}>{r.sent ? "✓" : "✗"}</span>
+                  <div>
+                    <p className="text-sm font-medium">{r.billingName} — <span className="font-mono">{r.invoiceNumber}</span></p>
+                    {!r.sent && r.reason && <p className="text-xs text-red-600 mt-0.5">{r.reason}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button onClick={onClose} className="bg-green-800 hover:bg-green-900 text-white">Done</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Invoices Component ──────────────────────────────────────────────────
+
 function MarkPaidDialog({ invoice, onClose, onDone }: { invoice: Invoice; onClose: () => void; onDone: () => void }) {
   const secret = getSecret()!;
   const [method, setMethod] = useState("bacs");
@@ -497,8 +712,11 @@ export default function Invoices() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
   const [showGenerate, setShowGenerate] = useState(false);
+  const [showBulkGenerate, setShowBulkGenerate] = useState(false);
+  const [bulkEmailList, setBulkEmailList] = useState<Invoice[] | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [markPaidInvoice, setMarkPaidInvoice] = useState<Invoice | null>(null);
+  const [markSentInvoice, setMarkSentInvoice] = useState<Invoice | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const { data: invoicesData, isLoading: invLoading } = useQuery({
@@ -519,13 +737,32 @@ export default function Invoices() {
     return Object.fromEntries(configData.items.map(i => [i.key, i.currentValue ?? i.defaultValue ?? ""]));
   }, [configData]);
 
+  const { data: allDraftsData } = useQuery({
+    queryKey: ["admin-invoices-all-drafts"],
+    queryFn: () => api.listInvoices("draft", undefined, secret),
+  });
+  const draftInvoices = allDraftsData?.invoices ?? [];
+
   const updateMut = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => api.updateInvoice(id, updates, secret),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-invoices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+      qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+    },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.deleteInvoice(id, secret),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-invoices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+      qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+    },
+  });
+  const emailMut = useMutation({
+    mutationFn: (id: number) => api.emailInvoice(id, secret),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+      qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+    },
   });
 
   const invoices = invoicesData?.invoices ?? [];
@@ -544,13 +781,32 @@ export default function Invoices() {
           <h1 className="text-xl font-bold">Invoices</h1>
           <p className="text-sm text-muted-foreground">Generate and manage customer invoices with VAT</p>
         </div>
-        <button
-          onClick={() => setShowGenerate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-800 text-white text-sm font-medium rounded-lg hover:bg-green-900 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Generate Invoice
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkGenerate(true)}
+            className="flex items-center gap-2 px-3 py-2 border border-border bg-white text-sm font-medium rounded-lg hover:bg-muted/40 transition-colors text-foreground"
+            title="Generate invoices for all active customers"
+          >
+            <Users className="w-4 h-4" />
+            Bulk Generate
+          </button>
+          <button
+            onClick={() => draftInvoices.length > 0 ? setBulkEmailList(draftInvoices) : undefined}
+            disabled={draftInvoices.length === 0}
+            className="flex items-center gap-2 px-3 py-2 border border-border bg-white text-sm font-medium rounded-lg hover:bg-muted/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-foreground"
+            title={draftInvoices.length > 0 ? `Email ${draftInvoices.length} draft invoice${draftInvoices.length !== 1 ? "s" : ""} to customers` : "No draft invoices to email"}
+          >
+            <Mail className="w-4 h-4" />
+            Email Drafts{draftInvoices.length > 0 ? ` (${draftInvoices.length})` : ""}
+          </button>
+          <button
+            onClick={() => setShowGenerate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-800 text-white text-sm font-medium rounded-lg hover:bg-green-900 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Generate Invoice
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -636,12 +892,32 @@ export default function Invoices() {
                         <Printer className="w-3.5 h-3.5" />
                       </button>
                       {inv.status === "draft" && (
+                        <>
+                          <button
+                            onClick={() => setMarkSentInvoice(inv)}
+                            className="p-1.5 rounded hover:bg-blue-50 text-muted-foreground hover:text-blue-700 transition-colors"
+                            title="Mark as Sent (record send method)"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => emailMut.mutate(inv.id)}
+                            disabled={emailMut.isPending}
+                            className="p-1.5 rounded hover:bg-green-50 text-muted-foreground hover:text-green-700 transition-colors disabled:opacity-40"
+                            title={`Email invoice to ${inv.billingEmail}`}
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                      {inv.status === "sent" && (
                         <button
-                          onClick={() => updateMut.mutate({ id: inv.id, updates: { status: "sent" } })}
-                          className="p-1.5 rounded hover:bg-blue-50 text-muted-foreground hover:text-blue-700 transition-colors"
-                          title="Mark as Sent"
+                          onClick={() => emailMut.mutate(inv.id)}
+                          disabled={emailMut.isPending}
+                          className="p-1.5 rounded hover:bg-green-50 text-muted-foreground hover:text-green-700 transition-colors disabled:opacity-40"
+                          title={`Re-send invoice to ${inv.billingEmail}`}
                         >
-                          <Send className="w-3.5 h-3.5" />
+                          <Mail className="w-3.5 h-3.5" />
                         </button>
                       )}
                       {(inv.status === "sent" || inv.status === "overdue") && (
@@ -706,6 +982,23 @@ export default function Invoices() {
           invoice={markPaidInvoice}
           onClose={() => setMarkPaidInvoice(null)}
           onDone={() => { qc.invalidateQueries({ queryKey: ["admin-invoices"] }); setMarkPaidInvoice(null); }}
+        />
+      )}
+      {markSentInvoice && (
+        <MarkSentDialog
+          invoice={markSentInvoice}
+          onClose={() => setMarkSentInvoice(null)}
+          onDone={(method) => {
+            updateMut.mutate({ id: markSentInvoice.id, updates: { status: "sent", sentMethod: method } });
+            setMarkSentInvoice(null);
+          }}
+        />
+      )}
+      {showBulkGenerate && <BulkGenerateDialog onClose={() => setShowBulkGenerate(false)} />}
+      {bulkEmailList && (
+        <BulkEmailDialog
+          invoices={bulkEmailList}
+          onClose={() => setBulkEmailList(null)}
         />
       )}
     </div>
