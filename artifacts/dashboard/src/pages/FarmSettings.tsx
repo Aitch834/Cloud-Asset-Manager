@@ -34,6 +34,7 @@ const SECTORS = [
   { key: "sectorEquine", label: "Equine" },
   { key: "sectorHorticulture", label: "Horticulture" },
   { key: "sectorViticulture", label: "Viticulture" },
+  { key: "sectorFreshProduce", label: "Fresh Produce" },
 ] as const;
 
 const HOLDING_TYPES = [
@@ -139,6 +140,7 @@ function farmToFormData(farm: Farm & {
       sectorEquine: !!(farm as any).sectorEquine,
       sectorHorticulture: !!farm.sectorHorticulture,
       sectorViticulture: !!(farm as any).sectorViticulture,
+      sectorFreshProduce: !!(farm as any).sectorFreshProduce,
     },
     country: (farm as any).country || "england",
     eaml2Email: (farm as any).eaml2Email || "",
