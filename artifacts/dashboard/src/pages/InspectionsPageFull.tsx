@@ -355,7 +355,7 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
           <DialogHeader><DialogTitle>{editRecord ? "Edit Inspection" : "Record Inspection"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.inspectionDate} onChange={e => setForm((f: any) => ({ ...f, inspectionDate: e.target.value }))} /></div>
+              <div><Label>Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" max={new Date().toISOString().split("T")[0]} value={form.inspectionDate} onChange={e => setForm((f: any) => ({ ...f, inspectionDate: e.target.value }))} /></div>
               <div><Label>Type</Label>
                 <OtherSelect
                   options={inspectionTypes}
