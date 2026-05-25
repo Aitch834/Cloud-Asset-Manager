@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
@@ -53,28 +53,53 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function InvoicePrintView({ invoice }: { invoice: Invoice }) {
+type CompanyConfig = Record<string, string>;
+
+function InvoicePrintView({ invoice, company = {} }: { invoice: Invoice; company?: CompanyConfig }) {
   const items = (invoice.lineItems as { description: string; quantity: number; unitPricePence: number; netPence: number }[]) ?? [];
+
+  const legalName = company["company.legalName"] || "Barnett Davies Enterprises Ltd";
+  const tradingName = company["company.tradingName"] || "BDE Farm Trac";
+  const address = company["company.address"] || "";
+  const email = company["company.email"] || "hello@bdefarmtrac.co.uk";
+  const vatNumber = company["company.vatNumber"] || "";
+  const registrationNumber = company["company.registrationNumber"] || "";
+  const bankName = company["company.bankName"] || "";
+  const bankSortCode = company["company.bankSortCode"] || "";
+  const bankAccountNumber = company["company.bankAccountNumber"] || "";
+  const bankAccountName = company["company.bankAccountName"] || "";
+  const paymentTermsDays = company["company.paymentTermsDays"] || "14";
+  const logoDataUrl = company["company.logoDataUrl"] || "";
 
   return (
     <div className="font-sans text-sm text-gray-900 bg-white" style={{ width: "210mm", minHeight: "297mm", padding: "20mm", boxSizing: "border-box" }}>
       <div className="flex justify-between items-start mb-10">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 bg-green-800 rounded-md flex items-center justify-center">
-              <span className="text-white text-xs font-bold">BDE</span>
-            </div>
-            <div>
-              <p className="font-bold text-base text-green-900">BDE Technologies Ltd</p>
-              <p className="text-xs text-gray-500">BDE Farm Trac</p>
-            </div>
+            {logoDataUrl ? (
+              <img src={logoDataUrl} alt={tradingName} style={{ maxHeight: "56px", maxWidth: "200px", objectFit: "contain" }} />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-800 rounded-md flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">BDE</span>
+                </div>
+                <div>
+                  <p className="font-bold text-base text-green-900">{legalName}</p>
+                  <p className="text-xs text-gray-500">{tradingName}</p>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-600 space-y-0.5 mt-3">
-            <p>123 Business Park</p>
-            <p>Guildford, Surrey GU1 4AB</p>
-            <p>United Kingdom</p>
-            <p className="mt-1">hello@bdefarmtrac.co.uk</p>
-            <p>VAT Reg: GB 123 4567 89</p>
+          {logoDataUrl && (
+            <div className="mt-1 mb-2">
+              <p className="font-bold text-base text-green-900">{legalName}</p>
+              <p className="text-xs text-gray-500">{tradingName}</p>
+            </div>
+          )}
+          <div className="text-xs text-gray-600 space-y-0.5 mt-2">
+            {address && <p className="whitespace-pre-line">{address}</p>}
+            <p className={address ? "mt-1" : ""}>{email}</p>
+            {vatNumber && <p>VAT Reg: {vatNumber}</p>}
           </div>
         </div>
         <div className="text-right">
@@ -139,20 +164,25 @@ function InvoicePrintView({ invoice }: { invoice: Invoice }) {
         <div className="grid grid-cols-2 gap-8 text-xs text-gray-600">
           <div>
             <p className="font-semibold text-gray-800 mb-1">Payment Terms</p>
-            <p>Payment due within 14 days of invoice date.</p>
-            <p className="mt-2 font-semibold text-gray-800">BACS Bank Transfer</p>
-            <p>Bank: Barclays Bank PLC</p>
-            <p>Sort Code: 20-00-00</p>
-            <p>Account No.: 12345678</p>
+            <p>Payment due within {paymentTermsDays} days of invoice date.</p>
+            {(bankName || bankSortCode || bankAccountNumber) && (
+              <>
+                <p className="mt-2 font-semibold text-gray-800">BACS Bank Transfer</p>
+                {bankName && <p>Bank: {bankName}</p>}
+                {bankAccountName && <p>Account Name: {bankAccountName}</p>}
+                {bankSortCode && <p>Sort Code: {bankSortCode}</p>}
+                {bankAccountNumber && <p>Account No.: {bankAccountNumber}</p>}
+              </>
+            )}
             <p className="mt-1">Reference: <strong>{invoice.invoiceNumber}</strong></p>
           </div>
           <div>
             <p className="font-semibold text-gray-800 mb-1">Questions?</p>
-            <p>hello@bdefarmtrac.co.uk</p>
+            <p>{email}</p>
             <p className="mt-3 font-semibold text-gray-800">Company Details</p>
-            <p>BDE Technologies Ltd</p>
-            <p>Registered in England & Wales</p>
-            <p>Company No.: 12345678</p>
+            <p>{legalName}</p>
+            <p>Registered in England &amp; Wales</p>
+            {registrationNumber && <p>Company No.: {registrationNumber}</p>}
           </div>
         </div>
         {invoice.notes && (
@@ -166,7 +196,7 @@ function InvoicePrintView({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function PrintModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+function PrintModal({ invoice, company, onClose }: { invoice: Invoice; company: CompanyConfig; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
 
   function handlePrint() {
@@ -208,7 +238,7 @@ function PrintModal({ invoice, onClose }: { invoice: Invoice; onClose: () => voi
         </div>
         <div className="overflow-auto max-h-[80vh] p-4 bg-gray-100 flex justify-center">
           <div ref={printRef} className="shadow-xl">
-            <InvoicePrintView invoice={invoice} />
+            <InvoicePrintView invoice={invoice} company={company} />
           </div>
         </div>
       </div>
@@ -360,6 +390,15 @@ export default function Invoices() {
     queryKey: ["admin-tenants"],
     queryFn: () => api.getTenants(secret),
   });
+  const { data: configData } = useQuery({
+    queryKey: ["admin-platform-config"],
+    queryFn: () => api.getPlatformConfig(secret),
+    staleTime: 5 * 60 * 1000,
+  });
+  const companyConfig = useMemo<CompanyConfig>(() => {
+    if (!configData?.items) return {};
+    return Object.fromEntries(configData.items.map(i => [i.key, i.currentValue ?? i.defaultValue ?? ""]));
+  }, [configData]);
 
   const updateMut = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Record<string, unknown> }) => api.updateInvoice(id, updates, secret),
@@ -542,7 +581,7 @@ export default function Invoices() {
           }}
         />
       )}
-      {printInvoice && <PrintModal invoice={printInvoice} onClose={() => setPrintInvoice(null)} />}
+      {printInvoice && <PrintModal invoice={printInvoice} company={companyConfig} onClose={() => setPrintInvoice(null)} />}
       {markPaidInvoice && (
         <MarkPaidDialog
           invoice={markPaidInvoice}

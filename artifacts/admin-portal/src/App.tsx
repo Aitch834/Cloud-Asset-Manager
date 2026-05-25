@@ -14,6 +14,7 @@ import Email from "@/pages/Email";
 import Database from "@/pages/Database";
 import Invoices from "@/pages/Invoices";
 import PlatformConfig from "@/pages/PlatformConfig";
+import CompanySettings from "@/pages/CompanySettings";
 import Lookups from "@/pages/Lookups";
 import HelpCentre from "@/pages/HelpCentre";
 import NotFound from "@/pages/not-found";
@@ -36,6 +37,7 @@ function PortalRouter() {
         <Route path="/database" component={Database} />
         <Route path="/lookups" component={Lookups} />
         <Route path="/platform-config" component={PlatformConfig} />
+        <Route path="/company-settings" component={CompanySettings} />
         <Route path="/help-articles" component={HelpCentre} />
         <Route component={NotFound} />
       </Switch>

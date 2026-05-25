@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
-import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2 } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -8,6 +8,7 @@ const nav = [
   { href: "/leads", label: "Leads Pipeline", icon: TrendingUp },
   { href: "/referrals", label: "Referrals", icon: Gift },
   { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/company-settings", label: "Company & Billing", icon: Building2 },
   { href: "/support", label: "Support Tickets", icon: MessageSquare },
   { href: "/email", label: "Email", icon: Mail },
   { href: "/database", label: "SQL Console", icon: Database },
