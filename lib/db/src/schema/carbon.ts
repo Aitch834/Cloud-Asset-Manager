@@ -121,12 +121,26 @@ export const sustainabilityReportsTable = pgTable("sustainability_reports", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   reportYear: integer("report_year").notNull(),
-  generatedDate: date("generated_date").notNull(),
   reportTitle: text("report_title").notNull(),
+  reportType: text("report_type"),
+  generatedDate: date("generated_date").notNull(),
+  status: text("status").notNull().default("draft"),
+  // Supply chain customer
   supplyChainCustomer: text("supply_chain_customer"),
+  contactNameAtCustomer: text("contact_name_at_customer"),
+  deadlineDate: date("deadline_date"),
+  // Submission tracking
   submittedToCustomer: boolean("submitted_to_customer").default(false),
+  submissionMethod: text("submission_method"),
   submissionDate: date("submission_date"),
   customerReference: text("customer_reference"),
+  acknowledgedDate: date("acknowledged_date"),
+  // Key metrics from the report
+  totalEmissionsTonnesCo2e: numeric("total_emissions_tonnes_co2e", { precision: 10, scale: 3 }),
+  sequestrationTonnesCo2e: numeric("sequestration_tonnes_co2e", { precision: 10, scale: 3 }),
+  netPositionTonnesCo2e: numeric("net_position_tonnes_co2e", { precision: 10, scale: 3 }),
+  // Storage
+  reportUrl: text("report_url"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

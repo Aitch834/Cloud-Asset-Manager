@@ -775,58 +775,302 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Sustainability Reports constants ────────────────────────────────────────
+const SR_CUSTOMERS = [
+  "Tesco", "Sainsbury's", "ASDA / Walmart", "M&S (Marks & Spencer)",
+  "Waitrose / John Lewis Partnership", "Co-op", "Morrisons", "Aldi UK", "Lidl GB",
+  "McDonald's UK", "ABP Food Group", "Cargill UK", "Müller UK", "Arla Foods UK",
+  "Saputo Dairy UK", "AHDB Benchmarking", "Red Tractor Assurance",
+  "LEAF (Linking Environment And Farming)", "Other",
+];
+const SR_REPORT_TYPES = [
+  "Agrecalc", "Cool Farm Tool", "Farm Carbon Cutting Toolkit (FCCT)",
+  "AHDB GHG Calculator", "Red Tractor Sustainability Assessment",
+  "LEAF Marque Assessment", "Retailer Bespoke Format", "Other",
+];
+const SR_STATUS_OPTIONS = [
+  { v: "draft",                 l: "Draft" },
+  { v: "ready",                 l: "Ready to Submit" },
+  { v: "submitted",             l: "Submitted" },
+  { v: "acknowledged",          l: "Acknowledged" },
+  { v: "resubmission_required", l: "Resubmission Required" },
+  { v: "completed",             l: "Completed" },
+];
+const SR_SUBMISSION_METHODS = ["Email", "Retailer Portal", "Post", "Hand Delivery", "Other"];
+const srStatusLabel = (v: unknown) =>
+  SR_STATUS_OPTIONS.find(o => o.v === String(v ?? ""))?.l ?? String(v ?? "—");
+
 function ReportsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: reports = [], isLoading } = useQuery({ queryKey: ["sustainability-reports", farmId], queryFn: () => fetch(api(`farms/${farmId}/sustainability-reports`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/sustainability-reports`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }); setOpen(false); setForm({}); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sustainability-reports/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }) });
+
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ["sustainability-reports", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/sustainability-reports`), { credentials: "include" }).then(r => r.json()),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/sustainability-reports/${editing.id}`) : api(`farms/${farmId}/sustainability-reports`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sustainability-reports/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }),
+  });
+
+  // Auto-calculate net position from emissions minus sequestration
+  const calcNetPosition = (() => {
+    const em = parseFloat(String(form.totalEmissionsTonnesCo2e ?? ""));
+    const seq = parseFloat(String(form.sequestrationTonnesCo2e ?? "0"));
+    return !isNaN(em) ? (em - (isNaN(seq) ? 0 : seq)).toFixed(3) : null;
+  })();
+
+  // Suggest a title from year + type + customer
+  const suggestedTitle = [form.reportYear, form.reportType, form.supplyChainCustomer].filter(Boolean).join(" — ");
+
+  const handleOpen = (editRec?: Record<string, unknown>) => {
+    if (editRec) {
+      setEditing(editRec);
+      setForm(Object.fromEntries(
+        Object.entries(editRec).map(([k, v]) => [k, v == null ? "" : typeof v === "boolean" ? v : String(v)])
+      ) as Record<string, string | boolean>);
+    } else {
+      setEditing(null);
+      setForm({ status: "draft", submittedToCustomer: false });
+    }
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Sustainability Reports Submitted</h3><Button size="sm" onClick={() => { setForm({ submittedToCustomer: false }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Report</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "reportYear", label: "Year" }, { key: "reportTitle", label: "Title" }, { key: "supplyChainCustomer", label: "Customer" }, { key: "submittedToCustomer", label: "Submitted", fmt: r => r.submittedToCustomer ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "customerReference", label: "Ref" }]} rows={reports as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
-      
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Sustainability Report Submissions</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Track carbon and sustainability reports submitted to supply chain customers — retailers, processors, and certification bodies.</p>
+        </div>
+        <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Report</Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "reportYear", label: "Year" },
+            { key: "reportTitle", label: "Title" },
+            { key: "reportType", label: "Type" },
+            { key: "supplyChainCustomer", label: "Customer" },
+            { key: "deadlineDate", label: "Deadline", fmt: r => fmtDate(r.deadlineDate) },
+            { key: "status", label: "Status", fmt: r => srStatusLabel(r.status) },
+            { key: "submittedToCustomer", label: "Submitted", fmt: r => r.submittedToCustomer ? "Yes" : "No" },
+            { key: "netPositionTonnesCo2e", label: "Net Position (tCO₂e)" },
+          ]}
+          rows={reports as Record<string, unknown>[]}
+          onView={setViewRecord}
+          onEdit={r => handleOpen(r)}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      {/* View dialog */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Sustainability Report</DialogTitle></DialogHeader>
+          <DialogContent style={{ maxWidth: "48rem" }}>
+            <DialogHeader>
+              <DialogTitle>
+                {String(viewRecord.reportYear ?? "")} — {String(viewRecord.supplyChainCustomer ?? "Sustainability Report")}
+                <span className="ml-2 text-sm font-normal text-muted-foreground">{srStatusLabel(viewRecord.status)}</span>
+              </DialogTitle>
+            </DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Report Year</p><p className="font-medium">{String(viewRecord.reportYear ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Report Title</p><p className="font-medium">{String(viewRecord.reportTitle ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Report Title</p><p className="font-medium">{String(viewRecord.reportTitle ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Report Type</p><p className="font-medium">{String(viewRecord.reportType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Generated Date</p><p className="font-medium">{fmtDate(viewRecord.generatedDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supply Chain Customer</p><p className="font-medium">{String(viewRecord.supplyChainCustomer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Contact at Customer</p><p className="font-medium">{String(viewRecord.contactNameAtCustomer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer Deadline</p><p className="font-medium">{fmtDate(viewRecord.deadlineDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submission Method</p><p className="font-medium">{String(viewRecord.submissionMethod ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submitted to Customer</p><p className="font-medium">{viewRecord.submittedToCustomer ? "Yes" : "No"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submission Date</p><p className="font-medium">{fmtDate(viewRecord.submissionDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer Reference</p><p className="font-medium">{String(viewRecord.customerReference ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Report URL / Storage Link</p><p className="font-medium">{String(viewRecord.reportUrl ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Acknowledged Date</p><p className="font-medium">{fmtDate(viewRecord.acknowledgedDate)}</p></div>
+              <div className="col-span-2 border-t pt-3 grid grid-cols-3 gap-3">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Emissions (tCO₂e)</p><p className="font-medium">{String(viewRecord.totalEmissionsTonnesCo2e ?? "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sequestration (tCO₂e)</p><p className="font-medium">{String(viewRecord.sequestrationTonnesCo2e ?? "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Position (tCO₂e)</p><p className="font-medium">{String(viewRecord.netPositionTonnesCo2e ?? "—")}</p></div>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Report URL / Storage Link</p>
+                <p className="font-medium">
+                  {viewRecord.reportUrl
+                    ? <a href={String(viewRecord.reportUrl)} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{String(viewRecord.reportUrl)}</a>
+                    : "—"}
+                </p>
+              </div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
             <DialogFooter>
+              <Button variant="outline" onClick={() => { handleOpen(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>Sustainability Report</DialogTitle></DialogHeader>
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
+        <DialogContent style={{ maxWidth: "46rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Sustainability Report</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Report Year *</Label>
+
+            {/* Year + Status */}
+            <div>
+              <Label>Report Year *</Label>
               <Select value={String(form.reportYear ?? "")} onValueChange={v => setForm(f => ({ ...f, reportYear: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
                 <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Report Title *</Label><Input value={String(form.reportTitle ?? "")} onChange={e => setForm(f => ({ ...f, reportTitle: e.target.value }))} /></div>
-            <div><Label>Generated Date *</Label><Input type="date" value={String(form.generatedDate ?? "")} onChange={e => setForm(f => ({ ...f, generatedDate: e.target.value }))} /></div>
-            <div><Label>Supply Chain Customer</Label><Input value={String(form.supplyChainCustomer ?? "")} onChange={e => setForm(f => ({ ...f, supplyChainCustomer: e.target.value }))} /></div>
-            <div className="flex items-center gap-2 col-span-2 mt-2"><Checkbox id="sub" checked={Boolean(form.submittedToCustomer)} onCheckedChange={v => setForm(f => ({ ...f, submittedToCustomer: Boolean(v) }))} /><Label htmlFor="sub">Submitted to customer?</Label></div>
-            <div><Label>Submission Date</Label><Input type="date" value={String(form.submissionDate ?? "")} onChange={e => setForm(f => ({ ...f, submissionDate: e.target.value }))} /></div>
-            <div><Label>Customer Reference</Label><Input value={String(form.customerReference ?? "")} onChange={e => setForm(f => ({ ...f, customerReference: e.target.value }))} /></div>
+            <div>
+              <Label>Status</Label>
+              <Select value={String(form.status ?? "draft")} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{SR_STATUS_OPTIONS.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            {/* Report Type + Generated Date */}
+            <div>
+              <Label>Report Type *</Label>
+              <Select value={String(form.reportType ?? "")} onValueChange={v => setForm(f => ({ ...f, reportType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select tool / format" /></SelectTrigger>
+                <SelectContent>{SR_REPORT_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Generated Date *</Label>
+              <Input type="date" value={String(form.generatedDate ?? "")} onChange={e => setForm(f => ({ ...f, generatedDate: e.target.value }))} />
+            </div>
+
+            {/* Report Title — auto-suggested */}
+            <div className="col-span-2">
+              <Label>Report Title *</Label>
+              <Input
+                value={String(form.reportTitle ?? "")}
+                onChange={e => setForm(f => ({ ...f, reportTitle: e.target.value }))}
+                placeholder={suggestedTitle || "e.g. 2024 Agrecalc Carbon Report — Tesco"}
+              />
+              {suggestedTitle && !form.reportTitle && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Suggested:{" "}
+                  <button type="button" className="text-primary underline" onClick={() => setForm(f => ({ ...f, reportTitle: suggestedTitle }))}>
+                    {suggestedTitle}
+                  </button>
+                </p>
+              )}
+            </div>
+
+            {/* Customer details */}
+            <div>
+              <Label>Supply Chain Customer</Label>
+              <Select value={String(form.supplyChainCustomer ?? "")} onValueChange={v => setForm(f => ({ ...f, supplyChainCustomer: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                <SelectContent>{SR_CUSTOMERS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Contact at Customer</Label>
+              <Input value={String(form.contactNameAtCustomer ?? "")} onChange={e => setForm(f => ({ ...f, contactNameAtCustomer: e.target.value }))} placeholder="Name / team" />
+            </div>
+            <div>
+              <Label>Customer Deadline</Label>
+              <Input type="date" value={String(form.deadlineDate ?? "")} onChange={e => setForm(f => ({ ...f, deadlineDate: e.target.value }))} />
+            </div>
+
+            {/* Submission tracking */}
+            <div className="flex items-center gap-2 mt-5">
+              <Checkbox id="sr-sub" checked={Boolean(form.submittedToCustomer)} onCheckedChange={v => setForm(f => ({ ...f, submittedToCustomer: Boolean(v) }))} />
+              <Label htmlFor="sr-sub">Submitted to customer?</Label>
+            </div>
+            <div>
+              <Label>Submission Method</Label>
+              <Select value={String(form.submissionMethod ?? "")} onValueChange={v => setForm(f => ({ ...f, submissionMethod: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                <SelectContent>{SR_SUBMISSION_METHODS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Submission Date</Label>
+              <Input type="date" value={String(form.submissionDate ?? "")} onChange={e => setForm(f => ({ ...f, submissionDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Customer Reference</Label>
+              <Input value={String(form.customerReference ?? "")} onChange={e => setForm(f => ({ ...f, customerReference: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Acknowledged Date</Label>
+              <Input type="date" value={String(form.acknowledgedDate ?? "")} onChange={e => setForm(f => ({ ...f, acknowledgedDate: e.target.value }))} />
+            </div>
+
+            {/* Key metrics */}
+            <div className="col-span-2 border-t pt-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Key Metrics from Report</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Total Emissions (tCO₂e)</Label>
+                  <Input type="number" step="0.001" value={String(form.totalEmissionsTonnesCo2e ?? "")}
+                    onChange={e => {
+                      const em = parseFloat(e.target.value);
+                      const seq = parseFloat(String(form.sequestrationTonnesCo2e ?? "0"));
+                      const net = !isNaN(em) ? (em - (isNaN(seq) ? 0 : seq)).toFixed(3) : String(form.netPositionTonnesCo2e ?? "");
+                      setForm(f => ({ ...f, totalEmissionsTonnesCo2e: e.target.value, netPositionTonnesCo2e: net }));
+                    }} placeholder="0.000" />
+                </div>
+                <div>
+                  <Label>Sequestration (tCO₂e)</Label>
+                  <Input type="number" step="0.001" value={String(form.sequestrationTonnesCo2e ?? "")}
+                    onChange={e => {
+                      const seq = parseFloat(e.target.value);
+                      const em = parseFloat(String(form.totalEmissionsTonnesCo2e ?? ""));
+                      const net = !isNaN(em) ? (em - (isNaN(seq) ? 0 : seq)).toFixed(3) : String(form.netPositionTonnesCo2e ?? "");
+                      setForm(f => ({ ...f, sequestrationTonnesCo2e: e.target.value, netPositionTonnesCo2e: net }));
+                    }} placeholder="0.000" />
+                </div>
+                <div>
+                  <Label>Net Position (tCO₂e)</Label>
+                  <Input type="number" step="0.001" value={String(form.netPositionTonnesCo2e ?? "")}
+                    onChange={e => setForm(f => ({ ...f, netPositionTonnesCo2e: e.target.value }))}
+                    placeholder="Auto-calculated" />
+                  {calcNetPosition && String(form.netPositionTonnesCo2e) !== calcNetPosition && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      = {calcNetPosition} tCO₂e{" "}
+                      <button type="button" className="text-primary underline" onClick={() => setForm(f => ({ ...f, netPositionTonnesCo2e: calcNetPosition }))}>use this</button>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Report URL */}
+            <div className="col-span-2">
+              <Label>Report URL / Storage Link</Label>
+              <Input value={String(form.reportUrl ?? "")} onChange={e => setForm(f => ({ ...f, reportUrl: e.target.value }))} placeholder="https://..." />
+            </div>
+
+            {/* Notes */}
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form as Record<string, unknown>)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
