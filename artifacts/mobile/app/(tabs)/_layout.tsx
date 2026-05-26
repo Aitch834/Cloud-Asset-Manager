@@ -26,8 +26,8 @@ function NativeTabLayout() {
         <Label>Fields</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="forms">
-        <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
-        <Label>Forms</Label>
+        <Icon sf={{ default: "checklist", selected: "checklist" }} />
+        <Label>Checklists</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="more">
         <Icon sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }} />
@@ -115,12 +115,12 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="forms"
         options={{
-          title: "Forms",
+          title: "Checklists",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="doc.text" tintColor={color} size={24} />
+              <SymbolView name="checklist" tintColor={color} size={24} />
             ) : (
-              <Feather name="file-text" size={22} color={color} />
+              <Feather name="check-square" size={22} color={color} />
             ),
         }}
       />
