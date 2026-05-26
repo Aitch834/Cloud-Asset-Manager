@@ -176,20 +176,193 @@ function AuditsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ── Emissions taxonomy with DEFRA 2024 indicative conversion factors ──────────
+const EM_YEARS = Array.from(
+  { length: new Date().getFullYear() - 2014 },
+  (_, i) => String(new Date().getFullYear() + 1 - i),
+);
+
+const EM_FACTOR_SOURCES = [
+  "DEFRA UK GHG Conversion Factors 2024",
+  "DEFRA UK GHG Conversion Factors 2023",
+  "IPCC 2019 Guidelines",
+  "AHDB Carbon Calculator",
+  "Agrecalc",
+  "Cool Farm Tool",
+  "Other / manual",
+];
+
+type EmSubcat = { label: string; unit: string; factor?: number };
+type EmCatDef = { scope: string; subcategories: EmSubcat[] };
+
+const EMISSION_TAXONOMY: Record<string, EmCatDef> = {
+  "Fuel & Energy": {
+    scope: "Scope 1",
+    subcategories: [
+      { label: "Red diesel (Gas oil)",      unit: "litres",    factor: 0.002557 },
+      { label: "White diesel (DERV)",       unit: "litres",    factor: 0.002542 },
+      { label: "Petrol",                    unit: "litres",    factor: 0.002154 },
+      { label: "LPG",                       unit: "litres",    factor: 0.001566 },
+      { label: "Natural gas",               unit: "kWh",       factor: 0.000183 },
+      { label: "Kerosene (heating)",        unit: "litres",    factor: 0.002530 },
+      { label: "Grid electricity (Scope 2)", unit: "kWh",      factor: 0.000207 },
+      { label: "Biogas / biomethane",       unit: "kWh",       factor: 0.000010 },
+    ],
+  },
+  "Livestock Enteric Fermentation": {
+    scope: "Scope 1",
+    subcategories: [
+      { label: "Dairy cows",   unit: "head·year", factor: 1.90  },
+      { label: "Beef cattle",  unit: "head·year", factor: 1.20  },
+      { label: "Sheep",        unit: "head·year", factor: 0.083 },
+      { label: "Pigs",         unit: "head·year", factor: 0.035 },
+      { label: "Poultry",      unit: "head·year", factor: 0.001 },
+    ],
+  },
+  "Livestock Manure": {
+    scope: "Scope 1",
+    subcategories: [
+      { label: "Dairy cows",            unit: "head·year", factor: 0.960  },
+      { label: "Beef cattle",           unit: "head·year", factor: 0.460  },
+      { label: "Sheep",                 unit: "head·year", factor: 0.032  },
+      { label: "Pigs",                  unit: "head·year", factor: 0.420  },
+      { label: "Poultry (broilers)",    unit: "head·year", factor: 0.006  },
+      { label: "Cattle slurry storage", unit: "m³",        factor: 0.0015 },
+    ],
+  },
+  "Soil & Fertiliser N₂O": {
+    scope: "Scope 1",
+    subcategories: [
+      { label: "Synthetic N fertiliser — direct N₂O",     unit: "kg N", factor: 0.00440 },
+      { label: "Organic N (slurry/FYM) — direct N₂O",    unit: "kg N", factor: 0.00220 },
+      { label: "Crop residues — direct N₂O",              unit: "kg N", factor: 0.00220 },
+      { label: "Indirect N₂O (leaching & run-off)",       unit: "kg N", factor: 0.00075 },
+    ],
+  },
+  "Land Use Change": {
+    scope: "Scope 1",
+    subcategories: [
+      { label: "Peat drainage — arable",    unit: "ha", factor: 10.50 },
+      { label: "Peat drainage — grassland", unit: "ha", factor:  7.00 },
+      { label: "Deforestation",             unit: "ha", factor: 55.00 },
+    ],
+  },
+  "Purchased Inputs": {
+    scope: "Scope 3",
+    subcategories: [
+      { label: "Synthetic N fertiliser (manufacture)", unit: "kg",      factor: 0.00448 },
+      { label: "Compound fertiliser (manufacture)",    unit: "kg",      factor: 0.00200 },
+      { label: "Pesticides / agrochemicals",           unit: "kg a.i.", factor: 0.00850 },
+      { label: "Purchased animal feed",                unit: "tonne",   factor: 0.45    },
+      { label: "Lime / ground limestone",              unit: "tonne",   factor: 0.140   },
+      { label: "Plastic film & packaging",             unit: "kg",      factor: 0.00320 },
+    ],
+  },
+  "Transport": {
+    scope: "Scope 3",
+    subcategories: [
+      { label: "Road haulage — HGV",         unit: "tonne·km", factor: 0.0000820 },
+      { label: "Road haulage — rigid lorry", unit: "tonne·km", factor: 0.0001100 },
+      { label: "Employee car travel",        unit: "km",        factor: 0.0001700 },
+      { label: "Air freight",                unit: "tonne·km", factor: 0.0006020 },
+    ],
+  },
+  "Buildings & Infrastructure": {
+    scope: "Scope 3",
+    subcategories: [
+      { label: "Concrete (embodied carbon)",   unit: "tonne", factor: 0.1070 },
+      { label: "Steel (embodied carbon)",      unit: "tonne", factor: 1.770  },
+      { label: "Timber (embodied carbon)",     unit: "m³",    factor: 0.0580 },
+      { label: "Refrigerant leak — HFC-134a", unit: "kg",    factor: 1.300  },
+      { label: "Refrigerant leak — R410A",    unit: "kg",    factor: 2.088  },
+    ],
+  },
+  "Other": {
+    scope: "Scope 3",
+    subcategories: [
+      { label: "Waste to landfill",    unit: "tonne", factor: 0.4670   },
+      { label: "Water consumption",    unit: "m³",    factor: 0.000149 },
+      { label: "Other (manual entry)", unit: "unit"                    },
+    ],
+  },
+};
+
 function EmissionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["carbon-emissions", farmId], queryFn: () => fetch(api(`farms/${farmId}/carbon-emissions`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-emissions`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }); setOpen(false); setForm({}); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-emissions/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }) });
-  const CATEGORIES = ["Fuel & Energy", "Livestock Enteric Fermentation", "Livestock Manure", "Soil & Fertiliser N₂O", "Land Use Change", "Purchased Inputs", "Transport", "Buildings & Infrastructure", "Other"];
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["carbon-emissions", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/carbon-emissions`), { credentials: "include" }).then(r => r.json()),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-emissions`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }); setOpen(false); setForm({}); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-emissions/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }),
+  });
+
+  const catDef = form.category ? EMISSION_TAXONOMY[form.category] : null;
+  const subcatDef = catDef?.subcategories.find(s => s.label === form.subcategory) ?? null;
+  const calcCo2e = subcatDef?.factor != null && form.quantity
+    ? (parseFloat(form.quantity) * subcatDef.factor).toFixed(4)
+    : null;
+
+  const handleCategoryChange = (v: string) => {
+    const def = EMISSION_TAXONOMY[v];
+    setForm(f => ({ ...f, category: v, subcategory: "", unit: "", scope: def?.scope ?? "", tonnesCo2e: "" }));
+  };
+
+  const handleSubcategoryChange = (v: string) => {
+    const def = catDef?.subcategories.find(s => s.label === v);
+    const newScope = v.includes("Scope 2") ? "Scope 2" : (catDef?.scope ?? "");
+    setForm(f => {
+      const qty = parseFloat(f.quantity);
+      const co2e = def?.factor != null && !isNaN(qty) ? (qty * def.factor).toFixed(4) : f.tonnesCo2e;
+      return { ...f, subcategory: v, unit: def?.unit ?? "", scope: newScope, tonnesCo2e: co2e };
+    });
+  };
+
+  const handleQuantityChange = (v: string) => {
+    setForm(f => {
+      const qty = parseFloat(v);
+      const factor = catDef?.subcategories.find(s => s.label === f.subcategory)?.factor;
+      const co2e = factor != null && !isNaN(qty) ? (qty * factor).toFixed(4) : f.tonnesCo2e;
+      return { ...f, quantity: v, tonnesCo2e: co2e };
+    });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Emissions Records</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "emissionYear", label: "Year" }, { key: "category", label: "Category" }, { key: "subcategory", label: "Sub-category" }, { key: "activityDescription", label: "Activity" }, { key: "quantity", label: "Quantity" }, { key: "unit", label: "Unit" }, { key: "tonnesCo2e", label: "tCO₂e" }, { key: "scope", label: "Scope" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
-      
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Emissions Records</h3>
+        <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1" />Add Record
+        </Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "emissionYear", label: "Year" },
+            { key: "scope", label: "Scope" },
+            { key: "category", label: "Category" },
+            { key: "subcategory", label: "Sub-category" },
+            { key: "activityDescription", label: "Activity" },
+            { key: "quantity", label: "Qty" },
+            { key: "unit", label: "Unit" },
+            { key: "tonnesCo2e", label: "tCO₂e" },
+          ]}
+          rows={records as Record<string, unknown>[]}
+          onView={setViewRecord}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -206,38 +379,131 @@ function EmissionsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">tCO₂e</p><p className="font-medium">{String(viewRecord.tonnesCo2e ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
-            <DialogFooter>
-              <Button onClick={() => setViewRecord(null)}>Close</Button>
-            </DialogFooter>
+            <DialogFooter><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "42rem" }}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Emissions Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Year *</Label><Input type="number" value={form.emissionYear ?? ""} onChange={e => setForm(f => ({ ...f, emissionYear: e.target.value }))} /></div>
-            <div><Label>Scope *</Label>
-              <Select value={form.scope ?? ""} onValueChange={v => setForm(f => ({ ...f, scope: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Scope 1", "Scope 2", "Scope 3"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+
+            {/* Year — dropdown */}
+            <div>
+              <Label>Year *</Label>
+              <Select value={form.emissionYear ?? ""} onValueChange={v => setForm(f => ({ ...f, emissionYear: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Category *</Label>
-              <Select value={form.category ?? ""} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+
+            {/* Scope — read-only, driven by category */}
+            <div>
+              <Label>Scope</Label>
+              <div className="flex items-center h-9 px-3 rounded-md border bg-muted/40 text-sm gap-2">
+                {form.scope
+                  ? <><span className="font-medium">{form.scope}</span><span className="text-xs text-muted-foreground ml-1">(set from category)</span></>
+                  : <span className="text-muted-foreground italic">Select a category first</span>}
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <Label>Category *</Label>
+              <Select value={form.category ?? ""} onValueChange={handleCategoryChange}>
+                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {Object.keys(EMISSION_TAXONOMY).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
-            <div><Label>Sub-category</Label><Input value={form.subcategory ?? ""} onChange={e => setForm(f => ({ ...f, subcategory: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Activity Description *</Label><Input value={form.activityDescription ?? ""} onChange={e => setForm(f => ({ ...f, activityDescription: e.target.value }))} /></div>
-            <div><Label>Quantity</Label><Input type="number" step="0.001" value={form.quantity ?? ""} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
-            <div><Label>Unit</Label><Input value={form.unit ?? ""} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} /></div>
-            <div><Label>Emission Factor Source</Label><Input value={form.emissionFactorSource ?? ""} onChange={e => setForm(f => ({ ...f, emissionFactorSource: e.target.value }))} /></div>
-            <div><Label>tCO₂e *</Label><Input type="number" step="0.0001" value={form.tonnesCo2e ?? ""} onChange={e => setForm(f => ({ ...f, tonnesCo2e: e.target.value }))} /></div>
+
+            {/* Sub-category — cascading from category */}
+            <div>
+              <Label>Sub-category</Label>
+              <Select value={form.subcategory ?? ""} onValueChange={handleSubcategoryChange} disabled={!catDef}>
+                <SelectTrigger>
+                  <SelectValue placeholder={catDef ? "Select sub-category" : "Select a category first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {catDef?.subcategories.map(s => <SelectItem key={s.label} value={s.label}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Activity description */}
+            <div className="col-span-2">
+              <Label>Activity Description *</Label>
+              <Input
+                value={form.activityDescription ?? ""}
+                onChange={e => setForm(f => ({ ...f, activityDescription: e.target.value }))}
+                placeholder="e.g. Tractor fleet — mixed arable operations 2024"
+              />
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <Label>Quantity</Label>
+              <Input type="number" step="0.001" value={form.quantity ?? ""} onChange={e => handleQuantityChange(e.target.value)} placeholder="0.000" />
+            </div>
+
+            {/* Unit — auto-filled from sub-category */}
+            <div>
+              <Label>Unit</Label>
+              <div className="flex items-center h-9 px-3 rounded-md border bg-muted/40 text-sm">
+                {form.unit
+                  ? <span className="font-medium">{form.unit}</span>
+                  : <span className="text-muted-foreground italic">Set by sub-category</span>}
+              </div>
+            </div>
+
+            {/* Emission Factor Source — dropdown */}
+            <div>
+              <Label>Emission Factor Source</Label>
+              <Select value={form.emissionFactorSource ?? ""} onValueChange={v => setForm(f => ({ ...f, emissionFactorSource: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                <SelectContent>{EM_FACTOR_SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            {/* tCO₂e — auto-calculated, manually overridable */}
+            <div>
+              <Label>tCO₂e *</Label>
+              <Input
+                type="number"
+                step="0.0001"
+                value={form.tonnesCo2e ?? ""}
+                onChange={e => setForm(f => ({ ...f, tonnesCo2e: e.target.value }))}
+                placeholder="0.0000"
+              />
+              {calcCo2e && (
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  Indicative: {calcCo2e} tCO₂e (qty × DEFRA 2024 factor)
+                  {form.tonnesCo2e && form.tonnesCo2e !== calcCo2e && (
+                    <button
+                      type="button"
+                      className="ml-1 text-primary underline"
+                      onClick={() => setForm(f => ({ ...f, tonnesCo2e: calcCo2e }))}
+                    >
+                      use this
+                    </button>
+                  )}
+                </p>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Input value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
