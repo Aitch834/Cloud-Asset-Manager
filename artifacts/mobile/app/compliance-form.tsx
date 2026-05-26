@@ -194,7 +194,7 @@ const CHECKLISTS: Record<string, { title: string; items: ChecklistItem[] }> = {
   },
 };
 
-const DEFAULT_CHECKLIST = {
+const DEFAULT_CHECKLIST: { title: string; items: ChecklistItem[] } = {
   title: "Compliance Check",
   items: [
     { id: "1", text: "Compliance standards are met in this area" },
@@ -324,7 +324,6 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: colors.primary,
     borderRadius: 2,
-    transition: "width 0.2s" as any,
   },
   scroll: {
     paddingHorizontal: spacing.lg,

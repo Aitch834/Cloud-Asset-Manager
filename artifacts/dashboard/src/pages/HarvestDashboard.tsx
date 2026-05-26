@@ -188,7 +188,7 @@ export default function HarvestDashboard() {
   const todayTotalHa = todayHarvests.reduce((s: number, r: any) => s + (parseFloat(r.areaHarvestedHa) || 0), 0);
   const todayTotalTonnes = todayHarvests.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
 
-  const harvestDays = [...new Set(harvests.map((r: any) => r.harvestDate ? new Date(r.harvestDate).toISOString().slice(0, 10) : null).filter(Boolean))].sort().reverse().slice(0, 7);
+  const harvestDays = [...new Set(harvests.map((r: any) => r.harvestDate ? new Date(r.harvestDate).toISOString().slice(0, 10) : null).filter((d): d is string => d !== null))].sort().reverse().slice(0, 7);
 
   const handleRowMouseEnter = (e: React.MouseEvent<HTMLDivElement>, day: string) => {
     const rect = e.currentTarget.getBoundingClientRect();
