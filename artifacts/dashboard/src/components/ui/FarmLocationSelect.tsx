@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 interface FarmLocation {
@@ -63,7 +64,15 @@ export function FarmLocationSelect({
 
   const hasLocations = activeLocations.length > 0;
   const knownValues = activeLocations.map(l => l.name);
-  const isCustom = value && !knownValues.includes(value);
+
+  // A value is "custom" if it's non-empty and not one of the known farm locations.
+  const isCustomValue = !!value && !knownValues.includes(value);
+
+  // Local flag tracks whether the user explicitly chose "Other / type your own…"
+  // so the text input stays visible even before they've typed anything.
+  const [otherMode, setOtherMode] = useState(isCustomValue);
+
+  const showTextInput = otherMode || isCustomValue;
 
   if (!hasLocations) {
     return (
@@ -84,15 +93,17 @@ export function FarmLocationSelect({
       <select
         id={id}
         className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
-        value={isCustom ? "__other__" : value}
+        value={showTextInput ? "__other__" : value}
         onChange={e => {
           if (e.target.value === "__other__") {
+            setOtherMode(true);
             onChange("");
           } else {
+            setOtherMode(false);
             onChange(e.target.value);
           }
         }}
-        required={required && !isCustom}
+        required={required && !showTextInput}
       >
         <option value="">{placeholder}</option>
         {Object.entries(grouped).map(([type, items]) => (
@@ -104,7 +115,7 @@ export function FarmLocationSelect({
         ))}
         <option value="__other__">Other / type your own…</option>
       </select>
-      {isCustom && (
+      {showTextInput && (
         <input
           type="text"
           className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
