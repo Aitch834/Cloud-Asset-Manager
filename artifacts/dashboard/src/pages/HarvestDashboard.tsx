@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -39,9 +40,109 @@ function FieldStatusPill({ status }: { status: "harvested" | "pending" }) {
   );
 }
 
+interface TooltipPos { top: number; right: number; }
+
+function HarvestDayTooltip({ day, records, pos }: { day: string; records: any[]; pos: TooltipPos }) {
+  const label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const totalTonnes = records.reduce((s, r) => s + (parseFloat(r.yieldTonnes) || 0), 0);
+  const totalHa = records.reduce((s, r) => s + (parseFloat(r.areaHarvestedHa) || 0), 0);
+  const operators = [...new Set(records.filter(r => r.operatorName).map(r => r.operatorName as string))];
+  const moistureRecords = records.filter(r => r.moisturePercent);
+  const avgMoisture = moistureRecords.length
+    ? moistureRecords.reduce((s, r) => s + parseFloat(r.moisturePercent), 0) / moistureRecords.length
+    : null;
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: pos.top,
+      right: pos.right,
+      zIndex: 9999,
+      width: 288,
+      background: "#fff",
+      border: "1px solid #e5e7eb",
+      borderRadius: 12,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)",
+      pointerEvents: "none",
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{ padding: "0.65rem 0.9rem", background: "#f8fffe", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "#111827" }}>{label}</span>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#166534", background: "#dcfce7", borderRadius: 6, padding: "2px 7px" }}>
+          {totalTonnes.toFixed(1)} t total
+        </span>
+      </div>
+
+      {/* Field breakdown */}
+      <div style={{ padding: "0.5rem 0" }}>
+        {records.map((r, i) => {
+          const fieldName = r.field?.name || r.fieldName || "Unknown Field";
+          const cropName = r.crop?.name || r.cropName || "Unknown Crop";
+          const variety = r.crop?.variety || r.cropVariety;
+          const yield_ = parseFloat(r.yieldTonnes) || 0;
+          const area = parseFloat(r.areaHarvestedHa) || 0;
+          const moisture = r.moisturePercent ? parseFloat(r.moisturePercent) : null;
+
+          return (
+            <div key={r.id ?? i} style={{
+              display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+              padding: "0.45rem 0.9rem",
+              borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none",
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontWeight: 600, fontSize: "0.82rem", color: "#111827", marginBottom: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {fieldName}
+                </p>
+                <p style={{ fontSize: "0.73rem", color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {cropName}{variety ? ` · ${variety}` : ""}
+                </p>
+                {moisture !== null && (
+                  <p style={{ fontSize: "0.7rem", color: "#0369a1", marginTop: 1, display: "flex", alignItems: "center", gap: 3 }}>
+                    <Droplets size={9} color="#0369a1" /> {moisture.toFixed(1)}% moisture
+                  </p>
+                )}
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
+                {yield_ > 0 && <p style={{ fontWeight: 700, fontSize: "0.85rem", color: "#166534" }}>{yield_.toFixed(1)} t</p>}
+                {area > 0 && <p style={{ fontSize: "0.72rem", color: "#9ca3af" }}>{area.toFixed(1)} ha</p>}
+                {yield_ > 0 && area > 0 && <p style={{ fontSize: "0.7rem", color: "#6b7280" }}>{(yield_ / area).toFixed(2)} t/ha</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer summary */}
+      <div style={{ padding: "0.5rem 0.9rem", background: "#f9fafb", borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12 }}>
+          <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
+            <span style={{ fontWeight: 600, color: "#374151" }}>{records.length}</span> field{records.length !== 1 ? "s" : ""}
+          </span>
+          <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
+            <span style={{ fontWeight: 600, color: "#374151" }}>{totalHa.toFixed(1)}</span> ha
+          </span>
+          {avgMoisture !== null && (
+            <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>
+              <span style={{ fontWeight: 600, color: "#374151" }}>{avgMoisture.toFixed(1)}%</span> avg moisture
+            </span>
+          )}
+        </div>
+        {operators.length > 0 && (
+          <span style={{ fontSize: "0.7rem", color: "#9ca3af", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {operators.join(", ")}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function HarvestDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
+  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<TooltipPos | null>(null);
 
   const harvestQ = useQuery({
     queryKey: ["harvests", farmId],
@@ -88,6 +189,21 @@ export default function HarvestDashboard() {
   const todayTotalTonnes = todayHarvests.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
 
   const harvestDays = [...new Set(harvests.map((r: any) => r.harvestDate ? new Date(r.harvestDate).toISOString().slice(0, 10) : null).filter(Boolean))].sort().reverse().slice(0, 7);
+
+  const handleRowMouseEnter = (e: React.MouseEvent<HTMLDivElement>, day: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tooltipHeight = 80 + (harvests.filter((r: any) =>
+      r.harvestDate && new Date(r.harvestDate).toISOString().slice(0, 10) === day
+    ).length * 62);
+    const topPos = Math.min(rect.top, window.innerHeight - tooltipHeight - 12);
+    setHoveredDay(day);
+    setTooltipPos({ top: Math.max(8, topPos), right: window.innerWidth - rect.left + 12 });
+  };
+
+  const handleRowMouseLeave = () => {
+    setHoveredDay(null);
+    setTooltipPos(null);
+  };
 
   if (!farmId) {
     return (
@@ -202,6 +318,7 @@ export default function HarvestDashboard() {
                 <div style={{ padding: "0.875rem 1.25rem", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 8 }}>
                   <BarChart3 size={15} color="#1d4ed8" />
                   <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>Recent Harvest Days</span>
+                  <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "#9ca3af", fontStyle: "italic" }}>Hover for detail</span>
                 </div>
                 {harvestDays.length === 0 ? (
                   <div style={{ padding: "2rem 1.25rem", textAlign: "center", color: "#9ca3af" }}>
@@ -216,18 +333,32 @@ export default function HarvestDashboard() {
                       const dayHa = dayRecs.reduce((s: number, r: any) => s + (parseFloat(r.areaHarvestedHa) || 0), 0);
                       const dayT = dayRecs.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
                       const isToday = day === todayStr;
+                      const isHovered = hoveredDay === day;
                       return (
-                        <div key={day} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.65rem 1.25rem", borderBottom: "1px solid #f9fafb", background: isToday ? "#f0fdf4" : "transparent" }}>
+                        <div
+                          key={day}
+                          onMouseEnter={e => handleRowMouseEnter(e, day)}
+                          onMouseLeave={handleRowMouseLeave}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            padding: "0.65rem 1.25rem",
+                            borderBottom: "1px solid #f9fafb",
+                            background: isHovered ? "#f0f9ff" : isToday ? "#f0fdf4" : "transparent",
+                            cursor: "default",
+                            transition: "background 0.1s",
+                          }}
+                        >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             {isToday && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 4, padding: "1px 5px" }}>TODAY</span>}
                             <span style={{ fontSize: "0.85rem", fontWeight: isToday ? 700 : 500, color: "#374151" }}>
                               {new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                             </span>
                           </div>
-                          <div style={{ display: "flex", gap: 16, fontSize: "0.8rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: "0.8rem" }}>
                             <span style={{ color: "#6b7280" }}>{dayRecs.length} field{dayRecs.length !== 1 ? "s" : ""}</span>
                             <span style={{ color: "#374151", fontWeight: 600 }}>{dayHa.toFixed(1)} ha</span>
                             <span style={{ color: "#166534", fontWeight: 700 }}>{dayT.toFixed(1)} t</span>
+                            <span style={{ color: "#d1d5db", fontSize: "0.7rem" }}>›</span>
                           </div>
                         </div>
                       );
@@ -290,6 +421,14 @@ export default function HarvestDashboard() {
           </>
         )}
       </div>
+
+      {/* Hover tooltip — position:fixed escapes all overflow:hidden containers */}
+      {hoveredDay && tooltipPos && (() => {
+        const dayRecs = harvests.filter((r: any) =>
+          r.harvestDate && new Date(r.harvestDate).toISOString().slice(0, 10) === hoveredDay
+        );
+        return <HarvestDayTooltip day={hoveredDay} records={dayRecs} pos={tooltipPos} />;
+      })()}
     </AppLayout>
   );
 }
