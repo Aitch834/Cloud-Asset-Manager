@@ -160,7 +160,12 @@ function AuditsTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Carbon Audit</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Audit Year *</Label><Input type="number" value={form.auditYear ?? ""} onChange={e => setForm(f => ({ ...f, auditYear: e.target.value }))} /></div>
+            <div><Label>Audit Year *</Label>
+              <Select value={form.auditYear ?? ""} onValueChange={v => setForm(f => ({ ...f, auditYear: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Audit Date *</Label><Input type="date" value={form.auditDate ?? ""} onChange={e => setForm(f => ({ ...f, auditDate: e.target.value }))} /></div>
             <div><Label>Conducted By *</Label><Input value={form.conductedBy ?? ""} onChange={e => setForm(f => ({ ...f, conductedBy: e.target.value }))} /></div>
             <div><Label>Audit Tool / Methodology</Label><Input value={form.auditTool ?? ""} onChange={e => setForm(f => ({ ...f, auditTool: e.target.value }))} /></div>
@@ -510,19 +515,80 @@ function EmissionsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// Sequestration feature types with indicative annual sequestration factors
+const SEQ_FEATURES: Record<string, { unit: string; factorTco2ePerUnit?: number }> = {
+  "Woodland":            { unit: "ha",  factorTco2ePerUnit: 3.50 },
+  "Hedgerow":            { unit: "km",  factorTco2ePerUnit: 0.34 },
+  "Peatland":            { unit: "ha",  factorTco2ePerUnit: 5.50 },
+  "Permanent Grassland": { unit: "ha",  factorTco2ePerUnit: 0.50 },
+  "Wildflower Meadow":   { unit: "ha",  factorTco2ePerUnit: 0.30 },
+  "Riparian Buffer":     { unit: "ha",  factorTco2ePerUnit: 1.20 },
+  "Agroforestry":        { unit: "ha",  factorTco2ePerUnit: 1.50 },
+  "Other":               { unit: "ha" },
+};
+
+const SEQ_FACTOR_SOURCES = [...EM_FACTOR_SOURCES, "Woodland Carbon Code", "Peatland Code"];
+
 function SequestrationTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["carbon-seq", farmId], queryFn: () => fetch(api(`farms/${farmId}/carbon-sequestration`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-sequestration`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }); setOpen(false); setForm({}); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-sequestration/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }) });
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["carbon-seq", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/carbon-sequestration`), { credentials: "include" }).then(r => r.json()),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-sequestration`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }); setOpen(false); setForm({}); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-sequestration/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }),
+  });
+
+  const featDef = form.featureType ? SEQ_FEATURES[form.featureType] : null;
+  const calcSeq = featDef?.factorTco2ePerUnit != null && form.areaHaOrLengthM
+    ? (parseFloat(form.areaHaOrLengthM) * featDef.factorTco2ePerUnit).toFixed(3)
+    : null;
+
+  const handleFeatureTypeChange = (v: string) => {
+    const def = SEQ_FEATURES[v];
+    setForm(f => {
+      const qty = parseFloat(f.areaHaOrLengthM);
+      const seq = def?.factorTco2ePerUnit != null && !isNaN(qty) ? (qty * def.factorTco2ePerUnit).toFixed(3) : f.tonnesCo2eSequestered;
+      return { ...f, featureType: v, unit: def?.unit ?? "ha", tonnesCo2eSequestered: seq };
+    });
+  };
+
+  const handleAreaChange = (v: string) => {
+    setForm(f => {
+      const qty = parseFloat(v);
+      const factor = featDef?.factorTco2ePerUnit;
+      const seq = factor != null && !isNaN(qty) ? (qty * factor).toFixed(3) : f.tonnesCo2eSequestered;
+      return { ...f, areaHaOrLengthM: v, tonnesCo2eSequestered: seq };
+    });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Carbon Sequestration</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "sequestrationYear", label: "Year" }, { key: "featureType", label: "Feature Type" }, { key: "featureName", label: "Feature" }, { key: "areaHaOrLengthM", label: "Area/Length" }, { key: "unit", label: "Unit" }, { key: "tonnesCo2eSequestered", label: "tCO₂e Sequestered" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
-      
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Carbon Sequestration</h3>
+        <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable cols={[
+          { key: "sequestrationYear", label: "Year" },
+          { key: "featureType", label: "Feature Type" },
+          { key: "featureName", label: "Feature" },
+          { key: "areaHaOrLengthM", label: "Area/Length" },
+          { key: "unit", label: "Unit" },
+          { key: "tonnesCo2eSequestered", label: "tCO₂e Sequestered" },
+        ]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />
+      )}
+
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -534,12 +600,10 @@ function SequestrationTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area/Length</p><p className="font-medium">{String(viewRecord.areaHaOrLengthM ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Unit</p><p className="font-medium">{String(viewRecord.unit ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">tCO₂e Sequestered</p><p className="font-medium">{String(viewRecord.tonnesCo2eSequestered ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Emission Factor Source</p><p className="font-medium">{String(viewRecord.sequestrationFactorSource ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Sequestration Factor Source</p><p className="font-medium">{String(viewRecord.sequestrationFactorSource ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
-            <DialogFooter>
-              <Button onClick={() => setViewRecord(null)}>Close</Button>
-            </DialogFooter>
+            <DialogFooter><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -548,25 +612,85 @@ function SequestrationTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Sequestration Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Year *</Label><Input type="number" value={form.sequestrationYear ?? ""} onChange={e => setForm(f => ({ ...f, sequestrationYear: e.target.value }))} /></div>
-            <div><Label>Feature Type *</Label>
-              <Select value={form.featureType ?? ""} onValueChange={v => setForm(f => ({ ...f, featureType: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Woodland", "Hedgerow", "Peatland", "Permanent Grassland", "Wildflower Meadow", "Riparian Buffer", "Agroforestry", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+
+            {/* Year */}
+            <div>
+              <Label>Year *</Label>
+              <Select value={form.sequestrationYear ?? ""} onValueChange={v => setForm(f => ({ ...f, sequestrationYear: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Feature Name</Label><Input value={form.featureName ?? ""} onChange={e => setForm(f => ({ ...f, featureName: e.target.value }))} /></div>
-            <div><Label>Area/Length</Label><Input type="number" step="0.001" value={form.areaHaOrLengthM ?? ""} onChange={e => setForm(f => ({ ...f, areaHaOrLengthM: e.target.value }))} /></div>
-            <div><Label>Unit</Label>
-              <Select value={form.unit ?? ""} onValueChange={v => setForm(f => ({ ...f, unit: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["ha", "km", "linear m", "trees"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+
+            {/* Feature Type — drives unit and calculation */}
+            <div>
+              <Label>Feature Type *</Label>
+              <Select value={form.featureType ?? ""} onValueChange={handleFeatureTypeChange}>
+                <SelectTrigger><SelectValue placeholder="Select feature" /></SelectTrigger>
+                <SelectContent>{Object.keys(SEQ_FEATURES).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>tCO₂e Sequestered *</Label><Input type="number" step="0.0001" value={form.tonnesCo2eSequestered ?? ""} onChange={e => setForm(f => ({ ...f, tonnesCo2eSequestered: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Emission Factor Source</Label><Input value={form.sequestrationFactorSource ?? ""} onChange={e => setForm(f => ({ ...f, sequestrationFactorSource: e.target.value }))} /></div>
+
+            {/* Feature Name */}
+            <div className="col-span-2">
+              <Label>Feature Name</Label>
+              <Input value={form.featureName ?? ""} onChange={e => setForm(f => ({ ...f, featureName: e.target.value }))} placeholder="e.g. North Wood, Boundary Hedge A" />
+            </div>
+
+            {/* Area / Length — triggers auto-calc */}
+            <div>
+              <Label>Area / Length</Label>
+              <Input type="number" step="0.001" value={form.areaHaOrLengthM ?? ""} onChange={e => handleAreaChange(e.target.value)} placeholder="0.000" />
+            </div>
+
+            {/* Unit — auto-filled from feature type */}
+            <div>
+              <Label>Unit</Label>
+              <div className="flex items-center h-9 px-3 rounded-md border bg-muted/40 text-sm">
+                {form.unit ? <span className="font-medium">{form.unit}</span> : <span className="text-muted-foreground italic">Set by feature type</span>}
+              </div>
+            </div>
+
+            {/* tCO₂e Sequestered — auto-calculated, overridable */}
+            <div>
+              <Label>tCO₂e Sequestered *</Label>
+              <Input
+                type="number"
+                step="0.001"
+                value={form.tonnesCo2eSequestered ?? ""}
+                onChange={e => setForm(f => ({ ...f, tonnesCo2eSequestered: e.target.value }))}
+                placeholder="0.000"
+              />
+              {calcSeq && (
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  Indicative: {calcSeq} tCO₂e (area × WCC/DEFRA factor)
+                  {form.tonnesCo2eSequestered && form.tonnesCo2eSequestered !== calcSeq && (
+                    <button type="button" className="ml-1 text-primary underline" onClick={() => setForm(f => ({ ...f, tonnesCo2eSequestered: calcSeq }))}>use this</button>
+                  )}
+                </p>
+              )}
+            </div>
+
+            {/* Sequestration Factor Source — dropdown */}
+            <div>
+              <Label>Sequestration Factor Source</Label>
+              <Select value={form.sequestrationFactorSource ?? ""} onValueChange={v => setForm(f => ({ ...f, sequestrationFactorSource: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                <SelectContent>{SEQ_FACTOR_SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            {/* Notes */}
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Input value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -585,7 +709,7 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Carbon Reduction Actions</h3><Button size="sm" onClick={() => { setEditing(null); setForm({ status: "planned" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Action</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "actionTitle", label: "Action" }, { key: "category", label: "Category" }, { key: "targetReductionTonnesCo2e", label: "Target tCO₂e" }, { key: "status", label: "Status" }, { key: "plannedCompletionDate", label: "Target Date", fmt: r => fmtDate(r.plannedCompletionDate) }, { key: "responsiblePerson", label: "Responsible" }]} rows={actions as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "actionTitle", label: "Action" }, { key: "category", label: "Category" }, { key: "targetReductionTonnesCo2e", label: "Target tCO₂e" }, { key: "status", label: "Status", fmt: r => String(r.status ?? "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }, { key: "plannedCompletionDate", label: "Target Date", fmt: r => fmtDate(r.plannedCompletionDate) }, { key: "responsiblePerson", label: "Responsible" }]} rows={actions as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -631,7 +755,9 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
             <div><Label>Status</Label>
               <Select value={form.status ?? "planned"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["planned", "in-progress", "completed", "cancelled"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {[{ v: "planned", l: "Planned" }, { v: "in-progress", l: "In Progress" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div><Label>Target Reduction (tCO₂e)</Label><Input type="number" step="0.001" value={form.targetReductionTonnesCo2e ?? ""} onChange={e => setForm(f => ({ ...f, targetReductionTonnesCo2e: e.target.value }))} /></div>
@@ -687,7 +813,12 @@ function ReportsTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Sustainability Report</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Report Year *</Label><Input type="number" value={String(form.reportYear ?? "")} onChange={e => setForm(f => ({ ...f, reportYear: e.target.value }))} /></div>
+            <div><Label>Report Year *</Label>
+              <Select value={String(form.reportYear ?? "")} onValueChange={v => setForm(f => ({ ...f, reportYear: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Report Title *</Label><Input value={String(form.reportTitle ?? "")} onChange={e => setForm(f => ({ ...f, reportTitle: e.target.value }))} /></div>
             <div><Label>Generated Date *</Label><Input type="date" value={String(form.generatedDate ?? "")} onChange={e => setForm(f => ({ ...f, generatedDate: e.target.value }))} /></div>
             <div><Label>Supply Chain Customer</Label><Input value={String(form.supplyChainCustomer ?? "")} onChange={e => setForm(f => ({ ...f, supplyChainCustomer: e.target.value }))} /></div>
@@ -823,6 +954,14 @@ function RenewableEnergyTab({ farmId }: { farmId: number }) {
   }, [isLoading, instLoading, genLoading]);
 
   const TECH_TYPES = ["Solar PV", "Wind Turbine", "Anaerobic Digestion (AD)", "Hydro", "Biomass Boiler", "Ground Source Heat Pump", "Air Source Heat Pump", "Other"];
+
+  const calcCo2Avoided = form.generationKwh
+    ? ((parseFloat(form.generationKwh) * UK_GRID_KG_CO2E_PER_KWH) / 1000).toFixed(3)
+    : null;
+  const calcExportRevenue = form.exportedKwh && form.exportTariffPencePerKwh
+    ? ((parseFloat(form.exportedKwh) * parseFloat(form.exportTariffPencePerKwh)) / 100).toFixed(2)
+    : null;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -881,16 +1020,60 @@ function RenewableEnergyTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>System Name</Label><Input placeholder="e.g. South Barn Solar Array" value={form.systemName ?? ""} onChange={e => setForm(f => ({ ...f, systemName: e.target.value }))} /></div>
-            <div><Label>Production Year *</Label><Input type="number" value={form.productionYear ?? ""} onChange={e => setForm(f => ({ ...f, productionYear: e.target.value }))} /></div>
+            <div><Label>Production Year *</Label>
+              <Select value={form.productionYear ?? ""} onValueChange={v => setForm(f => ({ ...f, productionYear: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Installed Capacity (kW)</Label><Input type="number" step="0.01" value={form.installedCapacityKw ?? ""} onChange={e => setForm(f => ({ ...f, installedCapacityKw: e.target.value }))} /></div>
             <div><Label>Period Start *</Label><Input type="date" value={form.periodStart ?? ""} onChange={e => setForm(f => ({ ...f, periodStart: e.target.value }))} /></div>
             <div><Label>Period End *</Label><Input type="date" value={form.periodEnd ?? ""} onChange={e => setForm(f => ({ ...f, periodEnd: e.target.value }))} /></div>
-            <div><Label>Generation (kWh) *</Label><Input type="number" step="0.01" value={form.generationKwh ?? ""} onChange={e => setForm(f => ({ ...f, generationKwh: e.target.value }))} /></div>
+            <div>
+              <Label>Generation (kWh) *</Label>
+              <Input type="number" step="0.01" value={form.generationKwh ?? ""} onChange={e => {
+                const gen = parseFloat(e.target.value);
+                const co2 = !isNaN(gen) ? ((gen * UK_GRID_KG_CO2E_PER_KWH) / 1000).toFixed(3) : form.co2AvoidedTonnes;
+                setForm(f => ({ ...f, generationKwh: e.target.value, co2AvoidedTonnes: co2 }));
+              }} />
+            </div>
             <div><Label>Self-consumed (kWh)</Label><Input type="number" step="0.01" value={form.selfConsumedKwh ?? ""} onChange={e => setForm(f => ({ ...f, selfConsumedKwh: e.target.value }))} /></div>
-            <div><Label>Exported (kWh)</Label><Input type="number" step="0.01" value={form.exportedKwh ?? ""} onChange={e => setForm(f => ({ ...f, exportedKwh: e.target.value }))} /></div>
-            <div><Label>Export Tariff (p/kWh)</Label><Input type="number" step="0.01" value={form.exportTariffPencePerKwh ?? ""} onChange={e => setForm(f => ({ ...f, exportTariffPencePerKwh: e.target.value }))} /></div>
-            <div><Label>Export Revenue (£)</Label><Input type="number" step="0.01" value={form.exportRevenueGbp ?? ""} onChange={e => setForm(f => ({ ...f, exportRevenueGbp: e.target.value }))} /></div>
-            <div><Label>CO₂ Avoided (tonnes)</Label><Input type="number" step="0.001" value={form.co2AvoidedTonnes ?? ""} onChange={e => setForm(f => ({ ...f, co2AvoidedTonnes: e.target.value }))} /></div>
+            <div>
+              <Label>Exported (kWh)</Label>
+              <Input type="number" step="0.01" value={form.exportedKwh ?? ""} onChange={e => {
+                const exp = parseFloat(e.target.value);
+                const tariff = parseFloat(form.exportTariffPencePerKwh ?? "");
+                const rev = !isNaN(exp) && !isNaN(tariff) ? ((exp * tariff) / 100).toFixed(2) : form.exportRevenueGbp;
+                setForm(f => ({ ...f, exportedKwh: e.target.value, exportRevenueGbp: rev }));
+              }} />
+            </div>
+            <div>
+              <Label>Export Tariff (p/kWh)</Label>
+              <Input type="number" step="0.01" value={form.exportTariffPencePerKwh ?? ""} onChange={e => {
+                const tariff = parseFloat(e.target.value);
+                const exp = parseFloat(form.exportedKwh ?? "");
+                const rev = !isNaN(tariff) && !isNaN(exp) ? ((exp * tariff) / 100).toFixed(2) : form.exportRevenueGbp;
+                setForm(f => ({ ...f, exportTariffPencePerKwh: e.target.value, exportRevenueGbp: rev }));
+              }} />
+            </div>
+            <div>
+              <Label>Export Revenue (£)</Label>
+              <Input type="number" step="0.01" value={form.exportRevenueGbp ?? ""} onChange={e => setForm(f => ({ ...f, exportRevenueGbp: e.target.value }))} />
+              {calcExportRevenue && form.exportRevenueGbp !== calcExportRevenue && (
+                <p className="text-xs text-muted-foreground mt-0.5">Calculated: £{calcExportRevenue} (exported kWh × tariff)
+                  <button type="button" className="ml-1 text-primary underline" onClick={() => setForm(f => ({ ...f, exportRevenueGbp: calcExportRevenue }))}>use this</button>
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>CO₂ Avoided (tonnes)</Label>
+              <Input type="number" step="0.001" value={form.co2AvoidedTonnes ?? ""} onChange={e => setForm(f => ({ ...f, co2AvoidedTonnes: e.target.value }))} />
+              {calcCo2Avoided && form.co2AvoidedTonnes !== calcCo2Avoided && (
+                <p className="text-xs text-muted-foreground mt-0.5">Calculated: {calcCo2Avoided} t (generation × 0.207 kgCO₂e/kWh)
+                  <button type="button" className="ml-1 text-primary underline" onClick={() => setForm(f => ({ ...f, co2AvoidedTonnes: calcCo2Avoided }))}>use this</button>
+                </p>
+              )}
+            </div>
             <div><Label>FIT / RO Reference</Label><Input value={form.fitRocReference ?? ""} onChange={e => setForm(f => ({ ...f, fitRocReference: e.target.value }))} /></div>
             <div><Label>Meter Reading (Start)</Label><Input type="number" step="0.01" value={form.meterReadingStart ?? ""} onChange={e => setForm(f => ({ ...f, meterReadingStart: e.target.value }))} /></div>
             <div><Label>Meter Reading (End)</Label><Input type="number" step="0.01" value={form.meterReadingEnd ?? ""} onChange={e => setForm(f => ({ ...f, meterReadingEnd: e.target.value }))} /></div>
@@ -928,12 +1111,21 @@ function BngTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Biodiversity Net Gain Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
-            <div><Label>Assessment Tool</Label><Input value={form.assessmentTool ?? "Defra Metric 4.0"} onChange={e => setForm(f => ({ ...f, assessmentTool: e.target.value }))} /></div>
+            <div><Label>Assessment Tool</Label>
+              <Select value={form.assessmentTool ?? "Defra Metric 4.0"} onValueChange={v => setForm(f => ({ ...f, assessmentTool: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["Defra Metric 4.0", "Defra Metric 3.1", "Defra Metric 3.0", "CIEEM Rapid Assessment", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Assessor Name</Label><Input value={form.assessorName ?? ""} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
             <div><Label>Record Type</Label>
               <Select value={form.recordType ?? "baseline"} onValueChange={v => setForm(f => ({ ...f, recordType: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["baseline", "post-creation", "annual-monitoring", "final-assessment"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {[{ v: "baseline", l: "Baseline" }, { v: "post-creation", l: "Post-creation" }, { v: "annual-monitoring", l: "Annual Monitoring" }, { v: "final-assessment", l: "Final Assessment" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div><Label>Habitat Type *</Label>
@@ -955,16 +1147,47 @@ function BngTab({ farmId }: { farmId: number }) {
                 <SelectContent>{Conditions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Baseline Units</Label><Input type="number" step="0.001" value={form.baselineUnits ?? ""} onChange={e => setForm(f => ({ ...f, baselineUnits: e.target.value }))} /></div>
-            <div><Label>Target Units</Label><Input type="number" step="0.001" value={form.targetUnits ?? ""} onChange={e => setForm(f => ({ ...f, targetUnits: e.target.value }))} /></div>
-            <div><Label>Net Gain Units</Label><Input type="number" step="0.001" value={form.netGainUnits ?? ""} onChange={e => setForm(f => ({ ...f, netGainUnits: e.target.value }))} /></div>
+            <div>
+              <Label>Baseline Units</Label>
+              <Input type="number" step="0.001" value={form.baselineUnits ?? ""} onChange={e => {
+                const baseline = parseFloat(e.target.value);
+                const target = parseFloat(form.targetUnits ?? "");
+                const net = !isNaN(baseline) && !isNaN(target) ? (target - baseline).toFixed(3) : form.netGainUnits;
+                setForm(f => ({ ...f, baselineUnits: e.target.value, netGainUnits: net }));
+              }} />
+            </div>
+            <div>
+              <Label>Target Units</Label>
+              <Input type="number" step="0.001" value={form.targetUnits ?? ""} onChange={e => {
+                const target = parseFloat(e.target.value);
+                const baseline = parseFloat(form.baselineUnits ?? "");
+                const net = !isNaN(baseline) && !isNaN(target) ? (target - baseline).toFixed(3) : form.netGainUnits;
+                setForm(f => ({ ...f, targetUnits: e.target.value, netGainUnits: net }));
+              }} />
+            </div>
+            <div>
+              <Label>Net Gain Units</Label>
+              <Input type="number" step="0.001" value={form.netGainUnits ?? ""} onChange={e => setForm(f => ({ ...f, netGainUnits: e.target.value }))} placeholder="Auto-calculated from target − baseline" />
+              {form.baselineUnits && form.targetUnits && (
+                <p className="text-xs text-muted-foreground mt-0.5">= target ({form.targetUnits}) − baseline ({form.baselineUnits})</p>
+              )}
+            </div>
             <div><Label>Management Commitment (years)</Label><Input type="number" value={form.managementCommitmentYears ?? ""} onChange={e => setForm(f => ({ ...f, managementCommitmentYears: e.target.value }))} /></div>
-            <div><Label>Legal Agreement Type</Label><Input placeholder="e.g. Section 106, Conservation Covenant" value={form.legalAgreementType ?? ""} onChange={e => setForm(f => ({ ...f, legalAgreementType: e.target.value }))} /></div>
+            <div><Label>Legal Agreement Type</Label>
+              <Select value={form.legalAgreementType ?? ""} onValueChange={v => setForm(f => ({ ...f, legalAgreementType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  {["Section 106", "Conservation Covenant", "Management Agreement", "Habitat Bank Agreement", "Planning Condition", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Planning Reference</Label><Input value={form.planningReference ?? ""} onChange={e => setForm(f => ({ ...f, planningReference: e.target.value }))} /></div>
             <div><Label>Status</Label>
               <Select value={form.status ?? "active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["active", "completed", "monitoring", "lapsed"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {[{ v: "active", l: "Active" }, { v: "completed", l: "Completed" }, { v: "monitoring", l: "Monitoring" }, { v: "lapsed", l: "Lapsed" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div className="col-span-2"><Label>Habitat Description</Label><Textarea value={form.habitatDescription ?? ""} onChange={e => setForm(f => ({ ...f, habitatDescription: e.target.value }))} rows={2} /></div>
