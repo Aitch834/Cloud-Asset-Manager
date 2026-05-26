@@ -580,6 +580,8 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
   const buildPayload = (body: any) => ({
     ...body,
+    growthStage: body.growthStage === "__other__" ? "" : (body.growthStage || null),
+    reasonForApplication: body.reasonForApplication === "__other__" ? "" : (body.reasonForApplication || ""),
     stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null,
     equipmentId: body.equipmentId ? Number(body.equipmentId) : null,
     supplierId: body.supplierId ? Number(body.supplierId) : null,
@@ -745,7 +747,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     <Input placeholder="e.g. GS31, BBCH 31–32" value={form.growthStage} onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))} />
                   ) : (
                     <>
-                      <Select value={gsSelectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, growthStage: "" })); return; } setForm((f: any) => ({ ...f, growthStage: v })); }}>
+                      <Select value={gsSelectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, growthStage: "__other__" })); return; } setForm((f: any) => ({ ...f, growthStage: v })); }}>
                         <SelectTrigger><SelectValue placeholder="Select growth stage..." /></SelectTrigger>
                         <SelectContent>
                           {bbchStages.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -753,7 +755,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                         </SelectContent>
                       </Select>
                       {(isCustomGs || gsSelectVal === "__other__") && (
-                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="e.g. GS31, BBCH 31–32, flag leaf" value={form.growthStage} onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))} />
+                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="e.g. GS31, BBCH 31–32, flag leaf" value={form.growthStage === "__other__" ? "" : form.growthStage} onChange={e => setForm((f: any) => ({ ...f, growthStage: e.target.value }))} />
                       )}
                     </>
                   );
@@ -1074,7 +1076,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
                   ) : (
                     <>
-                      <Select value={selectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, reasonForApplication: "" })); return; } setForm((f: any) => ({ ...f, reasonForApplication: v })); }}>
+                      <Select value={selectVal} onValueChange={v => { if (v === "__other__") { setForm((f: any) => ({ ...f, reasonForApplication: "__other__" })); return; } setForm((f: any) => ({ ...f, reasonForApplication: v })); }}>
                         <SelectTrigger><SelectValue placeholder="Select reason for application..." /></SelectTrigger>
                         <SelectContent>
                           {sprayReasons.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
@@ -1082,7 +1084,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                         </SelectContent>
                       </Select>
                       {(isCustom || selectVal === "__other__") && (
-                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="Describe the reason for application..." value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+                        <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="Describe the reason for application..." value={form.reasonForApplication === "__other__" ? "" : form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
                       )}
                     </>
                   );
@@ -1123,7 +1125,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button
               onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: form }) : createMut.mutate(form)}
-              disabled={!form.fieldId || !form.applicationDate || !form.productId || !form.operatorName || !form.reasonForApplication || createMut.isPending || updateMut.isPending}
+              disabled={!form.fieldId || !form.applicationDate || !form.productId || !form.operatorName || !form.reasonForApplication || form.reasonForApplication === "__other__" || createMut.isPending || updateMut.isPending}
             >
               {editRecord ? (updateMut.isPending ? "Saving…" : "Save Changes") : (createMut.isPending ? "Saving…" : "Save Record")}
             </Button>

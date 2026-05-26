@@ -2173,9 +2173,9 @@ export default function CompliancePage() {
                       {knownVetNames.length > 0 ? (
                         <>
                           <Select
-                            value={recallForm.vetName && knownVetNames.includes(recallForm.vetName) ? recallForm.vetName : (recallForm.vetName ? "__other__" : "__none__")}
+                            value={recallForm.vetName && knownVetNames.includes(recallForm.vetName) ? recallForm.vetName : (recallForm.vetName !== undefined ? "__other__" : "__none__")}
                             onValueChange={v => {
-                              if (v === "__none__") setRecallForm(f => ({ ...f, vetName: "" }));
+                              if (v === "__none__") setRecallForm(f => { const n = { ...f }; delete (n as any).vetName; return n; });
                               else if (v === "__other__") setRecallForm(f => ({ ...f, vetName: "" }));
                               else setRecallForm(f => ({ ...f, vetName: v }));
                             }}
