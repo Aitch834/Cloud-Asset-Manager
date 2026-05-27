@@ -65,6 +65,36 @@ function OverdueItemsPopover({
   );
 }
 
+const PRICING_GROUPS: { keys: string[] }[] = [
+  { keys: ["field-crop-management"] },
+  { keys: ["sprays-inputs"] },
+  { keys: ["soil-management"] },
+  { keys: ["equipment-management", "workshop-management", "fuel-energy"] },
+  { keys: ["livestock-management", "feed-management", "dairy-management"] },
+  { keys: ["biosecurity"] },
+  { keys: ["staff-training"] },
+  { keys: ["risk-waste", "inspections"] },
+  { keys: ["environmental", "carbon-sustainability"] },
+  { keys: ["water-irrigation"] },
+  { keys: ["stock-suppliers", "financial-records", "business-reports", "haulage-transport"] },
+  { keys: ["weather-tracking"] },
+  { keys: ["sms-alerts", "document-management"] },
+  { keys: ["biofuel-rtfo"] },
+  { keys: ["sheep-production"] },
+  { keys: ["beef-production"] },
+  { keys: ["pig-production"] },
+  { keys: ["poultry-production"] },
+  { keys: ["fresh-produce"] },
+  { keys: ["viticulture"] },
+  { keys: ["organic-compliance"] },
+  { keys: ["organic-livestock"] },
+  { keys: ["organic-dairy"] },
+  { keys: ["organic-fresh-produce"] },
+  { keys: ["organic-arable"] },
+  { keys: ["organic-viticulture"] },
+  { keys: ["farm-diversification"] },
+];
+
 export default function Dashboard() {
   const { farmId } = useAppStore();
 
@@ -115,6 +145,7 @@ export default function Dashboard() {
   }
 
   const activeSubs: string[] = (dashboard.activeSubscriptions ?? []).map((s: any) => s.moduleKey as string);
+  const purchasedModuleCount = PRICING_GROUPS.filter(g => g.keys.some(k => activeSubs.includes(k))).length;
 
   const sectors: string[] = [
     farm.sectorArable && "Arable",
@@ -242,7 +273,7 @@ export default function Dashboard() {
                   <Layers className="w-4 h-4 text-indigo-500" />
                   <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Platform</span>
                 </div>
-                <h3 className="text-4xl font-bold text-indigo-600 mb-1">{activeSubs.length}</h3>
+                <h3 className="text-4xl font-bold text-indigo-600 mb-1">{purchasedModuleCount + 1}</h3>
                 <p className="text-sm text-foreground/60 font-medium">Active modules</p>
               </div>
               <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
@@ -250,7 +281,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">
-              Red Tractor + {Math.max(0, activeSubs.length - 1)} add-ons
+              Red Tractor + {purchasedModuleCount} modules
             </div>
           </CardContent>
         </Card>
