@@ -1067,7 +1067,7 @@ const recordOptions: RecordOption[] = [
     color: "#d97706",
     bgColor: "#fef3c7",
     route: "/carbon-entry",
-    moduleKeys: ["environmental"],
+    moduleKeys: ["carbon-sustainability", "environmental"],
   },
   {
     id: "carbon-sequestration",
@@ -1077,7 +1077,7 @@ const recordOptions: RecordOption[] = [
     color: "#16a34a",
     bgColor: "#dcfce7",
     route: "/carbon-sequestration",
-    moduleKeys: ["environmental"],
+    moduleKeys: ["carbon-sustainability", "environmental"],
   },
   {
     id: "carbon-reduction-action",
@@ -1087,7 +1087,7 @@ const recordOptions: RecordOption[] = [
     color: "#059669",
     bgColor: "#d1fae5",
     route: "/carbon-reduction-action",
-    moduleKeys: ["environmental"],
+    moduleKeys: ["carbon-sustainability", "environmental"],
   },
   {
     id: "carbon-audit",
@@ -1097,7 +1097,7 @@ const recordOptions: RecordOption[] = [
     color: "#0369a1",
     bgColor: "#e0f2fe",
     route: "/carbon-audit",
-    moduleKeys: ["environmental"],
+    moduleKeys: ["carbon-sustainability", "environmental"],
   },
   {
     id: "bng-record",
@@ -1107,7 +1107,7 @@ const recordOptions: RecordOption[] = [
     color: "#7c3aed",
     bgColor: "#f3e8ff",
     route: "/bng-record",
-    moduleKeys: ["environmental"],
+    moduleKeys: ["carbon-sustainability", "environmental"],
   },
   {
     id: "diversification-record",

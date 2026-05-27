@@ -262,6 +262,58 @@ export default function MoreScreen() {
           </>
         )}
 
+        {(activeModuleKeys.includes("carbon-sustainability") || activeModuleKeys.includes("environmental")) && (
+          <>
+            <SectionHeader title="Carbon & Sustainability" />
+            <View style={styles.section}>
+              <ListItem
+                title="GHG Emission Entry"
+                subtitle="Record emission sources using DEFRA 2024 factors — fuels, livestock, fertilisers, transport"
+                icon="zap"
+                iconColor="#d97706"
+                iconBgColor="#fef3c7"
+                onPress={() => router.push("/carbon-entry")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Carbon Audit Record"
+                subtitle="Log a formal farm carbon audit with Scope 1, 2 and 3 tCO₂e figures"
+                icon="clipboard"
+                iconColor="#0369a1"
+                iconBgColor="#e0f2fe"
+                onPress={() => router.push("/carbon-audit")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Carbon Sequestration"
+                subtitle="Record woodland, hedgerow, peatland and other sequestering habitats"
+                icon="wind"
+                iconColor="#16a34a"
+                iconBgColor="#dcfce7"
+                onPress={() => router.push("/carbon-sequestration")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Carbon Reduction Action"
+                subtitle="Log a planned or in-progress action to cut farm emissions"
+                icon="trending-down"
+                iconColor="#059669"
+                iconBgColor="#d1fae5"
+                onPress={() => router.push("/carbon-reduction-action")}
+              />
+              <View style={styles.divider} />
+              <ListItem
+                title="Biodiversity Net Gain (BNG)"
+                subtitle="Log BNG habitat records with Defra Metric 4.0 unit calculations"
+                icon="feather"
+                iconColor="#7c3aed"
+                iconBgColor="#f3e8ff"
+                onPress={() => router.push("/bng-record")}
+              />
+            </View>
+          </>
+        )}
+
         <SectionHeader title="Equipment" />
         <View style={styles.section}>
           <ListItem
@@ -276,6 +328,15 @@ export default function MoreScreen() {
 
         <SectionHeader title="App" />
         <View style={styles.section}>
+          <ListItem
+            title="Help Centre"
+            subtitle="Guides, FAQs and how-to articles"
+            icon="help-circle"
+            iconColor="#0369a1"
+            iconBgColor="#e0f2fe"
+            onPress={() => router.push("/help")}
+          />
+          <View style={styles.divider} />
           <ListItem
             title="Offline Mode"
             subtitle="Records stored locally in SQLite until synced"

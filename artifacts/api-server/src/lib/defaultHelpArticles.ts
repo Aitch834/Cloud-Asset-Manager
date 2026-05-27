@@ -249,6 +249,7 @@ const TITLES: [string, string][] = [
   ["Poultry Environmental Alarm Advisory — Corrective Action Before Next Flush Cycle", "Poultry Production"],
   ["Harvest Destination Type — Own Holding, Contract Processor and Grape Sale Selector", "Viticulture"],
   ["Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition", "Viticulture"],
+  ["Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking", "Carbon & Sustainability"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -4400,6 +4401,73 @@ const CONTENT: [string, string][] = [
 <p>Assign the task to the winemaker or harvest manager, set a due date, and click Raise Task. Skip if the concern has already been communicated verbally and no formal task record is required.</p>
 <h3>Mobile app</h3>
 <p>The same amber advisory and automatic RaiseTaskSheet prompt are present on the Vine Harvest screen in the mobile app — the task sheet opens after saving whenever Poor condition or botrytis &gt;30% is recorded, ensuring the follow-up is triggered regardless of whether the record is created in the field or at a desk.</p>`,
+  ],
+
+  // 222 — Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking
+  [
+    "How to record, track, and manage carbon and sustainability reports submitted to supply chain customers using BDE Farm Trac's Sustainability Reports tab.",
+    `<h2>Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking</h2>
+<p>An increasing number of retailers, processors, and assurance schemes require farms to submit formal carbon footprint reports or sustainability declarations as part of their supply chain compliance requirements. The Sustainability Reports tab in the Carbon &amp; Sustainability module provides a dedicated register for tracking every report submitted — who it was submitted to, which certifying body assessed it, its current status, and the associated purchase order and invoice references.</p>
+<h3>Accessing the Sustainability Reports tab</h3>
+<p>Navigate to <strong>Carbon &amp; Sustainability → Sustainability Reports</strong>. The tab shows a summary card row (total reports, submitted this year, accepted count, and reports under review or pending) followed by a sortable list of all records.</p>
+<h3>Adding a new sustainability report record</h3>
+<p>Click <strong>Add Report</strong> to open the record form. The required fields are:</p>
+<ul>
+<li><strong>Report title:</strong> a descriptive name — the Suggested Title hint pre-fills based on the audit tool and customer (e.g. "2024 Agrecalc Carbon Report — Tesco").</li>
+<li><strong>Supply chain customer:</strong> the retailer, processor, co-operative, or certification body the report was submitted to.</li>
+<li><strong>Report type:</strong> Carbon Footprint, Sustainability Declaration, BNG, SFI Evidence, or Other.</li>
+<li><strong>Audit tool:</strong> the carbon calculation tool used — Agrecalc, Cool Farm Tool, Farm Carbon Toolkit, SAC Carbon Calculator, AHDB Carbon Calculator, Arla Carbon Check, or Other.</li>
+<li><strong>Report year:</strong> the farming year or crop year the report covers.</li>
+<li><strong>Submission date:</strong> the date the completed report was submitted to the customer.</li>
+<li><strong>Status:</strong> Draft, Submitted, Accepted, Rejected, or Under Review.</li>
+</ul>
+<h3>Certifying body lookup</h3>
+<p>The <strong>Certifying Body</strong> field offers a searchable picker of recognised UK carbon and sustainability assurance bodies:</p>
+<ul>
+<li>Carbon Trust</li>
+<li>BSI (PAS 2060)</li>
+<li>LRQA (Lloyd's Register)</li>
+<li>Bureau Veritas</li>
+<li>SGS UK</li>
+<li>Intertek</li>
+<li>ADAS</li>
+<li>SAC Consulting</li>
+<li>Agrecalc Carbon Assurance</li>
+<li>Farm Carbon Toolkit</li>
+<li>Carbon Footprint Ltd</li>
+<li>Soil Association (organic carbon)</li>
+<li>Agri Carbon</li>
+<li>Other</li>
+</ul>
+<p>If your certifying body is not listed, select <strong>Other</strong> and add the name in the Notes field.</p>
+<h3>PO reference and invoice reference</h3>
+<p>Two optional fields capture the commercial paperwork associated with the report submission:</p>
+<ul>
+<li><strong>PO Reference:</strong> the purchase order number raised by your customer or by your business for the certification fee.</li>
+<li><strong>Invoice Reference:</strong> the invoice number issued by the certifying body or audit tool provider for the assessment fee.</li>
+</ul>
+<p>These fields allow you to reconcile carbon audit costs against your Finance module purchase orders and invoices without leaving the Carbon &amp; Sustainability module.</p>
+<h3>Document attachments</h3>
+<p>Each Sustainability Report record has a document attachment panel (visible in the View dialog). You can attach:</p>
+<ul>
+<li>The submitted report document (PDF or Excel).</li>
+<li>The acceptance letter or certification notice from the customer or certifying body.</li>
+<li>Supporting evidence (GHG data workings, sequestration calculations, third-party audit certificates).</li>
+</ul>
+<p>Files are stored in secure cloud storage and accessible via a direct View link at any time — including during a Red Tractor or retailer audit visit.</p>
+<h3>Status workflow</h3>
+<p>Move a report through its lifecycle by editing the Status field:</p>
+<ul>
+<li><strong>Draft:</strong> report prepared but not yet submitted.</li>
+<li><strong>Submitted:</strong> sent to the customer or certifying body — submission date recorded.</li>
+<li><strong>Under Review:</strong> customer or certifier has acknowledged receipt and is reviewing.</li>
+<li><strong>Accepted:</strong> customer or certifier has confirmed the report meets requirements.</li>
+<li><strong>Rejected:</strong> report returned for revision — use the Notes field to record the reason and the corrective action required.</li>
+</ul>
+<h3>View-before-edit</h3>
+<p>Clicking any record in the list opens a structured <strong>View</strong> dialog first, showing all fields and attached documents. An <strong>Edit</strong> button within the view dialog opens the edit form, preventing accidental overwrites during audits.</p>
+<h3>Linking to the Auto-Calculator</h3>
+<p>After using the Carbon Auto-Calculator to pre-fill a new Carbon Audit record (see the Carbon Auto-Calculator help article), the resulting audit record provides the verified tCO₂e figures that form the basis of your Sustainability Report submission. Record the corresponding audit year in the Sustainability Report's Report Year field and attach the completed audit workings document to create a complete evidence chain from raw farm data through to the submitted supply chain declaration.</p>`,
   ],
 ];
 
