@@ -2262,6 +2262,13 @@ function ReportsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submission Date</p><p className="font-medium">{fmtDate(viewRecord.submissionDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer Reference</p><p className="font-medium">{String(viewRecord.customerReference ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Acknowledged Date</p><p className="font-medium">{fmtDate(viewRecord.acknowledgedDate)}</p></div>
+              {(viewRecord.preparedBy || viewRecord.certifyingBody || viewRecord.certificateReference) && (
+                <div className="col-span-2 border-t pt-3 grid grid-cols-3 gap-3">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prepared By</p><p className="font-medium">{String(viewRecord.preparedBy ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying / Issuing Body</p><p className="font-medium">{String(viewRecord.certifyingBody ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate / Reference No.</p><p className="font-medium">{String(viewRecord.certificateReference ?? "—")}</p></div>
+                </div>
+              )}
               <div className="col-span-2 border-t pt-3 grid grid-cols-3 gap-3">
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Emissions (tCO₂e)</p><p className="font-medium">{String(viewRecord.totalEmissionsTonnesCo2e ?? "—")}</p></div>
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sequestration (tCO₂e)</p><p className="font-medium">{String(viewRecord.sequestrationTonnesCo2e ?? "—")}</p></div>
@@ -2373,6 +2380,25 @@ function ReportsTab({ farmId }: { farmId: number }) {
             <div>
               <Label>Acknowledged Date</Label>
               <Input type="date" value={String(form.acknowledgedDate ?? "")} onChange={e => setForm(f => ({ ...f, acknowledgedDate: e.target.value }))} />
+            </div>
+
+            {/* Report source / preparer */}
+            <div className="col-span-2 border-t pt-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Report Source</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Prepared By</Label>
+                  <Input value={String(form.preparedBy ?? "")} onChange={e => setForm(f => ({ ...f, preparedBy: e.target.value }))} placeholder="Auditor / consultant / internal" />
+                </div>
+                <div>
+                  <Label>Certifying / Issuing Body</Label>
+                  <Input value={String(form.certifyingBody ?? "")} onChange={e => setForm(f => ({ ...f, certifyingBody: e.target.value }))} placeholder="e.g. Woodland Carbon Code, LEAF Marque" />
+                </div>
+                <div>
+                  <Label>Certificate / Reference No.</Label>
+                  <Input value={String(form.certificateReference ?? "")} onChange={e => setForm(f => ({ ...f, certificateReference: e.target.value }))} placeholder="Scheme reference number" />
+                </div>
+              </div>
             </div>
 
             {/* Key metrics */}

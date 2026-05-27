@@ -166,6 +166,10 @@ export const sustainabilityReportsTable = pgTable("sustainability_reports", {
   totalEmissionsTonnesCo2e: numeric("total_emissions_tonnes_co2e", { precision: 10, scale: 3 }),
   sequestrationTonnesCo2e: numeric("sequestration_tonnes_co2e", { precision: 10, scale: 3 }),
   netPositionTonnesCo2e: numeric("net_position_tonnes_co2e", { precision: 10, scale: 3 }),
+  // Report source / preparer
+  preparedBy: text("prepared_by"),
+  certifyingBody: text("certifying_body"),
+  certificateReference: text("certificate_reference"),
   // Storage
   reportUrl: text("report_url"),
   notes: text("notes"),
