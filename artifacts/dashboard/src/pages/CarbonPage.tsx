@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles } from "lucide-react";
+import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles, Printer } from "lucide-react";
+import { printProReport } from "@/lib/print-report";
 import { FctImportDialog } from "@/components/FctImportDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -861,6 +862,7 @@ function EmissionsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [filterYear, setFilterYear] = useState("all");
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["carbon-emissions", farmId],
@@ -874,6 +876,55 @@ function EmissionsTab({ farmId }: { farmId: number }) {
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-emissions/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }),
   });
+
+  const { data: farmRec } = useQuery<Record<string, unknown>>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record),
+  });
+
+  const allRows = records as Record<string, unknown>[];
+  const availableYears = Array.from(new Set(allRows.map(r => String(r.emissionYear)))).sort((a, b) => Number(b) - Number(a));
+  const filteredRows = filterYear === "all" ? allRows : allRows.filter(r => String(r.emissionYear) === filterYear);
+  const totalCo2e = filteredRows.reduce((sum, r) => sum + (parseFloat(String(r.tonnesCo2e ?? "0")) || 0), 0);
+
+  function printEmissions() {
+    const yearLabel = filterYear === "all" ? "All Years" : filterYear;
+    const scopeOrder = ["Scope 1", "Scope 2", "Scope 3"];
+    const rowsByScope: Record<string, Record<string, unknown>[]> = {};
+    filteredRows.forEach(r => {
+      const s = String(r.scope ?? "Other");
+      if (!rowsByScope[s]) rowsByScope[s] = [];
+      rowsByScope[s].push(r);
+    });
+    const allScopes = [
+      ...scopeOrder.filter(s => rowsByScope[s]?.length),
+      ...Object.keys(rowsByScope).filter(s => !scopeOrder.includes(s) && rowsByScope[s]?.length),
+    ];
+    let tableHtml = "";
+    let grand = 0;
+    allScopes.forEach(scope => {
+      const rows = rowsByScope[scope];
+      const scopeTotal = rows.reduce((s, r) => s + (parseFloat(String(r.tonnesCo2e ?? "0")) || 0), 0);
+      grand += scopeTotal;
+      tableHtml += `<div class="section-head">${scope}</div><table><thead><tr><th>Category</th><th>Sub-category</th><th>Activity</th><th>Year</th><th>Quantity</th><th>Unit</th><th style="text-align:right">tCO₂e</th></tr></thead><tbody>`;
+      rows.forEach(r => {
+        tableHtml += `<tr><td>${r.category ?? "—"}</td><td>${r.subcategory ?? "—"}</td><td>${r.activityDescription ?? "—"}</td><td>${r.emissionYear ?? "—"}</td><td>${r.quantity ?? "—"}</td><td>${r.unit ?? "—"}</td><td style="text-align:right;font-weight:600">${parseFloat(String(r.tonnesCo2e ?? "0")).toFixed(4)}</td></tr>`;
+      });
+      tableHtml += `</tbody><tfoot><tr style="background:#f0fdf4"><td colspan="6" style="text-align:right;font-weight:700;padding:4px 5px">${scope} Total</td><td style="text-align:right;font-weight:700;padding:4px 5px">${scopeTotal.toFixed(3)} tCO₂e</td></tr></tfoot></table>`;
+    });
+    tableHtml += `<table style="margin-top:12px"><tfoot><tr style="background:#1a3a1a"><td style="color:#fff;font-weight:700;padding:5px 6px">Grand Total — ${yearLabel}</td><td colspan="5"></td><td style="color:#fff;font-weight:700;text-align:right;padding:5px 6px">${grand.toFixed(3)} tCO₂e</td></tr></tfoot></table>`;
+    printProReport({
+      title: "Annual Carbon Emissions Summary",
+      farmName: farmRec?.name as string | undefined,
+      cphNumber: farmRec?.cphNumber as string | undefined,
+      subtitle: `Year: ${yearLabel}`,
+      recordCount: filteredRows.length,
+      recordLabel: "emission record",
+      tableHtml,
+      footerNote: "DEFRA/IPCC emission factors applied. Verify totals with your carbon auditor before submission.",
+      landscape: true,
+    });
+  }
 
   const catDef = form.category ? EMISSION_TAXONOMY[form.category] : null;
   const subcatDef = catDef?.subcategories.find(s => s.label === form.subcategory) ?? null;
@@ -907,9 +958,28 @@ function EmissionsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Emissions Records</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-sm">Emissions Records</h3>
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filteredRows.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {filteredRows.length} record{filteredRows.length !== 1 ? "s" : ""}
+              {" · "}
+              <span className="font-semibold text-foreground">{totalCo2e.toFixed(3)} tCO₂e</span>
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={printEmissions} disabled={filteredRows.length === 0}>
+            <Printer className="w-4 h-4 mr-1" />Print
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="w-4 h-4 mr-1" />Generate from records
           </Button>
@@ -931,7 +1001,7 @@ function EmissionsTab({ farmId }: { farmId: number }) {
             { key: "unit", label: "Unit" },
             { key: "tonnesCo2e", label: "tCO₂e" },
           ]}
-          rows={records as Record<string, unknown>[]}
+          rows={filteredRows}
           onView={setViewRecord}
           onDelete={r => del.mutate(r.id as number)}
         />
@@ -1127,6 +1197,12 @@ function SequestrationTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }),
   });
 
+  const [filterYear, setFilterYear] = useState("all");
+  const allSeqRows = records as Record<string, unknown>[];
+  const seqYears = Array.from(new Set(allSeqRows.map(r => String(r.sequestrationYear)))).sort((a, b) => Number(b) - Number(a));
+  const filteredSeqRows = filterYear === "all" ? allSeqRows : allSeqRows.filter(r => String(r.sequestrationYear) === filterYear);
+  const totalSeq = filteredSeqRows.reduce((sum, r) => sum + (parseFloat(String(r.tonnesCo2eSequestered ?? "0")) || 0), 0);
+
   const featDef = form.featureType ? SEQ_FEATURES[form.featureType] : null;
   const calcSeq = featDef?.factorTco2ePerUnit != null && form.areaHaOrLengthM
     ? (parseFloat(form.areaHaOrLengthM) * featDef.factorTco2ePerUnit).toFixed(3)
@@ -1152,8 +1228,24 @@ function SequestrationTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Carbon Sequestration</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-sm">Carbon Sequestration</h3>
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {seqYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filteredSeqRows.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {filteredSeqRows.length} record{filteredSeqRows.length !== 1 ? "s" : ""}
+              {" · "}
+              <span className="font-semibold text-foreground">{totalSeq.toFixed(3)} tCO₂e sequestered</span>
+            </span>
+          )}
+        </div>
         <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
 
@@ -1165,7 +1257,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
           { key: "areaHaOrLengthM", label: "Area/Length" },
           { key: "unit", label: "Unit" },
           { key: "tonnesCo2eSequestered", label: "tCO₂e Sequestered" },
-        ]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />
+        ]} rows={filteredSeqRows} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />
       )}
 
       {viewRecord && (
@@ -1346,6 +1438,38 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }),
   });
 
+  const [filterStatus, setFilterStatus] = useState("all");
+  const { data: farmRec } = useQuery<Record<string, unknown>>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record),
+  });
+  const allActions = actions as Record<string, unknown>[];
+  const filteredActions = filterStatus === "all" ? allActions : allActions.filter(a => String(a.status ?? "") === filterStatus);
+
+  function printActions() {
+    const statusLabel = filterStatus === "all" ? "All Statuses" : filterStatus.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    let tableHtml = `<table><thead><tr><th>Action</th><th>Category</th><th>Description</th><th>Status</th><th style="text-align:right">Target tCO₂e</th><th>Planned Start</th><th>Target Date</th><th>Responsible</th><th>Funding</th></tr></thead><tbody>`;
+    filteredActions.forEach(a => {
+      const status = String(a.status ?? "—").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const startDate = a.plannedStartDate ? new Date(a.plannedStartDate as string).toLocaleDateString("en-GB") : "—";
+      const endDate = a.plannedCompletionDate ? new Date(a.plannedCompletionDate as string).toLocaleDateString("en-GB") : "—";
+      tableHtml += `<tr><td style="font-weight:600">${a.actionTitle ?? "—"}</td><td>${a.category ?? "—"}</td><td>${a.description ?? "—"}</td><td>${status}</td><td style="text-align:right">${a.targetReductionTonnesCo2e ?? "—"}</td><td>${startDate}</td><td>${endDate}</td><td>${a.responsiblePerson ?? "—"}</td><td>${a.fundingType ?? "—"}</td></tr>`;
+    });
+    const totalTarget = filteredActions.reduce((s, a) => s + (parseFloat(String(a.targetReductionTonnesCo2e ?? "0")) || 0), 0);
+    tableHtml += `</tbody><tfoot><tr style="background:#1a3a1a"><td style="color:#fff;font-weight:700;padding:5px 6px" colspan="4">Total Target Reduction</td><td style="color:#fff;font-weight:700;text-align:right;padding:5px 6px">${totalTarget.toFixed(3)} tCO₂e</td><td colspan="4"></td></tr></tfoot></table>`;
+    printProReport({
+      title: "Carbon Reduction Action Plan",
+      farmName: farmRec?.name as string | undefined,
+      cphNumber: farmRec?.cphNumber as string | undefined,
+      subtitle: `Status: ${statusLabel}`,
+      recordCount: filteredActions.length,
+      recordLabel: "action",
+      tableHtml,
+      footerNote: "Review and update reduction actions regularly as part of your farm carbon management strategy.",
+      landscape: true,
+    });
+  }
+
   const isExternalFunding  = form.fundingType && form.fundingType !== "Own farm funds";
   const showGrantFields    = isExternalFunding && form.fundingType !== "Loan / finance";
   const isExternalDoc      = form.targetSourceType && form.targetSourceType !== "Internal target";
@@ -1381,12 +1505,27 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold text-sm">Carbon Reduction Actions</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Plan and track actions to reduce the holding's carbon footprint. Record who is responsible, how the work is funded, and who will carry it out.</p>
         </div>
-        <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Action</Button>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="planned">Planned</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printActions} disabled={filteredActions.length === 0}>
+            <Printer className="w-4 h-4 mr-1" />Print Plan
+          </Button>
+          <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Action</Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
@@ -1400,7 +1539,7 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
             { key: "responsiblePerson", label: "Responsible" },
             { key: "fundingType", label: "Funding" },
           ]}
-          rows={actions as Record<string, unknown>[]}
+          rows={filteredActions}
           onView={setViewRecord}
           onEdit={r => handleOpen(r)}
           onDelete={r => del.mutate(r.id as number)}
