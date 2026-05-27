@@ -223,14 +223,14 @@ function AuditsTab({ farmId }: { farmId: number }) {
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Auditor Type</p><p className="font-medium">{String(viewRecord.auditorType ?? "—")}</p></div>
                   <div><p className="text-xs text-muted-foreground">Conducted By</p><p className="font-medium">{String(viewRecord.conductedBy ?? "—")}</p></div>
-                  {viewRecord.auditorCompany && (
+                  {!!viewRecord.auditorCompany && (
                     <div>
                       <p className="text-xs text-muted-foreground">Auditor Company</p>
                       <p className="font-medium">{String(viewRecord.auditorCompany)}</p>
-                      {viewRecord.auditorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
+                      {!!viewRecord.auditorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
                     </div>
                   )}
-                  {viewRecord.linkedPoReference && (
+                  {!!viewRecord.linkedPoReference && (
                     <div>
                       <p className="text-xs text-muted-foreground">Linked PO Reference</p>
                       <p className="font-medium font-mono">{String(viewRecord.linkedPoReference)}</p>
@@ -258,11 +258,11 @@ function AuditsTab({ farmId }: { farmId: number }) {
                 </div>
               </div>
 
-              {(viewRecord.intensityPerTonneProd || viewRecord.reductionTargetPct) && (
+              {!!(viewRecord.intensityPerTonneProd || viewRecord.reductionTargetPct) && (
                 <div className="col-span-2 border-t pt-2">
                   <div className="grid grid-cols-2 gap-4">
-                    {viewRecord.intensityPerTonneProd && <div><p className="text-xs text-muted-foreground">Intensity per Tonne Produced</p><p className="font-medium">{String(viewRecord.intensityPerTonneProd)}</p></div>}
-                    {viewRecord.reductionTargetPct && <div><p className="text-xs text-muted-foreground">Reduction Target (%)</p><p className="font-medium">{String(viewRecord.reductionTargetPct)}%</p></div>}
+                    {!!viewRecord.intensityPerTonneProd && <div><p className="text-xs text-muted-foreground">Intensity per Tonne Produced</p><p className="font-medium">{String(viewRecord.intensityPerTonneProd)}</p></div>}
+                    {!!viewRecord.reductionTargetPct && <div><p className="text-xs text-muted-foreground">Reduction Target (%)</p><p className="font-medium">{String(viewRecord.reductionTargetPct)}%</p></div>}
                   </div>
                 </div>
               )}
@@ -272,7 +272,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
                 <RecordAttachments farmId={farmId} recordType="carbon_audit_report" recordId={viewRecord.id as number} />
               </div>
 
-              {viewRecord.notes && (
+              {!!viewRecord.notes && (
                 <div className="col-span-2 border-t pt-2">
                   <p className="text-xs text-muted-foreground">Notes</p>
                   <p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes)}</p>
@@ -410,7 +410,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
                           {(!form.auditorSupplierId || form.auditorSupplierId === "__manual__") && (
                             <Input className="mt-1.5" value={form.auditorCompany ?? ""} onChange={e => setForm(f => ({ ...f, auditorCompany: e.target.value }))} placeholder="Company name (manual)" />
                           )}
-                          {form.auditorSupplierId && form.auditorSupplierId !== "__manual__" && (
+                          {!!form.auditorSupplierId && form.auditorSupplierId !== "__manual__" && (
                             <p className="text-xs text-muted-foreground mt-1">Linked — enables PO / invoice matching</p>
                           )}
                         </>
@@ -455,7 +455,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
             </div>
 
             {/* ── Document attachment ── */}
-            {editing?.id && (
+            {!!editing?.id && (
               <div className="border-t pt-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Audit Report Document</p>
                 <RecordAttachments farmId={farmId} recordType="carbon_audit_report" recordId={editing.id as number} />
@@ -1161,22 +1161,22 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
 
                 <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Funding</p></div>
                 <div><p className="text-xs text-muted-foreground">Funding Type</p><p className="font-medium">{String(viewRecord.fundingType ?? viewRecord.fundingSource ?? "—")}</p></div>
-                {viewRecord.fundingGrantName && <div><p className="text-xs text-muted-foreground">Grant / Scheme Name</p><p className="font-medium">{String(viewRecord.fundingGrantName)}</p></div>}
-                {viewRecord.fundingGrantReference && <div><p className="text-xs text-muted-foreground">Reference</p><p className="font-medium">{String(viewRecord.fundingGrantReference)}</p></div>}
+                {!!viewRecord.fundingGrantName && <div><p className="text-xs text-muted-foreground">Grant / Scheme Name</p><p className="font-medium">{String(viewRecord.fundingGrantName)}</p></div>}
+                {!!viewRecord.fundingGrantReference && <div><p className="text-xs text-muted-foreground">Reference</p><p className="font-medium">{String(viewRecord.fundingGrantReference)}</p></div>}
 
-                {(viewRecord.contractorName || viewRecord.contractorType || viewRecord.contractorCompany) && (
+                {!!(viewRecord.contractorName || viewRecord.contractorType || viewRecord.contractorCompany) && (
                   <>
                     <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Contractor</p></div>
                     <div><p className="text-xs text-muted-foreground">Type</p><p className="font-medium">{String(viewRecord.contractorType ?? "—")}</p></div>
-                    {viewRecord.contractorName && <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{String(viewRecord.contractorName)}</p></div>}
-                    {viewRecord.contractorCompany && (
+                    {!!viewRecord.contractorName && <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{String(viewRecord.contractorName)}</p></div>}
+                    {!!viewRecord.contractorCompany && (
                       <div>
                         <p className="text-xs text-muted-foreground">Company</p>
                         <p className="font-medium">{String(viewRecord.contractorCompany)}</p>
-                        {viewRecord.contractorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
+                        {!!viewRecord.contractorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
                       </div>
                     )}
-                    {viewRecord.linkedPoReference && (
+                    {!!viewRecord.linkedPoReference && (
                       <div>
                         <p className="text-xs text-muted-foreground">Linked PO Reference</p>
                         <p className="font-medium font-mono">{String(viewRecord.linkedPoReference)}</p>
@@ -1185,7 +1185,7 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
                   </>
                 )}
 
-                {viewRecord.notes && (
+                {!!viewRecord.notes && (
                   <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground">Notes</p><p className="font-medium">{String(viewRecord.notes)}</p></div>
                 )}
               </div>
