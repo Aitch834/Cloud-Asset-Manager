@@ -1182,6 +1182,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
   const { data: records = [], isLoading } = useQuery({
@@ -1189,12 +1190,20 @@ function SequestrationTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/carbon-sequestration`), { credentials: "include" }).then(r => r.json()),
   });
   const save = useMutation({
-    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-sequestration`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }); setOpen(false); setForm({}); },
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/carbon-sequestration/${editing.id}`) : api(`farms/${farmId}/carbon-sequestration`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-sequestration/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }),
+  });
+
+  const { data: farmRec } = useQuery<Record<string, unknown>>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record),
   });
 
   const [filterYear, setFilterYear] = useState("all");
@@ -1226,6 +1235,56 @@ function SequestrationTab({ farmId }: { farmId: number }) {
     });
   };
 
+  function handleOpen(editRec?: Record<string, unknown>) {
+    if (editRec) {
+      setEditing(editRec);
+      setForm(Object.fromEntries(Object.entries(editRec).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    } else {
+      setEditing(null);
+      setForm({});
+    }
+    setOpen(true);
+  }
+
+  function printSequestration() {
+    const yearLabel = filterYear === "all" ? "All Years" : filterYear;
+    const featureOrder = Object.keys(SEQ_FEATURES);
+    const rowsByType: Record<string, Record<string, unknown>[]> = {};
+    filteredSeqRows.forEach(r => {
+      const t = String(r.featureType ?? "Other");
+      if (!rowsByType[t]) rowsByType[t] = [];
+      rowsByType[t].push(r);
+    });
+    const allTypes = [
+      ...featureOrder.filter(t => rowsByType[t]?.length),
+      ...Object.keys(rowsByType).filter(t => !featureOrder.includes(t) && rowsByType[t]?.length),
+    ];
+    let tableHtml = "";
+    let grand = 0;
+    allTypes.forEach(type => {
+      const rows = rowsByType[type];
+      const typeTotal = rows.reduce((s, r) => s + (parseFloat(String(r.tonnesCo2eSequestered ?? "0")) || 0), 0);
+      grand += typeTotal;
+      tableHtml += `<div class="section-head">${type}</div><table><thead><tr><th>Year</th><th>Feature Name</th><th>Area / Length</th><th>Unit</th><th>Factor Source</th><th style="text-align:right">tCO₂e Sequestered</th></tr></thead><tbody>`;
+      rows.forEach(r => {
+        tableHtml += `<tr><td>${r.sequestrationYear ?? "—"}</td><td>${r.featureName ?? "—"}</td><td>${r.areaHaOrLengthM ?? "—"}</td><td>${r.unit ?? "—"}</td><td>${r.sequestrationFactorSource ?? "—"}</td><td style="text-align:right;font-weight:600">${parseFloat(String(r.tonnesCo2eSequestered ?? "0")).toFixed(3)}</td></tr>`;
+      });
+      tableHtml += `</tbody><tfoot><tr style="background:#f0fdf4"><td colspan="5" style="text-align:right;font-weight:700;padding:4px 5px">${type} Total</td><td style="text-align:right;font-weight:700;padding:4px 5px">${typeTotal.toFixed(3)} tCO₂e</td></tr></tfoot></table>`;
+    });
+    tableHtml += `<table style="margin-top:12px"><tfoot><tr style="background:#1a3a1a"><td style="color:#fff;font-weight:700;padding:5px 6px">Grand Total Sequestered — ${yearLabel}</td><td colspan="4"></td><td style="color:#fff;font-weight:700;text-align:right;padding:5px 6px">${grand.toFixed(3)} tCO₂e</td></tr></tfoot></table>`;
+    printProReport({
+      title: "Carbon Sequestration Summary",
+      farmName: farmRec?.name as string | undefined,
+      cphNumber: farmRec?.cphNumber as string | undefined,
+      subtitle: `Year: ${yearLabel}`,
+      recordCount: filteredSeqRows.length,
+      recordLabel: "sequestration record",
+      tableHtml,
+      footerNote: "Sequestration estimates based on DEFRA / Woodland Carbon Code / Peatland Code factors. Independent verification recommended.",
+      landscape: true,
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1246,7 +1305,12 @@ function SequestrationTab({ farmId }: { farmId: number }) {
             </span>
           )}
         </div>
-        <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={printSequestration} disabled={filteredSeqRows.length === 0}>
+            <Printer className="w-4 h-4 mr-1" />Print
+          </Button>
+          <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
@@ -1257,7 +1321,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
           { key: "areaHaOrLengthM", label: "Area/Length" },
           { key: "unit", label: "Unit" },
           { key: "tonnesCo2eSequestered", label: "tCO₂e Sequestered" },
-        ]} rows={filteredSeqRows} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />
+        ]} rows={filteredSeqRows} onView={setViewRecord} onEdit={r => handleOpen(r)} onDelete={r => del.mutate(r.id as number)} />
       )}
 
       {viewRecord && (
@@ -1281,7 +1345,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>Sequestration Record</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Sequestration Record" : "Add Sequestration Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
 
             {/* Year */}
