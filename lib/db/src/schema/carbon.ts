@@ -75,6 +75,8 @@ export const carbonReductionActionsTable = pgTable("carbon_reduction_actions", {
   contractorName: text("contractor_name"),
   contractorCompany: text("contractor_company"),
   contractorType: text("contractor_type"),
+  contractorSupplierId: integer("contractor_supplier_id"),
+  linkedPoReference: text("linked_po_reference"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

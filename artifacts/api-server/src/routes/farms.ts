@@ -18153,6 +18153,25 @@ router.delete("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requir
   res.json({ success: true });
 });
 
+// Supplier lookup for carbon reduction action contractor field — gated on carbon module, not stock-suppliers
+router.get("/farms/:farmId/contractor-suppliers", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: suppliersTable.id,
+      name: suppliersTable.name,
+      category: suppliersTable.category,
+      contactName: suppliersTable.contactName,
+      phone: suppliersTable.phone,
+      email: suppliersTable.email,
+    })
+    .from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true)))
+    .orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
 router.get("/farms/:farmId/sustainability-reports", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear));

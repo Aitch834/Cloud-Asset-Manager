@@ -732,6 +732,7 @@ const RA_CONTRACTOR_TYPES = [
 ];
 
 type StaffMember = { id?: number | null; memberId?: number | null; name: string; role?: string };
+type ContractorSupplier = { id: number; name: string; category?: string | null; contactName?: string | null; phone?: string | null; email?: string | null };
 
 function ReductionActionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -748,6 +749,12 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
   const { data: staffList = [] } = useQuery<StaffMember[]>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()).then(d => d.staff ?? []),
+  });
+  const { data: contractorSuppliers = [] } = useQuery<ContractorSupplier[]>({
+    queryKey: ["contractor-suppliers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/contractor-suppliers`), { credentials: "include" })
+      .then(r => r.ok ? r.json() : { records: [] })
+      .then(d => d.records ?? []),
   });
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(
@@ -852,12 +859,24 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
                 {viewRecord.fundingGrantName && <div><p className="text-xs text-muted-foreground">Grant / Scheme Name</p><p className="font-medium">{String(viewRecord.fundingGrantName)}</p></div>}
                 {viewRecord.fundingGrantReference && <div><p className="text-xs text-muted-foreground">Reference</p><p className="font-medium">{String(viewRecord.fundingGrantReference)}</p></div>}
 
-                {(viewRecord.contractorName || viewRecord.contractorType) && (
+                {(viewRecord.contractorName || viewRecord.contractorType || viewRecord.contractorCompany) && (
                   <>
                     <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Contractor</p></div>
                     <div><p className="text-xs text-muted-foreground">Type</p><p className="font-medium">{String(viewRecord.contractorType ?? "—")}</p></div>
                     {viewRecord.contractorName && <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{String(viewRecord.contractorName)}</p></div>}
-                    {viewRecord.contractorCompany && <div><p className="text-xs text-muted-foreground">Company</p><p className="font-medium">{String(viewRecord.contractorCompany)}</p></div>}
+                    {viewRecord.contractorCompany && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Company</p>
+                        <p className="font-medium">{String(viewRecord.contractorCompany)}</p>
+                        {viewRecord.contractorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
+                      </div>
+                    )}
+                    {viewRecord.linkedPoReference && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Linked PO Reference</p>
+                        <p className="font-medium font-mono">{String(viewRecord.linkedPoReference)}</p>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1061,13 +1080,57 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
               )}
               {isExternalContractor && (
                 <>
-                  <div>
-                    <Label>Contractor / individual name</Label>
-                    <Input value={f("contractorName")} onChange={e => sf("contractorName")(e.target.value)} placeholder="Name or trading name" />
-                  </div>
-                  <div>
-                    <Label>Company / firm</Label>
-                    <Input value={f("contractorCompany")} onChange={e => sf("contractorCompany")(e.target.value)} placeholder="Registered company name" />
+                  {/* Supplier lookup — populated from the holding's suppliers list */}
+                  {contractorSuppliers.length > 0 && (
+                    <div className="col-span-2">
+                      <Label>Select from approved suppliers</Label>
+                      <Select
+                        value={f("contractorSupplierId") || "__other__"}
+                        onValueChange={v => {
+                          if (v === "__other__") {
+                            setForm(prev => ({ ...prev, contractorSupplierId: "", contractorCompany: "", contractorName: "" }));
+                          } else {
+                            const sup = contractorSuppliers.find((s: ContractorSupplier) => String(s.id) === v);
+                            setForm(prev => ({
+                              ...prev,
+                              contractorSupplierId: v,
+                              contractorCompany: sup?.name ?? "",
+                              contractorName: sup?.contactName ?? prev.contractorName ?? "",
+                            }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select a supplier…" /></SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          {contractorSuppliers.map((s: ContractorSupplier) => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.name}{s.category ? ` — ${s.category}` : ""}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__other__">Not in list (enter manually)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-0.5">Linking to a supplier enables POs and invoices to be matched to this action.</p>
+                    </div>
+                  )}
+                  {/* Show manual fields when no supplier selected or list is empty */}
+                  {(!f("contractorSupplierId") || f("contractorSupplierId") === "__other__") && (
+                    <>
+                      <div>
+                        <Label>Contractor / individual name</Label>
+                        <Input value={f("contractorName")} onChange={e => sf("contractorName")(e.target.value)} placeholder="Name or trading name" />
+                      </div>
+                      <div>
+                        <Label>Company / firm</Label>
+                        <Input value={f("contractorCompany")} onChange={e => sf("contractorCompany")(e.target.value)} placeholder="Registered company name" />
+                      </div>
+                    </>
+                  )}
+                  {/* Linked PO reference — shown whenever an external contractor is set */}
+                  <div className="col-span-2">
+                    <Label>Linked PO reference</Label>
+                    <Input value={f("linkedPoReference")} onChange={e => sf("linkedPoReference")(e.target.value)} placeholder="e.g. PO-2024-0042" />
+                    <p className="text-xs text-muted-foreground mt-0.5">Enter the purchase order number raised for this contractor's work so invoices can be matched.</p>
                   </div>
                 </>
               )}
