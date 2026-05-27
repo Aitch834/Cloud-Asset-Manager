@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -102,6 +103,14 @@ function AuditsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [auditorMode, setAuditorMode] = useState<"list" | "other">("list");
+  const [certBodyMode, setCertBodyMode] = useState<"list" | "other">("list");
+
+  const certBodies = useLookupStrings("carbon_certification_bodies", [
+    "Carbon Trust", "BSI (PAS 2060)", "LRQA (Lloyd's Register)", "Bureau Veritas",
+    "SGS UK", "Intertek", "ADAS", "SAC Consulting", "Agrecalc Carbon Assurance",
+    "Farm Carbon Toolkit", "Carbon Footprint Ltd", "Soil Association (organic carbon)",
+    "Agri Carbon", "Other",
+  ]);
 
   const { data: audits = [], isLoading } = useQuery({
     queryKey: ["carbon-audits", farmId],
@@ -193,6 +202,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
             setEditing(r);
             setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
             setAuditorMode(r.conductedBy && staffList.some((s) => s.name === r.conductedBy) ? "list" : "other");
+            setCertBodyMode(r.certificationBody && certBodies.includes(String(r.certificationBody)) ? "list" : "other");
             setOpen(true);
           }}
           onDelete={r => del.mutate(r.id as number)}
@@ -284,6 +294,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
                 setEditing(viewRecord);
                 setForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v == null ? "" : String(v)])));
                 setAuditorMode(viewRecord.conductedBy && staffList.some((s) => s.name === viewRecord.conductedBy) ? "list" : "other");
+                setCertBodyMode(viewRecord.certificationBody && certBodies.includes(String(viewRecord.certificationBody)) ? "list" : "other");
                 setOpen(true);
                 setViewRecord(null);
               }}>Edit</Button>
@@ -332,7 +343,30 @@ function AuditsTab({ farmId }: { farmId: number }) {
                     <SelectContent className="max-h-60 overflow-y-auto">{SR_CUSTOMERS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label>Certification Body</Label><Input value={form.certificationBody ?? ""} onChange={e => setForm(f => ({ ...f, certificationBody: e.target.value }))} placeholder="e.g. Carbon Trust…" /></div>
+                <div>
+                  <Label>Certification Body</Label>
+                  <Select
+                    value={certBodyMode === "other" ? "__other__" : (form.certificationBody ?? "")}
+                    onValueChange={v => {
+                      if (v === "__other__") { setCertBodyMode("other"); setForm(f => ({ ...f, certificationBody: "" })); return; }
+                      setCertBodyMode("list"); setForm(f => ({ ...f, certificationBody: v }));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select certification body…" /></SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">
+                      {certBodies.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                      <SelectItem value="__other__">Not listed / enter manually</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {certBodyMode === "other" && (
+                    <Input
+                      className="mt-1.5"
+                      value={form.certificationBody ?? ""}
+                      onChange={e => setForm(f => ({ ...f, certificationBody: e.target.value }))}
+                      placeholder="Enter certification body name…"
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
