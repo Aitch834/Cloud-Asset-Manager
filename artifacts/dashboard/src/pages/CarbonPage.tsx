@@ -15,6 +15,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -902,13 +903,8 @@ function ReportsTab({ farmId }: { farmId: number }) {
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sequestration (tCO₂e)</p><p className="font-medium">{String(viewRecord.sequestrationTonnesCo2e ?? "—")}</p></div>
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Position (tCO₂e)</p><p className="font-medium">{String(viewRecord.netPositionTonnesCo2e ?? "—")}</p></div>
               </div>
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Report URL / Storage Link</p>
-                <p className="font-medium">
-                  {viewRecord.reportUrl
-                    ? <a href={String(viewRecord.reportUrl)} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{String(viewRecord.reportUrl)}</a>
-                    : "—"}
-                </p>
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="sustainability_report" recordId={viewRecord.id as number} />
               </div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
@@ -978,7 +974,7 @@ function ReportsTab({ farmId }: { farmId: number }) {
               <Label>Supply Chain Customer</Label>
               <Select value={String(form.supplyChainCustomer ?? "")} onValueChange={v => setForm(f => ({ ...f, supplyChainCustomer: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
-                <SelectContent>{SR_CUSTOMERS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">{SR_CUSTOMERS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -1054,11 +1050,17 @@ function ReportsTab({ farmId }: { farmId: number }) {
               </div>
             </div>
 
-            {/* Report URL */}
-            <div className="col-span-2">
-              <Label>Report URL / Storage Link</Label>
-              <Input value={String(form.reportUrl ?? "")} onChange={e => setForm(f => ({ ...f, reportUrl: e.target.value }))} placeholder="https://..." />
-            </div>
+            {/* Attachments — only available once the record has been saved */}
+            {editing && (
+              <div className="col-span-2 border-t pt-2">
+                <RecordAttachments farmId={farmId} recordType="sustainability_report" recordId={editing.id as number} />
+              </div>
+            )}
+            {!editing && (
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground italic">Save the report first, then open it to attach documents.</p>
+              </div>
+            )}
 
             {/* Notes */}
             <div className="col-span-2">
