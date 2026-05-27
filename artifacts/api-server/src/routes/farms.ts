@@ -18261,7 +18261,7 @@ router.post("/farms/:farmId/carbon-emissions/bulk", requireAuth, requireTenant, 
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const { records } = req.body as { records: Record<string, unknown>[] };
   if (!Array.isArray(records) || records.length === 0) { res.status(400).json({ error: "No records provided" }); return; }
-  const inserted = await db.insert(carbonEmissionsRecordsTable).values(records.map(r => ({ ...r, farmId }))).returning();
+  const inserted = await db.insert(carbonEmissionsRecordsTable).values(records.map(r => ({ ...r, farmId })) as any).returning();
   res.json({ created: inserted.length });
 });
 
