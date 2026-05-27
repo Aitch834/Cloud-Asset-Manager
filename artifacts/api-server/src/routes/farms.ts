@@ -18094,6 +18094,177 @@ router.post("/farms/:farmId/carbon-emissions", requireAuth, requireTenant, requi
   const [row] = await db.insert(carbonEmissionsRecordsTable).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
+
+// ── Generate emissions preview from farm data sources ────────────────────────
+router.get("/farms/:farmId/carbon-emissions/preview", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = parseInt(req.query.year as string);
+  if (isNaN(year) || year < 2000 || year > new Date().getFullYear() + 2) { res.status(400).json({ error: "Invalid year" }); return; }
+
+  const DFRA = "DEFRA UK GHG Conversion Factors 2024";
+  const FUEL_MAP: Record<string, { sub: string; factor: number }> = {
+    red_diesel:   { sub: "Red diesel (Gas oil)",    factor: 0.002557 },
+    white_diesel: { sub: "White diesel (DERV)",     factor: 0.002542 },
+    derv:         { sub: "White diesel (DERV)",     factor: 0.002542 },
+    petrol:       { sub: "Petrol",                  factor: 0.002154 },
+    lpg:          { sub: "LPG",                     factor: 0.001566 },
+    kerosene:     { sub: "Kerosene (heating)",      factor: 0.002530 },
+    heating_oil:  { sub: "Kerosene (heating)",      factor: 0.002530 },
+    natural_gas:  { sub: "Natural gas",             factor: 0.000183 },
+  };
+  const METER_MAP: Record<string, { sub: string; scope: string; factor: number }> = {
+    electricity:  { sub: "Grid electricity (Scope 2)", scope: "Scope 2", factor: 0.000207 },
+    gas:          { sub: "Natural gas",                scope: "Scope 1", factor: 0.000183 },
+    natural_gas:  { sub: "Natural gas",                scope: "Scope 1", factor: 0.000183 },
+  };
+  const ENTERIC: Record<string, number> = { "Dairy cows": 1.90, "Beef cattle": 1.20, "Sheep": 0.083, "Pigs": 0.035, "Poultry": 0.001 };
+  const MANURE:  Record<string, number> = { "Dairy cows": 0.960, "Beef cattle": 0.460, "Sheep": 0.032, "Pigs": 0.420, "Poultry": 0.006 };
+
+  const suggestions: Record<string, unknown>[] = [];
+
+  // 1. Fuel usage (join to tank for fuel type)
+  try {
+    const fuelRows = await db.select({
+      fuelType: fuelTanksTable.fuelType,
+      totalLitres: sql<string>`SUM(${fuelUsageTable.quantityLitres})`,
+      pts: sql<string>`COUNT(*)`,
+    }).from(fuelUsageTable)
+      .innerJoin(fuelTanksTable, eq(fuelUsageTable.tankId, fuelTanksTable.id))
+      .where(and(eq(fuelUsageTable.farmId, farmId), sql`EXTRACT(YEAR FROM ${fuelUsageTable.usageDate}) = ${year}`))
+      .groupBy(fuelTanksTable.fuelType);
+    for (const r of fuelRows) {
+      const m = FUEL_MAP[(r.fuelType ?? "").toLowerCase()];
+      if (!m) continue;
+      const qty = parseFloat(r.totalLitres ?? "0"); if (qty <= 0) continue;
+      suggestions.push({ source: "Fuel & Energy", category: "Fuel & Energy", subcategory: m.sub, scope: "Scope 1",
+        activityDescription: `${m.sub} — fuel usage ${year} (${r.pts} dispensing records)`,
+        quantity: qty, unit: "litres", emissionFactorSource: DFRA,
+        tonnesCo2e: parseFloat((qty * m.factor).toFixed(4)), dataPoints: Number(r.pts) });
+    }
+  } catch (_) { /* no fuel data */ }
+
+  // 2. Grid energy readings (electricity & gas meters)
+  try {
+    const energyRows = await db.select({
+      meterType: gridEnergyMetersTable.meterType,
+      totalKwh: sql<string>`SUM(${gridEnergyReadingsTable.consumptionKwh})`,
+      pts: sql<string>`COUNT(*)`,
+    }).from(gridEnergyReadingsTable)
+      .innerJoin(gridEnergyMetersTable, eq(gridEnergyReadingsTable.meterId, gridEnergyMetersTable.id))
+      .where(and(eq(gridEnergyReadingsTable.farmId, farmId),
+        sql`EXTRACT(YEAR FROM ${gridEnergyReadingsTable.readingDate}::date) = ${year}`,
+        isNotNull(gridEnergyReadingsTable.consumptionKwh)))
+      .groupBy(gridEnergyMetersTable.meterType);
+    for (const r of energyRows) {
+      const m = METER_MAP[(r.meterType ?? "").toLowerCase()];
+      if (!m) continue;
+      const qty = parseFloat(r.totalKwh ?? "0"); if (qty <= 0) continue;
+      suggestions.push({ source: "Grid Energy", category: "Fuel & Energy", subcategory: m.sub, scope: m.scope,
+        activityDescription: `${m.sub} — grid consumption ${year} (${r.pts} meter readings)`,
+        quantity: qty, unit: "kWh", emissionFactorSource: DFRA,
+        tonnesCo2e: parseFloat((qty * m.factor).toFixed(4)), dataPoints: Number(r.pts) });
+    }
+  } catch (_) { /* no energy data */ }
+
+  // 3. NVZ fertiliser applications — split synthetic vs organic
+  try {
+    const nvzRows = await db.select({
+      productType: nvzFertiliserApplicationsTable.productType,
+      totalN: sql<string>`SUM(${nvzFertiliserApplicationsTable.totalNitrogenKg})`,
+      pts: sql<string>`COUNT(*)`,
+    }).from(nvzFertiliserApplicationsTable)
+      .where(and(eq(nvzFertiliserApplicationsTable.farmId, farmId),
+        sql`EXTRACT(YEAR FROM ${nvzFertiliserApplicationsTable.applicationDate}) = ${year}`))
+      .groupBy(nvzFertiliserApplicationsTable.productType);
+    let synN = 0, synPts = 0, orgN = 0, orgPts = 0;
+    for (const r of nvzRows) {
+      const isOrg = /organic|slurry|manure|fym|compost|farmyard|liquid/i.test(r.productType ?? "");
+      const kg = parseFloat(r.totalN ?? "0"); const pts = Number(r.pts);
+      if (isOrg) { orgN += kg; orgPts += pts; } else { synN += kg; synPts += pts; }
+    }
+    if (synN > 0) suggestions.push({ source: "Fertiliser (NVZ)", category: "Soil & Fertiliser N₂O",
+      subcategory: "Synthetic N fertiliser — direct N₂O", scope: "Scope 1",
+      activityDescription: `Synthetic N fertiliser applications ${year} — direct N₂O (${synPts} applications)`,
+      quantity: parseFloat(synN.toFixed(2)), unit: "kg N", emissionFactorSource: DFRA,
+      tonnesCo2e: parseFloat((synN * 0.00440).toFixed(4)), dataPoints: synPts });
+    if (orgN > 0) suggestions.push({ source: "Fertiliser (NVZ)", category: "Soil & Fertiliser N₂O",
+      subcategory: "Organic N (slurry/FYM) — direct N₂O", scope: "Scope 1",
+      activityDescription: `Organic N applications (NVZ records) ${year} — direct N₂O (${orgPts} applications)`,
+      quantity: parseFloat(orgN.toFixed(2)), unit: "kg N", emissionFactorSource: DFRA,
+      tonnesCo2e: parseFloat((orgN * 0.00220).toFixed(4)), dataPoints: orgPts });
+  } catch (_) { /* no NVZ data */ }
+
+  // 4. Slurry spreading — N applied = nitrogenAppliedKgHa × fieldAreaHa
+  try {
+    const [slurry] = await db.select({
+      totalN: sql<string>`SUM(${slurrySpreadingRecordsTable.nitrogenAppliedKgHa} * ${slurrySpreadingRecordsTable.fieldAreaHa})`,
+      pts: sql<string>`COUNT(*)`,
+    }).from(slurrySpreadingRecordsTable)
+      .where(and(eq(slurrySpreadingRecordsTable.farmId, farmId),
+        sql`EXTRACT(YEAR FROM ${slurrySpreadingRecordsTable.spreadingDate}::date) = ${year}`,
+        isNotNull(slurrySpreadingRecordsTable.nitrogenAppliedKgHa),
+        isNotNull(slurrySpreadingRecordsTable.fieldAreaHa)));
+    const slurryN = parseFloat(slurry?.totalN ?? "0");
+    if (slurryN > 0) suggestions.push({ source: "Slurry & Manure", category: "Soil & Fertiliser N₂O",
+      subcategory: "Organic N (slurry/FYM) — direct N₂O", scope: "Scope 1",
+      activityDescription: `Slurry spreading — organic N applied ${year} (${slurry?.pts ?? 0} spreading events)`,
+      quantity: parseFloat(slurryN.toFixed(2)), unit: "kg N", emissionFactorSource: DFRA,
+      tonnesCo2e: parseFloat((slurryN * 0.00220).toFixed(4)), dataPoints: Number(slurry?.pts ?? 0) });
+  } catch (_) { /* no slurry data */ }
+
+  // 5. Livestock — current active population snapshot, grouped by species/herd type
+  try {
+    const liveRows = await db.select({
+      species: livestockAnimalsTable.species,
+      herdType: herdFlockRegisterTable.type,
+      count: sql<string>`COUNT(*)`,
+    }).from(livestockAnimalsTable)
+      .leftJoin(herdFlockRegisterTable, eq(livestockAnimalsTable.herdId, herdFlockRegisterTable.id))
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.status, "active")))
+      .groupBy(livestockAnimalsTable.species, herdFlockRegisterTable.type);
+    const tally: Record<string, number> = {};
+    for (const r of liveRows) {
+      const sp = (r.species ?? "").toLowerCase();
+      const ht = (r.herdType ?? "").toLowerCase();
+      const n = Number(r.count);
+      let key: string;
+      if (sp.includes("cattle")) key = ht.includes("dairy") ? "Dairy cows" : "Beef cattle";
+      else if (sp.includes("sheep")) key = "Sheep";
+      else if (sp.includes("pig")) key = "Pigs";
+      else if (sp.includes("poultry") || sp.includes("chicken") || sp.includes("turkey")) key = "Poultry";
+      else continue;
+      tally[key] = (tally[key] ?? 0) + n;
+    }
+    for (const [key, count] of Object.entries(tally)) {
+      if (ENTERIC[key] == null) continue;
+      suggestions.push({ source: "Livestock", category: "Livestock Enteric Fermentation", subcategory: key, scope: "Scope 1",
+        activityDescription: `${key} — enteric fermentation ${year} (current active population snapshot, ${count} head)`,
+        quantity: count, unit: "head·year", emissionFactorSource: DFRA,
+        tonnesCo2e: parseFloat((count * ENTERIC[key]).toFixed(4)), dataPoints: count });
+      if (MANURE[key] != null) suggestions.push({ source: "Livestock", category: "Livestock Manure", subcategory: key, scope: "Scope 1",
+        activityDescription: `${key} — manure management ${year} (current active population snapshot, ${count} head)`,
+        quantity: count, unit: "head·year", emissionFactorSource: DFRA,
+        tonnesCo2e: parseFloat((count * MANURE[key]).toFixed(4)), dataPoints: count });
+    }
+  } catch (_) { /* no livestock data */ }
+
+  // Existing record count for this year
+  const [existing] = await db.select({ c: sql<string>`COUNT(*)` })
+    .from(carbonEmissionsRecordsTable)
+    .where(and(eq(carbonEmissionsRecordsTable.farmId, farmId), eq(carbonEmissionsRecordsTable.emissionYear, year)));
+
+  res.json({ year, suggestions, existingCount: Number(existing?.c ?? 0) });
+});
+
+// ── Bulk-insert confirmed generated records ───────────────────────────────────
+router.post("/farms/:farmId/carbon-emissions/bulk", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { records } = req.body as { records: Record<string, unknown>[] };
+  if (!Array.isArray(records) || records.length === 0) { res.status(400).json({ error: "No records provided" }); return; }
+  const inserted = await db.insert(carbonEmissionsRecordsTable).values(records.map(r => ({ ...r, farmId }))).returning();
+  res.json({ created: inserted.length });
+});
+
 router.put("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }

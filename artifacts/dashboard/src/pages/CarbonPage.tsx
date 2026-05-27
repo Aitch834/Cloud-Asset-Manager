@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload } from "lucide-react";
+import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles } from "lucide-react";
 import { FctImportDialog } from "@/components/FctImportDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -632,11 +632,235 @@ const EMISSION_TAXONOMY: Record<string, EmCatDef> = {
   },
 };
 
+// ── Generate-from-records dialog ─────────────────────────────────────────────
+type GeneratedSuggestion = {
+  source: string;
+  category: string;
+  subcategory: string;
+  scope: string;
+  activityDescription: string;
+  quantity: number;
+  unit: string;
+  emissionFactorSource: string;
+  tonnesCo2e: number;
+  dataPoints: number;
+};
+
+const SOURCE_COLOURS: Record<string, string> = {
+  "Fuel & Energy":    "bg-orange-100 text-orange-700",
+  "Grid Energy":      "bg-yellow-100 text-yellow-700",
+  "Fertiliser (NVZ)": "bg-green-100 text-green-700",
+  "Slurry & Manure":  "bg-amber-100 text-amber-700",
+  "Livestock":        "bg-blue-100 text-blue-700",
+};
+
+function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
+  const [year, setYear] = useState(String(new Date().getFullYear() - 1));
+  const [preview, setPreview] = useState<GeneratedSuggestion[] | null>(null);
+  const [existingCount, setExistingCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [editedCo2e, setEditedCo2e] = useState<Record<number, string>>({});
+
+  const fetchPreview = async () => {
+    setLoading(true);
+    setPreview(null);
+    setSelected(new Set());
+    setEditedCo2e({});
+    try {
+      const res = await fetch(api(`farms/${farmId}/carbon-emissions/preview?year=${year}`), { credentials: "include" });
+      const data = await res.json();
+      const suggs: GeneratedSuggestion[] = data.suggestions ?? [];
+      setPreview(suggs);
+      setExistingCount(data.existingCount ?? 0);
+      setSelected(new Set(suggs.map((_: GeneratedSuggestion, i: number) => i)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirm = async () => {
+    if (!preview) return;
+    setSaving(true);
+    const records = preview
+      .map((s, i) => ({ s, i }))
+      .filter(({ i }) => selected.has(i))
+      .map(({ s, i }) => ({
+        emissionYear: parseInt(year),
+        category: s.category,
+        subcategory: s.subcategory,
+        scope: s.scope,
+        activityDescription: s.activityDescription,
+        quantity: String(s.quantity),
+        unit: s.unit,
+        emissionFactorSource: s.emissionFactorSource,
+        tonnesCo2e: editedCo2e[i] !== undefined ? editedCo2e[i] : String(s.tonnesCo2e),
+      }));
+    try {
+      await fetch(api(`farms/${farmId}/carbon-emissions/bulk`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ records }),
+      });
+    } finally {
+      setSaving(false);
+      onDone();
+    }
+  };
+
+  const selectedCount = selected.size;
+  const totalCo2e = preview
+    ? preview.reduce((sum, s, i) => {
+        if (!selected.has(i)) return sum;
+        const co2e = parseFloat(editedCo2e[i] ?? String(s.tonnesCo2e));
+        return sum + (isNaN(co2e) ? 0 : co2e);
+      }, 0)
+    : 0;
+
+  return (
+    <Dialog open onOpenChange={onDone}>
+      <DialogContent style={{ maxWidth: "58rem" }}>
+        <DialogHeader>
+          <DialogTitle>Generate Emissions Records from Farm Data</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Pulls activity data from Fuel &amp; Energy, NVZ Fertiliser, Slurry &amp; Manure, and Livestock modules and calculates indicative CO₂e using DEFRA 2024 factors. Review and adjust each line before confirming.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="w-36">
+              <Label>Year</Label>
+              <Select value={year} onValueChange={v => { setYear(v); setPreview(null); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button onClick={fetchPreview} disabled={loading}>
+              {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Fetching…</> : "Fetch from records"}
+            </Button>
+          </div>
+
+          {preview !== null && existingCount > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-medium">Note:</span>
+              <span>{existingCount} emission record{existingCount !== 1 ? "s" : ""} already exist for {year}. New records will be added alongside them, not replace them.</span>
+            </div>
+          )}
+
+          {preview !== null && preview.length === 0 && (
+            <p className="text-sm text-muted-foreground italic text-center py-4">
+              No activity data found for {year} in the connected modules. Check that fuel usage, NVZ fertiliser, slurry, and livestock records have been entered for this year.
+            </p>
+          )}
+
+          {preview !== null && preview.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {preview.length} suggestion{preview.length !== 1 ? "s" : ""} — <span className="font-medium text-foreground">{selectedCount} selected</span>
+                </span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-muted-foreground select-none">
+                  <Checkbox
+                    checked={selectedCount === preview.length && preview.length > 0}
+                    onCheckedChange={(c) => {
+                      if (c === true) setSelected(new Set(preview.map((_, i) => i)));
+                      else setSelected(new Set());
+                    }}
+                  />
+                  Select all
+                </label>
+              </div>
+              <div className="rounded-md border overflow-auto max-h-80">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr className="text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="p-2 w-8"></th>
+                      <th className="p-2 text-left">Source</th>
+                      <th className="p-2 text-left">Sub-category</th>
+                      <th className="p-2 text-left">Activity description</th>
+                      <th className="p-2 text-right">Quantity</th>
+                      <th className="p-2 text-left w-20">Unit</th>
+                      <th className="p-2 text-right w-32">tCO₂e ✎</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.map((s, i) => (
+                      <tr key={i} className={`border-t transition-opacity ${selected.has(i) ? "" : "opacity-40"}`}>
+                        <td className="p-2">
+                          <Checkbox
+                            checked={selected.has(i)}
+                            onCheckedChange={(c) => setSelected(prev => {
+                              const next = new Set(prev);
+                              if (c === true) next.add(i); else next.delete(i);
+                              return next;
+                            })}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${SOURCE_COLOURS[s.source] ?? "bg-muted text-muted-foreground"}`}>
+                            {s.source}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <div className="font-medium text-xs leading-tight">{s.subcategory || s.category}</div>
+                          <div className="text-xs text-muted-foreground">{s.scope}</div>
+                        </td>
+                        <td className="p-2 text-xs text-muted-foreground max-w-xs">
+                          <span className="line-clamp-2">{s.activityDescription}</span>
+                        </td>
+                        <td className="p-2 text-right tabular-nums text-xs">
+                          {Number(s.quantity).toLocaleString("en-GB", { maximumFractionDigits: 1 })}
+                        </td>
+                        <td className="p-2 text-xs text-muted-foreground">{s.unit}</td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            step="0.0001"
+                            className="h-7 text-right text-xs w-full"
+                            value={editedCo2e[i] ?? s.tonnesCo2e.toFixed(4)}
+                            onChange={e => setEditedCo2e(prev => ({ ...prev, [i]: e.target.value }))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/30 border-t font-semibold text-sm sticky bottom-0">
+                    <tr>
+                      <td colSpan={6} className="p-2 text-right">Total (selected):</td>
+                      <td className="p-2 text-right tabular-nums">{totalCo2e.toFixed(3)} tCO₂e</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Figures use DEFRA 2024 factors. Edit any tCO₂e value before confirming. Livestock figures reflect the current active population — adjust if the {year} herd differed significantly.
+              </p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onDone} disabled={saving}>Cancel</Button>
+          {preview !== null && preview.length > 0 && (
+            <Button onClick={confirm} disabled={saving || selectedCount === 0}>
+              {saving
+                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Creating…</>
+                : `Create ${selectedCount} record${selectedCount !== 1 ? "s" : ""}`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EmissionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["carbon-emissions", farmId],
@@ -685,9 +909,14 @@ function EmissionsTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Emissions Records</h3>
-        <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1" />Add Record
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
+            <Sparkles className="w-4 h-4 mr-1" />Generate from records
+          </Button>
+          <Button size="sm" onClick={() => { setForm({}); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" />Add Record
+          </Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
@@ -851,6 +1080,16 @@ function EmissionsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {generateOpen && (
+        <GenerateDialog
+          farmId={farmId}
+          onDone={() => {
+            setGenerateOpen(false);
+            qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] });
+          }}
+        />
+      )}
     </div>
   );
 }
