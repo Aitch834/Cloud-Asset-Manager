@@ -325,7 +325,13 @@ function AuditsTab({ farmId }: { farmId: number }) {
                     <SelectContent>{AUDIT_VERIFICATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label>Supply Chain Customer</Label><Input value={form.supplyChainRequirement ?? ""} onChange={e => setForm(f => ({ ...f, supplyChainRequirement: e.target.value }))} placeholder="e.g. Arla, Morrisons…" /></div>
+                <div>
+                  <Label>Supply Chain Customer</Label>
+                  <Select value={form.supplyChainRequirement ?? ""} onValueChange={v => setForm(f => ({ ...f, supplyChainRequirement: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">{SR_CUSTOMERS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Certification Body</Label><Input value={form.certificationBody ?? ""} onChange={e => setForm(f => ({ ...f, certificationBody: e.target.value }))} placeholder="e.g. Carbon Trust…" /></div>
               </div>
             </div>
