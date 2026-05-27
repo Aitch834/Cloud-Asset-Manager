@@ -68,6 +68,32 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
   );
 }
 
+const AUDIT_TOOLS = [
+  "Agrecalc",
+  "Cool Farm Tool",
+  "Farm Carbon Toolkit",
+  "AHDB Carbon Calculator",
+  "SAC Carbon Calculator",
+  "Carbon Footprint Ltd",
+  "Arla Carbon Check",
+  "Soil Association / OF&G calculator",
+  "Bespoke consultant methodology",
+  "Other",
+];
+
+const AUDIT_VERIFICATION_STATUSES = [
+  "Self-assessed / unverified",
+  "Internal review completed",
+  "Third-party verified",
+  "Certified (e.g. PAS 2060)",
+];
+
+const AUDITOR_TYPES = [
+  "Internal staff member",
+  "External auditor / consultant",
+  "Not yet confirmed",
+];
+
 function AuditsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -75,9 +101,36 @@ function AuditsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: audits = [], isLoading } = useQuery({ queryKey: ["carbon-audits", farmId], queryFn: () => fetch(api(`farms/${farmId}/carbon-audits`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/carbon-audits/${editing.id}`) : api(`farms/${farmId}/carbon-audits`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-audits/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }) });
+  const [auditorMode, setAuditorMode] = useState<"list" | "other">("list");
+
+  const { data: audits = [], isLoading } = useQuery({
+    queryKey: ["carbon-audits", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/carbon-audits`), { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: staffList = [] } = useQuery<{ id?: number | null; memberId?: number | null; name: string; role?: string }[]>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()).then(d => d.staff ?? []),
+  });
+  const { data: auditorSuppliers = [] } = useQuery<ContractorSupplier[]>({
+    queryKey: ["contractor-suppliers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/contractor-suppliers`), { credentials: "include" })
+      .then(r => r.ok ? r.json() : { records: [] })
+      .then(d => d.records ?? []),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/carbon-audits/${editing.id}`) : api(`farms/${farmId}/carbon-audits`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-audits/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }),
+  });
+
+  const isInternal = form.auditorType === "Internal staff member";
+  const isExternal = form.auditorType === "External auditor / consultant";
 
   const chartData = (audits as Record<string, unknown>[])
     .filter(a => a.auditYear && a.totalTonnesCo2e != null)
@@ -97,7 +150,7 @@ function AuditsTab({ farmId }: { farmId: number }) {
           <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
             <Upload className="w-4 h-4 mr-1" />Import from FCT
           </Button>
-          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setAuditorMode("list"); setOpen(true); }}>
             <Plus className="w-4 h-4 mr-1" />Add Audit
           </Button>
         </div>
@@ -122,34 +175,117 @@ function AuditsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "auditYear", label: "Year" }, { key: "auditDate", label: "Audit Date", fmt: r => fmtDate(r.auditDate) }, { key: "conductedBy", label: "Conducted By" }, { key: "auditTool", label: "Audit Tool" }, { key: "totalTonnesCo2e", label: "Total tCO₂e" }, { key: "netTonnesCo2e", label: "Net tCO₂e" }, { key: "supplyChainRequirement", label: "Supply Chain" }]} rows={audits as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
-      
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "auditYear", label: "Year" },
+            { key: "auditDate", label: "Audit Date", fmt: r => fmtDate(r.auditDate) },
+            { key: "conductedBy", label: "Conducted By" },
+            { key: "auditorType", label: "Auditor Type" },
+            { key: "auditTool", label: "Audit Tool" },
+            { key: "verificationStatus", label: "Verification" },
+            { key: "totalTonnesCo2e", label: "Total tCO₂e" },
+            { key: "netTonnesCo2e", label: "Net tCO₂e" },
+          ]}
+          rows={audits as Record<string, unknown>[]}
+          onView={setViewRecord}
+          onEdit={r => {
+            setEditing(r);
+            setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+            setAuditorMode(r.conductedBy && staffList.some((s) => s.name === r.conductedBy) ? "list" : "other");
+            setOpen(true);
+          }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      {/* ── View dialog ── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogContent style={{ maxWidth: "46rem" }}>
             <DialogHeader><DialogTitle>View Carbon Audit</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Audit Year</p><p className="font-medium">{String(viewRecord.auditYear ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Audit Date</p><p className="font-medium">{fmtDate(viewRecord.auditDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conducted By</p><p className="font-medium">{String(viewRecord.conductedBy ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Audit Tool / Methodology</p><p className="font-medium">{String(viewRecord.auditTool ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supply Chain Customer</p><p className="font-medium">{String(viewRecord.supplyChainRequirement ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Body</p><p className="font-medium">{String(viewRecord.certificationBody ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scope 1 tCO₂e</p><p className="font-medium">{String(viewRecord.totalScope1TonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scope 2 tCO₂e</p><p className="font-medium">{String(viewRecord.totalScope2TonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scope 3 tCO₂e</p><p className="font-medium">{String(viewRecord.totalScope3TonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total tCO₂e</p><p className="font-medium">{String(viewRecord.totalTonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sequestration tCO₂e</p><p className="font-medium">{String(viewRecord.sequestrationTonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net tCO₂e</p><p className="font-medium">{String(viewRecord.netTonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reduction Target (%)</p><p className="font-medium">{String(viewRecord.reductionTargetPct ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            <div className="grid grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto pr-1">
+
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">Audit Overview</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Audit Year</p><p className="font-medium">{String(viewRecord.auditYear ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Audit Date</p><p className="font-medium">{fmtDate(viewRecord.auditDate)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Audit Tool / Methodology</p><p className="font-medium">{String(viewRecord.auditTool ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Verification Status</p><p className="font-medium">{String(viewRecord.verificationStatus ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Supply Chain Customer</p><p className="font-medium">{String(viewRecord.supplyChainRequirement ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Certification Body</p><p className="font-medium">{String(viewRecord.certificationBody ?? "—")}</p></div>
+                </div>
+              </div>
+
+              <div className="col-span-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">Auditor</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground">Auditor Type</p><p className="font-medium">{String(viewRecord.auditorType ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Conducted By</p><p className="font-medium">{String(viewRecord.conductedBy ?? "—")}</p></div>
+                  {viewRecord.auditorCompany && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Auditor Company</p>
+                      <p className="font-medium">{String(viewRecord.auditorCompany)}</p>
+                      {viewRecord.auditorSupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
+                    </div>
+                  )}
+                  {viewRecord.linkedPoReference && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Linked PO Reference</p>
+                      <p className="font-medium font-mono">{String(viewRecord.linkedPoReference)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="col-span-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">Emissions Figures (tCO₂e)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    ["Scope 1", viewRecord.totalScope1TonnesCo2e],
+                    ["Scope 2", viewRecord.totalScope2TonnesCo2e],
+                    ["Scope 3", viewRecord.totalScope3TonnesCo2e],
+                    ["Gross Total", viewRecord.totalTonnesCo2e],
+                    ["Sequestration", viewRecord.sequestrationTonnesCo2e],
+                    ["Net Total", viewRecord.netTonnesCo2e],
+                  ].map(([label, val]) => (
+                    <div key={String(label)} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
+                      <p className="text-xs text-muted-foreground">{String(label)}</p>
+                      <p className="font-semibold text-base">{val != null && val !== "" ? String(val) : "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {(viewRecord.intensityPerTonneProd || viewRecord.reductionTargetPct) && (
+                <div className="col-span-2 border-t pt-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    {viewRecord.intensityPerTonneProd && <div><p className="text-xs text-muted-foreground">Intensity per Tonne Produced</p><p className="font-medium">{String(viewRecord.intensityPerTonneProd)}</p></div>}
+                    {viewRecord.reductionTargetPct && <div><p className="text-xs text-muted-foreground">Reduction Target (%)</p><p className="font-medium">{String(viewRecord.reductionTargetPct)}%</p></div>}
+                  </div>
+                </div>
+              )}
+
+              <div className="col-span-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-2">Documents</p>
+                <RecordAttachments farmId={farmId} recordType="carbon_audit_report" recordId={viewRecord.id as number} />
+              </div>
+
+              {viewRecord.notes && (
+                <div className="col-span-2 border-t pt-2">
+                  <p className="text-xs text-muted-foreground">Notes</p>
+                  <p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes)}</p>
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { 
-                setEditing(viewRecord); 
-                setForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v == null ? "" : String(v)]))); 
-                setOpen(true); 
-                setViewRecord(null); 
+              <Button variant="outline" onClick={() => {
+                setEditing(viewRecord);
+                setForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v == null ? "" : String(v)])));
+                setAuditorMode(viewRecord.conductedBy && staffList.some((s) => s.name === viewRecord.conductedBy) ? "list" : "other");
+                setOpen(true);
+                setViewRecord(null);
               }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
@@ -157,25 +293,188 @@ function AuditsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "44rem" }}>
-          <DialogHeader><DialogTitle>Carbon Audit</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Audit Year *</Label>
-              <Select value={form.auditYear ?? ""} onValueChange={v => setForm(f => ({ ...f, auditYear: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
-                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-              </Select>
+      {/* ── Edit / create dialog ── */}
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm({}); } }}>
+        <DialogContent style={{ maxWidth: "46rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Carbon Audit" : "Add Carbon Audit"}</DialogTitle></DialogHeader>
+          <div className="max-h-[75vh] overflow-y-auto pr-1 space-y-4">
+
+            {/* ── Audit overview ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Audit Overview</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Audit Year *</Label>
+                  <Select value={form.auditYear ?? ""} onValueChange={v => setForm(f => ({ ...f, auditYear: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                    <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Audit Date *</Label><Input type="date" value={form.auditDate ?? ""} onChange={e => setForm(f => ({ ...f, auditDate: e.target.value }))} /></div>
+                <div>
+                  <Label>Audit Tool / Methodology</Label>
+                  <Select value={form.auditTool ?? ""} onValueChange={v => setForm(f => ({ ...f, auditTool: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select tool…" /></SelectTrigger>
+                    <SelectContent>{AUDIT_TOOLS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Verification Status</Label>
+                  <Select value={form.verificationStatus ?? ""} onValueChange={v => setForm(f => ({ ...f, verificationStatus: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select status…" /></SelectTrigger>
+                    <SelectContent>{AUDIT_VERIFICATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Supply Chain Customer</Label><Input value={form.supplyChainRequirement ?? ""} onChange={e => setForm(f => ({ ...f, supplyChainRequirement: e.target.value }))} placeholder="e.g. Arla, Morrisons…" /></div>
+                <div><Label>Certification Body</Label><Input value={form.certificationBody ?? ""} onChange={e => setForm(f => ({ ...f, certificationBody: e.target.value }))} placeholder="e.g. Carbon Trust…" /></div>
+              </div>
             </div>
-            <div><Label>Audit Date *</Label><Input type="date" value={form.auditDate ?? ""} onChange={e => setForm(f => ({ ...f, auditDate: e.target.value }))} /></div>
-            <div><Label>Conducted By *</Label><Input value={form.conductedBy ?? ""} onChange={e => setForm(f => ({ ...f, conductedBy: e.target.value }))} /></div>
-            <div><Label>Audit Tool / Methodology</Label><Input value={form.auditTool ?? ""} onChange={e => setForm(f => ({ ...f, auditTool: e.target.value }))} /></div>
-            <div><Label>Supply Chain Customer</Label><Input value={form.supplyChainRequirement ?? ""} onChange={e => setForm(f => ({ ...f, supplyChainRequirement: e.target.value }))} /></div>
-            <div><Label>Certification Body</Label><Input value={form.certificationBody ?? ""} onChange={e => setForm(f => ({ ...f, certificationBody: e.target.value }))} /></div>
-            {[["totalScope1TonnesCo2e", "Scope 1 tCO₂e"], ["totalScope2TonnesCo2e", "Scope 2 tCO₂e"], ["totalScope3TonnesCo2e", "Scope 3 tCO₂e"], ["totalTonnesCo2e", "Total tCO₂e"], ["sequestrationTonnesCo2e", "Sequestration tCO₂e"], ["netTonnesCo2e", "Net tCO₂e"], ["reductionTargetPct", "Reduction Target (%)"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input type="number" step="0.001" value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+
+            {/* ── Auditor section ── */}
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Auditor</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label>Auditor Type</Label>
+                  <Select value={form.auditorType ?? ""} onValueChange={v => {
+                    setForm(f => ({ ...f, auditorType: v, conductedBy: "", auditorStaffId: "", auditorCompany: "", auditorSupplierId: "", linkedPoReference: "" }));
+                    setAuditorMode("list");
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                    <SelectContent>{AUDITOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+
+                {isInternal && (
+                  <>
+                    {auditorMode === "list" ? (
+                      <div>
+                        <Label>Staff Member *</Label>
+                        <Select
+                          value={form.auditorStaffId ?? ""}
+                          onValueChange={v => {
+                            if (v === "__other__") { setAuditorMode("other"); setForm(f => ({ ...f, auditorStaffId: "", conductedBy: "" })); return; }
+                            const m = staffList.find(s => String(s.id ?? s.memberId) === v);
+                            setForm(f => ({ ...f, auditorStaffId: v, conductedBy: m?.name ?? "" }));
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                          <SelectContent>
+                            {staffList.map(s => {
+                              const id = String(s.id ?? s.memberId);
+                              return <SelectItem key={id} value={id}>{s.name}{s.role ? ` — ${s.role}` : ""}</SelectItem>;
+                            })}
+                            <SelectItem value="__other__">Not in list (enter name manually)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label>Name *</Label>
+                        <div className="flex gap-2">
+                          <Input value={form.conductedBy ?? ""} onChange={e => setForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Full name" />
+                          <Button type="button" size="sm" variant="ghost" className="shrink-0 text-xs" onClick={() => setAuditorMode("list")}>← Back to list</Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {isExternal && (
+                  <>
+                    <div><Label>Auditor Name *</Label><Input value={form.conductedBy ?? ""} onChange={e => setForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Individual name" /></div>
+                    <div>
+                      <Label>Auditor Company</Label>
+                      {auditorSuppliers.length > 0 ? (
+                        <>
+                          <Select
+                            value={form.auditorSupplierId ?? ""}
+                            onValueChange={v => {
+                              if (v === "__manual__") { setForm(f => ({ ...f, auditorSupplierId: "", auditorCompany: "" })); return; }
+                              const s = auditorSuppliers.find(s => String(s.id) === v);
+                              setForm(f => ({ ...f, auditorSupplierId: v, auditorCompany: s?.name ?? "" }));
+                            }}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Link to supplier…" /></SelectTrigger>
+                            <SelectContent>
+                              {auditorSuppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.category ? ` (${s.category})` : ""}</SelectItem>)}
+                              <SelectItem value="__manual__">Not in supplier list</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {(!form.auditorSupplierId || form.auditorSupplierId === "__manual__") && (
+                            <Input className="mt-1.5" value={form.auditorCompany ?? ""} onChange={e => setForm(f => ({ ...f, auditorCompany: e.target.value }))} placeholder="Company name (manual)" />
+                          )}
+                          {form.auditorSupplierId && form.auditorSupplierId !== "__manual__" && (
+                            <p className="text-xs text-muted-foreground mt-1">Linked — enables PO / invoice matching</p>
+                          )}
+                        </>
+                      ) : (
+                        <Input value={form.auditorCompany ?? ""} onChange={e => setForm(f => ({ ...f, auditorCompany: e.target.value }))} placeholder="Company / organisation name" />
+                      )}
+                    </div>
+                    <div>
+                      <Label>Linked PO Reference</Label>
+                      <Input value={form.linkedPoReference ?? ""} onChange={e => setForm(f => ({ ...f, linkedPoReference: e.target.value }))} placeholder="e.g. PO-2024-0142" />
+                      <p className="text-xs text-muted-foreground mt-1">Optional — links the audit fee to a purchase order</p>
+                    </div>
+                  </>
+                )}
+
+                {!form.auditorType && (
+                  <div className="col-span-2"><Label>Conducted By *</Label><Input value={form.conductedBy ?? ""} onChange={e => setForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Name of auditor or organisation" /></div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Emissions figures ── */}
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Emissions Figures (tCO₂e)</p>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  ["totalScope1TonnesCo2e", "Scope 1 tCO₂e"],
+                  ["totalScope2TonnesCo2e", "Scope 2 tCO₂e"],
+                  ["totalScope3TonnesCo2e", "Scope 3 tCO₂e"],
+                  ["totalTonnesCo2e", "Gross Total tCO₂e"],
+                  ["sequestrationTonnesCo2e", "Sequestration tCO₂e"],
+                  ["netTonnesCo2e", "Net Total tCO₂e"],
+                  ["intensityPerTonneProd", "Intensity per Tonne Produced"],
+                  ["reductionTargetPct", "Reduction Target (%)"],
+                ] as [string, string][]).map(([k, l]) => (
+                  <div key={k}>
+                    <Label>{l}</Label>
+                    <Input type="number" step="0.001" value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Document attachment ── */}
+            {editing?.id && (
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Audit Report Document</p>
+                <RecordAttachments farmId={farmId} recordType="carbon_audit_report" recordId={editing.id as number} />
+              </div>
+            )}
+            {!editing?.id && (
+              <div className="border-t pt-3">
+                <p className="text-xs text-muted-foreground italic">Save this audit first, then re-open to attach the report document.</p>
+              </div>
+            )}
+
+            {/* ── Notes ── */}
+            <div className="border-t pt-3">
+              <Label>Notes</Label>
+              <Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Additional context, caveats, methodology notes…" />
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
+              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
