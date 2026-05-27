@@ -9,7 +9,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -92,6 +92,55 @@ async function upsertNotification(data: {
     if (CRITICAL_TYPES.has(data.type)) {
       await dispatchSmsForCriticalAlert(data.tenantId, data.title, data.message);
     }
+  }
+}
+
+export async function createBngComplianceNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  habitatType: string;
+  assessmentDate: string | null;
+  complianceStatus: string;
+  remedialActionNotes?: string | null;
+}) {
+  const isBreach = params.complianceStatus === "In breach";
+  const severity = isBreach ? "critical" : "warning";
+  const type = isBreach ? "bng_compliance_breach" : "bng_compliance_warning";
+
+  const dateLabel = params.assessmentDate
+    ? new Date(params.assessmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "unknown date";
+
+  const statusLabel = params.complianceStatus;
+  const habitatLabel = params.habitatType || "habitat";
+
+  const title = isBreach
+    ? `BNG Legal Breach — ${habitatLabel}`
+    : `BNG Compliance Issue — ${habitatLabel}`;
+
+  const notesSnippet = params.remedialActionNotes?.trim()
+    ? ` Notes: ${params.remedialActionNotes.trim().slice(0, 150)}`
+    : "";
+
+  const message = isBreach
+    ? `Biodiversity Net Gain monitoring for ${habitatLabel} (assessed ${dateLabel}) is recorded as IN BREACH of the management agreement. This may constitute a breach of a legal obligation (S106 / Conservation Covenant). Immediate action is required — review the BNG record and engage with the relevant authority.${notesSnippet}`
+    : `Biodiversity Net Gain monitoring for ${habitatLabel} (assessed ${dateLabel}) has been flagged as: ${statusLabel}. Review the BNG record and ensure remedial management actions are documented and underway.${notesSnippet}`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type,
+    severity,
+    title,
+    message,
+    relatedModule: "carbon-sustainability",
+    relatedId: params.recordId,
+    dedupeKey: `bng-compliance-${params.recordId}-${params.complianceStatus.toLowerCase().replace(/\s+/g, "-")}`,
+  });
+
+  if (isBreach) {
+    await dispatchSmsForCriticalAlert(params.tenantId, title, message);
   }
 }
 

@@ -353,7 +353,7 @@ import {
   lerapAssessmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
@@ -20798,11 +20798,33 @@ router.get("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, r
 router.post("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const [record] = await db.insert(biodiversityNetGainTable).values({ ...req.body, farmId }).returning();
+  if (record.complianceStatus && record.complianceStatus !== "On track") {
+    await createBngComplianceNotification({
+      tenantId: req.tenantId!,
+      farmId,
+      recordId: record.id,
+      habitatType: record.habitatType,
+      assessmentDate: record.assessmentDate,
+      complianceStatus: record.complianceStatus,
+      remedialActionNotes: record.remedialActionNotes,
+    });
+  }
   res.json({ record });
 });
 router.put("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const [record] = await db.update(biodiversityNetGainTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id as string)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
+  if (record.complianceStatus && record.complianceStatus !== "On track") {
+    await createBngComplianceNotification({
+      tenantId: req.tenantId!,
+      farmId,
+      recordId: record.id,
+      habitatType: record.habitatType,
+      assessmentDate: record.assessmentDate,
+      complianceStatus: record.complianceStatus,
+      remedialActionNotes: record.remedialActionNotes,
+    });
+  }
   res.json({ record });
 });
 router.delete("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
