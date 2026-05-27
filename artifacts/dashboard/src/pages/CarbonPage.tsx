@@ -1332,32 +1332,152 @@ function RenewableEnergyTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── BNG constants ────────────────────────────────────────────────────────────
+const BNG_ASSESSOR_TYPES = [
+  "Internal staff",
+  "Agri-environment advisor",
+  "Independent ecologist",
+  "CIEEM member ecologist",
+];
+const BNG_RECORD_TYPES = [
+  { v: "baseline",          l: "Baseline" },
+  { v: "post-creation",     l: "Post-creation" },
+  { v: "annual-monitoring", l: "Annual Monitoring" },
+  { v: "final-assessment",  l: "Final Assessment" },
+];
+const BNG_HABITATS = [
+  "Arable Field Margins", "Deciduous Woodland", "Hedgerow",
+  "Grassland (neutral)", "Grassland (calcareous)", "Grassland (acid)",
+  "Heathland", "Bog / Mire", "Fen", "Wetland / Reed Bed",
+  "Pond / Lake", "River / Stream", "Wildflower Meadow", "Woodland Edge", "Other",
+];
+const BNG_CONDITIONS = ["Distinctly sub-optimal", "Moderate", "Fairly good", "Good", "Excellent"];
+const BNG_COMPLIANCE = ["On track", "Shortfall identified", "Remedial action in progress", "In breach"];
+const BNG_LEGAL_TYPES = ["Section 106", "Conservation Covenant", "Management Agreement", "Habitat Bank Agreement", "Planning Condition", "Other"];
+
 function BngTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["bng", farmId], queryFn: () => fetch(api(`farms/${farmId}/biodiversity-net-gain`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/biodiversity-net-gain/${editing.id}`) : api(`farms/${farmId}/biodiversity-net-gain`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["bng", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/biodiversity-net-gain/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["bng", farmId] }) });
-  const HABITATS = ["Arable Field Margins", "Deciduous Woodland", "Hedgerow", "Grassland (neutral)", "Grassland (calcareous)", "Grassland (acid)", "Heathland", "Bog / Mire", "Fen", "Wetland / Reed Bed", "Pond / Lake", "River / Stream", "Wildflower Meadow", "Woodland Edge", "Other"];
-  const CONDITIONS = ["Distinctly sub-optimal", "Moderate", "Fairly good", "Good", "Excellent"];
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["bng", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/biodiversity-net-gain`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/biodiversity-net-gain/${editing.id}`) : api(`farms/${farmId}/biodiversity-net-gain`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bng", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/biodiversity-net-gain/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bng", farmId] }),
+  });
+
+  const isMonitoring = form.recordType !== "baseline";
+
+  // Net gain: baseline records use target − baseline; monitoring uses achieved − baseline
+  const calcNetGain = (() => {
+    const bl = parseFloat(form.baselineUnits ?? "");
+    if (isNaN(bl)) return null;
+    const comparator = isMonitoring ? parseFloat(form.achievedUnits ?? "") : parseFloat(form.targetUnits ?? "");
+    return !isNaN(comparator) ? (comparator - bl).toFixed(3) : null;
+  })();
+
+  // Warn when a legal record is being logged by internal staff only
+  const showAssessorWarning =
+    form.assessorType === "Internal staff" &&
+    !!(form.legalAgreementType || form.planningReference);
+
+  const handleOpen = (editRec?: Record<string, unknown>) => {
+    if (editRec) {
+      setEditing(editRec);
+      setForm(Object.fromEntries(Object.entries(editRec).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    } else {
+      setEditing(null);
+      setForm({ assessmentTool: "Defra Metric 4.0", recordType: "baseline", status: "active" });
+    }
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-sm">Biodiversity Net Gain (BNG) Tracker</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Record habitat baseline assessments and post-creation progress using Defra Metric 4.0. Mandatory 10% BNG is required for most new planning permissions from April 2024. Units scored per Defra's Biodiversity Metric.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Record habitat baseline assessments and post-creation monitoring using Defra Metric 4.0. Mandatory 10% BNG applies to most new planning permissions from April 2024. Biodiversity unit values must come from the Defra Metric calculator.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentTool: "Defra Metric 4.0", recordType: "baseline", status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "assessmentDate", label: "Assessment Date", fmt: r => fmtDate(r.assessmentDate) }, { key: "habitatType", label: "Habitat Type" }, { key: "areaHa", label: "Area (ha)" }, { key: "baselineCondition", label: "Baseline Condition" }, { key: "targetCondition", label: "Target Condition" }, { key: "baselineUnits", label: "Baseline Units" }, { key: "targetUnits", label: "Target Units" }, { key: "netGainUnits", label: "Net Gain" }, { key: "recordType", label: "Type" }, { key: "status", label: "Status" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "44rem" }}>
-          <DialogHeader><DialogTitle>Biodiversity Net Gain Record</DialogTitle></DialogHeader>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) },
+            { key: "recordType", label: "Type", fmt: r => BNG_RECORD_TYPES.find(t => t.v === String(r.recordType ?? ""))?.l ?? String(r.recordType ?? "—") },
+            { key: "habitatType", label: "Habitat" },
+            { key: "areaHa", label: "Area (ha)" },
+            { key: "assessorType", label: "Assessor Type" },
+            { key: "baselineCondition", label: "Baseline Condition" },
+            { key: "targetCondition", label: "Target Condition" },
+            { key: "achievedCondition", label: "Achieved Condition" },
+            { key: "netGainUnits", label: "Net Gain Units" },
+            { key: "complianceStatus", label: "Compliance" },
+            { key: "status", label: "Status" },
+          ]}
+          rows={records as Record<string, unknown>[]}
+          onEdit={r => handleOpen(r)}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
+        <DialogContent style={{ maxWidth: "48rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} BNG Record</DialogTitle></DialogHeader>
+
+          {showAssessorWarning && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              ⚠ This record references a legal agreement or planning permission. Legally binding BNG assessments must be conducted by a qualified ecologist — not internal staff.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
-            <div><Label>Assessment Tool</Label>
+
+            {/* ── Assessment ── */}
+            <div className="col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assessment</p>
+            </div>
+            <div>
+              <Label>Assessment Date *</Label>
+              <Input type="date" value={form.assessmentDate ?? ""} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Record Type *</Label>
+              <Select value={form.recordType ?? "baseline"} onValueChange={v => setForm(f => ({ ...f, recordType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{BNG_RECORD_TYPES.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Assessor Type</Label>
+              <Select value={form.assessorType ?? ""} onValueChange={v => setForm(f => ({ ...f, assessorType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select assessor type" /></SelectTrigger>
+                <SelectContent>{BNG_ASSESSOR_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Assessor Name</Label>
+              <Input value={form.assessorName ?? ""} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Assessor Organisation / Firm</Label>
+              <Input value={form.assessorOrganisation ?? ""} onChange={e => setForm(f => ({ ...f, assessorOrganisation: e.target.value }))} placeholder="Company or practice name" />
+            </div>
+            <div>
+              <Label>Assessment Tool</Label>
               <Select value={form.assessmentTool ?? "Defra Metric 4.0"} onValueChange={v => setForm(f => ({ ...f, assessmentTool: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1365,87 +1485,205 @@ function BngTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Assessor Name</Label><Input value={form.assessorName ?? ""} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
-            <div><Label>Record Type</Label>
-              <Select value={form.recordType ?? "baseline"} onValueChange={v => setForm(f => ({ ...f, recordType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[{ v: "baseline", l: "Baseline" }, { v: "post-creation", l: "Post-creation" }, { v: "annual-monitoring", l: "Annual Monitoring" }, { v: "final-assessment", l: "Final Assessment" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+            {/* ── Habitat ── */}
+            <div className="col-span-2 border-t pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Habitat</p>
             </div>
-            <div><Label>Habitat Type *</Label>
+            <div>
+              <Label>Habitat Type *</Label>
               <Select value={form.habitatType ?? ""} onValueChange={v => setForm(f => ({ ...f, habitatType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select habitat" /></SelectTrigger>
-                <SelectContent>{HABITATS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">{BNG_HABITATS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Area (ha) *</Label><Input type="number" step="0.0001" value={form.areaHa ?? ""} onChange={e => setForm(f => ({ ...f, areaHa: e.target.value }))} /></div>
-            <div><Label>Baseline Condition *</Label>
+            <div>
+              <Label>Area (ha) *</Label>
+              <Input type="number" step="0.0001" value={form.areaHa ?? ""} onChange={e => setForm(f => ({ ...f, areaHa: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <Label>Habitat Description</Label>
+              <Textarea value={form.habitatDescription ?? ""} onChange={e => setForm(f => ({ ...f, habitatDescription: e.target.value }))} rows={2} />
+            </div>
+
+            {/* ── Baseline condition & units ── */}
+            <div className="col-span-2 border-t pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {isMonitoring ? "Baseline (from original survey)" : "Condition & Biodiversity Units"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isMonitoring
+                  ? "Enter the original baseline values for reference. Condition is assessed by the ecologist using habitat-specific Defra criteria."
+                  : "Condition is assessed by the ecologist using habitat-specific Defra criteria. Unit values come directly from the Defra Biodiversity Metric calculator output."}
+              </p>
+            </div>
+            <div>
+              <Label>Baseline Condition *</Label>
               <Select value={form.baselineCondition ?? ""} onValueChange={v => setForm(f => ({ ...f, baselineCondition: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{Conditions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Target Condition</Label>
-              <Select value={form.targetCondition ?? ""} onValueChange={v => setForm(f => ({ ...f, targetCondition: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{Conditions.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectTrigger><SelectValue placeholder="Select condition" /></SelectTrigger>
+                <SelectContent>{BNG_CONDITIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label>Baseline Units</Label>
-              <Input type="number" step="0.001" value={form.baselineUnits ?? ""} onChange={e => {
-                const baseline = parseFloat(e.target.value);
-                const target = parseFloat(form.targetUnits ?? "");
-                const net = !isNaN(baseline) && !isNaN(target) ? (target - baseline).toFixed(3) : form.netGainUnits;
-                setForm(f => ({ ...f, baselineUnits: e.target.value, netGainUnits: net }));
-              }} />
+              <Input type="number" step="0.001" value={form.baselineUnits ?? ""}
+                onChange={e => {
+                  const bl = parseFloat(e.target.value);
+                  const comp = isMonitoring ? parseFloat(form.achievedUnits ?? "") : parseFloat(form.targetUnits ?? "");
+                  const net = !isNaN(bl) && !isNaN(comp) ? (comp - bl).toFixed(3) : form.netGainUnits ?? "";
+                  setForm(f => ({ ...f, baselineUnits: e.target.value, netGainUnits: net }));
+                }}
+                placeholder="From Defra Metric calculator" />
+            </div>
+
+            {/* Target — shown for all record types */}
+            <div>
+              <Label>Target Condition</Label>
+              <Select value={form.targetCondition ?? ""} onValueChange={v => setForm(f => ({ ...f, targetCondition: v }))}>
+                <SelectTrigger><SelectValue placeholder="Committed target" /></SelectTrigger>
+                <SelectContent>{BNG_CONDITIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-0.5">Committed in the management agreement</p>
             </div>
             <div>
               <Label>Target Units</Label>
-              <Input type="number" step="0.001" value={form.targetUnits ?? ""} onChange={e => {
-                const target = parseFloat(e.target.value);
-                const baseline = parseFloat(form.baselineUnits ?? "");
-                const net = !isNaN(baseline) && !isNaN(target) ? (target - baseline).toFixed(3) : form.netGainUnits;
-                setForm(f => ({ ...f, targetUnits: e.target.value, netGainUnits: net }));
-              }} />
+              <Input type="number" step="0.001" value={form.targetUnits ?? ""}
+                onChange={e => {
+                  if (!isMonitoring) {
+                    const bl = parseFloat(form.baselineUnits ?? "");
+                    const tgt = parseFloat(e.target.value);
+                    const net = !isNaN(bl) && !isNaN(tgt) ? (tgt - bl).toFixed(3) : form.netGainUnits ?? "";
+                    setForm(f => ({ ...f, targetUnits: e.target.value, netGainUnits: net }));
+                  } else {
+                    setForm(f => ({ ...f, targetUnits: e.target.value }));
+                  }
+                }}
+                placeholder="From Defra Metric calculator" />
+              <p className="text-xs text-muted-foreground mt-0.5">Must be ≥ 10% above baseline</p>
+            </div>
+
+            {/* Net gain — baseline only */}
+            {!isMonitoring && (
+              <div className="col-span-2">
+                <Label>Projected Net Gain Units</Label>
+                <Input type="number" step="0.001" value={form.netGainUnits ?? ""}
+                  onChange={e => setForm(f => ({ ...f, netGainUnits: e.target.value }))}
+                  placeholder="Auto-calculated: target − baseline" />
+                {calcNetGain && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    = {calcNetGain} units (target {form.targetUnits} − baseline {form.baselineUnits}){" "}
+                    {String(form.netGainUnits) !== calcNetGain && (
+                      <button type="button" className="text-primary underline" onClick={() => setForm(f => ({ ...f, netGainUnits: calcNetGain! }))}>use this</button>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── Monitoring results — non-baseline only ── */}
+            {isMonitoring && (
+              <>
+                <div className="col-span-2 border-t pt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Monitoring Results</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Record what was actually achieved in this monitoring period. Achieved condition must be assessed by the ecologist on site.</p>
+                </div>
+                <div>
+                  <Label>Achieved Condition</Label>
+                  <Select value={form.achievedCondition ?? ""} onValueChange={v => setForm(f => ({ ...f, achievedCondition: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Condition found on site" /></SelectTrigger>
+                    <SelectContent>{BNG_CONDITIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Achieved Units</Label>
+                  <Input type="number" step="0.001" value={form.achievedUnits ?? ""}
+                    onChange={e => {
+                      const bl = parseFloat(form.baselineUnits ?? "");
+                      const ach = parseFloat(e.target.value);
+                      const net = !isNaN(bl) && !isNaN(ach) ? (ach - bl).toFixed(3) : form.netGainUnits ?? "";
+                      setForm(f => ({ ...f, achievedUnits: e.target.value, netGainUnits: net }));
+                    }}
+                    placeholder="From Defra Metric calculator" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Net Gain Units (Achieved)</Label>
+                  <Input type="number" step="0.001" value={form.netGainUnits ?? ""}
+                    onChange={e => setForm(f => ({ ...f, netGainUnits: e.target.value }))}
+                    placeholder="Auto-calculated: achieved − baseline" />
+                  {calcNetGain && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      = {calcNetGain} units (achieved {form.achievedUnits} − baseline {form.baselineUnits}){" "}
+                      {String(form.netGainUnits) !== calcNetGain && (
+                        <button type="button" className="text-primary underline" onClick={() => setForm(f => ({ ...f, netGainUnits: calcNetGain! }))}>use this</button>
+                      )}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label>Compliance Status</Label>
+                  <Select value={form.complianceStatus ?? ""} onValueChange={v => setForm(f => ({ ...f, complianceStatus: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>{BNG_COMPLIANCE.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                {(form.complianceStatus && form.complianceStatus !== "On track") && (
+                  <div className="col-span-2">
+                    <Label>Remedial Action / Notes</Label>
+                    <Textarea
+                      value={form.remedialActionNotes ?? ""}
+                      onChange={e => setForm(f => ({ ...f, remedialActionNotes: e.target.value }))}
+                      rows={2}
+                      placeholder="Describe the shortfall and any remedial actions being taken or planned…" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Legal agreement ── */}
+            <div className="col-span-2 border-t pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Legal Agreement</p>
             </div>
             <div>
-              <Label>Net Gain Units</Label>
-              <Input type="number" step="0.001" value={form.netGainUnits ?? ""} onChange={e => setForm(f => ({ ...f, netGainUnits: e.target.value }))} placeholder="Auto-calculated from target − baseline" />
-              {form.baselineUnits && form.targetUnits && (
-                <p className="text-xs text-muted-foreground mt-0.5">= target ({form.targetUnits}) − baseline ({form.baselineUnits})</p>
-              )}
-            </div>
-            <div><Label>Management Commitment (years)</Label><Input type="number" value={form.managementCommitmentYears ?? ""} onChange={e => setForm(f => ({ ...f, managementCommitmentYears: e.target.value }))} /></div>
-            <div><Label>Legal Agreement Type</Label>
+              <Label>Legal Agreement Type</Label>
               <Select value={form.legalAgreementType ?? ""} onValueChange={v => setForm(f => ({ ...f, legalAgreementType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {["Section 106", "Conservation Covenant", "Management Agreement", "Habitat Bank Agreement", "Planning Condition", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                </SelectContent>
+                <SelectContent>{BNG_LEGAL_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Planning Reference</Label><Input value={form.planningReference ?? ""} onChange={e => setForm(f => ({ ...f, planningReference: e.target.value }))} /></div>
-            <div><Label>Status</Label>
+            <div>
+              <Label>Planning Reference</Label>
+              <Input value={form.planningReference ?? ""} onChange={e => setForm(f => ({ ...f, planningReference: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Management Commitment (years)</Label>
+              <Input type="number" value={form.managementCommitmentYears ?? ""} onChange={e => setForm(f => ({ ...f, managementCommitmentYears: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Status</Label>
               <Select value={form.status ?? "active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[{ v: "active", l: "Active" }, { v: "completed", l: "Completed" }, { v: "monitoring", l: "Monitoring" }, { v: "lapsed", l: "Lapsed" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                  {[{ v: "active", l: "Active" }, { v: "monitoring", l: "Monitoring" }, { v: "completed", l: "Completed" }, { v: "lapsed", l: "Lapsed" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2"><Label>Habitat Description</Label><Textarea value={form.habitatDescription ?? ""} onChange={e => setForm(f => ({ ...f, habitatDescription: e.target.value }))} rows={2} /></div>
+
+            {/* Notes */}
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
-const Conditions = ["Distinctly sub-optimal", "Moderate", "Fairly good", "Good", "Excellent"];
 
 type Tab = "audits" | "emissions" | "sequestration" | "actions" | "reports" | "renewable" | "bng" | "auto-calc";
 

@@ -98,20 +98,32 @@ export const biodiversityNetGainTable = pgTable("biodiversity_net_gain", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   assessmentDate: date("assessment_date").notNull(),
+  recordType: text("record_type").notNull().default("baseline"),
+  // Who carried out the assessment
+  assessorType: text("assessor_type"),
   assessorName: text("assessor_name"),
+  assessorOrganisation: text("assessor_organisation"),
   assessmentTool: text("assessment_tool").notNull().default("Defra Metric 4.0"),
+  // Habitat
   habitatType: text("habitat_type").notNull(),
   habitatDescription: text("habitat_description"),
   areaHa: numeric("area_ha", { precision: 8, scale: 4 }).notNull(),
+  // Baseline condition & units (from original survey / Defra Metric tool)
   baselineCondition: text("baseline_condition").notNull(),
-  targetCondition: text("target_condition"),
   baselineUnits: numeric("baseline_units", { precision: 8, scale: 3 }),
+  // Target committed in management agreement
+  targetCondition: text("target_condition"),
   targetUnits: numeric("target_units", { precision: 8, scale: 3 }),
   netGainUnits: numeric("net_gain_units", { precision: 8, scale: 3 }),
-  recordType: text("record_type").notNull().default("baseline"),
+  // Monitoring results (post-creation / annual-monitoring / final-assessment)
+  achievedCondition: text("achieved_condition"),
+  achievedUnits: numeric("achieved_units", { precision: 8, scale: 3 }),
+  complianceStatus: text("compliance_status"),
+  remedialActionNotes: text("remedial_action_notes"),
+  // Legal agreement
+  legalAgreementType: text("legal_agreement_type"),
   planningReference: text("planning_reference"),
   managementCommitmentYears: integer("management_commitment_years"),
-  legalAgreementType: text("legal_agreement_type"),
   status: text("status").notNull().default("active"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
