@@ -698,78 +698,392 @@ function SequestrationTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Reduction Actions constants ──────────────────────────────────────────────
+const RA_CATEGORIES = [
+  "Renewable Energy", "Energy Efficiency", "Fertiliser Reduction",
+  "Livestock Feed", "Woodland Planting", "Wetland Restoration",
+  "Transport Efficiency", "Equipment Upgrade", "Soil Management",
+  "Waste Reduction", "Other",
+];
+const RA_STATUSES = [
+  { v: "planned",     l: "Planned" },
+  { v: "in-progress", l: "In Progress" },
+  { v: "completed",   l: "Completed" },
+  { v: "cancelled",   l: "Cancelled" },
+];
+const RA_TARGET_SOURCES = [
+  "Carbon audit report",
+  "Scheme requirement document",
+  "Internal target",
+  "Advisor recommendation",
+  "Other",
+];
+const RA_FUNDING_TYPES = [
+  "Own farm funds",
+  "Government grant",
+  "Agri-environment scheme",
+  "Third-party / charity funding",
+  "Loan / finance",
+];
+const RA_CONTRACTOR_TYPES = [
+  "External contractor / firm",
+  "Internal staff member",
+  "Not yet confirmed",
+];
+
+type StaffMember = { id?: number | null; memberId?: number | null; name: string; role?: string };
+
 function ReductionActionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: actions = [], isLoading } = useQuery({ queryKey: ["carbon-actions", farmId], queryFn: () => fetch(api(`farms/${farmId}/carbon-reduction-actions`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/carbon-reduction-actions/${editing.id}`) : api(`farms/${farmId}/carbon-reduction-actions`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-reduction-actions/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }) });
+  const [responsibleMode, setResponsibleMode] = useState<"list" | "other">("list");
+
+  const { data: actions = [], isLoading } = useQuery({
+    queryKey: ["carbon-actions", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/carbon-reduction-actions`), { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: staffList = [] } = useQuery<StaffMember[]>({
+    queryKey: ["farm-staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()).then(d => d.staff ?? []),
+  });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/carbon-reduction-actions/${editing.id}`) : api(`farms/${farmId}/carbon-reduction-actions`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-reduction-actions/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }),
+  });
+
+  const isExternalFunding  = form.fundingType && form.fundingType !== "Own farm funds";
+  const showGrantFields    = isExternalFunding && form.fundingType !== "Loan / finance";
+  const isExternalDoc      = form.targetSourceType && form.targetSourceType !== "Internal target";
+  const isExternalContractor = form.contractorType === "External contractor / firm";
+  const isInternalContractor = form.contractorType === "Internal staff member";
+
+  const fundingNameLabel = form.fundingType === "Government grant"       ? "Grant name"
+    : form.fundingType === "Agri-environment scheme"                     ? "Scheme name"
+    : form.fundingType === "Third-party / charity funding"               ? "Funder name"
+    : form.fundingType === "Loan / finance"                              ? "Lender / bank name"
+    : "Name / reference";
+  const fundingRefLabel  = form.fundingType === "Government grant"       ? "Grant reference number"
+    : form.fundingType === "Agri-environment scheme"                     ? "Agreement / scheme reference"
+    : "Reference number";
+
+  const handleOpen = (editRec?: Record<string, unknown>) => {
+    if (editRec) {
+      setEditing(editRec);
+      const f = Object.fromEntries(Object.entries(editRec).map(([k, v]) => [k, v == null ? "" : String(v)]));
+      setForm(f);
+      const nameInList = staffList.some((s: StaffMember) => s.name === (editRec.responsiblePerson as string));
+      setResponsibleMode(editRec.responsiblePerson && !nameInList ? "other" : "list");
+    } else {
+      setEditing(null);
+      setForm({ status: "planned" });
+      setResponsibleMode("list");
+    }
+    setOpen(true);
+  };
+
+  const f = (key: string) => form[key] ?? "";
+  const sf = (key: string) => (v: string) => setForm(prev => ({ ...prev, [key]: v }));
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Carbon Reduction Actions</h3><Button size="sm" onClick={() => { setEditing(null); setForm({ status: "planned" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Action</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "actionTitle", label: "Action" }, { key: "category", label: "Category" }, { key: "targetReductionTonnesCo2e", label: "Target tCO₂e" }, { key: "status", label: "Status", fmt: r => String(r.status ?? "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }, { key: "plannedCompletionDate", label: "Target Date", fmt: r => fmtDate(r.plannedCompletionDate) }, { key: "responsiblePerson", label: "Responsible" }]} rows={actions as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
-      
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Carbon Reduction Actions</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Plan and track actions to reduce the holding's carbon footprint. Record who is responsible, how the work is funded, and who will carry it out.</p>
+        </div>
+        <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Action</Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "actionTitle", label: "Action" },
+            { key: "category", label: "Category" },
+            { key: "targetReductionTonnesCo2e", label: "Target tCO₂e" },
+            { key: "status", label: "Status", fmt: r => String(r.status ?? "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) },
+            { key: "plannedCompletionDate", label: "Target Date", fmt: r => fmtDate(r.plannedCompletionDate) },
+            { key: "responsiblePerson", label: "Responsible" },
+            { key: "fundingType", label: "Funding" },
+          ]}
+          rows={actions as Record<string, unknown>[]}
+          onView={setViewRecord}
+          onEdit={r => handleOpen(r)}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      {/* ── View dialog ── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Reduction Action</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Title</p><p className="font-medium">{String(viewRecord.actionTitle ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{String(viewRecord.category ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium text-capitalize">{String(viewRecord.status ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Reduction (tCO₂e)</p><p className="font-medium">{String(viewRecord.targetReductionTonnesCo2e ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Responsible Person</p><p className="font-medium">{String(viewRecord.responsiblePerson ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planned Start</p><p className="font-medium">{fmtDate(viewRecord.plannedStartDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planned Completion</p><p className="font-medium">{fmtDate(viewRecord.plannedCompletionDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Estimated Cost (£)</p><p className="font-medium">{String(viewRecord.estimatedCost ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Funding Source</p><p className="font-medium">{String(viewRecord.fundingSource ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Description</p><p className="font-medium">{String(viewRecord.description ?? "—")}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+          <DialogContent style={{ maxWidth: "44rem" }}>
+            <DialogHeader><DialogTitle>Reduction Action</DialogTitle></DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Action</p></div>
+                <div className="col-span-2"><p className="text-xs text-muted-foreground">Title</p><p className="font-medium">{String(viewRecord.actionTitle ?? "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{String(viewRecord.category ?? "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p><p className="font-medium">{String(viewRecord.status ?? "—").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</p></div>
+                <div className="col-span-2"><p className="text-xs text-muted-foreground">Description</p><p className="font-medium">{String(viewRecord.description ?? "—")}</p></div>
+
+                <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Carbon Target</p></div>
+                <div><p className="text-xs text-muted-foreground">Target Reduction (tCO₂e)</p><p className="font-medium">{String(viewRecord.targetReductionTonnesCo2e ?? "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground">Target Source</p><p className="font-medium">{String(viewRecord.targetSourceType ?? "—")}</p></div>
+
+                <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Responsible Person</p></div>
+                <div className="col-span-2"><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{String(viewRecord.responsiblePerson ?? "—")}</p></div>
+
+                <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Timeline & Cost</p></div>
+                <div><p className="text-xs text-muted-foreground">Planned Start</p><p className="font-medium">{fmtDate(viewRecord.plannedStartDate)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Planned Completion</p><p className="font-medium">{fmtDate(viewRecord.plannedCompletionDate)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Estimated Cost (£)</p><p className="font-medium">{String(viewRecord.estimatedCost ?? "—")}</p></div>
+
+                <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Funding</p></div>
+                <div><p className="text-xs text-muted-foreground">Funding Type</p><p className="font-medium">{String(viewRecord.fundingType ?? viewRecord.fundingSource ?? "—")}</p></div>
+                {viewRecord.fundingGrantName && <div><p className="text-xs text-muted-foreground">Grant / Scheme Name</p><p className="font-medium">{String(viewRecord.fundingGrantName)}</p></div>}
+                {viewRecord.fundingGrantReference && <div><p className="text-xs text-muted-foreground">Reference</p><p className="font-medium">{String(viewRecord.fundingGrantReference)}</p></div>}
+
+                {(viewRecord.contractorName || viewRecord.contractorType) && (
+                  <>
+                    <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Contractor</p></div>
+                    <div><p className="text-xs text-muted-foreground">Type</p><p className="font-medium">{String(viewRecord.contractorType ?? "—")}</p></div>
+                    {viewRecord.contractorName && <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{String(viewRecord.contractorName)}</p></div>}
+                    {viewRecord.contractorCompany && <div><p className="text-xs text-muted-foreground">Company</p><p className="font-medium">{String(viewRecord.contractorCompany)}</p></div>}
+                  </>
+                )}
+
+                {viewRecord.notes && (
+                  <div className="col-span-2 border-t pt-2"><p className="text-xs text-muted-foreground">Notes</p><p className="font-medium">{String(viewRecord.notes)}</p></div>
+                )}
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { 
-                setEditing(viewRecord); 
-                setForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v == null ? "" : String(v)]))); 
-                setOpen(true); 
-                setViewRecord(null); 
-              }}>Edit</Button>
+              <Button variant="outline" onClick={() => { handleOpen(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>Reduction Action</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Action Title *</Label><Input value={form.actionTitle ?? ""} onChange={e => setForm(f => ({ ...f, actionTitle: e.target.value }))} /></div>
-            <div><Label>Category *</Label>
-              <Select value={form.category ?? ""} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Renewable Energy", "Energy Efficiency", "Fertiliser Reduction", "Livestock Feed", "Woodland Planting", "Wetland Restoration", "Transport Efficiency", "Equipment Upgrade", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
+      {/* ── Edit / Add dialog ── */}
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
+        <DialogContent style={{ maxWidth: "46rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Reduction Action</DialogTitle></DialogHeader>
+          <div className="max-h-[78vh] overflow-y-auto pr-1 space-y-0">
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* ── Action ── */}
+              <div className="col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Action</p>
+              </div>
+              <div className="col-span-2">
+                <Label>Action Title *</Label>
+                <Input value={f("actionTitle")} onChange={e => sf("actionTitle")(e.target.value)} />
+              </div>
+              <div>
+                <Label>Category *</Label>
+                <Select value={f("category")} onValueChange={sf("category")}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent className="max-h-60 overflow-y-auto">
+                    {RA_CATEGORIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={f("status") || "planned"} onValueChange={sf("status")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RA_STATUSES.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea value={f("description")} onChange={e => sf("description")(e.target.value)} rows={2} />
+              </div>
+
+              {/* ── Carbon Target ── */}
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Carbon Target</p>
+                <p className="text-xs text-muted-foreground">The target reduction in tonnes of CO₂ equivalent. This figure should come from a carbon audit, scheme agreement, or advisor recommendation — not estimated.</p>
+              </div>
+              <div>
+                <Label>Target Reduction (tCO₂e)</Label>
+                <Input type="number" step="0.001" value={f("targetReductionTonnesCo2e")} onChange={e => sf("targetReductionTonnesCo2e")(e.target.value)} placeholder="e.g. 12.500" />
+              </div>
+              <div>
+                <Label>Source of this figure</Label>
+                <Select value={f("targetSourceType")} onValueChange={sf("targetSourceType")}>
+                  <SelectTrigger><SelectValue placeholder="Where did this figure come from?" /></SelectTrigger>
+                  <SelectContent>
+                    {RA_TARGET_SOURCES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isExternalDoc && (
+                <div className="col-span-2">
+                  {editing ? (
+                    <RecordAttachments farmId={farmId} recordType="carbon_action_target_doc" recordId={editing.id as number} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Save this record first to attach the source document (audit report, scheme letter, etc.).</p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Responsible Person ── */}
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Responsible Person</p>
+                <p className="text-xs text-muted-foreground">The person at this holding who is accountable for ensuring this action is delivered — typically the farm manager or business owner.</p>
+              </div>
+              <div className="col-span-2">
+                <Label>Select from staff</Label>
+                <Select
+                  value={responsibleMode === "other" ? "__other__" : (f("responsiblePerson") || "")}
+                  onValueChange={v => {
+                    if (v === "__other__") {
+                      setResponsibleMode("other");
+                      setForm(prev => ({ ...prev, responsiblePerson: "" }));
+                    } else {
+                      setResponsibleMode("list");
+                      setForm(prev => ({ ...prev, responsiblePerson: v }));
+                    }
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select a staff member…" /></SelectTrigger>
+                  <SelectContent className="max-h-60 overflow-y-auto">
+                    {staffList.map((s: StaffMember) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name}{s.role ? ` (${s.role})` : ""}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__other__">Other / not in list</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {responsibleMode === "other" && (
+                <div className="col-span-2">
+                  <Label>Name</Label>
+                  <Input value={f("responsiblePerson")} onChange={e => sf("responsiblePerson")(e.target.value)} placeholder="Full name" />
+                </div>
+              )}
+
+              {/* ── Timeline & Cost ── */}
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Timeline & Cost</p>
+              </div>
+              <div>
+                <Label>Planned Start</Label>
+                <Input type="date" value={f("plannedStartDate")} onChange={e => sf("plannedStartDate")(e.target.value)} />
+              </div>
+              <div>
+                <Label>Planned Completion</Label>
+                <Input type="date" value={f("plannedCompletionDate")} onChange={e => sf("plannedCompletionDate")(e.target.value)} />
+              </div>
+              <div>
+                <Label>Estimated Cost (£)</Label>
+                <Input type="number" step="0.01" value={f("estimatedCost")} onChange={e => sf("estimatedCost")(e.target.value)} />
+              </div>
+
+              {/* ── Funding ── */}
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Funding</p>
+              </div>
+              <div className="col-span-2">
+                <Label>Funding Type</Label>
+                <Select value={f("fundingType")} onValueChange={sf("fundingType")}>
+                  <SelectTrigger><SelectValue placeholder="How will this be funded?" /></SelectTrigger>
+                  <SelectContent>
+                    {RA_FUNDING_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isExternalFunding && (
+                <>
+                  <div>
+                    <Label>{fundingNameLabel}</Label>
+                    <Input value={f("fundingGrantName")} onChange={e => sf("fundingGrantName")(e.target.value)} />
+                  </div>
+                  {showGrantFields && (
+                    <div>
+                      <Label>{fundingRefLabel}</Label>
+                      <Input value={f("fundingGrantReference")} onChange={e => sf("fundingGrantReference")(e.target.value)} />
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1">Funding agreement / grant offer letter</p>
+                    {editing ? (
+                      <RecordAttachments farmId={farmId} recordType="carbon_action_funding_doc" recordId={editing.id as number} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Save this record first to attach the funding agreement document.</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ── Contractor ── */}
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Contractor / Who will do the work?</p>
+                <p className="text-xs text-muted-foreground">The person or firm physically carrying out this work — which may be different from the responsible person above.</p>
+              </div>
+              <div className="col-span-2">
+                <Label>Contractor type</Label>
+                <Select value={f("contractorType")} onValueChange={sf("contractorType")}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    {RA_CONTRACTOR_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isInternalContractor && (
+                <div className="col-span-2">
+                  <Label>Staff member carrying out the work</Label>
+                  <Select value={f("contractorName")} onValueChange={sf("contractorName")}>
+                    <SelectTrigger><SelectValue placeholder="Select a staff member…" /></SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">
+                      {staffList.map((s: StaffMember) => (
+                        <SelectItem key={s.name} value={s.name}>
+                          {s.name}{s.role ? ` (${s.role})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {isExternalContractor && (
+                <>
+                  <div>
+                    <Label>Contractor / individual name</Label>
+                    <Input value={f("contractorName")} onChange={e => sf("contractorName")(e.target.value)} placeholder="Name or trading name" />
+                  </div>
+                  <div>
+                    <Label>Company / firm</Label>
+                    <Input value={f("contractorCompany")} onChange={e => sf("contractorCompany")(e.target.value)} placeholder="Registered company name" />
+                  </div>
+                </>
+              )}
+
+              {/* ── Notes ── */}
+              <div className="col-span-2 border-t pt-3">
+                <Label>Notes</Label>
+                <Textarea value={f("notes")} onChange={e => sf("notes")(e.target.value)} rows={2} />
+              </div>
+
             </div>
-            <div><Label>Status</Label>
-              <Select value={form.status ?? "planned"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[{ v: "planned", l: "Planned" }, { v: "in-progress", l: "In Progress" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }].map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Target Reduction (tCO₂e)</Label><Input type="number" step="0.001" value={form.targetReductionTonnesCo2e ?? ""} onChange={e => setForm(f => ({ ...f, targetReductionTonnesCo2e: e.target.value }))} /></div>
-            <div><Label>Responsible Person</Label><Input value={form.responsiblePerson ?? ""} onChange={e => setForm(f => ({ ...f, responsiblePerson: e.target.value }))} /></div>
-            <div><Label>Planned Start</Label><Input type="date" value={form.plannedStartDate ?? ""} onChange={e => setForm(f => ({ ...f, plannedStartDate: e.target.value }))} /></div>
-            <div><Label>Planned Completion</Label><Input type="date" value={form.plannedCompletionDate ?? ""} onChange={e => setForm(f => ({ ...f, plannedCompletionDate: e.target.value }))} /></div>
-            <div><Label>Estimated Cost (£)</Label><Input type="number" step="0.01" value={form.estimatedCost ?? ""} onChange={e => setForm(f => ({ ...f, estimatedCost: e.target.value }))} /></div>
-            <div><Label>Funding Source</Label><Input value={form.fundingSource ?? ""} onChange={e => setForm(f => ({ ...f, fundingSource: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Description</Label><Textarea value={form.description ?? ""} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter className="mt-3">
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
