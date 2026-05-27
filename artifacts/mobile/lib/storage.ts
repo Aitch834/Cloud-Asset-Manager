@@ -218,4 +218,8 @@ export const STORAGE_KEYS = {
   WELFARE_OUTCOME_RECORDS: "bde_welfare_outcome_assessments",
   PPE_ISSUE_RECORDS: "bde_ppe_issue_records",
   CASUALTY_SLAUGHTER_RECORDS: "bde_casualty_slaughter_records",
+  CARBON_SEQUESTRATION_RECORDS: "bde_carbon_sequestration_records",
+  CARBON_REDUCTION_ACTIONS: "bde_carbon_reduction_actions",
+  CARBON_AUDIT_RECORDS: "bde_carbon_audit_records",
+  BNG_RECORDS: "bde_bng_records",
 } as const;

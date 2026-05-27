@@ -1249,6 +1249,91 @@ export interface CarbonEntry {
   synced: boolean;
 }
 
+export interface CarbonSequestrationRecord {
+  id: string;
+  farmId: string;
+  sequestrationYear: string;
+  featureType: string;
+  featureName: string;
+  areaHaOrLengthM: string;
+  unit: string;
+  tonnesCo2eSequestered: string;
+  sequestrationFactorSource: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface CarbonReductionAction {
+  id: string;
+  farmId: string;
+  actionTitle: string;
+  category: string;
+  status: string;
+  targetSourceType: string;
+  targetReductionPct: string;
+  targetYear: string;
+  fundingType: string;
+  fundingGrantName: string;
+  fundingGrantReference: string;
+  responsiblePerson: string;
+  contractorType: string;
+  contractorName: string;
+  contractorCompany: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface CarbonAuditRecord {
+  id: string;
+  farmId: string;
+  auditYear: string;
+  auditDate: string;
+  conductedBy: string;
+  auditorType: string;
+  auditorCompany: string;
+  auditTool: string;
+  verificationStatus: string;
+  supplyChainRequirement: string;
+  certificationBody: string;
+  totalScope1TonnesCo2e: string;
+  totalScope2TonnesCo2e: string;
+  totalScope3TonnesCo2e: string;
+  totalTonnesCo2e: string;
+  sequestrationTonnesCo2e: string;
+  netTonnesCo2e: string;
+  reductionTargetPct: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface BngRecord {
+  id: string;
+  farmId: string;
+  recordType: string;
+  assessmentDate: string;
+  habitatType: string;
+  areaHa: string;
+  assessorType: string;
+  assessorName: string;
+  assessmentTool: string;
+  baselineCondition: string;
+  targetCondition: string;
+  achievedCondition: string;
+  baselineUnits: string;
+  targetUnits: string;
+  achievedUnits: string;
+  netGainUnits: string;
+  complianceStatus: string;
+  legalAgreementType: string;
+  planningReference: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface DiversificationRecord {
   id: string;
   farmId: string;
