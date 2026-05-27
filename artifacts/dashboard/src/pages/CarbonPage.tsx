@@ -1178,12 +1178,206 @@ const SEQ_FEATURES: Record<string, { unit: string; factorTco2ePerUnit?: number }
 
 const SEQ_FACTOR_SOURCES = [...EM_FACTOR_SOURCES, "Woodland Carbon Code", "Peatland Code"];
 
+type SeqSuggestion = {
+  source: string;
+  featureType: string;
+  featureName: string;
+  quantity: number;
+  unit: string;
+  factorTco2ePerUnit: number;
+  tonnesCo2eSequestered: number;
+  sequestrationFactorSource: string;
+};
+
+const SEQ_SOURCE_COLOURS: Record<string, string> = {
+  "Environmental Features": "bg-emerald-100 text-emerald-700",
+  "Field Season Land Use":  "bg-lime-100 text-lime-700",
+};
+
+function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
+  const [year, setYear] = useState(String(new Date().getFullYear() - 1));
+  const [preview, setPreview] = useState<SeqSuggestion[] | null>(null);
+  const [existingCount, setExistingCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [editedCo2e, setEditedCo2e] = useState<Record<number, string>>({});
+
+  const fetchPreview = async () => {
+    setLoading(true);
+    setPreview(null);
+    setSelected(new Set());
+    setEditedCo2e({});
+    try {
+      const res = await fetch(api(`farms/${farmId}/carbon-sequestration/preview?year=${year}`), { credentials: "include" });
+      const data = await res.json();
+      const suggs: SeqSuggestion[] = data.suggestions ?? [];
+      setPreview(suggs);
+      setExistingCount(data.existingCount ?? 0);
+      setSelected(new Set(suggs.map((_: SeqSuggestion, i: number) => i)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirm = async () => {
+    if (!preview) return;
+    setSaving(true);
+    const records = preview
+      .map((s, i) => ({ s, i }))
+      .filter(({ i }) => selected.has(i))
+      .map(({ s, i }) => ({
+        sequestrationYear: parseInt(year),
+        featureType: s.featureType,
+        featureName: s.featureName,
+        areaHaOrLengthM: String(s.quantity),
+        unit: s.unit,
+        tonnesCo2eSequestered: editedCo2e[i] !== undefined ? editedCo2e[i] : String(s.tonnesCo2eSequestered),
+        sequestrationFactorSource: s.sequestrationFactorSource,
+      }));
+    try {
+      await fetch(api(`farms/${farmId}/carbon-sequestration/bulk`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ records }),
+      });
+    } finally {
+      setSaving(false);
+      onDone();
+    }
+  };
+
+  const selectedCount = selected.size;
+  const totalSeq = preview
+    ? preview.reduce((sum, s, i) => {
+        if (!selected.has(i)) return sum;
+        const v = parseFloat(editedCo2e[i] ?? String(s.tonnesCo2eSequestered));
+        return sum + (isNaN(v) ? 0 : v);
+      }, 0)
+    : 0;
+
+  const toggleAll = () => {
+    if (!preview) return;
+    if (selected.size === preview.length) setSelected(new Set());
+    else setSelected(new Set(preview.map((_, i) => i)));
+  };
+
+  return (
+    <Dialog open onOpenChange={onDone}>
+      <DialogContent style={{ maxWidth: "58rem" }}>
+        <DialogHeader>
+          <DialogTitle>Generate Sequestration Records from Farm Data</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Reads your Environmental Features register and Field Season Land Use records and calculates indicative annual sequestration using recognised UK factors (Woodland Carbon Code, Peatland Code, DEFRA agri-environment guidance). Review and adjust each line before confirming.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="w-36">
+              <Label>Year</Label>
+              <Select value={year} onValueChange={v => { setYear(v); setPreview(null); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button onClick={fetchPreview} disabled={loading}>
+              {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Scanning…</> : "Preview"}
+            </Button>
+          </div>
+
+          {existingCount > 0 && (
+            <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+              <span>⚠</span>
+              <span>There {existingCount === 1 ? "is" : "are"} already <strong>{existingCount}</strong> sequestration record{existingCount !== 1 ? "s" : ""} for {year}. Confirming will add to them — check for duplicates.</span>
+            </div>
+          )}
+
+          {preview !== null && preview.length === 0 && (
+            <div className="text-sm text-muted-foreground italic py-4 text-center">
+              No mappable features found for {year}. Add features in the Environmental Features module, or record land use in Fields &amp; Crops with types such as "Woodland", "Hedgerow", or "Permanent Grassland".
+            </div>
+          )}
+
+          {preview !== null && preview.length > 0 && (
+            <div className="space-y-2">
+              <div className="overflow-x-auto rounded-lg border max-h-80 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="p-2 text-left w-8">
+                        <Checkbox checked={selectedCount === preview.length} onCheckedChange={toggleAll} />
+                      </th>
+                      <th className="p-2 text-left">Source</th>
+                      <th className="p-2 text-left">Feature Type</th>
+                      <th className="p-2 text-left">Feature / Field Name</th>
+                      <th className="p-2 text-right">Area / Length</th>
+                      <th className="p-2 text-left">Unit</th>
+                      <th className="p-2 text-right">tCO₂e / yr</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.map((s, i) => (
+                      <tr key={i} className={`border-t ${!selected.has(i) ? "opacity-40" : ""}`}>
+                        <td className="p-2">
+                          <Checkbox checked={selected.has(i)} onCheckedChange={c => setSelected(prev => { const n = new Set(prev); c ? n.add(i) : n.delete(i); return n; })} />
+                        </td>
+                        <td className="p-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${SEQ_SOURCE_COLOURS[s.source] ?? "bg-muted text-muted-foreground"}`}>{s.source}</span>
+                        </td>
+                        <td className="p-2 font-medium">{s.featureType}</td>
+                        <td className="p-2 text-muted-foreground max-w-[14rem] truncate">{s.featureName || "—"}</td>
+                        <td className="p-2 text-right tabular-nums">{s.quantity.toFixed(3)}</td>
+                        <td className="p-2 text-muted-foreground">{s.unit}</td>
+                        <td className="p-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            className="h-7 text-right text-xs w-24 border rounded px-1"
+                            value={editedCo2e[i] ?? s.tonnesCo2eSequestered.toFixed(3)}
+                            onChange={e => setEditedCo2e(prev => ({ ...prev, [i]: e.target.value }))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/30 border-t font-semibold text-sm sticky bottom-0">
+                    <tr>
+                      <td colSpan={6} className="p-2 text-right">Total (selected):</td>
+                      <td className="p-2 text-right tabular-nums">{totalSeq.toFixed(3)} tCO₂e / yr</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Factors: Woodland 3.5 tCO₂e/ha, Hedgerow 0.34 tCO₂e/km, Peatland 5.5 tCO₂e/ha, Permanent Grassland 0.5 tCO₂e/ha, Wildflower Meadow 0.3 tCO₂e/ha, Riparian Buffer 1.2 tCO₂e/ha, Agroforestry 1.5 tCO₂e/ha. Edit any value before confirming.
+              </p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onDone} disabled={saving}>Cancel</Button>
+          {preview !== null && preview.length > 0 && (
+            <Button onClick={confirm} disabled={saving || selectedCount === 0}>
+              {saving
+                ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Creating…</>
+                : `Create ${selectedCount} record${selectedCount !== 1 ? "s" : ""}`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SequestrationTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["carbon-seq", farmId],
@@ -1309,6 +1503,9 @@ function SequestrationTab({ farmId }: { farmId: number }) {
           <Button size="sm" variant="outline" onClick={printSequestration} disabled={filteredSeqRows.length === 0}>
             <Printer className="w-4 h-4 mr-1" />Print
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
+            <Sparkles className="w-4 h-4 mr-1" />Generate from records
+          </Button>
           <Button size="sm" onClick={() => handleOpen()}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -1428,6 +1625,15 @@ function SequestrationTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {generateOpen && (
+        <GenerateSeqDialog
+          farmId={farmId}
+          onDone={() => {
+            setGenerateOpen(false);
+            qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] });
+          }}
+        />
+      )}
     </div>
   );
 }

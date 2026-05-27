@@ -18288,6 +18288,119 @@ router.post("/farms/:farmId/carbon-sequestration", requireAuth, requireTenant, r
   const [row] = await db.insert(carbonSequestrationTable).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
+
+// ── Preview sequestration from Environmental Features + Field Season Land Use ─
+router.get("/farms/:farmId/carbon-sequestration/preview", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = parseInt(req.query.year as string);
+  if (isNaN(year) || year < 2000 || year > new Date().getFullYear() + 2) { res.status(400).json({ error: "Invalid year" }); return; }
+
+  const FACTOR_SOURCE = "DEFRA Agri-Environment / Woodland Carbon Code / Peatland Code indicative factors";
+  const SEQ_MAP: Record<string, { factor: number; unit: string }> = {
+    "Woodland":            { factor: 3.50, unit: "ha" },
+    "Hedgerow":            { factor: 0.34, unit: "km" },
+    "Peatland":            { factor: 5.50, unit: "ha" },
+    "Permanent Grassland": { factor: 0.50, unit: "ha" },
+    "Wildflower Meadow":   { factor: 0.30, unit: "ha" },
+    "Riparian Buffer":     { factor: 1.20, unit: "ha" },
+    "Agroforestry":        { factor: 1.50, unit: "ha" },
+  };
+  function mapFeature(raw: string): string | null {
+    const s = raw.toLowerCase();
+    if (/woodland|wood\b|forest|copse|plantation/.test(s))               return "Woodland";
+    if (/hedgerow|hedge\b/.test(s))                                       return "Hedgerow";
+    if (/peatland|peat\b|bog\b|mire|fen\b/.test(s))                       return "Peatland";
+    if (/permanent[\s-]?grass|permanent[\s-]?pasture/.test(s))            return "Permanent Grassland";
+    if (/wildflower|wild[\s-]?flower|meadow/.test(s))                     return "Wildflower Meadow";
+    if (/riparian|river[\s-]?buff|stream[\s-]?buff|buffer[\s-]?strip|watercourse/.test(s)) return "Riparian Buffer";
+    if (/agroforest/.test(s))                                              return "Agroforestry";
+    return null;
+  }
+
+  const suggestions: Record<string, unknown>[] = [];
+
+  // 1 — Environmental Features register
+  try {
+    const envRows = await db.select({
+      featureType: environmentalFeaturesTable.featureType,
+      description: environmentalFeaturesTable.description,
+      areaHectares: environmentalFeaturesTable.areaHectares,
+      lengthMetres: environmentalFeaturesTable.lengthMetres,
+    }).from(environmentalFeaturesTable)
+      .where(eq(environmentalFeaturesTable.farmId, farmId));
+
+    for (const r of envRows) {
+      const mapped = mapFeature(r.featureType ?? "");
+      if (!mapped) continue;
+      const def = SEQ_MAP[mapped];
+      let qty: number;
+      if (mapped === "Hedgerow") {
+        qty = parseFloat(r.lengthMetres ?? "0") / 1000; // metres → km
+      } else {
+        qty = parseFloat(r.areaHectares ?? "0");
+      }
+      if (qty <= 0) continue;
+      suggestions.push({
+        source: "Environmental Features",
+        featureType: mapped,
+        featureName: r.description ?? r.featureType ?? "",
+        quantity: parseFloat(qty.toFixed(4)),
+        unit: def.unit,
+        factorTco2ePerUnit: def.factor,
+        tonnesCo2eSequestered: parseFloat((qty * def.factor).toFixed(3)),
+        sequestrationFactorSource: FACTOR_SOURCE,
+      });
+    }
+  } catch (_) { /* module not in use */ }
+
+  // 2 — Field Season Land Use (filtered by year)
+  try {
+    const landUseRows = await db.select({
+      landUse: fieldSeasonLandUseTable.landUse,
+      areaHectares: fieldSeasonLandUseTable.areaHectares,
+      fieldName: fieldsTable.name,
+    }).from(fieldSeasonLandUseTable)
+      .innerJoin(fieldsTable, eq(fieldSeasonLandUseTable.fieldId, fieldsTable.id))
+      .where(and(
+        eq(fieldSeasonLandUseTable.farmId, farmId),
+        eq(fieldSeasonLandUseTable.year, year),
+      ));
+
+    for (const r of landUseRows) {
+      const mapped = mapFeature(r.landUse ?? "");
+      if (!mapped) continue;
+      const def = SEQ_MAP[mapped];
+      const qty = parseFloat(r.areaHectares ?? "0");
+      if (qty <= 0) continue;
+      suggestions.push({
+        source: "Field Season Land Use",
+        featureType: mapped,
+        featureName: r.fieldName ?? r.landUse ?? "",
+        quantity: parseFloat(qty.toFixed(4)),
+        unit: def.unit,
+        factorTco2ePerUnit: def.factor,
+        tonnesCo2eSequestered: parseFloat((qty * def.factor).toFixed(3)),
+        sequestrationFactorSource: FACTOR_SOURCE,
+      });
+    }
+  } catch (_) { /* module not in use */ }
+
+  const [existing] = await db.select({ c: sql<string>`COUNT(*)` })
+    .from(carbonSequestrationTable)
+    .where(and(eq(carbonSequestrationTable.farmId, farmId), eq(carbonSequestrationTable.sequestrationYear, year)));
+
+  res.json({ year, suggestions, existingCount: Number(existing?.c ?? 0) });
+});
+
+// ── Bulk-insert confirmed sequestration records ───────────────────────────────
+router.post("/farms/:farmId/carbon-sequestration/bulk", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { records } = req.body as { records: Record<string, unknown>[] };
+  if (!Array.isArray(records) || records.length === 0) { res.status(400).json({ error: "No records provided" }); return; }
+  const inserted = await db.insert(carbonSequestrationTable).values(records.map(r => ({ ...r, farmId })) as any).returning();
+  res.json({ created: inserted.length });
+});
+
 router.put("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
