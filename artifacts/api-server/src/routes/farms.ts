@@ -18475,6 +18475,104 @@ router.get("/farms/:farmId/scheme-records", requireAuth, requireTenant, requireM
   ]);
 });
 
+// ── Carbon auto-calc prefill from farm records ────────────────────────────────
+router.get("/farms/:farmId/carbon-calc-prefill", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = parseInt(String(req.query.year ?? new Date().getFullYear())) || new Date().getFullYear();
+
+  const [deliveries, usageRecs, elecReadings, sprayApps, livestock] = await Promise.all([
+    db.select({ fuelType: fuelDeliveriesTable.fuelType, qty: sql<string>`sum(${fuelDeliveriesTable.quantityLitres})` })
+      .from(fuelDeliveriesTable)
+      .where(and(eq(fuelDeliveriesTable.farmId, farmId), sql`extract(year from ${fuelDeliveriesTable.deliveryDate}) = ${year}`))
+      .groupBy(fuelDeliveriesTable.fuelType),
+    db.select({ fuelType: fuelTanksTable.fuelType, qty: sql<string>`sum(${fuelUsageTable.quantityLitres})` })
+      .from(fuelUsageTable)
+      .leftJoin(fuelTanksTable, eq(fuelUsageTable.tankId, fuelTanksTable.id))
+      .where(and(eq(fuelUsageTable.farmId, farmId), sql`extract(year from ${fuelUsageTable.usageDate}) = ${year}`))
+      .groupBy(fuelTanksTable.fuelType),
+    db.select({ elecKwh: sql<string>`sum(${gridEnergyReadingsTable.consumptionKwh})` })
+      .from(gridEnergyReadingsTable)
+      .where(and(eq(gridEnergyReadingsTable.farmId, farmId), sql`extract(year from ${gridEnergyReadingsTable.readingDate}::date) = ${year}`, sql`${gridEnergyReadingsTable.consumptionKwh} is not null`)),
+    db.select({
+      productName: sprayProductsTable.productName,
+      rateUnit: sprayApplicationsTable.rateUnit,
+      totalKg: sql<string>`sum(coalesce(${sprayApplicationsTable.applicationRate}::numeric, 0) * coalesce(${sprayApplicationsTable.areaSprayedHa}::numeric, 0))`,
+    })
+      .from(sprayApplicationsTable)
+      .leftJoin(sprayProductsTable, eq(sprayApplicationsTable.productId, sprayProductsTable.id))
+      .where(and(
+        eq(sprayApplicationsTable.farmId, farmId),
+        sql`extract(year from ${sprayApplicationsTable.applicationDate}) = ${year}`,
+        sql`(lower(coalesce(${sprayProductsTable.category}, '')) like '%fertiliser%' or lower(coalesce(${sprayProductsTable.category}, '')) like '%fertilizer%' or lower(coalesce(${sprayProductsTable.productName}, '')) similar to '%(urea|ammonium|nitram|an 3|can |calcium ammonium|nitrate of lime)%')`,
+      ))
+      .groupBy(sprayProductsTable.productName, sprayApplicationsTable.rateUnit),
+    db.select({ herdType: herdFlockRegisterTable.type, headCount: sql<number>`count(*)::int` })
+      .from(livestockAnimalsTable)
+      .leftJoin(herdFlockRegisterTable, eq(livestockAnimalsTable.herdId, herdFlockRegisterTable.id))
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), sql`${livestockAnimalsTable.status} not in ('dead', 'sold')`))
+      .groupBy(herdFlockRegisterTable.type),
+  ]);
+
+  const fuelTotals: Record<string, number> = {};
+  [...deliveries, ...usageRecs].forEach(r => {
+    const key = (r.fuelType ?? "").toLowerCase();
+    const qty = parseFloat(String(r.qty ?? "0")) || 0;
+    const efKey = key.includes("petrol") ? "petrol"
+      : key.includes("lng") || key.includes("lpg") || key.includes("propane") || key.includes("heating_oil") ? "lng"
+      : "diesel";
+    fuelTotals[efKey] = (fuelTotals[efKey] ?? 0) + qty;
+  });
+
+  const fertTotals: Record<string, number> = {};
+  sprayApps.forEach(r => {
+    const name = (r.productName ?? "").toLowerCase();
+    const unit = (r.rateUnit ?? "").toLowerCase();
+    const kg = parseFloat(String(r.totalKg ?? "0")) || 0;
+    if (kg <= 0) return;
+    if (unit && (unit.includes("ml") || unit.includes("l/ha") || unit.includes("litre"))) return;
+    const efKey = (name.includes("urea") && !name.includes("calcium ammonium")) ? "urea"
+      : (name.includes("can ") || name.includes("calcium ammonium") || name.includes("nitrate of lime")) ? "can"
+      : (name.includes("ammonium") || name.includes("nitram") || name.includes("an 3") || name.includes("an34")) ? "ammonium"
+      : null;
+    if (efKey) fertTotals[efKey] = (fertTotals[efKey] ?? 0) + kg;
+  });
+
+  const liveTotals: Record<string, number> = {};
+  livestock.forEach(r => {
+    const type = (r.herdType ?? "").toLowerCase();
+    const n = r.headCount ?? 0;
+    if (type.includes("dairy") || type.includes("milk")) liveTotals.dairy_head = (liveTotals.dairy_head ?? 0) + n;
+    else if (type.includes("beef") || type.includes("suckler") || type.includes("cattle") || type.includes("cow")) liveTotals.beef_head = (liveTotals.beef_head ?? 0) + n;
+    else if (type.includes("sheep") || type.includes("ewe") || type.includes("lamb")) liveTotals.sheep_head = (liveTotals.sheep_head ?? 0) + n;
+    else if (type.includes("pig")) liveTotals.pigs_head = (liveTotals.pigs_head ?? 0) + n;
+    else if (type.includes("poultry") || type.includes("chicken") || type.includes("turkey") || type.includes("broiler") || type.includes("hen")) {
+      liveTotals.poultry_k = (liveTotals.poultry_k ?? 0) + n / 1000;
+    }
+  });
+
+  res.json({
+    diesel:     fuelTotals.diesel    ?? null,
+    petrol:     fuelTotals.petrol    ?? null,
+    lng:        fuelTotals.lng       ?? null,
+    elec:       elecReadings[0]?.elecKwh != null ? parseFloat(String(elecReadings[0].elecKwh)) : null,
+    ammonium:   fertTotals.ammonium  ?? null,
+    urea:       fertTotals.urea      ?? null,
+    can:        fertTotals.can       ?? null,
+    beef_head:  liveTotals.beef_head  ?? null,
+    dairy_head: liveTotals.dairy_head ?? null,
+    sheep_head: liveTotals.sheep_head ?? null,
+    pigs_head:  liveTotals.pigs_head  ?? null,
+    poultry_k:  liveTotals.poultry_k != null ? parseFloat(liveTotals.poultry_k.toFixed(3)) : null,
+    sources: {
+      fuel:        deliveries.length > 0 || usageRecs.length > 0,
+      fertiliser:  sprayApps.length > 0,
+      livestock:   livestock.filter(r => r.herdType != null).length > 0,
+      electricity: elecReadings[0]?.elecKwh != null,
+    },
+    year,
+  });
+});
+
 router.get("/farms/:farmId/sustainability-reports", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear));

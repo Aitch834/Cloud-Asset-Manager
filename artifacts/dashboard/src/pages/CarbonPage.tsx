@@ -96,7 +96,9 @@ const AUDITOR_TYPES = [
   "Not yet confirmed",
 ];
 
-function AuditsTab({ farmId }: { farmId: number }) {
+type PrefillAudit = { scope1: number; scope2: number; scope3: number; total: number; notes: string };
+
+function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; prefillAudit?: PrefillAudit | null; onPrefillUsed?: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -105,6 +107,22 @@ function AuditsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [auditorMode, setAuditorMode] = useState<"list" | "other">("list");
   const [certBodyMode, setCertBodyMode] = useState<"list" | "other">("list");
+
+  useEffect(() => {
+    if (!prefillAudit) return;
+    setEditing(null);
+    setAuditorMode("list");
+    setCertBodyMode("list");
+    setForm({
+      totalScope1TonnesCo2e: prefillAudit.scope1.toFixed(3),
+      totalScope2TonnesCo2e: prefillAudit.scope2.toFixed(3),
+      totalScope3TonnesCo2e: prefillAudit.scope3.toFixed(3),
+      totalTonnesCo2e: prefillAudit.total.toFixed(3),
+      notes: prefillAudit.notes,
+    });
+    setOpen(true);
+    onPrefillUsed?.();
+  }, [prefillAudit]);
 
   const certBodies = useLookupStrings("carbon_certification_bodies", [
     "Carbon Trust", "BSI (PAS 2060)", "LRQA (Lloyd's Register)", "Bureau Veritas",
@@ -3185,6 +3203,7 @@ type Tab = "audits" | "emissions" | "sequestration" | "actions" | "reports" | "r
 export default function CarbonPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("audits");
+  const [prefillAudit, setPrefillAudit] = useState<PrefillAudit | null>(null);
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Carbon & Sustainability">
@@ -3200,14 +3219,14 @@ export default function CarbonPage() {
           <TabButton active={tab === "auto-calc"} onClick={() => setTab("auto-calc")}><Zap className="w-3.5 h-3.5 mr-1" />Auto-Calculator</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
-          {tab === "audits" && <AuditsTab farmId={farmId} />}
+          {tab === "audits" && <AuditsTab farmId={farmId} prefillAudit={prefillAudit} onPrefillUsed={() => setPrefillAudit(null)} />}
           {tab === "emissions" && <EmissionsTab farmId={farmId} />}
           {tab === "sequestration" && <SequestrationTab farmId={farmId} />}
           {tab === "actions" && <ReductionActionsTab farmId={farmId} />}
           {tab === "renewable" && <RenewableEnergyTab farmId={farmId} />}
           {tab === "bng" && <BngTab farmId={farmId} />}
           {tab === "reports" && <ReportsTab farmId={farmId} />}
-          {tab === "auto-calc" && <CarbonAutoCalcTab farmId={farmId} />}
+          {tab === "auto-calc" && <CarbonAutoCalcTab farmId={farmId} onUseForAudit={(s1, s2, s3, t, notes) => { setPrefillAudit({ scope1: s1, scope2: s2, scope3: s3, total: t, notes }); setTab("audits"); }} />}
         </CardContent></Card>
       </div>
     </AppLayout>
@@ -3230,9 +3249,12 @@ const DEFRA_EF: Record<string, { label: string; unit: string; kgCo2ePerUnit: num
   poultry_k:  { label: "Poultry (per 1,000 birds)", unit: "k birds",  kgCo2ePerUnit: 280,     scope: "1", category: "Livestock" },
 };
 
-function CarbonAutoCalcTab({ farmId: _farmId }: { farmId: number }) {
+function CarbonAutoCalcTab({ farmId, onUseForAudit }: { farmId: number; onUseForAudit: (s1: number, s2: number, s3: number, total: number, notes: string) => void }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [prefillYear, setPrefillYear] = useState(String(new Date().getFullYear() - 1));
+  const [prefilling, setPrefilling] = useState(false);
+  const [prefillSources, setPrefillSources] = useState<{ fuel?: boolean; fertiliser?: boolean; livestock?: boolean; electricity?: boolean } | null>(null);
   const set = (key: string, val: string) => setInputs(p => ({ ...p, [key]: val }));
 
   const results = Object.entries(DEFRA_EF).map(([key, ef]) => {
@@ -3247,12 +3269,60 @@ function CarbonAutoCalcTab({ farmId: _farmId }: { farmId: number }) {
   const total = s1 + s2 + s3;
   const fmt = (t: number) => t.toFixed(3);
   const cats = [...new Set(Object.values(DEFRA_EF).map(e => e.category))];
+  const prefillYears = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i));
+
+  const handlePrefill = async () => {
+    setPrefilling(true);
+    try {
+      const r = await fetch(api(`farms/${farmId}/carbon-calc-prefill?year=${prefillYear}`), { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json() as Record<string, unknown>;
+        const next: Record<string, string> = {};
+        Object.keys(DEFRA_EF).forEach(key => {
+          const v = data[key];
+          if (v != null && Number(v) > 0) next[key] = String(parseFloat(String(v)));
+        });
+        setInputs(next);
+        setPrefillSources(data.sources as { fuel?: boolean; fertiliser?: boolean; livestock?: boolean } ?? {});
+      }
+    } finally {
+      setPrefilling(false);
+    }
+  };
+
+  const auditNotes = total > 0
+    ? `Auto-calculated from farm records (${prefillYear}) using DEFRA 2023 GHG Conversion Factors.\n${results.filter(r => r.qty > 0).map(r => `${r.label}: ${r.qty} ${r.unit} → ${fmt(r.tCo2e)} tCO₂e`).join("\n")}`
+    : "";
 
   return (
     <div className="space-y-5">
+
+      {/* Controls row — year picker + prefill button + source badges */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1 font-medium">Pre-fill year</p>
+          <Select value={prefillYear} onValueChange={setPrefillYear}>
+            <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{prefillYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" variant="outline" onClick={handlePrefill} disabled={prefilling}>
+          {prefilling ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Loading…</> : "Pre-fill from farm records"}
+        </Button>
+        {prefillSources && (
+          <div className="flex gap-1.5 flex-wrap">
+            {(["fuel", "fertiliser", "livestock", "electricity"] as const).map(s => (
+              <span key={s} className={`text-xs px-2 py-0.5 rounded-full border font-medium ${prefillSources[s] ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-50 text-gray-400 border-gray-200"}`}>
+                {prefillSources[s] ? "✓" : "—"} {s}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
         <Zap className="w-4 h-4 mt-0.5 shrink-0" />
-        <div><strong>DEFRA 2023 GHG Conversion Factors.</strong> Enter annual activity quantities — estimates update instantly. Record audited totals in the Carbon Audits tab.</div>
+        <div><strong>DEFRA 2023 GHG Conversion Factors.</strong> Pre-fill from your farm records or enter quantities manually — totals update instantly. When ready, use <strong>Create Carbon Audit</strong> to push the figures directly into a new audit record.</div>
       </div>
 
       {total > 0 && (
@@ -3309,15 +3379,20 @@ function CarbonAutoCalcTab({ farmId: _farmId }: { farmId: number }) {
       ))}
 
       {total > 0 && (
-        <button
-          className="text-sm bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90"
-          onClick={() => {
-            const lines = [`DEFRA Auto-Calc — Total: ${fmt(total)} tCO₂e/yr`, `Scope 1: ${fmt(s1)} | Scope 2: ${fmt(s2)} | Scope 3: ${fmt(s3)}`, ``, ...results.filter(r => r.qty > 0).map(r => `  ${r.label}: ${r.qty} ${r.unit} → ${fmt(r.tCo2e)} tCO₂e`)];
-            navigator.clipboard.writeText(lines.join("\n"));
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2500);
-          }}
-        >{copied ? "✓ Copied" : "Copy Results to Clipboard"}</button>
+        <div className="flex gap-3 flex-wrap">
+          <Button onClick={() => onUseForAudit(s1, s2, s3, total, auditNotes)}>
+            <BarChart3 className="w-4 h-4 mr-1.5" />Use these figures → Create Carbon Audit
+          </Button>
+          <button
+            className="text-sm border px-4 py-2 rounded-lg font-medium hover:bg-gray-50"
+            onClick={() => {
+              const lines = [`DEFRA Auto-Calc — Total: ${fmt(total)} tCO₂e/yr`, `Scope 1: ${fmt(s1)} | Scope 2: ${fmt(s2)} | Scope 3: ${fmt(s3)}`, ``, ...results.filter(r => r.qty > 0).map(r => `  ${r.label}: ${r.qty} ${r.unit} → ${fmt(r.tCo2e)} tCO₂e`)];
+              navigator.clipboard.writeText(lines.join("\n"));
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2500);
+            }}
+          >{copied ? "✓ Copied" : "Copy to Clipboard"}</button>
+        </div>
       )}
     </div>
   );
