@@ -168,6 +168,9 @@ export const sustainabilityReportsTable = pgTable("sustainability_reports", {
   netPositionTonnesCo2e: numeric("net_position_tonnes_co2e", { precision: 10, scale: 3 }),
   // Report source / preparer
   preparedBy: text("prepared_by"),
+  preparedBySupplierId: integer("prepared_by_supplier_id"),
+  preparedByPoReference: text("prepared_by_po_reference"),
+  preparedByInvoiceRef: text("prepared_by_invoice_ref"),
   certifyingBody: text("certifying_body"),
   certificateReference: text("certificate_reference"),
   // Storage

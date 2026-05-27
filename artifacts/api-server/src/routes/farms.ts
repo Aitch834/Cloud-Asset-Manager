@@ -18456,6 +18456,25 @@ router.get("/farms/:farmId/contractor-suppliers", requireAuth, requireTenant, re
   res.json({ records });
 });
 
+// ── Combined agri-env + SFI scheme records for certificate auto-populate ──────
+router.get("/farms/:farmId/scheme-records", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [agriEnv, sfi] = await Promise.all([
+    db.select({ id: agriEnvironmentSchemeRecordsTable.id, schemeName: agriEnvironmentSchemeRecordsTable.schemeName, agreementNumber: agriEnvironmentSchemeRecordsTable.agreementNumber })
+      .from(agriEnvironmentSchemeRecordsTable)
+      .where(and(eq(agriEnvironmentSchemeRecordsTable.farmId, farmId), eq(agriEnvironmentSchemeRecordsTable.status, "active")))
+      .orderBy(agriEnvironmentSchemeRecordsTable.schemeName),
+    db.select({ id: sfiAgreementsTable.id, schemeName: sfiAgreementsTable.schemeName, agreementNumber: sfiAgreementsTable.agreementNumber })
+      .from(sfiAgreementsTable)
+      .where(and(eq(sfiAgreementsTable.farmId, farmId), eq(sfiAgreementsTable.status, "active")))
+      .orderBy(sfiAgreementsTable.schemeName),
+  ]);
+  res.json([
+    ...agriEnv.map(r => ({ ...r, type: "Agri-Environment" })),
+    ...sfi.map(r => ({ ...r, type: "SFI" })),
+  ]);
+});
+
 router.get("/farms/:farmId/sustainability-reports", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear));

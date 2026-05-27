@@ -2141,6 +2141,22 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Sustainability Reports constants ────────────────────────────────────────
+const SR_CERTIFYING_BODIES = [
+  "Red Tractor Assurance",
+  "LEAF Marque",
+  "Soil Association",
+  "Organic Farmers & Growers",
+  "Woodland Carbon Code",
+  "Peatland Code",
+  "Countryside Stewardship (Natural England)",
+  "SFI (Sustainable Farming Incentive)",
+  "Farm Carbon Toolkit",
+  "Agrecalc",
+  "Cool Farm Alliance",
+  "RCMS",
+  "Other",
+];
+
 const SR_CUSTOMERS = [
   "Tesco", "Sainsbury's", "ASDA / Walmart", "M&S (Marks & Spencer)",
   "Waitrose / John Lewis Partnership", "Co-op", "Morrisons", "Aldi UK", "Lidl GB",
@@ -2186,6 +2202,19 @@ function ReportsTab({ farmId }: { farmId: number }) {
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/sustainability-reports/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }),
+  });
+
+  const { data: reportSuppliers = [] } = useQuery<ContractorSupplier[]>({
+    queryKey: ["contractor-suppliers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/contractor-suppliers`), { credentials: "include" })
+      .then(r => r.ok ? r.json() : { records: [] })
+      .then(d => d.records ?? []),
+  });
+  const { data: schemeRecords = [] } = useQuery<{ id: number; schemeName: string; agreementNumber: string; type: string }[]>({
+    queryKey: ["scheme-records", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/scheme-records`), { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => Array.isArray(d) ? d : []),
   });
 
   // Auto-calculate net position from emissions minus sequestration
@@ -2262,11 +2291,17 @@ function ReportsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submission Date</p><p className="font-medium">{fmtDate(viewRecord.submissionDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer Reference</p><p className="font-medium">{String(viewRecord.customerReference ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Acknowledged Date</p><p className="font-medium">{fmtDate(viewRecord.acknowledgedDate)}</p></div>
-              {(viewRecord.preparedBy || viewRecord.certifyingBody || viewRecord.certificateReference) && (
+              {!!(viewRecord.preparedBy || viewRecord.certifyingBody || viewRecord.certificateReference || viewRecord.preparedBySupplierId || viewRecord.preparedByPoReference || viewRecord.preparedByInvoiceRef) && (
                 <div className="col-span-2 border-t pt-3 grid grid-cols-3 gap-3">
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prepared By</p><p className="font-medium">{String(viewRecord.preparedBy ?? "—")}</p></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Prepared By</p>
+                    <p className="font-medium">{String(viewRecord.preparedBy ?? "—")}</p>
+                    {!!viewRecord.preparedBySupplierId && <p className="text-xs text-muted-foreground mt-0.5">Linked to supplier record</p>}
+                  </div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PO Reference</p><p className="font-medium">{String(viewRecord.preparedByPoReference ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Reference</p><p className="font-medium">{String(viewRecord.preparedByInvoiceRef ?? "—")}</p></div>
                   <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying / Issuing Body</p><p className="font-medium">{String(viewRecord.certifyingBody ?? "—")}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate / Reference No.</p><p className="font-medium">{String(viewRecord.certificateReference ?? "—")}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate / Reference No.</p><p className="font-medium">{String(viewRecord.certificateReference ?? "—")}</p></div>
                 </div>
               )}
               <div className="col-span-2 border-t pt-3 grid grid-cols-3 gap-3">
@@ -2385,19 +2420,89 @@ function ReportsTab({ farmId }: { farmId: number }) {
             {/* Report source / preparer */}
             <div className="col-span-2 border-t pt-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Report Source</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-2 gap-3">
+
+                {/* Prepared By — supplier lookup */}
+                <div className="col-span-2">
                   <Label>Prepared By</Label>
-                  <Input value={String(form.preparedBy ?? "")} onChange={e => setForm(f => ({ ...f, preparedBy: e.target.value }))} placeholder="Auditor / consultant / internal" />
+                  {reportSuppliers.length > 0 ? (
+                    <>
+                      <Select
+                        value={String(form.preparedBySupplierId ?? "")}
+                        onValueChange={v => {
+                          if (v === "__manual__") { setForm(f => ({ ...f, preparedBySupplierId: "", preparedBy: "" })); return; }
+                          const s = reportSuppliers.find(s => String(s.id) === v);
+                          setForm(f => ({ ...f, preparedBySupplierId: v, preparedBy: s?.name ?? "" }));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select from suppliers…" /></SelectTrigger>
+                        <SelectContent>
+                          {reportSuppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.category ? ` (${s.category})` : ""}</SelectItem>)}
+                          <SelectItem value="__manual__">Not in supplier list</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(!form.preparedBySupplierId || form.preparedBySupplierId === "__manual__") && (
+                        <Input className="mt-1.5" value={String(form.preparedBy ?? "")} onChange={e => setForm(f => ({ ...f, preparedBy: e.target.value }))} placeholder="Company / organisation name" />
+                      )}
+                      {!!form.preparedBySupplierId && form.preparedBySupplierId !== "__manual__" && (
+                        <p className="text-xs text-muted-foreground mt-1">Linked to supplier — enables PO / invoice matching</p>
+                      )}
+                    </>
+                  ) : (
+                    <Input value={String(form.preparedBy ?? "")} onChange={e => setForm(f => ({ ...f, preparedBy: e.target.value }))} placeholder="Organisation / consultant name" />
+                  )}
                 </div>
+
+                {/* PO + Invoice refs */}
+                <div>
+                  <Label>Purchase Order Ref.</Label>
+                  <Input value={String(form.preparedByPoReference ?? "")} onChange={e => setForm(f => ({ ...f, preparedByPoReference: e.target.value }))} placeholder="e.g. PO-2024-0142" />
+                </div>
+                <div>
+                  <Label>Invoice Ref.</Label>
+                  <Input value={String(form.preparedByInvoiceRef ?? "")} onChange={e => setForm(f => ({ ...f, preparedByInvoiceRef: e.target.value }))} placeholder="Invoice number" />
+                </div>
+
+                {/* Certifying Body — predefined dropdown */}
                 <div>
                   <Label>Certifying / Issuing Body</Label>
-                  <Input value={String(form.certifyingBody ?? "")} onChange={e => setForm(f => ({ ...f, certifyingBody: e.target.value }))} placeholder="e.g. Woodland Carbon Code, LEAF Marque" />
+                  <Select value={String(form.certifyingBody ?? "")} onValueChange={v => setForm(f => ({ ...f, certifyingBody: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select body…" /></SelectTrigger>
+                    <SelectContent>{SR_CERTIFYING_BODIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
+
+                {/* Certificate / Reference No. — with scheme auto-populate */}
                 <div>
                   <Label>Certificate / Reference No.</Label>
-                  <Input value={String(form.certificateReference ?? "")} onChange={e => setForm(f => ({ ...f, certificateReference: e.target.value }))} placeholder="Scheme reference number" />
+                  {schemeRecords.length > 0 && (
+                    <Select
+                      value=""
+                      onValueChange={v => {
+                        const s = schemeRecords.find(r => String(r.id) + r.type === v);
+                        if (!s) return;
+                        setForm(f => ({
+                          ...f,
+                          certificateReference: String(s.agreementNumber ?? ""),
+                          ...(f.certifyingBody ? {} : { certifyingBody: String(s.schemeName ?? "") }),
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="mb-1.5 h-8 text-xs">
+                        <SelectValue placeholder="Auto-fill from a scheme record…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schemeRecords.map(s => (
+                          <SelectItem key={`${s.type}-${s.id}`} value={String(s.id) + s.type}>
+                            {s.schemeName} — {s.agreementNumber} ({s.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Input value={String(form.certificateReference ?? "")} onChange={e => setForm(f => ({ ...f, certificateReference: e.target.value }))} placeholder="Agreement / certificate reference" />
                 </div>
+
               </div>
             </div>
 
