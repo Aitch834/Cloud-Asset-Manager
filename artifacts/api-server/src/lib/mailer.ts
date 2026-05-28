@@ -33,6 +33,84 @@ export async function sendAdminEmail(opts: SendEmailOptions): Promise<{ sent: bo
   }
 }
 
+export async function sendTicketConfirmationEmail(opts: {
+  toEmail: string;
+  toName: string;
+  ticketRef: string;
+  ticketSubject: string;
+  category: string;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const firstName = opts.toName.split(" ")[0] || opts.toName;
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>Thank you for contacting BDE Farm Trac support. We've received your request and one of our team will be in touch within <strong>one business day</strong> (Mon–Fri).</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f5ee;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px 24px;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Your ticket reference</p>
+        <p style="margin:0 0 12px;font-size:26px;font-weight:bold;color:#1a1a1a;letter-spacing:0.05em;">${opts.ticketRef}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Subject</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.ticketSubject}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Category</p>
+        <p style="margin:0;font-size:14px;color:#374151;">${opts.category}</p>
+      </td></tr>
+    </table>
+    <p>Please keep your ticket reference <strong>${opts.ticketRef}</strong> handy — include it in any follow-up emails to help us locate your case quickly.</p>
+    <p>If your issue is urgent, you can also call us directly. Our team is UK-based and available Monday to Friday.</p>
+    <p>Kind regards,<br>BDE Farm Trac Support Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd · hello@bdefarmtrac.co.uk</small></p>
+  `;
+  return sendAdminEmail({
+    to: opts.toEmail,
+    toName: opts.toName,
+    subject: `Support Ticket Received — ${opts.ticketRef}`,
+    body,
+    replyTo: "hello@bdefarmtrac.co.uk",
+  });
+}
+
+export async function sendNewTicketInternalAlert(opts: {
+  ticketRef: string;
+  ticketId: number;
+  name: string;
+  email: string;
+  subject: string;
+  description: string;
+  source: string;
+  tenantSlug?: string | null;
+  farmId?: number | null;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const notifyAddress = process.env.SUPPORT_NOTIFY_EMAIL ?? "hello@bdefarmtrac.co.uk";
+  const farmInfo = opts.tenantSlug
+    ? `<p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Farm / Tenant</p>
+       <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.tenantSlug}${opts.farmId ? ` (Farm ID: ${opts.farmId})` : ""}</p>`
+    : "";
+  const body = `
+    <p>A new support ticket has been raised via the app.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px 24px;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Ticket Reference</p>
+        <p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#1a1a1a;">${opts.ticketRef}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">From</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.name} &lt;${opts.email}&gt;</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Subject</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.subject}</p>
+        ${farmInfo}
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Source</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.source}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Description</p>
+        <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${opts.description}</p>
+      </td></tr>
+    </table>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/admin-portal/support" style="display:inline-block;padding:12px 24px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">View in Admin Portal →</a>
+    </p>
+  `;
+  return sendAdminEmail({
+    to: notifyAddress,
+    subject: `New Support Ticket ${opts.ticketRef} — ${opts.subject}`,
+    body,
+  });
+}
+
 export async function sendTicketReplyEmail(opts: {
   toEmail: string;
   toName: string;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type SupportTicket, type TicketMessage } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { MessageSquare, ChevronRight, X, Send, Clock, Plus, Loader2 } from "lucide-react";
+import { MessageSquare, ChevronRight, X, Send, Clock, Plus, Loader2, Hash } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-blue-100 text-blue-700",
@@ -286,8 +286,16 @@ export default function SupportTickets() {
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
                     </div>
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <Badge status={ticket.status} />
+                      {ticket.ticketRef && (
+                        <span className="inline-flex items-center gap-1 text-xs font-mono font-medium text-primary/80 bg-primary/8 px-1.5 py-0.5 rounded">
+                          <Hash className="w-3 h-3" />{ticket.ticketRef}
+                        </span>
+                      )}
+                      {ticket.source && ticket.source !== "app" && (
+                        <span className="text-xs text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded capitalize">{ticket.source.replace("_", " ")}</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -307,9 +315,18 @@ export default function SupportTickets() {
               <div className="bg-card border border-border rounded-xl flex flex-col" style={{ minHeight: 500 }}>
                 <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="font-semibold text-foreground">{selected.subject}</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <h2 className="font-semibold text-foreground">{selected.subject}</h2>
+                      {selected.ticketRef && (
+                        <span className="inline-flex items-center gap-1 text-xs font-mono font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
+                          <Hash className="w-3 h-3" />{selected.ticketRef}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
                       From {selected.name} · {selected.email}
+                      {selected.tenantSlug && <> · <span className="font-medium">{selected.tenantSlug}</span></>}
+                      {selected.source && selected.source !== "app" && <> · via {selected.source.replace("_", " ")}</>}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

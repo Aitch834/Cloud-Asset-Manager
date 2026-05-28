@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { db, supportTicketsTable } from "@workspace/db";
 import { SupportChatBody, CreateSupportTicketBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { eq } from "drizzle-orm";
+import { sendTicketConfirmationEmail, sendNewTicketInternalAlert } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -85,6 +87,12 @@ router.post("/support/chat", async (req, res): Promise<void> => {
   }
 });
 
+function buildTicketRef(id: number, createdAt: Date): string {
+  const yy = createdAt.getFullYear().toString().slice(2);
+  const mm = String(createdAt.getMonth() + 1).padStart(2, "0");
+  return `BDE-${yy}${mm}-${String(id).padStart(4, "0")}`;
+}
+
 router.post("/support/tickets", async (req, res): Promise<void> => {
   const parsed = CreateSupportTicketBody.safeParse(req.body);
   if (!parsed.success) {
@@ -96,6 +104,10 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     ? JSON.stringify(parsed.data.conversationHistory)
     : null;
 
+  const source = parsed.data.source ?? "app";
+  const farmId = parsed.data.farmId ?? null;
+  const tenantSlug = parsed.data.tenantSlug ?? null;
+
   try {
     const [ticket] = await db.insert(supportTicketsTable).values({
       name: parsed.data.name,
@@ -103,18 +115,57 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
       subject: parsed.data.subject,
       description: parsed.data.description,
       conversationHistory: conversationJson,
+      source,
+      farmId,
+      tenantSlug,
     }).returning();
 
-    // TODO: Send email notification to support team about new ticket
-    console.log(`[EMAIL PLACEHOLDER] New support ticket #${ticket.id} created`);
+    const ticketRef = buildTicketRef(ticket.id, ticket.createdAt);
+    await db.update(supportTicketsTable).set({ ticketRef }).where(eq(supportTicketsTable.id, ticket.id));
+
+    console.log(`[SUPPORT] New ticket ${ticketRef} from ${ticket.email} (source: ${source}${tenantSlug ? `, tenant: ${tenantSlug}` : ""})`);
+
+    const rawSubject = parsed.data.subject;
+    const categoryMatch = rawSubject.match(/^\[([^\]]+)\]/);
+    const category = categoryMatch ? categoryMatch[1] : "General";
+
+    const [confirmResult, alertResult] = await Promise.allSettled([
+      sendTicketConfirmationEmail({
+        toEmail: ticket.email,
+        toName: ticket.name,
+        ticketRef,
+        ticketSubject: rawSubject,
+        category,
+      }),
+      sendNewTicketInternalAlert({
+        ticketRef,
+        ticketId: ticket.id,
+        name: ticket.name,
+        email: ticket.email,
+        subject: rawSubject,
+        description: ticket.description,
+        source,
+        tenantSlug,
+        farmId,
+      }),
+    ]);
+
+    if (confirmResult.status === "fulfilled" && !confirmResult.value.sent) {
+      console.warn(`[SUPPORT] Confirmation email not sent for ${ticketRef}: ${confirmResult.value.reason}`);
+    }
+    if (alertResult.status === "fulfilled" && !alertResult.value.sent) {
+      console.warn(`[SUPPORT] Internal alert not sent for ${ticketRef}: ${alertResult.value.reason}`);
+    }
 
     res.status(201).json({
       id: ticket.id,
+      ticketRef,
       name: ticket.name,
       email: ticket.email,
       subject: ticket.subject,
       description: ticket.description,
       status: ticket.status,
+      source,
       createdAt: ticket.createdAt.toISOString(),
     });
   } catch (err) {

@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Loader2, LifeBuoy, Clock, MessageSquare } from "lucide-react";
+import { useAppStore } from "@/hooks/use-app-store";
+import { useUser } from "@clerk/react";
+import { CheckCircle2, Loader2, LifeBuoy, Clock, MessageSquare, Hash } from "lucide-react";
 
 const CATEGORIES = [
   { value: "technical", label: "Technical Issue" },
@@ -47,11 +49,23 @@ function InfoCard({ icon: Icon, title, body }: { icon: React.ComponentType<{clas
 }
 
 export default function SupportPage() {
+  const { user: clerkUser } = useUser();
+  const { farmId, tenantSlug } = useAppStore();
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<FormState>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [ticketRef, setTicketRef] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (clerkUser) {
+      setForm(prev => ({
+        ...prev,
+        name: prev.name || [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "",
+        email: prev.email || clerkUser.primaryEmailAddress?.emailAddress || "",
+      }));
+    }
+  }, [clerkUser]);
 
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -73,11 +87,15 @@ export default function SupportPage() {
     if (!validate()) return;
     setSubmitting(true);
     try {
+      const categoryLabel = CATEGORIES.find(c => c.value === form.category)?.label ?? form.category;
       const body = {
         name: form.name.trim(),
         email: form.email.trim(),
-        subject: `[${CATEGORIES.find(c => c.value === form.category)?.label ?? form.category}] ${form.subject.trim()}`,
+        subject: `[${categoryLabel}] ${form.subject.trim()}`,
         description: form.description.trim(),
+        source: "app",
+        ...(farmId ? { farmId } : {}),
+        ...(tenantSlug ? { tenantSlug } : {}),
       };
       const res = await fetch("/api/support/tickets", {
         method: "POST",
@@ -85,13 +103,16 @@ export default function SupportPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed");
-      setSuccess(true);
+      const data = await res.json();
+      setTicketRef(data.ticketRef ?? null);
     } catch {
       toast({ title: "Submission Failed", description: "Please try again or contact us directly.", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
   }
+
+  const isSuccess = ticketRef !== null;
 
   return (
     <AppLayout>
@@ -110,14 +131,23 @@ export default function SupportPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
-            {success ? (
+            {isSuccess ? (
               <Card className="p-8 text-center">
                 <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                <h2 className="text-xl font-bold mb-2">Ticket Submitted</h2>
-                <p className="text-muted-foreground text-sm mb-6">
-                  We've received your request and will reply to <strong>{form.email}</strong> shortly.
+                <h2 className="text-xl font-bold mb-1">Ticket Submitted</h2>
+                {ticketRef && (
+                  <div className="inline-flex items-center gap-2 bg-primary/8 border border-primary/20 text-primary rounded-lg px-4 py-2 mb-4 mt-2">
+                    <Hash className="w-4 h-4" />
+                    <span className="font-mono font-bold text-lg tracking-wider">{ticketRef}</span>
+                  </div>
+                )}
+                <p className="text-muted-foreground text-sm mb-2">
+                  We've received your request and sent a confirmation to <strong>{form.email}</strong>.
                 </p>
-                <Button variant="outline" onClick={() => { setForm(EMPTY); setSuccess(false); }}>
+                <p className="text-muted-foreground text-xs mb-6">
+                  Keep your reference number handy — include it in any follow-up emails.
+                </p>
+                <Button variant="outline" onClick={() => { setForm(prev => ({ ...EMPTY, name: prev.name, email: prev.email })); setTicketRef(null); }}>
                   Submit Another
                 </Button>
               </Card>
@@ -136,7 +166,7 @@ export default function SupportPage() {
                       {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground">Email Address *</label>
+                      <label className="text-sm font-medium text-foreground">Reply Email *</label>
                       <Input
                         type="email"
                         value={form.email}
@@ -196,8 +226,9 @@ export default function SupportPage() {
           <div className="space-y-4">
             <Card className="p-4 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What to Expect</p>
+              <InfoCard icon={Hash} title="Ticket Reference" body="You'll receive a unique BDE-YYMM-NNNN reference and an email confirmation instantly." />
               <InfoCard icon={Clock} title="Response Time" body="We aim to respond within 1 business day, Mon–Fri." />
-              <InfoCard icon={MessageSquare} title="Follow-up" body="Replies will be sent to the email address you provide." />
+              <InfoCard icon={MessageSquare} title="Follow-up" body="Replies are sent to the email address you provide." />
               <InfoCard icon={LifeBuoy} title="Help Centre" body="Check the Help Centre for instant answers to common questions." />
             </Card>
           </div>

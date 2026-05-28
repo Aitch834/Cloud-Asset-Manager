@@ -136,12 +136,16 @@ export interface TenantUser {
 
 export interface SupportTicket {
   id: number;
+  ticketRef?: string;
   tenantId?: number;
   name: string;
   email: string;
   subject: string;
   description: string;
   status: string;
+  source?: string;
+  farmId?: number;
+  tenantSlug?: string;
   createdAt: string;
 }
 
