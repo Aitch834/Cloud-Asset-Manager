@@ -542,6 +542,8 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   const [issuePartId, setIssuePartId] = useState("");
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
+  const [manualParts, setManualParts] = useState<{ id: string; name: string; qty: string; cost: string }[]>([]);
+  const [newPart, setNewPart] = useState({ name: "", qty: "", cost: "" });
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const cardRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
@@ -635,11 +637,130 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm(EMPTY_JOB); setOpen(true); }
+  function openAdd() { setEditing(null); setForm(EMPTY_JOB); setOpen(true); setManualParts([]); setNewPart({ name: "", qty: "", cost: "" }); }
   function openEdit(j: WorkshopJob["job"]) {
     setEditing(j);
     setForm({ ...j, openedAt: j.openedAt?.slice(0, 10), estimatedCompletionDate: j.estimatedCompletionDate?.slice(0, 10), completedAt: j.completedAt?.slice(0, 10) });
     setOpen(true);
+    setManualParts([]);
+    setNewPart({ name: "", qty: "", cost: "" });
+  }
+
+  function printBlankJobCard() {
+    const win = window.open("", "_blank", "width=860,height=1100");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Job Card</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:24px;color:#111;}
+      h1{font-size:18px;margin:0 0 4px;}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px;}
+      .logo{font-size:22px;font-weight:bold;color:#1a6b3a;}
+      .meta{text-align:right;font-size:11px;color:#555;}
+      .row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;}
+      .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:12px;}
+      .field{border:1px solid #ccc;border-radius:4px;padding:6px 8px;min-height:28px;}
+      label{display:block;font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:0.05em;color:#555;margin-bottom:3px;}
+      .section{border:1px solid #ccc;border-radius:6px;padding:10px 12px;margin-bottom:14px;}
+      .section-title{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;color:#777;margin-bottom:8px;}
+      .desc{min-height:56px;}
+      .notes{min-height:48px;}
+      .cost-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+      .cost-box{border:2px solid #ccc;border-radius:6px;padding:8px 10px;text-align:center;}
+      .cost-box.total{border-color:#1a6b3a;background:#f0faf4;}
+      .cost-label{font-size:9px;font-weight:bold;text-transform:uppercase;color:#777;margin-bottom:4px;}
+      .cost-value{font-size:16px;font-weight:bold;color:#111;}
+      .cost-box.total .cost-value{color:#1a6b3a;}
+      .parts-table{width:100%;border-collapse:collapse;font-size:11px;}
+      .parts-table th{background:#f5f5f5;font-size:10px;font-weight:bold;text-transform:uppercase;padding:5px 8px;border:1px solid #ddd;text-align:left;}
+      .parts-table td{border:1px solid #ddd;padding:6px 8px;height:22px;}
+      .sig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+      .sig-box{border-top:1px solid #555;padding-top:6px;font-size:10px;color:#555;}
+      @media print{body{padding:12px;} button{display:none;}}
+    </style></head><body>
+      <div class="header">
+        <div>
+          <div class="logo">BDE Farm Trac</div>
+          <h1 style="margin-top:8px;">Workshop Job Card</h1>
+        </div>
+        <div class="meta">
+          <div>Job No: _______________</div>
+          <div style="margin-top:4px;">Date Opened: _______________</div>
+          <div style="margin-top:4px;">Priority: □ Low &nbsp; □ Medium &nbsp; □ High &nbsp; □ Critical</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Job Details</div>
+        <div style="margin-bottom:10px;">
+          <label>Job Title</label><div class="field">&nbsp;</div>
+        </div>
+        <div class="row">
+          <div><label>Job Type</label><div class="field">&nbsp;</div></div>
+          <div><label>Equipment / Asset</label><div class="field">&nbsp;</div></div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>Description of Fault / Work Required</label><div class="field desc">&nbsp;</div>
+        </div>
+        <div>
+          <label>Root Cause</label><div class="field">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Assignment &amp; Schedule</div>
+        <div class="row">
+          <div><label>Status</label><div class="field">&nbsp;</div></div>
+          <div><label>Customer (if off-farm)</label><div class="field">&nbsp;</div></div>
+        </div>
+        <div class="row3">
+          <div><label>Reported By</label><div class="field">&nbsp;</div></div>
+          <div><label>Assigned To</label><div class="field">&nbsp;</div></div>
+          <div><label>Est. Completion Date</label><div class="field">&nbsp;</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Labour</div>
+        <div class="row3">
+          <div><label>Hours Worked</label><div class="field">&nbsp;</div></div>
+          <div><label>Labour Cost (£)</label><div class="field">&nbsp;</div></div>
+          <div><label>Technician</label><div class="field">&nbsp;</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Parts Used</div>
+        <table class="parts-table">
+          <thead>
+            <tr><th>Part Name / Description</th><th>Part No.</th><th style="width:60px;text-align:center;">Qty</th><th style="width:80px;text-align:right;">Unit Cost</th><th style="width:80px;text-align:right;">Total</th></tr>
+          </thead>
+          <tbody>
+            ${Array(6).fill('<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>').join("")}
+          </tbody>
+        </table>
+        <div style="margin-top:8px;"><label>Additional Parts Notes</label><div class="field notes">&nbsp;</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Cost Summary</div>
+        <div class="cost-grid">
+          <div class="cost-box"><div class="cost-label">Labour</div><div class="cost-value">£ ________</div></div>
+          <div class="cost-box"><div class="cost-label">Parts (Stock)</div><div class="cost-value">£ ________</div></div>
+          <div class="cost-box"><div class="cost-label">Parts (External)</div><div class="cost-value">£ ________</div></div>
+          <div class="cost-box total"><div class="cost-label">Grand Total</div><div class="cost-value">£ ________</div></div>
+        </div>
+      </div>
+
+      <div><label>Notes / Comments</label><div class="field notes">&nbsp;</div></div>
+
+      <div class="sig-row">
+        <div class="sig-box">Technician Signature</div>
+        <div class="sig-box">Authorised By</div>
+        <div class="sig-box">Date Completed</div>
+      </div>
+
+      <script>window.onload = function(){ window.print(); window.addEventListener("afterprint", function(){ window.close(); }); };<\/script>
+    </body></html>`);
+    win.document.close();
   }
   function set(k: keyof WorkshopJob["job"], v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -747,224 +868,378 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "58rem" }}>
-          <DialogHeader><DialogTitle>{editing ? `Edit ${editing.jobNumber}` : "New Job Card"}</DialogTitle></DialogHeader>
-          <div className="flex gap-6 py-2">
-            {/* ── Left ── */}
-            <div className="flex-1 flex flex-col gap-3">
-              <div><Label>Job Title *</Label><Input value={form.title || ""} onChange={e => set("title", e.target.value)} placeholder="e.g. Replace front tyre — JD 6175R" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Job Type</Label>
-                  <Select value={form.jobType || "repair"} onValueChange={v => set("jobType", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="repair">Repair</SelectItem>
-                      <SelectItem value="service">Scheduled Service</SelectItem>
-                      <SelectItem value="inspection">Inspection</SelectItem>
-                      <SelectItem value="commissioning">Commissioning</SelectItem>
-                      <SelectItem value="investigation">Investigation</SelectItem>
-                      <SelectItem value="modification">Modification</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Priority</Label>
-                  <Select value={form.priority || "medium"} onValueChange={v => set("priority", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <Label>Equipment</Label>
-                <Select value={form.equipmentId ? String(form.equipmentId) : ""} onValueChange={v => set("equipmentId", v ? parseInt(v) : null)}>
-                  <SelectTrigger><SelectValue placeholder="Select equipment..." /></SelectTrigger>
-                  <SelectContent>
-                    {equipment.map(eq => <SelectItem key={eq.id} value={String(eq.id)}>{assetNumber(eq)} — {eq.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Description</Label><Textarea value={form.description || ""} onChange={e => set("description", e.target.value)} rows={3} placeholder="Describe the fault or work required" /></div>
-              <div><Label>Root Cause</Label><Input value={form.rootCause || ""} onChange={e => set("rootCause", e.target.value)} placeholder="e.g. Impact damage, normal wear, operator error" /></div>
-            </div>
+        <DialogContent style={{ maxWidth: "68rem" }} className="flex flex-col p-0 gap-0 max-h-[92vh]">
+          {/* ── Header ── */}
+          <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
+            <DialogTitle className="text-base font-semibold">
+              {editing ? `Edit ${editing.jobNumber}` : "New Job Card"}
+            </DialogTitle>
+            <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-gray-500 hover:text-gray-700" onClick={printBlankJobCard}>
+              <Printer className="h-3.5 w-3.5" />Print Blank Card
+            </Button>
+          </div>
 
-            {/* ── Divider ── */}
-            <div className="w-px bg-gray-200 self-stretch" />
+          {/* ── Scrollable body ── */}
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
-            {/* ── Right ── */}
-            <div className="flex-1 flex flex-col gap-3">
-              <div>
-                <Label>Status</Label>
-                <Select value={form.status || "open"} onValueChange={v => set("status", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(JOB_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-amber-600" />
-                  Customer <span className="text-xs text-gray-400 font-normal ml-1">(for work done for another farm)</span>
-                </Label>
-                <Select value={form.customerId ? String(form.customerId) : "none"} onValueChange={v => set("customerId", v !== "none" ? parseInt(v) : null)}>
-                  <SelectTrigger><SelectValue placeholder="None — internal job" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None — internal job</SelectItem>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Reported By</Label><Input value={form.reportedBy || ""} onChange={e => set("reportedBy", e.target.value)} /></div>
-                <div><Label>Assigned To</Label><Input value={form.assignedTo || ""} onChange={e => set("assignedTo", e.target.value)} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Opened Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.openedAt?.slice(0, 10) || ""} onChange={e => set("openedAt", e.target.value)} /></div>
-                <div><Label>Est. Completion</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.estimatedCompletionDate || ""} onChange={e => set("estimatedCompletionDate", e.target.value)} /></div>
-              </div>
-              {(form.status === "completed" || form.status === "cancelled") && (
-                <div><Label>Completed Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.completedAt || ""} onChange={e => set("completedAt", e.target.value)} /></div>
-              )}
-              <div className="rounded-md border p-3 space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cost</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Labour Hours</Label><Input type="number" step="0.5" value={form.labourHours ?? ""} onChange={e => set("labourHours", e.target.value ? parseFloat(e.target.value) : null)} /></div>
-                  <div><Label>Labour Cost (£)</Label><Input type="number" step="0.01" value={form.labourCostPence != null ? form.labourCostPence / 100 : ""} onChange={e => set("labourCostPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
-                  <div className="col-span-2"><Label>Parts Cost (£)</Label><Input type="number" step="0.01" value={form.partsCostPence != null ? form.partsCostPence / 100 : ""} onChange={e => set("partsCostPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
-                </div>
-              </div>
-              {editing && workshopParts.length > 0 && (
-                <div className="rounded-md border border-blue-100 bg-blue-50/50 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide flex items-center gap-1"><Package className="h-3.5 w-3.5" />Issue Parts from Store</p>
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
-                    <div>
-                      <Select value={issuePartId} onValueChange={v => { setIssuePartId(v); setIssueQty(""); }}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select part…" /></SelectTrigger>
-                        <SelectContent>
-                          {workshopParts.map(p => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {p.name} — {parseFloat(p.currentQuantity)} {p.unit ?? ""} in stock
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        className="h-8 text-xs w-24"
-                        type="number"
-                        step={issueStep}
-                        min={issueMin}
-                        value={issueQty}
-                        onChange={e => setIssueQty(e.target.value)}
-                        placeholder={issueIsWhole ? "1" : "0.1"}
-                      />
-                      {issueUnit && (
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{issueUnit}</span>
-                      )}
-                    </div>
-                    <Button size="sm" className="h-8 text-xs" onClick={() => issuePartsToJob.mutate()} disabled={!issuePartId || !issueQty || issuePartsToJob.isPending}>
-                      {issuePartsToJob.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ArrowUpFromLine className="h-3.5 w-3.5 mr-1" />Issue</>}
-                    </Button>
+            {/* ── Row 1: Job Details + Assignment ── */}
+            <div className="grid grid-cols-2 gap-6 pb-4 border-b">
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Job Details</p>
+                <div><Label>Job Title *</Label><Input value={form.title || ""} onChange={e => set("title", e.target.value)} placeholder="e.g. Replace front tyre — JD 6175R" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Job Type</Label>
+                    <Select value={form.jobType || "repair"} onValueChange={v => set("jobType", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="repair">Repair</SelectItem>
+                        <SelectItem value="service">Scheduled Service</SelectItem>
+                        <SelectItem value="inspection">Inspection</SelectItem>
+                        <SelectItem value="commissioning">Commissioning</SelectItem>
+                        <SelectItem value="investigation">Investigation</SelectItem>
+                        <SelectItem value="modification">Modification</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Input className="h-7 text-xs" value={issueBy} onChange={e => setIssueBy(e.target.value)} placeholder="Issued by (optional)" />
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={form.priority || "medium"} onValueChange={v => set("priority", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              )}
+                <div>
+                  <Label>Equipment</Label>
+                  <Select value={form.equipmentId ? String(form.equipmentId) : ""} onValueChange={v => set("equipmentId", v ? parseInt(v) : null)}>
+                    <SelectTrigger><SelectValue placeholder="Select equipment…" /></SelectTrigger>
+                    <SelectContent>
+                      {equipment.map(eq => <SelectItem key={eq.id} value={String(eq.id)}>{assetNumber(eq)} — {eq.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Description</Label><Textarea value={form.description || ""} onChange={e => set("description", e.target.value)} rows={3} placeholder="Describe the fault or work required" /></div>
+                <div><Label>Root Cause</Label><Input value={form.rootCause || ""} onChange={e => set("rootCause", e.target.value)} placeholder="e.g. Impact damage, normal wear, operator error" /></div>
+              </div>
 
-              {/* Parts issued to this job */}
-              {editing && (
-                <div className="rounded-md border p-3 space-y-2">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5 text-gray-400" />Parts Issued to This Job
-                  </p>
-                  {issuedParts.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">No parts issued from store yet.</p>
-                  ) : (
-                    <>
-                      <div className="overflow-auto rounded border border-gray-100">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="bg-gray-50 text-gray-500">
-                              <th className="text-left px-2 py-1.5 font-medium">Part</th>
-                              <th className="text-right px-2 py-1.5 font-medium">Qty</th>
-                              <th className="text-right px-2 py-1.5 font-medium">Unit Cost</th>
-                              <th className="text-right px-2 py-1.5 font-medium">Line Total</th>
-                              <th className="text-left px-2 py-1.5 font-medium">Issued By</th>
-                              <th className="text-left px-2 py-1.5 font-medium">Date</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {issuedParts.map(ip => {
-                              const qty = Math.abs(parseFloat(ip.quantityChange));
-                              const lineTotal = ip.unitCostPence != null ? ip.unitCostPence * qty : null;
-                              return (
-                                <tr key={ip.id} className="hover:bg-gray-50/60">
-                                  <td className="px-2 py-1.5 font-medium text-gray-800">
-                                    {ip.partName}
-                                    {ip.productCode && <span className="ml-1 text-gray-400">({ip.productCode})</span>}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right text-gray-700">{qty} {ip.unit ?? ""}</td>
-                                  <td className="px-2 py-1.5 text-right text-gray-500">
-                                    {ip.unitCostPence != null ? `£${(ip.unitCostPence / 100).toFixed(2)}` : "—"}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right font-medium text-gray-800">
-                                    {lineTotal != null ? `£${(lineTotal / 100).toFixed(2)}` : "—"}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-gray-500">{ip.performedBy || "—"}</td>
-                                  <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{new Date(ip.movedAt).toLocaleDateString("en-GB")}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t-2 border-gray-200 bg-gray-50">
-                              <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-gray-600 text-right">Total Parts Cost (from store):</td>
-                              <td className="px-2 py-1.5 text-right text-xs font-bold text-gray-900">
-                                £{(issuedParts.reduce((sum, ip) => {
-                                  const qty = Math.abs(parseFloat(ip.quantityChange));
-                                  return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0);
-                                }, 0) / 100).toFixed(2)}
-                              </td>
-                              <td colSpan={2} />
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </>
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Assignment &amp; Schedule</p>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status || "open"} onValueChange={v => set("status", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(JOB_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5 text-amber-600" />
+                    Customer <span className="text-xs text-gray-400 font-normal ml-1">(off-farm / external job)</span>
+                  </Label>
+                  <Select value={form.customerId ? String(form.customerId) : "none"} onValueChange={v => set("customerId", v !== "none" ? parseInt(v) : null)}>
+                    <SelectTrigger><SelectValue placeholder="None — internal job" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None — internal job</SelectItem>
+                      {customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {form.customerId && (
+                    <p className="text-xs text-amber-700 mt-1.5 flex items-start gap-1">
+                      <Receipt className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      When the job is marked <strong>Completed</strong>, a &ldquo;Raise Invoice&rdquo; button appears — this creates a draft invoice in Farm Services &amp; Contracting.
+                    </p>
                   )}
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Reported By</Label><Input value={form.reportedBy || ""} onChange={e => set("reportedBy", e.target.value)} /></div>
+                  <div><Label>Assigned To</Label><Input value={form.assignedTo || ""} onChange={e => set("assignedTo", e.target.value)} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Opened Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.openedAt?.slice(0, 10) || ""} onChange={e => set("openedAt", e.target.value)} /></div>
+                  <div><Label>Est. Completion</Label><Input type="date" value={form.estimatedCompletionDate || ""} onChange={e => set("estimatedCompletionDate", e.target.value)} /></div>
+                </div>
+                {(form.status === "completed" || form.status === "cancelled") && (
+                  <div><Label>Completed Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.completedAt || ""} onChange={e => set("completedAt", e.target.value)} /></div>
+                )}
+                <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={3} /></div>
+              </div>
+            </div>
+
+            {/* ── Labour box ── */}
+            <div className="rounded-lg border border-gray-200 p-4">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />Labour
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Hours Worked</Label>
+                  <Input type="number" step="0.5" min="0" value={form.labourHours ?? ""} onChange={e => set("labourHours", e.target.value ? parseFloat(e.target.value) : null)} placeholder="0.0" />
+                </div>
+                <div>
+                  <Label>Labour Cost (£)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.labourCostPence != null ? form.labourCostPence / 100 : ""} onChange={e => set("labourCostPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} placeholder="0.00" />
+                </div>
+                <div className="flex items-end pb-1">
+                  {form.labourHours && form.labourCostPence ? (
+                    <p className="text-sm text-gray-400">≈ £{((form.labourCostPence / 100) / form.labourHours).toFixed(2)}/hr</p>
+                  ) : (
+                    <p className="text-xs text-gray-300 italic">Rate auto-calculated when both fields are filled</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Parts box ── */}
+            <div className="rounded-lg border border-gray-200 p-4">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5" />Parts
+              </p>
+
+              {/* Issue from Stock — edit only (needs a job ID) */}
+              {editing && (
+                <>
+                  {workshopParts.length > 0 && (
+                    <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 mb-3">
+                      <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1.5">
+                        <ArrowUpFromLine className="h-3.5 w-3.5" />Issue from Stock
+                      </p>
+                      <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
+                        <Select value={issuePartId} onValueChange={v => { setIssuePartId(v); setIssueQty(""); }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select part…" /></SelectTrigger>
+                          <SelectContent>
+                            {workshopParts.map(p => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.name} — {parseFloat(p.currentQuantity)} {p.unit ?? ""} in stock</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-1">
+                          <Input className="h-8 text-xs w-24" type="number" step={issueStep} min={issueMin} value={issueQty} onChange={e => setIssueQty(e.target.value)} placeholder={issueIsWhole ? "1" : "0.1"} />
+                          {issueUnit && <span className="text-xs text-muted-foreground whitespace-nowrap">{issueUnit}</span>}
+                        </div>
+                        <Button size="sm" className="h-8 text-xs" onClick={() => issuePartsToJob.mutate()} disabled={!issuePartId || !issueQty || issuePartsToJob.isPending}>
+                          {issuePartsToJob.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ArrowUpFromLine className="h-3.5 w-3.5 mr-1" />Issue</>}
+                        </Button>
+                      </div>
+                      <Input className="h-7 text-xs mt-2" value={issueBy} onChange={e => setIssueBy(e.target.value)} placeholder="Issued by (optional)" />
+                    </div>
+                  )}
+
+                  {/* Issued parts table */}
+                  {issuedParts.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic mb-3">No parts issued from stock yet.</p>
+                  ) : (
+                    <div className="overflow-auto rounded border border-gray-100 mb-3">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-500">
+                            <th className="text-left px-2 py-1.5 font-medium">Part</th>
+                            <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+                            <th className="text-right px-2 py-1.5 font-medium">Unit Cost</th>
+                            <th className="text-right px-2 py-1.5 font-medium">Line Total</th>
+                            <th className="text-left px-2 py-1.5 font-medium">Issued By</th>
+                            <th className="text-left px-2 py-1.5 font-medium">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {issuedParts.map(ip => {
+                            const qty = Math.abs(parseFloat(ip.quantityChange));
+                            const lineTotal = ip.unitCostPence != null ? ip.unitCostPence * qty : null;
+                            return (
+                              <tr key={ip.id} className="hover:bg-gray-50/60">
+                                <td className="px-2 py-1.5 font-medium text-gray-800">{ip.partName}{ip.productCode && <span className="ml-1 text-gray-400">({ip.productCode})</span>}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-700">{qty} {ip.unit ?? ""}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500">{ip.unitCostPence != null ? `£${(ip.unitCostPence / 100).toFixed(2)}` : "—"}</td>
+                                <td className="px-2 py-1.5 text-right font-medium text-gray-800">{lineTotal != null ? `£${(lineTotal / 100).toFixed(2)}` : "—"}</td>
+                                <td className="px-2 py-1.5 text-gray-500">{ip.performedBy || "—"}</td>
+                                <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{new Date(ip.movedAt).toLocaleDateString("en-GB")}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200 bg-gray-50">
+                            <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-gray-600 text-right">Stock parts total:</td>
+                            <td className="px-2 py-1.5 text-right text-xs font-bold text-gray-900">
+                              £{(issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0); }, 0) / 100).toFixed(2)}
+                            </td>
+                            <td colSpan={2} />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
 
-              <div><Label>Additional Parts Notes</Label><Textarea value={form.partsUsed || ""} onChange={e => set("partsUsed", e.target.value)} rows={2} placeholder="e.g. Sourced externally — front tyre 480/70 R30 x1" /></div>
-              <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+              {/* External / purchased parts — available on both new and edit */}
+              <div className="rounded-md border border-gray-200 bg-gray-50/40 p-3">
+                <p className="text-xs font-semibold text-gray-600 mb-2">
+                  {editing ? "External / Purchased Parts" : "Parts"}
+                  <span className="font-normal text-gray-400 ml-1">(externally sourced — not from stock)</span>
+                </p>
+                {!editing && (
+                  <p className="text-xs text-amber-700 mb-2 flex items-start gap-1">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    Issue from Stock is available after saving the job card. Add parts you plan to use here now.
+                  </p>
+                )}
+                {manualParts.length > 0 && (
+                  <div className="overflow-auto rounded border border-gray-100 mb-2 bg-white">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-500">
+                          <th className="text-left px-2 py-1.5 font-medium">Part Name</th>
+                          <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+                          <th className="text-right px-2 py-1.5 font-medium">Unit Cost (£)</th>
+                          <th className="text-right px-2 py-1.5 font-medium">Line Total</th>
+                          <th className="w-8" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {manualParts.map(p => {
+                          const qty = parseFloat(p.qty) || 0;
+                          const cost = parseFloat(p.cost) || 0;
+                          return (
+                            <tr key={p.id} className="hover:bg-gray-50/60">
+                              <td className="px-2 py-1.5">{p.name}</td>
+                              <td className="px-2 py-1.5 text-right">{qty || "—"}</td>
+                              <td className="px-2 py-1.5 text-right">{cost ? `£${cost.toFixed(2)}` : "—"}</td>
+                              <td className="px-2 py-1.5 text-right font-medium">{qty && cost ? `£${(qty * cost).toFixed(2)}` : "—"}</td>
+                              <td className="px-2 py-1.5 text-center">
+                                <button type="button" onClick={() => setManualParts(ps => ps.filter(x => x.id !== p.id))} className="text-gray-300 hover:text-red-500 transition-colors">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {manualParts.length > 1 && (
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200 bg-gray-50">
+                            <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-gray-600 text-right">External total:</td>
+                            <td className="px-2 py-1.5 text-right text-xs font-bold">
+                              £{manualParts.reduce((s, p) => s + (parseFloat(p.qty) || 0) * (parseFloat(p.cost) || 0), 0).toFixed(2)}
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                )}
+                <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end">
+                  <div>
+                    <Label className="text-xs text-gray-500">Part Name / Description</Label>
+                    <Input className="h-8 text-xs" value={newPart.name} onChange={e => setNewPart(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Front tyre 480/70 R30" onKeyDown={e => { if (e.key === "Enter" && newPart.name.trim()) { setManualParts(ps => [...ps, { id: crypto.randomUUID(), ...newPart }]); setNewPart({ name: "", qty: "", cost: "" }); } }} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Qty</Label>
+                    <Input className="h-8 text-xs" type="number" step="1" min="0" value={newPart.qty} onChange={e => setNewPart(p => ({ ...p, qty: e.target.value }))} placeholder="1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Unit Cost (£)</Label>
+                    <Input className="h-8 text-xs" type="number" step="0.01" min="0" value={newPart.cost} onChange={e => setNewPart(p => ({ ...p, cost: e.target.value }))} placeholder="0.00" />
+                  </div>
+                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs gap-1" disabled={!newPart.name.trim()} onClick={() => { if (!newPart.name.trim()) return; setManualParts(ps => [...ps, { id: crypto.randomUUID(), ...newPart }]); setNewPart({ name: "", qty: "", cost: "" }); }}>
+                    <Plus className="h-3.5 w-3.5" />Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <Label>Parts Notes <span className="text-xs text-gray-400 font-normal">(free-text — sourcing details, order refs, etc.)</span></Label>
+                <Textarea value={form.partsUsed || ""} onChange={e => set("partsUsed", e.target.value)} rows={2} placeholder="e.g. Sourced from dealer, delivery 3–5 days — order ref AG2025-441" />
+              </div>
+            </div>
+
+            {/* ── Cost Summary ── */}
+            {(() => {
+              const labourPence = form.labourCostPence ?? 0;
+              const stockPence = editing
+                ? issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0); }, 0)
+                : 0;
+              const externalPence = Math.round(manualParts.reduce((s, p) => s + (parseFloat(p.qty) || 0) * (parseFloat(p.cost) || 0) * 100, 0));
+              const editExtraPence = editing ? Math.max(0, (form.partsCostPence ?? 0) - stockPence) : 0;
+              const partsPence = stockPence + externalPence + editExtraPence;
+              const grandPence = labourPence + partsPence;
+              return (
+                <div className="rounded-lg border-2 border-gray-200 bg-gray-50/50 p-4">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Cost Summary</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="bg-white rounded-lg border p-3 text-center">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Labour</p>
+                      <p className="text-xl font-bold text-gray-900">£{(labourPence / 100).toFixed(2)}</p>
+                      {form.labourHours ? <p className="text-xs text-gray-400 mt-0.5">{form.labourHours} hrs</p> : null}
+                    </div>
+                    <div className="bg-white rounded-lg border p-3 text-center">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Parts (Stock)</p>
+                      <p className="text-xl font-bold text-gray-900">£{(stockPence / 100).toFixed(2)}</p>
+                      {!editing && <p className="text-xs text-gray-300 mt-0.5">available after saving</p>}
+                    </div>
+                    <div className="bg-white rounded-lg border p-3 text-center">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Parts (External)</p>
+                      <p className="text-xl font-bold text-gray-900">£{((externalPence + editExtraPence) / 100).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-primary/5 rounded-lg border-2 border-primary/30 p-3 text-center">
+                      <p className="text-[10px] font-semibold text-primary/70 uppercase mb-1.5">Grand Total</p>
+                      <p className="text-2xl font-bold text-primary">£{(grandPence / 100).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Documents — edit only */}
+            {editing && <JobDocumentsSection farmId={farmId} jobId={editing.id} />}
+            {!editing && (
+              <p className="text-xs text-gray-400 text-center pb-1">
+                Save the job card first to attach photos, documents, and issue parts from stock.
+              </p>
+            )}
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="px-6 py-4 border-t flex items-center shrink-0">
+            {editing && editing.status === "completed" && editing.customerId && !editing.serviceInvoiceId && (
+              <Button
+                variant="outline"
+                className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 mr-auto"
+                onClick={() => { raiseInvoice.mutate(editing.id); setOpen(false); }}
+                disabled={raiseInvoice.isPending}
+              >
+                <Receipt className="h-4 w-4" />
+                {raiseInvoice.isPending ? "Raising…" : "Raise Invoice"}
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  const submitForm = { ...form };
+                  if (manualParts.length > 0) {
+                    const partsText = manualParts.map(p => `${p.name}${p.qty ? ` ×${parseFloat(p.qty)}` : ""}${p.cost ? ` @ £${parseFloat(p.cost).toFixed(2)}` : ""}`).join("\n");
+                    const manualPence = Math.round(manualParts.reduce((s, p) => s + (parseFloat(p.qty) || 0) * (parseFloat(p.cost) || 0) * 100, 0));
+                    submitForm.partsUsed = [partsText, form.partsUsed].filter(Boolean).join("\n");
+                    submitForm.partsCostPence = (form.partsCostPence ?? 0) + manualPence;
+                  }
+                  save.mutate(submitForm);
+                }}
+                disabled={save.isPending || !form.title}
+              >
+                {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                {editing ? "Save Changes" : "Create Job Card"}
+              </Button>
             </div>
           </div>
-          {/* Documents section — only for existing jobs */}
-          {editing && (
-            <JobDocumentsSection farmId={farmId} jobId={editing.id} />
-          )}
-          {!editing && (
-            <p className="text-xs text-gray-400 text-center py-1 border-t">
-              Save the job card first to attach photos and documents.
-            </p>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.title}>
-              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              {editing ? "Save Changes" : "Create Job Card"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
