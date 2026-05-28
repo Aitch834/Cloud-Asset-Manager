@@ -136,6 +136,7 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
         ticketRef,
         ticketSubject: rawSubject,
         category,
+        source,
       }),
       sendNewTicketInternalAlert({
         ticketRef,

@@ -39,11 +39,15 @@ export async function sendTicketConfirmationEmail(opts: {
   ticketRef: string;
   ticketSubject: string;
   category: string;
+  source?: string;
 }): Promise<{ sent: boolean; reason?: string }> {
   const firstName = opts.toName.split(" ")[0] || opts.toName;
+  const isManual = opts.source && opts.source !== "app";
+  const openingLine = isManual
+    ? `<p>Hi ${firstName},</p><p>Thanks for speaking with us today. As discussed, we've raised a support ticket on your behalf and one of our team will follow up within <strong>one business day</strong> (Mon–Fri).</p>`
+    : `<p>Hi ${firstName},</p><p>Thank you for contacting BDE Farm Trac support. We've received your request and one of our team will be in touch within <strong>one business day</strong> (Mon–Fri).</p>`;
   const body = `
-    <p>Hi ${firstName},</p>
-    <p>Thank you for contacting BDE Farm Trac support. We've received your request and one of our team will be in touch within <strong>one business day</strong> (Mon–Fri).</p>
+    ${openingLine}
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f5ee;border-radius:6px;margin:20px 0;">
       <tr><td style="padding:20px 24px;">
         <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Your ticket reference</p>
@@ -61,7 +65,7 @@ export async function sendTicketConfirmationEmail(opts: {
   return sendAdminEmail({
     to: opts.toEmail,
     toName: opts.toName,
-    subject: `Support Ticket Received — ${opts.ticketRef}`,
+    subject: `Support Ticket Raised — ${opts.ticketRef}`,
     body,
     replyTo: "hello@bdefarmtrac.co.uk",
   });
@@ -83,8 +87,11 @@ export async function sendNewTicketInternalAlert(opts: {
     ? `<p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Farm / Tenant</p>
        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.tenantSlug}${opts.farmId ? ` (Farm ID: ${opts.farmId})` : ""}</p>`
     : "";
+  const sourceLabel = !opts.source || opts.source === "app"
+    ? "via the customer portal"
+    : `manually by support (source: ${opts.source.replace("_", " ")})`;
   const body = `
-    <p>A new support ticket has been raised via the app.</p>
+    <p>A new support ticket has been raised ${sourceLabel}.</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;border-radius:6px;margin:20px 0;">
       <tr><td style="padding:20px 24px;">
         <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Ticket Reference</p>
