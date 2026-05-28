@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { downloadCsvFile } from "@/lib/csv";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -970,7 +971,6 @@ function exportMovementsCsv(records: Movement[], farmCph: string) {
     "BCMS/APHA Notified", "Notification Date",
     "Transporter / Haulier", "Reason", "Notes",
   ];
-  const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "";
   const rows = records.map(r => [
     r.id, fmtD(r.movementDate), r.movementType,
@@ -982,14 +982,10 @@ function exportMovementsCsv(records: Movement[], farmCph: string) {
     fmtD(r.legalNotificationDate),
     r.transporterDetails || "", r.reason || "", r.notes || "",
   ]);
-  const csv = [headers, ...rows].map(row => row.map(esc).join(",")).join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `livestock-movements-cph${farmCph || "unknown"}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsvFile(
+    `livestock-movements-cph${farmCph || "unknown"}-${new Date().toISOString().slice(0, 10)}.csv`,
+    [headers, ...rows],
+  );
 }
 
 export default function Movements() {

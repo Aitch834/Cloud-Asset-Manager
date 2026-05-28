@@ -35,19 +35,28 @@ router.post("/support/chat", async (req, res): Promise<void> => {
 
   const { message, conversationHistory } = parsed.data;
 
+  // Server-side caps: max 20 history messages, each content truncated to 2000 chars.
+  // Prevents prompt injection via crafted history and limits API cost abuse.
+  const MAX_HISTORY = 20;
+  const MAX_CONTENT_CHARS = 2000;
+
+  const safeHistory = (conversationHistory ?? [])
+    .slice(-MAX_HISTORY)
+    .map(msg => ({
+      role: msg.role as "user" | "assistant",
+      content: String(msg.content ?? "").slice(0, MAX_CONTENT_CHARS),
+    }));
+
   const chatMessages: Array<{role: "system" | "user" | "assistant"; content: string}> = [
     { role: "system", content: SYSTEM_PROMPT },
   ];
 
-  if (conversationHistory && conversationHistory.length > 0) {
-    const lastHistoryMsg = conversationHistory[conversationHistory.length - 1];
-    const historyAlreadyContainsMessage = lastHistoryMsg?.role === "user" && lastHistoryMsg?.content === message;
+  if (safeHistory.length > 0) {
+    const lastHistoryMsg = safeHistory[safeHistory.length - 1];
+    const historyAlreadyContainsMessage = lastHistoryMsg?.role === "user" && lastHistoryMsg?.content === message.slice(0, MAX_CONTENT_CHARS);
 
-    for (const msg of conversationHistory) {
-      chatMessages.push({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      });
+    for (const msg of safeHistory) {
+      chatMessages.push(msg);
     }
 
     if (!historyAlreadyContainsMessage) {

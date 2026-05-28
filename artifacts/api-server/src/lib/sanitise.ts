@@ -23,7 +23,8 @@ const PROTECTED_FIELDS = new Set([
   "deleted_at",
 ]);
 
-export function sanitiseBody(body: unknown): Record<string, unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function sanitiseBody(body: unknown): any {
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {

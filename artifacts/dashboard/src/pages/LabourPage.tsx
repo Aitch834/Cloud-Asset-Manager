@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { downloadCsvFile } from "@/lib/csv";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -2475,11 +2476,7 @@ function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; s
 
   const exportCsv = () => {
     const rows = [["Staff Member", "Regular Hrs", "OT Hrs", "Reg Pay", "OT Pay", "Total"], ...summary.map(r => [r.name, r.reg.toFixed(1), r.ot.toFixed(1), r.regPay !== null ? fmtGBP(r.regPay * 100) : "—", r.otPay !== null ? fmtGBP((r.otPay ?? 0) * 100) : "—", r.total !== null ? fmtGBP((r.total ?? 0) * 100) : "—"])];
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-    const a = document.createElement("a");
-    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    a.download = `payroll-${filterMonth}.csv`;
-    a.click();
+    downloadCsvFile(`payroll-${filterMonth}.csv`, rows);
   };
 
   const months = Array.from({ length: 12 }, (_, i) => {
