@@ -1,6 +1,6 @@
 # Threat Model — BDE Farm Trac
 
-_Last reviewed: May 2026. All open findings from the May 2026 review addressed. Update whenever a new module, external integration, or auth change is introduced._
+_Last reviewed: 2026-05-28 (updated for RLS implementation + full validateFarmAccess coverage). Update whenever a new module, external integration, or auth change is introduced._
 
 ---
 
@@ -55,8 +55,8 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 |---|---|
 | **Browser / Mobile → API** | All client requests cross here. Clients are untrusted; the API must authenticate and authorise every request. |
 | **Tenant boundary** | Enforced by `tenantMiddleware` — a user authenticated to tenant A must never access tenant B's data. This is the primary customer-isolation boundary. |
-| **Farm boundary** | Within a tenant, each farm is isolated by `validateFarmAccess` in route handlers, confirmed against `farmsTable.tenantId`. This is application-layer isolation only — no database-level guard exists. |
-| **API → PostgreSQL** | Drizzle ORM with parameterised queries. The API process has direct unrestricted database access; no row-level security exists at the database layer. |
+| **Farm boundary** | Within a tenant, each farm is isolated by `validateFarmAccess` in route handlers (confirmed against `farmsTable.tenantId`), reinforced by `farmRlsMiddleware` which opens a per-request Postgres transaction with `SET LOCAL app.current_farm_id = <farmId>`. RLS policies on all 347 farm-scoped tables enforce this at the DB layer. Policies are currently **fail-open** — when `app.current_farm_id` is not set the policy allows all rows, preserving compatibility while the middleware ramps up. |
+| **API → PostgreSQL** | Drizzle ORM with parameterised queries. All 347 farm-scoped tables have RLS enabled. The API superuser connection bypasses RLS implicitly; `farmRlsMiddleware` uses a per-request transaction client to inject the farm context so policies fire. The bare pool connection (used outside `farmRlsMiddleware`) bypasses RLS entirely. |
 | **API → Google Cloud Storage** | Private object downloads (`GET /storage/objects/*`) are access-controlled: attachment must exist in `farm_record_attachments`, farm must belong to a tenant, requesting user is a member of that tenant. Public assets (`/storage/public-objects/*`) are unconditionally public — ensure no private content reaches the public path. |
 | **API → OpenAI** | Outbound only. User-supplied conversation history is passed to OpenAI's API, capped at 20 messages × 2,000 chars server-side before forwarding. |
 | **API → External Gov APIs** | Outbound calls to BCMS/DEFRA and LIS/CLA using farmer-supplied credentials (AES-256-GCM encrypted at rest). Hardcoded endpoint URLs (no SSRF risk). |
@@ -171,12 +171,48 @@ All IMAP catch blocks in `admin.ts` now log the full error server-side and retur
 
 ### Elevation of Privilege
 
-**Finding — Farm-level isolation is application-layer only (MEDIUM) — OPEN**
-Tenant isolation is hard-enforced at middleware level (robust). Farm isolation within a tenant relies on `validateFarmAccess` being called at the top of each route handler. There is no database-level guard. A future developer adding a new route who omits the call silently creates a data bleed path between farms in the same tenant.
+**Finding — Farm-level isolation is application-layer only (MEDIUM) — PARTIALLY FIXED ✅**
+`validateFarmAccess` is now confirmed on all farm-scoped routes (400+ handlers audited and patched in `farms.ts`; 5 report routes fixed separately). `farmRlsMiddleware` is registered as `router.use('/farms/:farmId', requireAuth, requireTenant, farmRlsMiddleware)` and runs a per-request Postgres transaction with `set_app_tenant()`. PostgreSQL RLS is enabled on all 347 farm-scoped tables.
+
+**Remaining gap — RLS policies are fail-open:**
+The RLS policies currently allow all rows when `app.current_farm_id` is not set. This is intentional for the rollout phase (avoids breaking routes not yet covered by `farmRlsMiddleware`) but means the DB defence-in-depth layer does not fire on every request — `validateFarmAccess` remains the primary gate.
 
 **Required guarantees:**
-- Every new route touching farm data MUST call `validateFarmAccess` and filter all subsequent queries by the returned `farmId`.
-- Medium-term: implement PostgreSQL Row Level Security (RLS) on all resource tables to enforce `farmId` scoping at the database layer regardless of application code.
+- Every new route touching farm data MUST call `validateFarmAccess` and scope all subsequent queries by the returned `farmId`.
+- Once `farmRlsMiddleware` is confirmed on 100% of farm-scoped routes (in a future audit), flip RLS policies from fail-open (`current_setting IS NULL OR ''`) to fail-closed (require `app.current_farm_id` to be set).
+- The bare pool connection (used in background jobs / alerting) bypasses RLS; background jobs MUST call `set_app_tenant()` explicitly if querying farm-scoped data, or be refactored to use per-farm transactions.
+
+**Finding — Admin SQL runner executes as superuser (MEDIUM) — OPEN**
+`POST /api/admin/sql` runs SELECT queries via `sql.raw(wrappedQuery)` inside a `SET TRANSACTION READ ONLY` transaction, but the connection is the main API superuser. PostgreSQL superusers bypass RLS unconditionally, so the runner can read all tenant data without any farm-context filtering. The endpoint is behind `checkPlatformAdmin`, limited to 2,000 rows, and every query is audited via `writeAuditLog`, but a compromised BDE Super Admin account becomes a full cross-tenant data exfiltration tool.
+
+**Required guarantees:**
+- The admin SQL runner MUST be rerouted to use the `app_readonly` Postgres role (already defined in `rls_tenant_isolation.sql`) rather than the superuser connection. `app_readonly` is a non-superuser NOLOGIN role subject to RLS.
+- The keyword denylist approach (checking for INSERT/UPDATE/DELETE/DROP etc.) is inherently incomplete — SQL functions like `dblink`, `pg_read_server_files`, and advanced CTEs may not be caught. Switching to `app_readonly` eliminates this class of risk.
+
+**Finding — No HTTP security headers (LOW) — OPEN**
+The Express API and all web clients (dashboard, admin portal, website) do not set `helmet`-style headers: no `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, or `Content-Security-Policy`. Replit's reverse proxy adds some headers at the edge, but none of these.
+
+**Required guarantees:**
+- Add `import helmet from 'helmet'` and `app.use(helmet())` early in `app.ts`. Configure `contentSecurityPolicy` appropriately for the Clerk proxy and object storage CDN.
+- Set `X-Frame-Options: DENY` or a CSP `frame-ancestors` directive to prevent the admin portal from being embedded in a third-party page.
+
+**Finding — PII in server logs (LOW) — OPEN**
+Several log lines emit user email addresses directly, e.g. `[LERAP] Review notification sent to ${reviewer.email}` and `[PUSH] Sent task notification to ${pushTokens.length} device(s) for user ${member.linkedUserId}`. The LERAP case specifically logs a full email address.
+
+**Required guarantees:**
+- Replace `reviewer.email` in log output with a non-identifying identifier (e.g. reviewer's userId or a hashed reference). Raw email addresses MUST NOT appear in server logs in a production environment subject to UK GDPR.
+
+**Finding — Audit log not append-only at DB level (LOW) — OPEN**
+`platform_audit_log` is protected at the application layer (no DELETE/UPDATE routes exist), but the superuser DB connection used by the API server can overwrite or delete rows directly (or via the admin SQL runner if the superuser restriction is not addressed). There is no Postgres-level trigger preventing modification of existing audit records.
+
+**Required guarantees:**
+- Add a Postgres trigger (`BEFORE UPDATE OR DELETE ON platform_audit_log`) that raises an exception unconditionally. This makes the table truly append-only at the database layer, regardless of what the application code or a connected client does.
+
+**Finding — Module bundle map not formally audited (LOW) — OPEN**
+`requireModuleByKey` in `roleMiddleware.ts` has a `MODULE_BUNDLES` fallback map that grants access to a module if the user has permission for any "trigger" module in the bundle. Misconfiguration (an overly broad trigger module) silently grants unintended write access across module boundaries.
+
+**Required guarantees:**
+- The `MODULE_BUNDLES` map MUST be reviewed and explicitly documented before go-live. Each bundle entry should carry a comment explaining the intended grant and who approved it.
 
 **Finding — CSV import creates unvalidated write paths (LOW) — OPEN**
 Bulk import endpoints (soil sensor CSV, and any future CSV importers) issue individual POST requests per row. If server-side Zod validation is absent on those endpoints, CSV-derived data bypasses UI constraints. A crafted CSV could write structurally invalid records at scale.
@@ -204,12 +240,20 @@ All dashboard CSV export functions now use `sanitiseCsvCell()` / `quoteCsvCell()
 | 🟠 High | CORS allows any origin | **FIXED ✅** | Explicit allowlist (`.replit.dev`, `.replit.app`, `ALLOWED_ORIGINS`) |
 | 🟠 High | No rate limiting on any endpoint | **FIXED ✅** | `publicLimiter`, `authLimiter`, `uploadLimiter` all applied |
 | 🟠 High | Object storage ACL disabled | **FIXED ✅** | 3-step auth check: attachment → farm → tenant membership |
+| 🟡 Medium | Farm isolation — application layer only | **PARTIALLY FIXED ✅** | All 400+ routes patched with `validateFarmAccess`; RLS on 347 tables; policies still fail-open |
+| 🟡 Medium | Admin SQL runner executes as superuser | **OPEN** | Reroute to `app_readonly` role so RLS applies; keyword denylist alone is insufficient |
 | 🟡 Medium | Farmer credentials Base64 only | **FIXED ✅** | AES-256-GCM encryption at rest; `encryptCredential`/`decryptCredential` in `farms.ts` |
 | 🟡 Medium | Admin portal — shared secret alongside Clerk | **PARTIALLY FIXED** | Clerk `isSuperAdmin` supported; shared-secret path still exists as bootstrap |
 | 🟡 Medium | AI chat prompt injection / unbounded history | **FIXED ✅** | Capped at 20 messages × 2,000 chars server-side before forwarding to OpenAI |
 | 🟡 Medium | Audit log coverage incomplete | **FIXED ✅** | `writeAuditLog()` confirmed on SQL runner, IMAP delete, config writes, email sends |
 | 🟡 Medium | File size/MIME enforcement | **FIXED ✅** | 25 MB cap + MIME allowlist on presigned URL endpoint |
-| 🟡 Medium | Farm isolation — application layer only | **OPEN** | Medium-term: PostgreSQL RLS on all resource tables |
+| 🔵 Low | RLS policies fail-open | **OPEN** | Flip to fail-closed once `farmRlsMiddleware` coverage confirmed 100% |
+| 🔵 Low | Background jobs bypass RLS | **OPEN** | Alerting/job code uses bare pool; must call `set_app_tenant()` per farm in loops |
+| 🔵 Low | No HTTP security headers | **OPEN** | Add `helmet()` to `app.ts`; set CSP on dashboard and admin portal |
+| 🔵 Low | PII (email addresses) in server logs | **OPEN** | Replace `reviewer.email` etc. with userId in `[LERAP]` and `[PUSH]` log lines |
+| 🔵 Low | Audit log not append-only at DB level | **OPEN** | Add Postgres trigger `BEFORE UPDATE OR DELETE ON platform_audit_log` |
+| 🔵 Low | Module bundle map unaudited | **OPEN** | Review and document `MODULE_BUNDLES` in `roleMiddleware.ts` before go-live |
+| 🔵 Low | MIME type bytes not server-verified | **OPEN** | Client declares `contentType`; no magic-bytes check on actual upload |
 | 🔵 Low | Attachment hard-delete (no tombstone) | **FIXED ✅** | Soft-delete with `deletedAt` flag; `isNull(deletedAt)` filter on all reads |
 | 🔵 Low | Email address abuse via support ticket endpoint | **OPEN** | Consider per-recipient rate limiting on outbound confirmation emails |
 | 🔵 Low | Mobile sync — backdated timestamp injection | **FIXED ✅** | `sanitiseBody()` strips `createdAt`/`updatedAt`; DB uses `NOW()` default |
