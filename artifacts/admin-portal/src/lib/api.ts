@@ -398,6 +398,12 @@ export const api = {
   sendEmail: (data: { to: string; toName?: string; subject: string; body: string; templateId?: number }, secret: string) =>
     post<{ sent: boolean; email?: AdminEmailSent; reason?: string }>("/admin/emails/send", data, secret),
 
+  getSmtpConfig: (secret: string) =>
+    get<{ smtpHost: string; smtpPort: string; smtpUser: string; smtpPassSet: boolean; smtpFrom: string }>("/admin/emails/config", secret),
+
+  sendTestEmail: (to: string, secret: string) =>
+    post<{ sent: boolean; reason?: string }>("/admin/emails/test", { to }, secret),
+
   getEmailTemplates: (secret: string) =>
     get<{ templates: EmailTemplate[] }>("/admin/email-templates", secret),
 

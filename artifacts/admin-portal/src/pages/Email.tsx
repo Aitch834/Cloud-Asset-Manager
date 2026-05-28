@@ -4,7 +4,7 @@ import { getSecret } from "@/lib/auth";
 import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
   ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
-  Reply, Circle, Paperclip, ArrowLeft,
+  Reply, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
 } from "lucide-react";
 
 const CATEGORIES = ["general", "onboarding", "billing", "support", "compliance"];
@@ -990,6 +990,119 @@ function TemplatesTab() {
   );
 }
 
+function SmtpSettingsTab() {
+  const secret = getSecret()!;
+  const [config, setConfig] = useState<{ smtpHost: string; smtpPort: string; smtpUser: string; smtpPassSet: boolean; smtpFrom: string } | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [testTo, setTestTo] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    api.getSmtpConfig(secret)
+      .then(setConfig)
+      .catch(() => setConfig(null))
+      .finally(() => setLoadingConfig(false));
+  }, []);
+
+  async function handleTest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testTo.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await api.sendTestEmail(testTo.trim(), secret);
+      setTestResult({ ok: r.sent, message: r.sent ? `Test email sent to ${testTo}. Check your inbox (and spam folder).` : (r.reason ?? "Send failed — check API server logs for detail.") });
+    } catch (err) {
+      setTestResult({ ok: false, message: String(err) });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const Row = ({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) => (
+    <div className="flex items-start gap-4 py-3 border-b border-border last:border-0">
+      <span className="w-36 shrink-0 text-sm text-muted-foreground">{label}</span>
+      <span className={`text-sm ${mono ? "font-mono text-xs bg-muted px-1.5 py-0.5 rounded" : ""}`}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <div className="mb-6">
+        <h2 className="text-base font-semibold mb-1">SMTP Configuration</h2>
+        <p className="text-sm text-muted-foreground">Current outbound email settings read from environment variables.</p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card mb-8">
+        <div className="px-5 py-3 border-b border-border bg-muted/30 rounded-t-lg">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active Settings</p>
+        </div>
+        <div className="px-5">
+          {loadingConfig ? (
+            <div className="py-6 flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+            </div>
+          ) : config ? (
+            <>
+              <Row label="SMTP Host" value={config.smtpHost} mono />
+              <Row label="SMTP Port" value={config.smtpPort} mono />
+              <Row label="SMTP User" value={config.smtpUser} mono />
+              <Row label="Password set?" value={config.smtpPassSet ? "✓ Yes (SMTP_PASS is set)" : "✗ No — email sending is disabled"} />
+              <Row label="From address" value={config.smtpFrom} mono />
+            </>
+          ) : (
+            <p className="py-4 text-sm text-red-600">Could not load SMTP config.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card">
+        <div className="px-5 py-3 border-b border-border bg-muted/30 rounded-t-lg flex items-center gap-2">
+          <FlaskConical className="w-4 h-4 text-muted-foreground" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Send Test Email</p>
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-muted-foreground mb-4">
+            Sends a diagnostic email immediately. If it doesn't arrive, check the API server logs — they now show Brevo's SMTP response, accepted/rejected lists, and message ID.
+          </p>
+          <form onSubmit={handleTest} className="flex gap-3">
+            <input
+              type="email"
+              value={testTo}
+              onChange={(e) => { setTestTo(e.target.value); setTestResult(null); }}
+              placeholder="your@email.com"
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+              required
+            />
+            <button
+              type="submit"
+              disabled={testing || !testTo.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Send Test
+            </button>
+          </form>
+          {testResult && (
+            <div className={`mt-3 flex items-start gap-2 p-3 rounded-lg text-sm ${testResult.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+              {testResult.ok ? <Check className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
+        <p className="text-sm font-medium text-amber-900 mb-1">How to fix a misconfigured SMTP_USER</p>
+        <p className="text-sm text-amber-800">
+          The <span className="font-mono text-xs">SMTP_USER</span> must match the Brevo account that issued your <span className="font-mono text-xs">SMTP_PASS</span> API key. If you created your own Brevo account, set <span className="font-mono text-xs">SMTP_USER</span> in Replit Secrets to your Brevo SMTP login (shown in Brevo → SMTP &amp; API → SMTP tab). Also ensure the <span className="font-mono text-xs">SMTP_FROM</span> address is an authorised sender in that Brevo account.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Email() {
   const secret = getSecret()!;
   const params = new URLSearchParams(window.location.search);
@@ -1009,6 +1122,7 @@ export default function Email() {
     { key: "compose", label: "Compose", icon: <Send className="w-4 h-4" /> },
     { key: "sent", label: "Sent", icon: <Clock className="w-4 h-4" /> },
     { key: "templates", label: "Templates", icon: <FileText className="w-4 h-4" /> },
+    { key: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
@@ -1031,6 +1145,7 @@ export default function Email() {
         {tab === "compose" && <ComposeTab tenants={tenants} initialTo={initialTo} initialToName={initialToName} />}
         {tab === "sent" && <SentTab />}
         {tab === "templates" && <TemplatesTab />}
+        {tab === "settings" && <SmtpSettingsTab />}
       </div>
     </div>
   );

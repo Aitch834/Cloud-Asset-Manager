@@ -18,13 +18,20 @@ export async function sendAdminEmail(opts: SendEmailOptions): Promise<{ sent: bo
   const html = wrapInBrandedLayout(opts.body);
 
   try {
-    await transport.sendMail({
+    const info = await transport.sendMail({
       from: `"${SMTP_FROM_NAME}" <${SMTP_FROM}>`,
       to: opts.toName ? `"${opts.toName}" <${opts.to}>` : opts.to,
       subject: opts.subject,
       html,
       replyTo: opts.replyTo ?? SMTP_FROM,
     });
+    console.log(`[MAILER] SMTP response: ${info.response}`);
+    console.log(`[MAILER] Message ID: ${info.messageId}`);
+    console.log(`[MAILER] Accepted: ${JSON.stringify(info.accepted)}`);
+    if (info.rejected && (info.rejected as string[]).length > 0) {
+      console.warn(`[MAILER] Rejected by relay: ${JSON.stringify(info.rejected)}`);
+      return { sent: false, reason: `Relay rejected recipient(s): ${JSON.stringify(info.rejected)}` };
+    }
     console.log(`[MAILER] Admin email sent to ${opts.to} — "${opts.subject}"`);
     return { sent: true };
   } catch (err) {
@@ -178,9 +185,9 @@ function wrapInBrandedLayout(content: string): string {
 </html>`;
 }
 
-const SMTP_HOST = "smtp-relay.brevo.com";
-const SMTP_PORT = 587;
-const SMTP_USER = "a558bc001@smtp-brevo.com";
+const SMTP_HOST = process.env.SMTP_HOST ?? "smtp-relay.brevo.com";
+const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? "587", 10);
+const SMTP_USER = process.env.SMTP_USER ?? "a558bc001@smtp-brevo.com";
 const SMTP_PASS = process.env.SMTP_PASS ?? null;
 const SMTP_FROM = process.env.SMTP_FROM ?? "noreply@bdefarmtrac.co.uk";
 const SMTP_FROM_NAME = "BDE Farm Trac";
@@ -190,6 +197,7 @@ function createTransport() {
     console.warn("[MAILER] SMTP_PASS is not set — email sending is disabled.");
     return null;
   }
+  console.log(`[MAILER] Using SMTP: ${SMTP_USER}@${SMTP_HOST}:${SMTP_PORT}, from: ${SMTP_FROM}`);
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,

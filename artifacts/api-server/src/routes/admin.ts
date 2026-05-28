@@ -647,6 +647,34 @@ router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Re
   }
 });
 
+// ─── Email: SMTP Diagnostic ──────────────────────────────────────────────────
+
+router.get("/admin/emails/config", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  res.json({
+    smtpHost: process.env.SMTP_HOST ?? "smtp-relay.brevo.com (default)",
+    smtpPort: process.env.SMTP_PORT ?? "587 (default)",
+    smtpUser: process.env.SMTP_USER ?? "a558bc001@smtp-brevo.com (hardcoded fallback)",
+    smtpPassSet: !!process.env.SMTP_PASS,
+    smtpFrom: process.env.SMTP_FROM ?? "noreply@bdefarmtrac.co.uk (default)",
+  });
+});
+
+router.post("/admin/emails/test", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { to } = req.body;
+  if (!to || typeof to !== "string" || !to.includes("@")) {
+    res.status(400).json({ error: "Valid 'to' email address is required" });
+    return;
+  }
+  const result = await sendAdminEmail({
+    to: to.trim(),
+    subject: "BDE Farm Trac — SMTP Test",
+    body: `<p>This is a diagnostic test email sent at ${new Date().toISOString()}.</p><p>If you received this, outbound SMTP is working correctly.</p>`,
+  });
+  res.status(result.sent ? 200 : 500).json(result);
+});
+
 // ─── Email: Compose & Send ────────────────────────────────────────────────────
 
 router.post("/admin/emails/send", requireAuth, async (req: Request, res: Response): Promise<void> => {

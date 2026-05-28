@@ -18,7 +18,11 @@ const ENV_SPEC: EnvSpec[] = [
   { key: "STRIPE_WEBHOOK_SECRET",  description: "Stripe webhook signing secret",                  required: false },
   { key: "DEV_BYPASS_TOKEN",       description: "Dev-only token that bypasses auth (test mode)",  required: false },
   { key: "ADMIN_PORTAL_SECRET",    description: "Admin portal master secret — enables portal",    required: false },
-  { key: "SMTP_PASS",              description: "Brevo SMTP password — enables email sending",      required: false },
+  { key: "SMTP_HOST",              description: "SMTP relay host (default: smtp-relay.brevo.com)",  required: false },
+  { key: "SMTP_PORT",              description: "SMTP relay port (default: 587)",                    required: false },
+  { key: "SMTP_USER",              description: "SMTP relay login/username",                         required: false },
+  { key: "SMTP_PASS",              description: "SMTP relay password / API key — enables sending",   required: false },
+  { key: "SMTP_FROM",              description: "Sender address (default: noreply@bdefarmtrac.co.uk)", required: false },
   { key: "TWILIO_ACCOUNT_SID",     description: "Twilio account SID — enables SMS alerts",          required: false },
   { key: "TITAN_IMAP_PASSWORD",    description: "Titan IMAP password — enables admin email inbox",  required: false },
 ];
