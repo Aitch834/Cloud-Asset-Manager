@@ -116,6 +116,7 @@ app.use(tenantMiddleware);
 // Apply public rate limiter to unauthenticated submission endpoints.
 app.use("/api/leads", publicLimiter);
 app.use("/api/support/tickets", publicLimiter);
+app.use("/api/support/chat", publicLimiter);
 
 // Apply upload rate limiter to presigned URL endpoint.
 app.use("/api/storage/uploads", uploadLimiter);
