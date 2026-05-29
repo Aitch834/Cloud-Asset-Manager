@@ -33,6 +33,8 @@ import {
   equipmentTable,
   equipmentMaintenanceLogsTable,
   workshopJobsTable,
+  workshopSettingsTable,
+  workshopLabourEntriesTable,
   workshopPatTestsTable,
   workshopPatEquipmentTable,
   workshopPatTestRecordsTable,
@@ -15944,6 +15946,16 @@ router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requir
   res.json(equip);
 });
 
+async function syncWorkshopLabourTotals(farmId: number, jobId: number, unitMins: number): Promise<void> {
+  const entries = await db.select().from(workshopLabourEntriesTable)
+    .where(and(eq(workshopLabourEntriesTable.farmId, farmId), eq(workshopLabourEntriesTable.jobId, jobId)));
+  const totalCostPence = entries.reduce((s, e) => s + e.costPence, 0);
+  const totalUnits = entries.reduce((s, e) => s + e.chargeUnits, 0);
+  await db.update(workshopJobsTable)
+    .set({ labourHours: Math.round(totalUnits * unitMins / 60), labourCostPence: totalCostPence })
+    .where(and(eq(workshopJobsTable.id, jobId), eq(workshopJobsTable.farmId, farmId)));
+}
+
 router.get("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -16091,6 +16103,75 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, re
 
   const [updated] = await db.select().from(serviceInvoicesTable).where(eq(serviceInvoicesTable.id, invoice.id));
   res.json({ invoice: updated });
+});
+
+// ── Workshop Settings ──────────────────────────────────────────────────────────
+router.get("/farms/:farmId/workshop/settings", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [settings] = await db.select().from(workshopSettingsTable).where(eq(workshopSettingsTable.farmId, farmId));
+  res.json(settings ?? { farmId, labourRatePence: 5000, labourChargeUnitMinutes: 15 });
+});
+
+router.put("/farms/:farmId/workshop/settings", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const labourRatePence = parseInt(String(req.body.labourRatePence));
+  const labourChargeUnitMinutes = parseInt(String(req.body.labourChargeUnitMinutes));
+  if (isNaN(labourRatePence) || isNaN(labourChargeUnitMinutes)) { res.status(400).json({ error: "Invalid settings" }); return; }
+  await db.insert(workshopSettingsTable).values({ farmId, labourRatePence, labourChargeUnitMinutes })
+    .onConflictDoUpdate({ target: workshopSettingsTable.farmId, set: { labourRatePence, labourChargeUnitMinutes, updatedAt: new Date() } });
+  res.json({ ok: true });
+});
+
+// ── Labour Entries ─────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/workshop/jobs/:jobId/labour", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const jobId = parseInt(req.params.jobId as string);
+  const entries = await db.select().from(workshopLabourEntriesTable)
+    .where(and(eq(workshopLabourEntriesTable.farmId, farmId), eq(workshopLabourEntriesTable.jobId, jobId)))
+    .orderBy(asc(workshopLabourEntriesTable.entryDate), asc(workshopLabourEntriesTable.createdAt));
+  res.json(entries);
+});
+
+router.post("/farms/:farmId/workshop/jobs/:jobId/labour", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const jobId = parseInt(req.params.jobId as string);
+  const chargeUnits = parseInt(String(req.body.chargeUnits));
+  const ratePence = parseInt(String(req.body.ratePence));
+  if (isNaN(chargeUnits) || chargeUnits <= 0) { res.status(400).json({ error: "chargeUnits must be a positive integer" }); return; }
+  if (isNaN(ratePence) || ratePence <= 0) { res.status(400).json({ error: "ratePence must be a positive integer" }); return; }
+  const [settings] = await db.select({ labourChargeUnitMinutes: workshopSettingsTable.labourChargeUnitMinutes })
+    .from(workshopSettingsTable).where(eq(workshopSettingsTable.farmId, farmId));
+  const unitMins = settings?.labourChargeUnitMinutes ?? 15;
+  const costPence = Math.round(chargeUnits * ratePence * unitMins / 60);
+  const [entry] = await db.insert(workshopLabourEntriesTable).values({
+    farmId, jobId,
+    entryDate: req.body.entryDate ?? new Date().toISOString().slice(0, 10),
+    description: req.body.description ?? null,
+    chargeUnits, ratePence, costPence,
+    performedBy: req.body.performedBy ?? null,
+  }).returning();
+  await syncWorkshopLabourTotals(farmId, jobId, unitMins);
+  res.json(entry);
+});
+
+router.delete("/farms/:farmId/workshop/jobs/:jobId/labour/:entryId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const jobId = parseInt(req.params.jobId as string);
+  const entryId = parseInt(req.params.entryId as string);
+  await db.delete(workshopLabourEntriesTable).where(and(
+    eq(workshopLabourEntriesTable.farmId, farmId),
+    eq(workshopLabourEntriesTable.id, entryId),
+    eq(workshopLabourEntriesTable.jobId, jobId),
+  ));
+  const [settings] = await db.select({ labourChargeUnitMinutes: workshopSettingsTable.labourChargeUnitMinutes })
+    .from(workshopSettingsTable).where(eq(workshopSettingsTable.farmId, farmId));
+  await syncWorkshopLabourTotals(farmId, jobId, settings?.labourChargeUnitMinutes ?? 15);
+  res.json({ ok: true });
 });
 
 router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {

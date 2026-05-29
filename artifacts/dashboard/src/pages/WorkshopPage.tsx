@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from "rea
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff, Receipt, Users, ClipboardList } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff, Receipt, Users, ClipboardList, Settings } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -377,6 +377,13 @@ function AssetsTab({ farmId }: { farmId: number }) {
 
 // ─── Job Cards tab ─────────────────────────────────────────────────────────────
 
+interface LabourEntry {
+  id: number; farmId: number; jobId: number;
+  entryDate: string; description: string | null;
+  chargeUnits: number; ratePence: number; costPence: number;
+  performedBy: string | null; createdAt: string;
+}
+
 interface WorkshopJob {
   job: {
     id: number; farmId: number; equipmentId: number | null; jobNumber: string;
@@ -545,6 +552,10 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   const [manualParts, setManualParts] = useState<{ id: string; name: string; qty: string; cost: string }[]>([]);
   const [newPart, setNewPart] = useState({ name: "", qty: "", cost: "" });
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const [pendingLabourEntries, setPendingLabourEntries] = useState<{ id: string; date: string; description: string; chargeUnits: number; ratePence: number; costPence: number }[]>([]);
+  const [newLabourEntry, setNewLabourEntry] = useState({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({ rate: "", unitMins: "15" });
   const cardRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
@@ -589,6 +600,19 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   });
   const customers = (customersData?.records ?? []).filter(c => c.isActive);
 
+  const { data: workshopSettings } = useQuery<{ farmId: number; labourRatePence: number; labourChargeUnitMinutes: number }>({
+    queryKey: ["workshop-settings", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/settings`), { credentials: "include" }).then(r => r.json()),
+  });
+  const defaultRate = workshopSettings?.labourRatePence ?? 5000;
+  const unitMins = workshopSettings?.labourChargeUnitMinutes ?? 15;
+
+  const { data: labourEntries = [] } = useQuery<LabourEntry[]>({
+    queryKey: ["job-labour-entries", editing?.id],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && !!editing?.id,
+  });
+
   const raiseInvoice = useMutation({
     mutationFn: (jobId: number) =>
       fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/raise-invoice`), {
@@ -621,15 +645,53 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     },
   });
 
+  const addLabourEntry = useMutation({
+    mutationFn: (entry: { entryDate: string; description: string; chargeUnits: number; ratePence: number }) =>
+      fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job-labour-entries", editing?.id] });
+      qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
+      setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" });
+    },
+  });
+
+  const deleteLabourEntry = useMutation({
+    mutationFn: (entryId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour/${entryId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job-labour-entries", editing?.id] });
+      qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
+    },
+  });
+
+  const saveWorkshopSettings = useMutation({
+    mutationFn: (s: { labourRatePence: number; labourChargeUnitMinutes: number }) =>
+      fetch(api(`farms/${farmId}/workshop/settings`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workshop-settings", farmId] });
+      setSettingsOpen(false);
+      toast({ title: "Workshop settings saved" });
+    },
+  });
+
   const save = useMutation({
     mutationFn: async (body: Partial<WorkshopJob["job"]>) => {
-      const url = editing
-        ? api(`farms/${farmId}/workshop/jobs/${editing.id}`)
-        : api(`farms/${farmId}/workshop/jobs`);
-      const method = editing ? "PUT" : "POST";
-      await fetch(url, { method, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const { labourHours: _lh, labourCostPence: _lcp, ...cleanBody } = body;
+      if (editing) {
+        await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) });
+        for (const e of pendingLabourEntries) {
+          await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) });
+        }
+      } else {
+        const res = await fetch(api(`farms/${farmId}/workshop/jobs`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) });
+        const newJob = await res.json();
+        if (newJob?.id && pendingLabourEntries.length > 0) {
+          for (const e of pendingLabourEntries) {
+            await fetch(api(`farms/${farmId}/workshop/jobs/${newJob.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) });
+          }
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setOpen(false); setEditing(null); setForm(EMPTY_JOB); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setOpen(false); setEditing(null); setForm(EMPTY_JOB); setPendingLabourEntries([]); },
   });
 
   const del = useMutation({
@@ -637,13 +699,15 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm(EMPTY_JOB); setOpen(true); setManualParts([]); setNewPart({ name: "", qty: "", cost: "" }); }
+  function openAdd() { setEditing(null); setForm(EMPTY_JOB); setOpen(true); setManualParts([]); setNewPart({ name: "", qty: "", cost: "" }); setPendingLabourEntries([]); setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" }); }
   function openEdit(j: WorkshopJob["job"]) {
     setEditing(j);
     setForm({ ...j, openedAt: j.openedAt?.slice(0, 10), estimatedCompletionDate: j.estimatedCompletionDate?.slice(0, 10), completedAt: j.completedAt?.slice(0, 10) });
     setOpen(true);
     setManualParts([]);
     setNewPart({ name: "", qty: "", cost: "" });
+    setPendingLabourEntries([]);
+    setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" });
   }
 
   function printBlankJobCard() {
@@ -792,7 +856,12 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />New Job</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" className="px-2 text-gray-500 hover:text-gray-700" title="Workshop settings" onClick={() => { setSettingsForm({ rate: (defaultRate / 100).toFixed(2), unitMins: String(unitMins) }); setSettingsOpen(true); }}>
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />New Job</Button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -866,6 +935,44 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
           module="workshop"
         />
       )}
+
+      {/* ── Workshop Settings Dialog ── */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Settings className="h-4 w-4" />Workshop Labour Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Labour Rate (£/hr)</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
+                <Input type="number" step="0.01" min="0" className="pl-6" value={settingsForm.rate} onChange={e => setSettingsForm(s => ({ ...s, rate: e.target.value }))} placeholder="50.00" />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Hourly rate charged for workshop labour</p>
+            </div>
+            <div>
+              <Label>Charge Unit (minutes)</Label>
+              <Input type="number" step="1" min="1" max="60" className="mt-1" value={settingsForm.unitMins} onChange={e => setSettingsForm(s => ({ ...s, unitMins: e.target.value }))} placeholder="15" />
+              <p className="text-xs text-gray-400 mt-1">Labour is billed in multiples of this unit (e.g. 15 = quarter-hour billing)</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                const ratePence = Math.round(parseFloat(settingsForm.rate) * 100);
+                const mins = parseInt(settingsForm.unitMins);
+                if (isNaN(ratePence) || ratePence <= 0 || isNaN(mins) || mins <= 0) return;
+                saveWorkshopSettings.mutate({ labourRatePence: ratePence, labourChargeUnitMinutes: mins });
+              }}
+              disabled={saveWorkshopSettings.isPending}
+            >
+              {saveWorkshopSettings.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "68rem" }} className="flex flex-col p-0 gap-0 max-h-[92vh]">
@@ -975,26 +1082,137 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
 
             {/* ── Labour box ── */}
             <div className="rounded-lg border border-gray-200 p-4">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />Labour
-              </p>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>Hours Worked</Label>
-                  <Input type="number" step="0.5" min="0" value={form.labourHours ?? ""} onChange={e => set("labourHours", e.target.value ? parseFloat(e.target.value) : null)} placeholder="0.0" />
-                </div>
-                <div>
-                  <Label>Labour Cost (£)</Label>
-                  <Input type="number" step="0.01" min="0" value={form.labourCostPence != null ? form.labourCostPence / 100 : ""} onChange={e => set("labourCostPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} placeholder="0.00" />
-                </div>
-                <div className="flex items-end pb-1">
-                  {form.labourHours && form.labourCostPence ? (
-                    <p className="text-sm text-gray-400">≈ £{((form.labourCostPence / 100) / form.labourHours).toFixed(2)}/hr</p>
-                  ) : (
-                    <p className="text-xs text-gray-300 italic">Rate auto-calculated when both fields are filled</p>
-                  )}
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />Labour
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">£{(defaultRate / 100).toFixed(2)}/hr · {unitMins}-min units</span>
+                  <button type="button" onClick={() => { setSettingsForm({ rate: (defaultRate / 100).toFixed(2), unitMins: String(unitMins) }); setSettingsOpen(true); }} className="text-xs text-primary hover:underline">Change</button>
                 </div>
               </div>
+              {(editing ? labourEntries : pendingLabourEntries).length > 0 && (
+                <div className="mb-3 overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                        <th className="text-left px-2 py-1.5 font-medium">Date</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Description</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Units</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Hours</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Rate</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Cost</th>
+                        <th className="w-6" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {editing
+                        ? labourEntries.map(e => {
+                            const hrs = (e.chargeUnits * unitMins / 60).toFixed(2);
+                            return (
+                              <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{new Date(e.entryDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</td>
+                                <td className="px-2 py-1.5 text-gray-600 max-w-[140px] truncate">{e.description || <span className="text-gray-300 italic">—</span>}</td>
+                                <td className="px-2 py-1.5 text-right">{e.chargeUnits}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500">{hrs}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">£{(e.ratePence / 100).toFixed(2)}/hr</td>
+                                <td className="px-2 py-1.5 text-right font-semibold">£{(e.costPence / 100).toFixed(2)}</td>
+                                <td className="px-2 py-1.5 text-center">
+                                  <button type="button" onClick={() => deleteLabourEntry.mutate(e.id)} className="text-gray-300 hover:text-red-500 transition-colors" disabled={deleteLabourEntry.isPending}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        : pendingLabourEntries.map(e => {
+                            const hrs = (e.chargeUnits * unitMins / 60).toFixed(2);
+                            return (
+                              <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="px-2 py-1.5 whitespace-nowrap">{new Date(e.date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</td>
+                                <td className="px-2 py-1.5 text-gray-600 max-w-[140px] truncate">{e.description || <span className="text-gray-300 italic">—</span>}</td>
+                                <td className="px-2 py-1.5 text-right">{e.chargeUnits}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500">{hrs}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">£{(e.ratePence / 100).toFixed(2)}/hr</td>
+                                <td className="px-2 py-1.5 text-right font-semibold">£{(e.costPence / 100).toFixed(2)}</td>
+                                <td className="px-2 py-1.5 text-center">
+                                  <button type="button" onClick={() => setPendingLabourEntries(ps => ps.filter(x => x.id !== e.id))} className="text-gray-300 hover:text-red-500 transition-colors">
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                      }
+                    </tbody>
+                    {(() => {
+                      const allEntries = editing ? labourEntries : pendingLabourEntries;
+                      const totalUnits = allEntries.reduce((s, e) => s + e.chargeUnits, 0);
+                      const totalHrs = (totalUnits * unitMins / 60).toFixed(2);
+                      const totalCost = allEntries.reduce((s, e) => s + e.costPence, 0);
+                      return (
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                            <td className="px-2 py-1.5 text-xs" colSpan={2}>Total</td>
+                            <td className="px-2 py-1.5 text-right text-xs">{totalUnits}</td>
+                            <td className="px-2 py-1.5 text-right text-xs">{totalHrs}</td>
+                            <td />
+                            <td className="px-2 py-1.5 text-right text-sm font-bold">£{(totalCost / 100).toFixed(2)}</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
+                  </table>
+                </div>
+              )}
+              {editing && labourEntries.length === 0 && (form.labourCostPence ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-3">
+                  Legacy labour cost: £{((form.labourCostPence ?? 0) / 100).toFixed(2)} — add line items below to replace.
+                </p>
+              )}
+              {(() => {
+                const units = parseInt(newLabourEntry.chargeUnits);
+                const previewCost = !isNaN(units) && units > 0 ? (units * defaultRate * unitMins / 60 / 100).toFixed(2) : null;
+                return (
+                  <div className="flex gap-2 items-end flex-wrap">
+                    <div className="w-36">
+                      <label className="block text-[11px] text-gray-400 mb-1">Date</label>
+                      <Input type="date" className="h-8 text-xs" value={newLabourEntry.date} onChange={e => setNewLabourEntry(x => ({ ...x, date: e.target.value }))} />
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <label className="block text-[11px] text-gray-400 mb-1">Description (optional)</label>
+                      <Input className="h-8 text-xs" value={newLabourEntry.description} onChange={e => setNewLabourEntry(x => ({ ...x, description: e.target.value }))} placeholder="e.g. Diagnosis, repair" />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[11px] text-gray-400 mb-1">Units ×{unitMins}min</label>
+                      <Input type="number" min="1" step="1" className="h-8 text-xs" value={newLabourEntry.chargeUnits} onChange={e => setNewLabourEntry(x => ({ ...x, chargeUnits: e.target.value }))} placeholder="4 = 1hr" />
+                    </div>
+                    <div className="flex items-end gap-2 pb-0.5">
+                      {previewCost !== null && (
+                        <span className="text-xs text-gray-400 whitespace-nowrap">= £{previewCost}</span>
+                      )}
+                      <Button
+                        type="button" size="sm" variant="outline" className="h-8 text-xs gap-1 shrink-0"
+                        disabled={!newLabourEntry.chargeUnits || parseInt(newLabourEntry.chargeUnits) <= 0 || addLabourEntry.isPending}
+                        onClick={() => {
+                          const units = parseInt(newLabourEntry.chargeUnits);
+                          if (isNaN(units) || units <= 0) return;
+                          if (editing) {
+                            addLabourEntry.mutate({ entryDate: newLabourEntry.date, description: newLabourEntry.description, chargeUnits: units, ratePence: defaultRate });
+                          } else {
+                            const cost = Math.round(units * defaultRate * unitMins / 60);
+                            setPendingLabourEntries(ps => [...ps, { id: crypto.randomUUID(), date: newLabourEntry.date, description: newLabourEntry.description, chargeUnits: units, ratePence: defaultRate, costPence: cost }]);
+                            setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" });
+                          }
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />Add
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* ── Parts box ── */}
@@ -1163,7 +1381,8 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
 
             {/* ── Cost Summary ── */}
             {(() => {
-              const labourPence = form.labourCostPence ?? 0;
+              const allLabourEntries = editing ? labourEntries : pendingLabourEntries;
+              const labourPence = allLabourEntries.length > 0 ? allLabourEntries.reduce((s: number, e) => s + e.costPence, 0) : (editing ? (form.labourCostPence ?? 0) : 0);
               const stockPence = editing
                 ? issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0); }, 0)
                 : 0;
@@ -1178,7 +1397,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                     <div className="bg-white rounded-lg border p-3 text-center">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Labour</p>
                       <p className="text-xl font-bold text-gray-900">£{(labourPence / 100).toFixed(2)}</p>
-                      {form.labourHours ? <p className="text-xs text-gray-400 mt-0.5">{form.labourHours} hrs</p> : null}
+                      {allLabourEntries.length > 0 ? <p className="text-xs text-gray-400 mt-0.5">{(allLabourEntries.reduce((s: number, e) => s + e.chargeUnits, 0) * unitMins / 60).toFixed(1)} hrs</p> : (editing && (form.labourCostPence ?? 0) > 0 ? <p className="text-xs text-amber-500 mt-0.5">legacy</p> : null)}
                     </div>
                     <div className="bg-white rounded-lg border p-3 text-center">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Parts (Stock)</p>

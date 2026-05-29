@@ -371,3 +371,23 @@ export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
   mobileId: text("mobile_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const workshopSettingsTable = pgTable("workshop_settings", {
+  farmId: integer("farm_id").primaryKey().references(() => farmsTable.id, { onDelete: "cascade" }),
+  labourRatePence: integer("labour_rate_pence").notNull().default(5000),
+  labourChargeUnitMinutes: integer("labour_charge_unit_minutes").notNull().default(15),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const workshopLabourEntriesTable = pgTable("workshop_labour_entries", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  jobId: integer("job_id").notNull().references(() => workshopJobsTable.id, { onDelete: "cascade" }),
+  entryDate: text("entry_date").notNull(),
+  description: text("description"),
+  chargeUnits: integer("charge_units").notNull().default(1),
+  ratePence: integer("rate_pence").notNull(),
+  costPence: integer("cost_pence").notNull(),
+  performedBy: text("performed_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
