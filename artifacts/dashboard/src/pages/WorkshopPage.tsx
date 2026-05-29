@@ -1805,13 +1805,14 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
 
 // ─── Parts Store tab ───────────────────────────────────────────────────────────
 
-interface WorkshopShelf { id: number; bayId: number; farmId: number; name: string; qrToken: string; createdAt: string; updatedAt: string; }
-interface WorkshopBay { id: number; farmId: number; name: string; description: string | null; shelfCount: number; shelves: WorkshopShelf[]; createdAt: string; updatedAt: string; }
+interface WorkshopShelf { id: number; bayId: number; farmId: number; name: string; qrToken: string; capacity: string | null; createdAt: string; updatedAt: string; }
+interface WorkshopBay { id: number; farmId: number; rowId: number | null; name: string; description: string | null; shelfCount: number; shelves: WorkshopShelf[]; createdAt: string; updatedAt: string; }
+interface WorkshopRow { id: number; farmId: number; name: string; description: string | null; bayCount: number; bays: WorkshopBay[]; createdAt: string; updatedAt: string; }
 
 interface Part {
   id: number; name: string; category: string | null; productCode: string | null;
   unit: string | null; reorderLevel: string | null; unitCostPence: number | null; unitSellPricePence: number | null;
-  storageLocation: string | null; shelfId: number | null; shelfName: string | null; bayId: number | null; bayName: string | null;
+  storageLocation: string | null; shelfId: number | null; shelfName: string | null; bayId: number | null; bayName: string | null; rowId: number | null; rowName: string | null;
   defaultSupplierId: number | null; supplierName: string | null;
   notes: string | null; currentQuantity: string;
 }
@@ -2189,176 +2190,264 @@ function printQRLabel(qrValue: string, title: string, subtitle: string = "") {
   w.document.close();
 }
 
+function fmtStocktakeQty(qty: string | null, unit: string | null): string {
+  if (qty === null || qty === undefined) return "—";
+  const n = parseFloat(qty);
+  if (isNaN(n)) return "—";
+  return WHOLE_UNITS.includes((unit ?? "").toLowerCase()) ? String(Math.round(n)) : n.toFixed(2);
+}
+
+function printBlankStocktakeSheet(items: { partName: string; partNumber: string | null; unit: string | null; location: string | null; expectedQty: string }[], date: string) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const rows = items.map((item, i) => `<tr>
+    <td>${i + 1}</td>
+    <td><strong>${item.partName}</strong></td>
+    <td class="mono">${item.partNumber || ""}</td>
+    <td>${item.location || ""}</td>
+    <td>${item.unit || ""}</td>
+    <td class="right">${fmtStocktakeQty(item.expectedQty, item.unit)}</td>
+    <td class="count-col"></td>
+    <td class="notes-col"></td>
+  </tr>`).join("");
+  w.document.write(`<!DOCTYPE html><html><head><title>Blank Stocktake — ${date}</title>
+<style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;font-size:10px;color:#000}h1{font-size:15px;margin:0 0 3px}.meta{font-size:10px;color:#555;margin-bottom:10px}table{width:100%;border-collapse:collapse}th{background:#f0f0f0;border:1px solid #ccc;padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase}td{border:1px solid #ddd;padding:5px 6px}.right{text-align:right}.mono{font-family:monospace}.count-col{width:80px;background:#f8fff8}.notes-col{width:120px}button{display:block;margin:14px auto;padding:8px 24px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px}@media print{button{display:none}}</style></head><body>
+<h1>Parts Store Stocktake — Blank Count Sheet</h1>
+<p class="meta">Stocktake Date: ${date} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Counter:_______________ &nbsp;|&nbsp; Signed:_______________</p>
+<table><thead><tr><th style="width:24px">#</th><th>Part Name</th><th>Part No.</th><th>Location</th><th>Unit</th><th class="right">System Qty</th><th class="count-col">Count</th><th class="notes-col">Notes</th></tr></thead><tbody>${rows}</tbody></table>
+<button onclick="window.print()">🖨 Print</button></body></html>`);
+  w.document.close();
+}
+
+function printStocktakeReport(session: { stocktakeDate: string; notes?: string | null; items?: { partName: string; partNumber: string | null; unit: string | null; location: string | null; expectedQty: string; countedQty: string | null; variance: string | null; varianceValue: string | null; unitCostPence: number | null }[] }) {
+  const items = session.items ?? [];
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const totalVar = items.reduce((s, i) => s + (i.varianceValue ? parseFloat(i.varianceValue) : 0), 0);
+  const shortfalls = items.filter(i => i.variance !== null && parseFloat(i.variance) < 0).length;
+  const surplus = items.filter(i => i.variance !== null && parseFloat(i.variance) > 0).length;
+  const rows = items.map((item, idx) => {
+    const varNum = item.variance !== null ? parseFloat(item.variance) : null;
+    const varVal = item.varianceValue !== null ? parseFloat(item.varianceValue!) : null;
+    const rowColor = varNum === null ? "" : varNum < 0 ? "background:#fff0f0" : varNum > 0 ? "background:#fffbe8" : "";
+    const varClass = varNum === null ? "grey" : varNum < 0 ? "red" : varNum > 0 ? "amber" : "grn";
+    const varValClass = varVal === null ? "grey" : varVal < 0 ? "red" : "";
+    return `<tr style="${rowColor}"><td>${idx + 1}</td><td><strong>${item.partName}</strong></td><td class="mono">${item.partNumber || ""}</td><td>${item.location || ""}</td><td>${item.unit || ""}</td><td class="right">${fmtStocktakeQty(item.expectedQty, item.unit)}</td><td class="right ${item.countedQty !== null ? "" : "grey"}">${fmtStocktakeQty(item.countedQty, item.unit)}</td><td class="right ${varClass}">${varNum === null ? "—" : (varNum >= 0 ? "+" : "") + fmtStocktakeQty(String(varNum), item.unit)}</td><td class="right ${varValClass}">${varVal === null ? "—" : (varVal >= 0 ? "+" : "") + "£" + Math.abs(varVal).toFixed(2)}</td></tr>`;
+  }).join("");
+  w.document.write(`<!DOCTYPE html><html><head><title>Stocktake Report — ${session.stocktakeDate}</title>
+<style>@page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:9px;color:#000}h1{font-size:14px;margin:0 0 3px}.meta{font-size:9px;color:#555;margin-bottom:8px}.summary{display:flex;gap:20px;margin-bottom:10px;padding:6px 12px;background:#f5f5f5;border-radius:4px}.summary div{text-align:center}.lbl{font-size:8px;color:#888;text-transform:uppercase}.val{font-size:13px;font-weight:bold}table{width:100%;border-collapse:collapse}th{background:#e8e8e8;border:1px solid #bbb;padding:3px 5px;text-align:left;font-size:8px;text-transform:uppercase}td{border:1px solid #ddd;padding:3px 5px}.right{text-align:right}.mono{font-family:monospace}.red{color:#b91c1c;font-weight:bold}.amber{color:#b45309;font-weight:bold}.grn{color:#15803d}.grey{color:#aaa}button{display:block;margin:12px auto;padding:8px 24px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px}@media print{button{display:none}}</style></head><body>
+<h1>Parts Store Stocktake Report</h1>
+<p class="meta">Date: ${session.stocktakeDate} &nbsp;|&nbsp; Status: Completed &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")}${session.notes ? " &nbsp;|&nbsp; " + session.notes : ""}</p>
+<div class="summary"><div><div class="lbl">Total Parts</div><div class="val">${items.length}</div></div><div><div class="lbl">Shortfalls</div><div class="val" style="color:#b91c1c">${shortfalls}</div></div><div><div class="lbl">Surplus</div><div class="val" style="color:#b45309">${surplus}</div></div><div><div class="lbl">Total Variance</div><div class="val" style="color:${totalVar < 0 ? "#b91c1c" : totalVar > 0 ? "#b45309" : "#15803d"}">${totalVar >= 0 ? "+" : ""}£${Math.abs(totalVar).toFixed(2)}</div></div></div>
+<table><thead><tr><th style="width:22px">#</th><th>Part Name</th><th>Part No.</th><th>Location</th><th>Unit</th><th class="right">System</th><th class="right">Counted</th><th class="right">Variance</th><th class="right">Variance £</th></tr></thead><tbody>${rows}</tbody></table>
+<button onclick="window.print()">🖨 Print</button></body></html>`);
+  w.document.close();
+}
+
 function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => void }) {
   const qc = useQueryClient();
-  const [bayForm, setBayForm] = useState({ name: "", description: "" });
+  const inv = () => { qc.invalidateQueries({ queryKey: ["workshop-rows-lm", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-rows", farmId] }); };
+
+  const [rowForm, setRowForm] = useState({ name: "", description: "" });
+  const [editingRow, setEditingRow] = useState<WorkshopRow | null>(null);
+  const [bayFormByRow, setBayFormByRow] = useState<Record<string, { name: string; description: string }>>({});
   const [editingBay, setEditingBay] = useState<WorkshopBay | null>(null);
-  const [shelfFormByBay, setShelfFormByBay] = useState<Record<number, string>>({});
-  const [editingShelf, setEditingShelf] = useState<{ id: number; name: string } | null>(null);
+  const [shelfFormByBay, setShelfFormByBay] = useState<Record<number, { name: string; capacity: string }>>({});
+  const [editingShelf, setEditingShelf] = useState<{ id: number; name: string; capacity: string } | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedBays, setExpandedBays] = useState<Set<number>>(new Set());
 
-  const { data: bays = [], isLoading } = useQuery<WorkshopBay[]>({
-    queryKey: ["workshop-bays-lm", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/workshop/bays`), { credentials: "include" }).then(r => r.json()),
+  const { data, isLoading } = useQuery<{ rows: WorkshopRow[]; unassignedBays: WorkshopBay[] }>({
+    queryKey: ["workshop-rows-lm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/rows`), { credentials: "include" }).then(r => r.json()),
   });
+  const lmRows = data?.rows ?? [];
+  const unassignedBays = data?.unassignedBays ?? [];
 
-  const createBay = useMutation({
-    mutationFn: (body: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setBayForm({ name: "", description: "" }); },
-  });
+  const createRow = useMutation({ mutationFn: (b: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setRowForm({ name: "", description: "" }); } });
+  const updateRow = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingRow(null); } });
+  const deleteRow = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
 
-  const updateBay = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setEditingBay(null); },
-  });
+  const createBay = useMutation({ mutationFn: (b: { name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { name: string; description: string; rowId?: number }) => { inv(); const k = vars.rowId ? `r-${vars.rowId}` : "unassigned"; setBayFormByRow(f => ({ ...f, [k]: { name: "", description: "" } })); } });
+  const updateBay = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingBay(null); } });
+  const deleteBay = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
 
-  const deleteBay = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }),
-  });
+  const createShelf = useMutation({ mutationFn: ({ bayId, name, capacity }: { bayId: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, capacity: capacity || null }) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { bayId: number; name: string; capacity: string }) => { inv(); setShelfFormByBay(f => ({ ...f, [vars.bayId]: { name: "", capacity: "" } })); } });
+  const updateShelf = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingShelf(null); } });
+  const deleteShelf = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
 
-  const createShelf = useMutation({
-    mutationFn: ({ bayId, name }: { bayId: number; name: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(r => r.json()),
-    onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setShelfFormByBay(f => ({ ...f, [vars.bayId]: "" })); },
-  });
-
-  const updateShelf = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setEditingShelf(null); },
-  });
-
-  const deleteShelf = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }),
-  });
-
+  function toggleRow(key: string) { setExpandedRows(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; }); }
   function toggleBay(id: number) { setExpandedBays(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+
+  function renderShelves(bay: WorkshopBay, rowLabel: string) {
+    const sf = shelfFormByBay[bay.id] ?? { name: "", capacity: "" };
+    return (
+      <div className="pl-6 pr-3 py-3 space-y-2 bg-white border-t border-gray-100">
+        {bay.shelves.length === 0 && <p className="text-xs text-gray-400 italic">No shelves in this bay yet.</p>}
+        {bay.shelves.map(shelf => (
+          <div key={shelf.id} className="flex items-center gap-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
+            <div className="flex-1 min-w-0">
+              {editingShelf?.id === shelf.id ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Input className="h-7 text-xs flex-1 min-w-[120px]" value={editingShelf.name} onChange={e => setEditingShelf(s => s ? { ...s, name: e.target.value } : s)} autoFocus placeholder="Shelf name" />
+                  <Input className="h-7 text-xs w-28" value={editingShelf.capacity} onChange={e => setEditingShelf(s => s ? { ...s, capacity: e.target.value } : s)} placeholder="Capacity (optional)" />
+                  <Button size="sm" className="h-7 text-xs" onClick={() => updateShelf.mutate({ id: shelf.id, name: editingShelf.name, capacity: editingShelf.capacity })} disabled={updateShelf.isPending}>Save</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingShelf(null)}>Cancel</Button>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-sm font-medium text-gray-900">{shelf.name}</span>
+                  {shelf.capacity && <span className="ml-2 text-xs text-gray-400">Cap: {shelf.capacity}</span>}
+                  <p className="text-xs text-gray-400 mt-0.5">{rowLabel} / {bay.name} / {shelf.name}</p>
+                </div>
+              )}
+            </div>
+            {editingShelf?.id !== shelf.id && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => printQRLabel(`${window.location.origin}/dashboard/workshop?shelf=${shelf.qrToken}`, `${bay.name} / ${shelf.name}`, rowLabel)} className="p-1.5 text-gray-400 hover:text-primary rounded" title="Print QR label"><Printer className="h-3.5 w-3.5" /></button>
+                <button onClick={() => setEditingShelf({ id: shelf.id, name: shelf.name, capacity: shelf.capacity ?? "" })} className="p-1.5 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3 w-3" /></button>
+                <button onClick={() => deleteShelf.mutate(shelf.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded"><Trash2 className="h-3 w-3" /></button>
+              </div>
+            )}
+          </div>
+        ))}
+        <div className="flex items-center gap-2 pt-1">
+          <Input className="h-7 text-xs flex-1" placeholder="New shelf name, e.g. Shelf A1…" value={sf.name} onChange={e => setShelfFormByBay(f => ({ ...f, [bay.id]: { ...sf, name: e.target.value } }))} onKeyDown={e => { if (e.key === "Enter" && sf.name.trim()) createShelf.mutate({ bayId: bay.id, name: sf.name, capacity: sf.capacity }); }} />
+          <Input className="h-7 text-xs w-24" placeholder="Capacity" value={sf.capacity} onChange={e => setShelfFormByBay(f => ({ ...f, [bay.id]: { ...sf, capacity: e.target.value } }))} />
+          <Button size="sm" className="h-7 text-xs shrink-0" disabled={!sf.name.trim() || createShelf.isPending} onClick={() => createShelf.mutate({ bayId: bay.id, name: sf.name, capacity: sf.capacity })}>
+            {createShelf.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" />Add Shelf</>}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderBays(bayList: WorkshopBay[], rowKey: string, rowLabel: string, rowId?: number) {
+    const bf = bayFormByRow[rowKey] ?? { name: "", description: "" };
+    return (
+      <div className="pl-4 space-y-2 py-3 bg-gray-50/60">
+        {bayList.length === 0 && <p className="text-xs text-gray-400 italic pl-2">No bays in this row yet.</p>}
+        {bayList.map(bay => (
+          <div key={bay.id} className="rounded-md border border-gray-200 bg-white overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50/80">
+              <button onClick={() => toggleBay(bay.id)} className="shrink-0 text-gray-400 hover:text-gray-600">
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expandedBays.has(bay.id) ? "rotate-180" : "")} />
+              </button>
+              {editingBay?.id === bay.id ? (
+                <div className="flex flex-1 items-center gap-2 flex-wrap">
+                  <Input className="h-7 text-xs flex-1 min-w-[100px]" value={editingBay.name} onChange={e => setEditingBay(b => b ? { ...b, name: e.target.value } : b)} autoFocus />
+                  <Input className="h-7 text-xs w-36" value={editingBay.description ?? ""} onChange={e => setEditingBay(b => b ? { ...b, description: e.target.value } : b)} placeholder="Description" />
+                  <Button size="sm" className="h-7 text-xs" onClick={() => updateBay.mutate({ id: bay.id, name: editingBay.name, description: editingBay.description ?? "", rowId })} disabled={updateBay.isPending}>Save</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingBay(null)}>Cancel</Button>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-800">{bay.name}</span>
+                  {bay.description && <span className="text-xs text-gray-400">{bay.description}</span>}
+                  <span className="text-xs text-gray-500 bg-gray-200 rounded-full px-1.5 py-0.5">{bay.shelves.length} shelf{bay.shelves.length !== 1 ? "ves" : ""}</span>
+                </div>
+              )}
+              {editingBay?.id !== bay.id && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => { setEditingBay(bay); setExpandedBays(s => new Set([...s, bay.id])); }} className="p-1 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3 w-3" /></button>
+                  <button onClick={() => deleteBay.mutate(bay.id)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="h-3 w-3" /></button>
+                </div>
+              )}
+            </div>
+            {expandedBays.has(bay.id) && renderShelves(bay, rowLabel)}
+          </div>
+        ))}
+        <div className="flex items-center gap-2 pt-1">
+          <Input className="h-7 text-xs flex-1" placeholder="New bay name, e.g. Bay 1…" value={bf.name} onChange={e => setBayFormByRow(f => ({ ...f, [rowKey]: { ...bf, name: e.target.value } }))} onKeyDown={e => { if (e.key === "Enter" && bf.name.trim()) createBay.mutate({ name: bf.name, description: bf.description, rowId }); }} />
+          <Input className="h-7 text-xs w-36" placeholder="Description (opt.)" value={bf.description} onChange={e => setBayFormByRow(f => ({ ...f, [rowKey]: { ...bf, description: e.target.value } }))} />
+          <Button size="sm" className="h-7 text-xs shrink-0" disabled={!bf.name.trim() || createBay.isPending} onClick={() => createBay.mutate({ name: bf.name, description: bf.description, rowId })}>
+            {createBay.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" />Add Bay</>}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[88vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-primary" />Parts Store Location Manager</DialogTitle>
-          <p className="text-sm text-gray-500 mt-0.5">Organise storage into Bays and Shelves. Each shelf gets a unique QR code for rapid scanning during stock takes and parts issuance.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Organise storage into Rows → Bays → Shelves. Each shelf gets a unique QR code for rapid scanning during stocktakes and parts issuance.</p>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {/* Add bay */}
-          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add New Bay</p>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label className="text-xs">Bay Name *</Label>
-                <Input className="h-8 text-sm mt-1" placeholder="e.g. Main Workshop, Cold Store" value={bayForm.name} onChange={e => setBayForm(f => ({ ...f, name: e.target.value }))} onKeyDown={e => { if (e.key === "Enter" && bayForm.name.trim()) createBay.mutate(bayForm); }} />
+          {/* Add Row form */}
+          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Add New Row</p>
+            <div className="flex gap-2 items-end flex-wrap">
+              <div className="flex-1 min-w-[140px]">
+                <Label className="text-xs">Row Name *</Label>
+                <Input className="h-8 text-sm mt-1" placeholder="e.g. Row A, North Aisle" value={rowForm.name} onChange={e => setRowForm(f => ({ ...f, name: e.target.value }))} onKeyDown={e => { if (e.key === "Enter" && rowForm.name.trim()) createRow.mutate(rowForm); }} />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-[140px]">
                 <Label className="text-xs">Description (optional)</Label>
-                <Input className="h-8 text-sm mt-1" placeholder="e.g. North end of workshop" value={bayForm.description} onChange={e => setBayForm(f => ({ ...f, description: e.target.value }))} />
+                <Input className="h-8 text-sm mt-1" placeholder="e.g. Main racking aisle" value={rowForm.description} onChange={e => setRowForm(f => ({ ...f, description: e.target.value }))} />
               </div>
-              <Button size="sm" className="h-8" disabled={!bayForm.name.trim() || createBay.isPending} onClick={() => createBay.mutate(bayForm)}>
-                {createBay.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Plus className="h-3.5 w-3.5 mr-1" />Add Bay</>}
+              <Button size="sm" className="h-8 shrink-0" disabled={!rowForm.name.trim() || createRow.isPending} onClick={() => createRow.mutate(rowForm)}>
+                {createRow.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Plus className="h-3.5 w-3.5 mr-1" />Add Row</>}
               </Button>
             </div>
           </div>
 
-          {/* Bays list */}
           {isLoading ? (
             <div className="py-8 text-center"><Loader2 className="h-6 w-6 animate-spin text-gray-300 mx-auto" /></div>
-          ) : bays.length === 0 ? (
-            <div className="py-8 text-center text-gray-400">
+          ) : lmRows.length === 0 && unassignedBays.length === 0 ? (
+            <div className="py-10 text-center">
               <QrCode className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm font-medium text-gray-500">No bays set up yet</p>
-              <p className="text-xs mt-1">Add your first bay above to start organising your parts store</p>
+              <p className="text-sm font-medium text-gray-500">No storage locations set up yet</p>
+              <p className="text-xs text-gray-400 mt-1">Add your first Row above, then create Bays within it, and Shelves within each Bay</p>
             </div>
           ) : (
-            bays.map(bay => (
-              <div key={bay.id} className="rounded-lg border border-gray-200 overflow-hidden">
-                {/* Bay header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
-                  <button onClick={() => toggleBay(bay.id)} className="shrink-0 text-gray-400 hover:text-gray-600">
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", expandedBays.has(bay.id) ? "rotate-180" : "")} />
-                  </button>
-                  {editingBay?.id === bay.id ? (
-                    <div className="flex flex-1 items-center gap-2">
-                      <Input className="h-7 text-sm flex-1" value={editingBay.name} onChange={e => setEditingBay(b => b ? { ...b, name: e.target.value } : b)} autoFocus />
-                      <Input className="h-7 text-sm flex-1" value={editingBay.description ?? ""} onChange={e => setEditingBay(b => b ? { ...b, description: e.target.value } : b)} placeholder="Description" />
-                      <Button size="sm" className="h-7 text-xs" onClick={() => updateBay.mutate({ id: bay.id, name: editingBay.name, description: editingBay.description ?? "" })} disabled={updateBay.isPending}>Save</Button>
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingBay(null)}>Cancel</Button>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex items-center gap-2">
-                      <div>
-                        <span className="font-semibold text-sm text-gray-900">{bay.name}</span>
-                        {bay.description && <span className="ml-2 text-xs text-gray-400">{bay.description}</span>}
+            <>
+              {lmRows.map(row => (
+                <div key={row.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-100">
+                    <button onClick={() => toggleRow(`r-${row.id}`)} className="shrink-0 text-gray-400 hover:text-gray-600">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(`r-${row.id}`) ? "rotate-180" : "")} />
+                    </button>
+                    {editingRow?.id === row.id ? (
+                      <div className="flex flex-1 items-center gap-2 flex-wrap">
+                        <Input className="h-8 text-sm flex-1 min-w-[100px]" value={editingRow.name} onChange={e => setEditingRow(r => r ? { ...r, name: e.target.value } : r)} autoFocus />
+                        <Input className="h-8 text-sm flex-1 min-w-[100px]" value={editingRow.description ?? ""} onChange={e => setEditingRow(r => r ? { ...r, description: e.target.value } : r)} placeholder="Description" />
+                        <Button size="sm" className="h-8 text-xs" onClick={() => updateRow.mutate({ id: row.id, name: editingRow.name, description: editingRow.description ?? "" })} disabled={updateRow.isPending}>Save</Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditingRow(null)}>Cancel</Button>
                       </div>
-                      <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">{bay.shelfCount} shelf{bay.shelfCount !== 1 ? "ves" : ""}</span>
-                    </div>
-                  )}
-                  {editingBay?.id !== bay.id && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => { setEditingBay(bay); setExpandedBays(s => new Set([...s, bay.id])); }} className="p-1 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => deleteBay.mutate(bay.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete bay (and all its shelves)"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Shelves */}
-                {expandedBays.has(bay.id) && (
-                  <div className="p-4 space-y-3">
-                    {bay.shelves.length === 0 && (
-                      <p className="text-xs text-gray-400 italic">No shelves in this bay yet.</p>
+                    ) : (
+                      <div className="flex-1 flex items-center gap-2">
+                        <span className="font-bold text-sm text-primary">{row.name}</span>
+                        {row.description && <span className="text-xs text-gray-400">{row.description}</span>}
+                        <span className="text-xs text-primary/70 bg-primary/10 rounded-full px-2 py-0.5">{row.bays.length} bay{row.bays.length !== 1 ? "s" : ""}</span>
+                      </div>
                     )}
-                    {bay.shelves.map(shelf => (
-                      <div key={shelf.id} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white p-3">
-                        <div className="shrink-0 bg-white rounded border border-gray-200 p-1.5">
-                          <QRCodeSVG value={`${window.location.origin}/dashboard/workshop?shelf=${shelf.qrToken}`} size={56} level="M" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {editingShelf?.id === shelf.id ? (
-                            <div className="flex items-center gap-2">
-                              <Input className="h-7 text-sm flex-1" value={editingShelf.name} onChange={e => setEditingShelf(s => s ? { ...s, name: e.target.value } : s)} autoFocus />
-                              <Button size="sm" className="h-7 text-xs" onClick={() => updateShelf.mutate({ id: shelf.id, name: editingShelf.name })} disabled={updateShelf.isPending}>Save</Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingShelf(null)}>Cancel</Button>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="text-sm font-medium text-gray-900">{shelf.name}</p>
-                              <p className="text-xs text-gray-400 font-mono">{bay.name} / {shelf.name}</p>
-                            </>
-                          )}
-                        </div>
-                        {editingShelf?.id !== shelf.id && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => printQRLabel(`${window.location.origin}/dashboard/workshop?shelf=${shelf.qrToken}`, `${bay.name} / ${shelf.name}`, "Scan to view parts on this shelf")}
-                              className="p-1.5 text-gray-400 hover:text-primary rounded" title="Print QR label"
-                            >
-                              <Printer className="h-4 w-4" />
-                            </button>
-                            <button onClick={() => setEditingShelf({ id: shelf.id, name: shelf.name })} className="p-1.5 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3.5 w-3.5" /></button>
-                            <button onClick={() => deleteShelf.mutate(shelf.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </div>
-                        )}
+                    {editingRow?.id !== row.id && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => { setEditingRow(row); setExpandedRows(s => new Set([...s, `r-${row.id}`])); }} className="p-1 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => deleteRow.mutate(row.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete row (bays become unassigned)"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
-                    ))}
-
-                    {/* Add shelf */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <Input
-                        className="h-7 text-sm flex-1"
-                        placeholder="New shelf name, e.g. Row A, Shelf 1…"
-                        value={shelfFormByBay[bay.id] ?? ""}
-                        onChange={e => setShelfFormByBay(f => ({ ...f, [bay.id]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === "Enter" && (shelfFormByBay[bay.id] ?? "").trim()) createShelf.mutate({ bayId: bay.id, name: shelfFormByBay[bay.id] }); }}
-                      />
-                      <Button size="sm" className="h-7 text-xs shrink-0" disabled={!(shelfFormByBay[bay.id] ?? "").trim() || createShelf.isPending} onClick={() => createShelf.mutate({ bayId: bay.id, name: shelfFormByBay[bay.id] })}>
-                        {createShelf.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" />Add Shelf</>}
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))
+                  {expandedRows.has(`r-${row.id}`) && renderBays(row.bays, `r-${row.id}`, row.name, row.id)}
+                </div>
+              ))}
+              {unassignedBays.length > 0 && (
+                <div className="rounded-lg border border-dashed border-gray-300 overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50">
+                    <button onClick={() => toggleRow("unassigned")} className="shrink-0 text-gray-400 hover:text-gray-600">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has("unassigned") ? "rotate-180" : "")} />
+                    </button>
+                    <span className="flex-1 text-sm font-medium text-gray-500">Unassigned Bays</span>
+                    <span className="text-xs text-gray-400">{unassignedBays.length} bay{unassignedBays.length !== 1 ? "s" : ""} — not in any row</span>
+                  </div>
+                  {expandedRows.has("unassigned") && renderBays(unassignedBays, "unassigned", "Unassigned")}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -2509,7 +2598,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
               <div className="flex items-start justify-between text-sm">
                 <span className="text-gray-500 shrink-0 w-32">Location</span>
                 <span className="text-gray-900 text-right">
-                  {part.bayName ? <>{part.bayName}{part.shelfName && <> / {part.shelfName}</>}</> : part.storageLocation}
+                  {part.bayName ? <>{part.rowName && <span className="text-gray-400">{part.rowName} / </span>}{part.bayName}{part.shelfName && <> / {part.shelfName}</>}</> : part.storageLocation}
                 </span>
               </div>
             )}
@@ -2657,9 +2746,13 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [locationManagerOpen, setLocationManagerOpen] = useState(false);
   const [formBayId, setFormBayId] = useState<string>("");
+  const [formRowId, setFormRowId] = useState<string>("");
 
   const { data: parts = [], isLoading } = useQuery<Part[]>({ queryKey: ["workshop-parts", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts`), { credentials: "include" }).then(r => r.json()) });
   const { data: bays = [] } = useQuery<WorkshopBay[]>({ queryKey: ["workshop-bays", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/bays`), { credentials: "include" }).then(r => r.json()) });
+  const { data: rowsData } = useQuery<{ rows: WorkshopRow[]; unassignedBays: WorkshopBay[] }>({ queryKey: ["workshop-rows", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/rows`), { credentials: "include" }).then(r => r.json()) });
+  const rows = rowsData?.rows ?? [];
+  const hasUnassignedBays = (rowsData?.unassignedBays ?? []).length > 0;
   const { data: movements = [] } = useQuery<Movement[]>({ queryKey: ["workshop-parts-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts/movements`), { credentials: "include" }).then(r => r.json()), enabled: view === "history" });
   const { data: jobsData } = useQuery<{ jobs: { job: { id: number; jobNumber: string; title: string; status: string } }[] }>({ queryKey: ["workshop-jobs", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()) });
   const { data: suppliersData } = useQuery<any[]>({ queryKey: ["suppliers-list", farmId], queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json().then(d => Array.isArray(d) ? d : []); }) });
@@ -2698,13 +2791,13 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 
   const filteredParts = parts.filter(p => {
     const q = search.toLowerCase();
-    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q) || (p.shelfName ?? "").toLowerCase().includes(q) || (p.bayName ?? "").toLowerCase().includes(q);
+    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q) || (p.shelfName ?? "").toLowerCase().includes(q) || (p.bayName ?? "").toLowerCase().includes(q) || (p.rowName ?? "").toLowerCase().includes(q);
     const matchesCat = catFilter === "all" || p.category === catFilter;
     return matchesSearch && matchesCat;
   });
 
-  function openAdd() { setEditing(null); setForm(EMPTY_PART); setFormBayId(""); setAddOpen(true); }
-  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", shelfId: p.shelfId ? String(p.shelfId) : "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setFormBayId(p.bayId ? String(p.bayId) : ""); setAddOpen(true); setSelectedPart(null); }
+  function openAdd() { setEditing(null); setForm(EMPTY_PART); setFormBayId(""); setFormRowId(""); setAddOpen(true); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", shelfId: p.shelfId ? String(p.shelfId) : "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setFormRowId(p.rowId ? String(p.rowId) : ""); setFormBayId(p.bayId ? String(p.bayId) : ""); setAddOpen(true); setSelectedPart(null); }
   function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
   function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
 
@@ -2833,6 +2926,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                       <td className="px-4 py-3">
                         {p.bayName ? (
                           <div className="text-xs">
+                            {p.rowName && <p className="text-gray-400">{p.rowName}</p>}
                             <p className="text-gray-700 font-medium">{p.bayName}</p>
                             {p.shelfName && <p className="text-gray-400">{p.shelfName}</p>}
                           </div>
@@ -2983,26 +3077,36 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
               <div><Label>Reorder Level{form.unit ? ` (${form.unit})` : ""}</Label><Input type="number" step={qtyStep(form.unit)} min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder={WHOLE_UNITS.includes((form.unit ?? "").toLowerCase()) ? "e.g. 2" : "e.g. 5.0"} /></div>
               <div className="col-span-2">
                 <div className="flex items-center justify-between mb-1">
-                  <Label>Storage Location <span className="text-xs text-muted-foreground font-normal">— Bay &amp; Shelf</span></Label>
+                  <Label>Storage Location <span className="text-xs text-muted-foreground font-normal">— Row, Bay &amp; Shelf</span></Label>
                   <button type="button" className="text-xs text-primary underline underline-offset-2 hover:no-underline" onClick={() => setLocationManagerOpen(true)}>Manage Locations</button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={formRowId} onValueChange={v => { setFormRowId(v); setFormBayId(""); setF("shelfId", ""); }}>
+                    <SelectTrigger><SelectValue placeholder="Row…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No row</SelectItem>
+                      {rows.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                      {hasUnassignedBays && <SelectItem value="__unassigned__">Unassigned</SelectItem>}
+                    </SelectContent>
+                  </Select>
                   <Select value={formBayId} onValueChange={v => { setFormBayId(v); setF("shelfId", ""); }}>
-                    <SelectTrigger><SelectValue placeholder="Select Bay…" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Bay…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">No bay</SelectItem>
-                      {bays.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                      {bays
+                        .filter(b => !formRowId || formRowId === "__none__" ? !b.rowId : formRowId === "__unassigned__" ? !b.rowId : String(b.rowId) === formRowId)
+                        .map(b => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={form.shelfId} onValueChange={v => setF("shelfId", v)} disabled={!formBayId || formBayId === "__none__"}>
-                    <SelectTrigger><SelectValue placeholder="Select Shelf…" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Shelf…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">No shelf</SelectItem>
                       {(bays.find(b => String(b.id) === formBayId)?.shelves ?? []).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                {bays.length === 0 && <p className="text-xs text-gray-400 mt-1">No bays set up yet — click <em>Manage Locations</em> to create them.</p>}
+                {bays.length === 0 && rows.length === 0 && <p className="text-xs text-gray-400 mt-1">No locations set up yet — click <em>Manage Locations</em> to create Rows, Bays and Shelves.</p>}
               </div>
               <div className="col-span-2">
                 <Label>Default Supplier</Label>
@@ -3747,10 +3851,20 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
                   {activeSession.notes && <p className="text-xs text-muted-foreground mt-0.5">{activeSession.notes}</p>}
                 </div>
                 {activeSession.status === "draft" && (
-                  <Button size="sm" disabled={!canComplete || completeMut.isPending}
-                    onClick={() => showConfirm("Complete Stocktake", "Workshop part stock levels will be updated to match your physical counts. This cannot be undone.", () => completeMut.mutate(activeSession.id), { confirmLabel: "Complete Stocktake" })}>
-                    {completeMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                    Complete Stocktake
+                  <>
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => printBlankStocktakeSheet(activeSession.items ?? [], activeSession.stocktakeDate)}>
+                      <Printer className="h-3.5 w-3.5" />Print Blank Sheet
+                    </Button>
+                    <Button size="sm" disabled={!canComplete || completeMut.isPending}
+                      onClick={() => showConfirm("Complete Stocktake", "Workshop part stock levels will be updated to match your physical counts. This cannot be undone.", () => completeMut.mutate(activeSession.id), { confirmLabel: "Complete Stocktake" })}>
+                      {completeMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                      Complete Stocktake
+                    </Button>
+                  </>
+                )}
+                {activeSession.status === "completed" && (
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => printStocktakeReport(activeSession)}>
+                    <Printer className="h-3.5 w-3.5" />Print Report
                   </Button>
                 )}
               </>
@@ -3804,12 +3918,12 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
                           <td className="py-2 pr-3 text-muted-foreground text-xs">{item.partNumber || "—"}</td>
                           <td className="py-2 pr-3 text-muted-foreground text-xs">{item.location || "—"}</td>
                           <td className="py-2 pr-3 text-muted-foreground text-xs">{item.unit || "—"}</td>
-                          <td className="py-2 pr-3">{parseFloat(item.expectedQty).toFixed(2)}</td>
+                          <td className="py-2 pr-3">{fmtStocktakeQty(item.expectedQty, item.unit)}</td>
                           <td className="py-2 pr-3">
                             {isCompleted ? (
                               <span>{item.countedQty ?? "—"}</span>
                             ) : (
-                              <Input type="number" min="0" step="0.01" className="h-7 w-24 text-sm" placeholder="0"
+                              <Input type="number" min="0" step={qtyStep(item.unit)} className="h-7 w-24 text-sm" placeholder={qtyStep(item.unit) === "1" ? "0" : "0.00"}
                                 value={localVal}
                                 onChange={e => setLocalCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
                                 onBlur={() => {

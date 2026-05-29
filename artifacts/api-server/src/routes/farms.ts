@@ -45,6 +45,7 @@ import {
   workshopGoodsReturnsTable,
   workshopStocktakeSessionsTable,
   workshopStocktakeItemsTable,
+  workshopRowsTable,
   workshopBaysTable,
   workshopShelvesTable,
   equipmentCalibrationRecordsTable,
@@ -16673,6 +16674,8 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
       shelfName: workshopShelvesTable.name,
       bayId: workshopBaysTable.id,
       bayName: workshopBaysTable.name,
+      rowId: workshopRowsTable.id,
+      rowName: workshopRowsTable.name,
       defaultSupplierId: stockItemsTable.defaultSupplierId,
       supplierName: suppliersTable.name,
       notes: stockItemsTable.notes,
@@ -16683,6 +16686,7 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
     .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
     .leftJoin(workshopShelvesTable, eq(stockItemsTable.shelfId, workshopShelvesTable.id))
     .leftJoin(workshopBaysTable, eq(workshopShelvesTable.bayId, workshopBaysTable.id))
+    .leftJoin(workshopRowsTable, eq(workshopBaysTable.rowId, workshopRowsTable.id))
     .where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true)))
     .orderBy(asc(stockItemsTable.name));
 
@@ -16918,6 +16922,45 @@ router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireA
 });
 
 // ── Workshop Bays & Shelves ──────────────────────────────────
+// ── Workshop Rows ──────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/workshop/rows", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(workshopRowsTable).where(eq(workshopRowsTable.farmId, farmId)).orderBy(asc(workshopRowsTable.name));
+  const bays = await db.select().from(workshopBaysTable).where(eq(workshopBaysTable.farmId, farmId)).orderBy(asc(workshopBaysTable.name));
+  const shelves = await db.select().from(workshopShelvesTable).where(eq(workshopShelvesTable.farmId, farmId)).orderBy(asc(workshopShelvesTable.name));
+  const rowsOut = rows.map(r => {
+    const rowBays = bays.filter(b => b.rowId === r.id).map(b => ({ ...b, shelfCount: shelves.filter(s => s.bayId === b.id).length, shelves: shelves.filter(s => s.bayId === b.id) }));
+    return { ...r, bayCount: rowBays.length, bays: rowBays };
+  });
+  const unassignedBays = bays.filter(b => !b.rowId).map(b => ({ ...b, shelfCount: shelves.filter(s => s.bayId === b.id).length, shelves: shelves.filter(s => s.bayId === b.id) }));
+  res.json({ rows: rowsOut, unassignedBays });
+});
+
+router.post("/farms/:farmId/workshop/rows", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { name, description } = req.body;
+  if (!name) { res.status(400).json({ error: "Name required" }); return; }
+  const [record] = await db.insert(workshopRowsTable).values({ farmId, name, description: description || null }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/workshop/rows/:rowId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rowId = parseInt(req.params.rowId as string); if (isNaN(rowId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { name, description } = req.body;
+  const [record] = await db.update(workshopRowsTable).set({ name, description: description || null }).where(and(eq(workshopRowsTable.id, rowId), eq(workshopRowsTable.farmId, farmId))).returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/workshop/rows/:rowId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rowId = parseInt(req.params.rowId as string); if (isNaN(rowId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  // Bays in this row become unassigned (rowId set to null by ON DELETE SET NULL)
+  await db.delete(workshopRowsTable).where(and(eq(workshopRowsTable.id, rowId), eq(workshopRowsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Workshop Bays ──────────────────────────────────────────────────────────────
 router.get("/farms/:farmId/workshop/bays", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const bays = await db.select().from(workshopBaysTable).where(eq(workshopBaysTable.farmId, farmId)).orderBy(asc(workshopBaysTable.name));
@@ -16929,17 +16972,17 @@ router.get("/farms/:farmId/workshop/bays", requireAuth, requireTenant, requireMo
 
 router.post("/farms/:farmId/workshop/bays", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const { name, description } = req.body;
+  const { name, description, rowId } = req.body;
   if (!name) { res.status(400).json({ error: "Name required" }); return; }
-  const [record] = await db.insert(workshopBaysTable).values({ farmId, name, description: description || null }).returning();
+  const [record] = await db.insert(workshopBaysTable).values({ farmId, name, description: description || null, rowId: rowId || null }).returning();
   res.json(record);
 });
 
 router.put("/farms/:farmId/workshop/bays/:bayId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const bayId = parseInt(req.params.bayId as string); if (isNaN(bayId)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { name, description } = req.body;
-  const [record] = await db.update(workshopBaysTable).set({ name, description: description || null }).where(and(eq(workshopBaysTable.id, bayId), eq(workshopBaysTable.farmId, farmId))).returning();
+  const { name, description, rowId } = req.body;
+  const [record] = await db.update(workshopBaysTable).set({ name, description: description || null, rowId: rowId ?? null }).where(and(eq(workshopBaysTable.id, bayId), eq(workshopBaysTable.farmId, farmId))).returning();
   res.json(record);
 });
 
@@ -16950,21 +16993,22 @@ router.delete("/farms/:farmId/workshop/bays/:bayId", requireAuth, requireTenant,
   res.json({ success: true });
 });
 
+// ── Workshop Shelves ───────────────────────────────────────────────────────────
 router.post("/farms/:farmId/workshop/bays/:bayId/shelves", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const bayId = parseInt(req.params.bayId as string); if (isNaN(bayId)) { res.status(400).json({ error: "Invalid bay ID" }); return; }
-  const { name } = req.body;
+  const { name, capacity } = req.body;
   if (!name) { res.status(400).json({ error: "Name required" }); return; }
   const qrToken = crypto.randomUUID();
-  const [record] = await db.insert(workshopShelvesTable).values({ farmId, bayId, name, qrToken }).returning();
+  const [record] = await db.insert(workshopShelvesTable).values({ farmId, bayId, name, qrToken, capacity: capacity || null }).returning();
   res.json(record);
 });
 
 router.put("/farms/:farmId/workshop/shelves/:shelfId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const shelfId = parseInt(req.params.shelfId as string); if (isNaN(shelfId)) { res.status(400).json({ error: "Invalid shelf ID" }); return; }
-  const { name } = req.body;
-  const [record] = await db.update(workshopShelvesTable).set({ name }).where(and(eq(workshopShelvesTable.id, shelfId), eq(workshopShelvesTable.farmId, farmId))).returning();
+  const { name, capacity } = req.body;
+  const [record] = await db.update(workshopShelvesTable).set({ name, capacity: capacity ?? null }).where(and(eq(workshopShelvesTable.id, shelfId), eq(workshopShelvesTable.farmId, farmId))).returning();
   res.json(record);
 });
 
