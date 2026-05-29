@@ -39,6 +39,7 @@ export const stockItemsTable = pgTable("stock_items", {
   unit: text("unit"),
   reorderLevel: numeric("reorder_level", { precision: 10, scale: 2 }),
   unitCostPence: integer("unit_cost_pence"),
+  unitSellPricePence: integer("unit_sell_price_pence"),
   storageLocation: text("storage_location"),
   defaultSupplierId: integer("default_supplier_id").references(() => suppliersTable.id),
   notes: text("notes"),

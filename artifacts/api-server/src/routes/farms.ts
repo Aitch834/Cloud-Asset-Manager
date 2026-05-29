@@ -16025,6 +16025,7 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, re
       quantity: stockMovementsTable.quantityChange,
       unit: stockItemsTable.unit,
       unitCostPence: stockItemsTable.unitCostPence,
+      unitSellPricePence: stockItemsTable.unitSellPricePence,
     })
     .from(stockMovementsTable)
     .innerJoin(stockItemsTable, eq(stockMovementsTable.stockItemId, stockItemsTable.id))
@@ -16053,7 +16054,7 @@ router.post("/farms/:farmId/workshop/jobs/:jobId/raise-invoice", requireAuth, re
   if (issuedParts.length > 0) {
     for (const p of issuedParts) {
       const qty = Math.abs(Number(p.quantity));
-      const unitPrice = p.unitCostPence ?? 0;
+      const unitPrice = p.unitSellPricePence ?? p.unitCostPence ?? 0;
       lines.push({
         description: `Parts — ${p.partName}`,
         quantity: qty,
@@ -16664,6 +16665,7 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
       unit: stockItemsTable.unit,
       reorderLevel: stockItemsTable.reorderLevel,
       unitCostPence: stockItemsTable.unitCostPence,
+      unitSellPricePence: stockItemsTable.unitSellPricePence,
       storageLocation: stockItemsTable.storageLocation,
       defaultSupplierId: stockItemsTable.defaultSupplierId,
       supplierName: suppliersTable.name,
@@ -16688,12 +16690,13 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
 router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, storageLocation, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, defaultSupplierId, notes } = req.body;
   if (!name) { res.status(400).json({ error: "Name required" }); return; }
   const [record] = await db.insert(stockItemsTable).values({
     farmId, name, stockType: "workshop-part", category, productCode, unit,
     reorderLevel: reorderLevel ? String(reorderLevel) : null,
     unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
+    unitSellPricePence: unitSellPricePence ? parseInt(unitSellPricePence) : null,
     storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
   }).returning();
   res.json(record);
@@ -16704,12 +16707,13 @@ router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requ
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, storageLocation, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, defaultSupplierId, notes } = req.body;
   const [record] = await db.update(stockItemsTable)
     .set({
       name, category, productCode, unit,
       reorderLevel: reorderLevel ? String(reorderLevel) : null,
       unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
+      unitSellPricePence: unitSellPricePence ? parseInt(unitSellPricePence) : null,
       storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
     })
     .where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)))
@@ -16800,12 +16804,12 @@ router.post("/farms/:farmId/workshop/parts/use", requireAuth, requireTenant, req
   }
 
   if (jobId) {
-    const [part] = await db.select({ unitCostPence: stockItemsTable.unitCostPence }).from(stockItemsTable).where(eq(stockItemsTable.id, parseInt(stockItemId))).limit(1);
-    if (part?.unitCostPence) {
-      const costDelta = Math.round(part.unitCostPence * qty);
-      const [job] = await db.select({ partsCostPence: workshopJobsTable.partsCostPence }).from(workshopJobsTable).where(and(eq(workshopJobsTable.id, parseInt(jobId)), eq(workshopJobsTable.farmId, farmId))).limit(1);
-      if (job) {
-        await db.update(workshopJobsTable).set({ partsCostPence: (job.partsCostPence ?? 0) + costDelta }).where(eq(workshopJobsTable.id, parseInt(jobId)));
+    const [part] = await db.select({ unitCostPence: stockItemsTable.unitCostPence, unitSellPricePence: stockItemsTable.unitSellPricePence }).from(stockItemsTable).where(eq(stockItemsTable.id, parseInt(stockItemId))).limit(1);
+    const [job] = await db.select({ partsCostPence: workshopJobsTable.partsCostPence, customerId: workshopJobsTable.customerId }).from(workshopJobsTable).where(and(eq(workshopJobsTable.id, parseInt(jobId)), eq(workshopJobsTable.farmId, farmId))).limit(1);
+    if (part && job) {
+      const priceToUse = job.customerId ? (part.unitSellPricePence ?? part.unitCostPence ?? 0) : (part.unitCostPence ?? 0);
+      if (priceToUse > 0) {
+        await db.update(workshopJobsTable).set({ partsCostPence: (job.partsCostPence ?? 0) + Math.round(priceToUse * qty) }).where(eq(workshopJobsTable.id, parseInt(jobId)));
       }
     }
   }
@@ -16828,6 +16832,7 @@ router.get("/farms/:farmId/workshop/jobs/:jobId/parts", requireAuth, requireTena
       productCode: stockItemsTable.productCode,
       unit: stockItemsTable.unit,
       unitCostPence: stockItemsTable.unitCostPence,
+      unitSellPricePence: stockItemsTable.unitSellPricePence,
       quantityChange: stockMovementsTable.quantityChange,
       performedBy: stockMovementsTable.performedBy,
       notes: stockMovementsTable.notes,

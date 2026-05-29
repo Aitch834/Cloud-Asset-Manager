@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
 import { printProReport } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 
 const api = (path: string) => `/api/${path}`;
 
@@ -407,6 +409,7 @@ interface IssuedPart {
   productCode: string | null;
   unit: string | null;
   unitCostPence: number | null;
+  unitSellPricePence: number | null;
   quantityChange: string;
   performedBy: string | null;
   notes: string | null;
@@ -549,6 +552,8 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   const [issuePartId, setIssuePartId] = useState("");
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
   const [manualParts, setManualParts] = useState<{ id: string; name: string; qty: string; cost: string }[]>([]);
   const [newPart, setNewPart] = useState({ name: "", qty: "", cost: "" });
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
@@ -1246,7 +1251,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                           {issuePartsToJob.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ArrowUpFromLine className="h-3.5 w-3.5 mr-1" />Issue</>}
                         </Button>
                       </div>
-                      <Input className="h-7 text-xs mt-2" value={issueBy} onChange={e => setIssueBy(e.target.value)} placeholder="Issued by (optional)" />
+                      <div className="mt-2"><StaffSelect value={issueBy} onChange={setIssueBy} staffNames={staffNames} loading={membersLoading} /></div>
                     </div>
                   )}
 
@@ -1260,7 +1265,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                           <tr className="bg-gray-50 text-gray-500">
                             <th className="text-left px-2 py-1.5 font-medium">Part</th>
                             <th className="text-right px-2 py-1.5 font-medium">Qty</th>
-                            <th className="text-right px-2 py-1.5 font-medium">Unit Cost</th>
+                            <th className="text-right px-2 py-1.5 font-medium">{form.customerId ? "Unit Price" : "Unit Cost"}</th>
                             <th className="text-right px-2 py-1.5 font-medium">Line Total</th>
                             <th className="text-left px-2 py-1.5 font-medium">Issued By</th>
                             <th className="text-left px-2 py-1.5 font-medium">Date</th>
@@ -1269,12 +1274,13 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                         <tbody className="divide-y divide-gray-100">
                           {issuedParts.map(ip => {
                             const qty = Math.abs(parseFloat(ip.quantityChange));
-                            const lineTotal = ip.unitCostPence != null ? ip.unitCostPence * qty : null;
+                            const ipPrice = form.customerId ? (ip.unitSellPricePence ?? ip.unitCostPence) : ip.unitCostPence;
+                            const lineTotal = ipPrice != null ? ipPrice * qty : null;
                             return (
                               <tr key={ip.id} className="hover:bg-gray-50/60">
                                 <td className="px-2 py-1.5 font-medium text-gray-800">{ip.partName}{ip.productCode && <span className="ml-1 text-gray-400">({ip.productCode})</span>}</td>
                                 <td className="px-2 py-1.5 text-right text-gray-700">{qty} {ip.unit ?? ""}</td>
-                                <td className="px-2 py-1.5 text-right text-gray-500">{ip.unitCostPence != null ? `£${(ip.unitCostPence / 100).toFixed(2)}` : "—"}</td>
+                                <td className="px-2 py-1.5 text-right text-gray-500">{ipPrice != null ? `£${(ipPrice / 100).toFixed(2)}` : "—"}</td>
                                 <td className="px-2 py-1.5 text-right font-medium text-gray-800">{lineTotal != null ? `£${(lineTotal / 100).toFixed(2)}` : "—"}</td>
                                 <td className="px-2 py-1.5 text-gray-500">{ip.performedBy || "—"}</td>
                                 <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{new Date(ip.movedAt).toLocaleDateString("en-GB")}</td>
@@ -1286,7 +1292,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
                           <tr className="border-t-2 border-gray-200 bg-gray-50">
                             <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-gray-600 text-right">Stock parts total:</td>
                             <td className="px-2 py-1.5 text-right text-xs font-bold text-gray-900">
-                              £{(issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0); }, 0) / 100).toFixed(2)}
+                              £{(issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); const p = form.customerId ? (ip.unitSellPricePence ?? ip.unitCostPence) : ip.unitCostPence; return sum + (p != null ? p * qty : 0); }, 0) / 100).toFixed(2)}
                             </td>
                             <td colSpan={2} />
                           </tr>
@@ -1384,7 +1390,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
               const allLabourEntries = editing ? labourEntries : pendingLabourEntries;
               const labourPence = allLabourEntries.length > 0 ? allLabourEntries.reduce((s: number, e) => s + e.costPence, 0) : (editing ? (form.labourCostPence ?? 0) : 0);
               const stockPence = editing
-                ? issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0); }, 0)
+                ? issuedParts.reduce((sum, ip) => { const qty = Math.abs(parseFloat(ip.quantityChange)); const p = form.customerId ? (ip.unitSellPricePence ?? ip.unitCostPence) : ip.unitCostPence; return sum + (p != null ? p * qty : 0); }, 0)
                 : 0;
               const externalPence = Math.round(manualParts.reduce((s, p) => s + (parseFloat(p.qty) || 0) * (parseFloat(p.cost) || 0) * 100, 0));
               const editExtraPence = editing ? Math.max(0, (form.partsCostPence ?? 0) - stockPence) : 0;
@@ -1801,7 +1807,7 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
 
 interface Part {
   id: number; name: string; category: string | null; productCode: string | null;
-  unit: string | null; reorderLevel: string | null; unitCostPence: number | null;
+  unit: string | null; reorderLevel: string | null; unitCostPence: number | null; unitSellPricePence: number | null;
   storageLocation: string | null; defaultSupplierId: number | null; supplierName: string | null;
   notes: string | null; currentQuantity: string;
 }
@@ -2151,7 +2157,7 @@ function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) 
   );
 }
 
-const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
+const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", unitSellPricePence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
 
 interface PartDoc {
   id: number;
@@ -2278,6 +2284,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
               { label: "Category", value: part.category },
               { label: "Location", value: part.storageLocation },
               { label: "Unit Cost", value: part.unitCostPence ? `£${(part.unitCostPence / 100).toFixed(2)} per ${part.unit ?? "unit"}` : null },
+              { label: "Sell Price", value: part.unitSellPricePence ? `£${(part.unitSellPricePence / 100).toFixed(2)} per ${part.unit ?? "unit"}` : null },
               { label: "Default Supplier", value: part.supplierName },
               { label: "Reorder Level", value: reorder ? `${reorder}${part.unit ? ` ${part.unit}` : ""}` : null },
             ].filter(r => r.value).map(({ label, value }) => (
@@ -2419,7 +2426,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   const savePart = useMutation({
     mutationFn: async (body: Record<string, string>) => {
       const supplierId = body.defaultSupplierId && body.defaultSupplierId !== "__none__" ? body.defaultSupplierId : null;
-      const payload = { ...body, unitCostPence: body.unitCostPence ? Math.round(parseFloat(body.unitCostPence) * 100) : null, reorderLevel: body.reorderLevel || null, defaultSupplierId: supplierId };
+      const payload = { ...body, unitCostPence: body.unitCostPence ? Math.round(parseFloat(body.unitCostPence) * 100) : null, unitSellPricePence: body.unitSellPricePence ? Math.round(parseFloat(body.unitSellPricePence) * 100) : null, reorderLevel: body.reorderLevel || null, defaultSupplierId: supplierId };
       const url = editing ? api(`farms/${farmId}/workshop/parts/${editing.id}`) : api(`farms/${farmId}/workshop/parts`);
       return fetch(url, { method: editing ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
     },
@@ -2451,7 +2458,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   });
 
   function openAdd() { setEditing(null); setForm(EMPTY_PART); setAddOpen(true); }
-  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); setSelectedPart(null); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); setSelectedPart(null); }
   function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
   function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
 
@@ -2543,7 +2550,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {["Part / Part No.", "Category", "Location", "In Stock", "Reorder At", "Unit Cost", "Supplier", "Actions"].map(h => (
+                  {["Part / Part No.", "Category", "Location", "In Stock", "Reorder At", "Cost Price", "Sell Price", "Supplier", "Actions"].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -2579,6 +2586,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                       </td>
                       <td className="px-4 py-3 text-gray-500">{p.reorderLevel ? fmtQty(p.reorderLevel, p.unit) : "—"}</td>
                       <td className="px-4 py-3 text-gray-600">{fmtCost(p.unitCostPence)}</td>
+                      <td className="px-4 py-3 text-gray-500">{p.unitSellPricePence ? fmtCost(p.unitSellPricePence) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{p.supplierName || "—"}</td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
@@ -2708,7 +2716,8 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" /></div>
+              <div><Label>Cost Price (£)</Label><Input type="number" step="0.01" min="0" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" /></div>
+              <div><Label>Sell Price (£) <span className="text-xs text-muted-foreground font-normal">— external customers</span></Label><Input type="number" step="0.01" min="0" value={form.unitSellPricePence} onChange={e => setF("unitSellPricePence", e.target.value)} placeholder="0.00" /></div>
               <div><Label>Reorder Level{form.unit ? ` (${form.unit})` : ""}</Label><Input type="number" step={qtyStep(form.unit)} min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder={WHOLE_UNITS.includes((form.unit ?? "").toLowerCase()) ? "e.g. 2" : "e.g. 5.0"} /></div>
               <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setF("storageLocation", e.target.value)} placeholder="e.g. Shelf A3, Drawer 2" /></div>
               <div className="col-span-2">
