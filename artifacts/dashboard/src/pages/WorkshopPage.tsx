@@ -3426,44 +3426,47 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
 
   function printReport() {
     const completed = jobs.filter((j: any) => j.status === "completed");
-    const ts = "border:1px solid #ddd;padding:6px 8px;";
-    const th = "border:1px solid #ddd;padding:6px 8px;background:#f5f5f5;font-weight:600;text-align:left";
-    const tr = "border:1px solid #ddd;padding:6px 8px;text-align:right";
-    const staffRows = staffData.map(s => `<tr><td style="${ts}">${s.name}</td><td style="${tr}">${s.hours}</td><td style="${tr}">${s.jobs}</td><td style="${tr}">${fmt(s.cost)}</td></tr>`).join("");
-    const assetRows = costByEquip.map(e => `<tr><td style="${ts}">${e.name}</td><td style="${tr}">${fmt(e.labour)}</td><td style="${tr}">${fmt(e.parts)}</td><td style="${tr}">${fmt(e.labour + e.parts)}</td></tr>`).join("");
-    const jobRows = completed.map((j: any) => `<tr><td style="${ts}">${j.jobNumber ?? "\u2014"}</td><td style="${ts}">${j.description ?? "\u2014"}</td><td style="${ts}">${j.equipmentName ?? "\u2014"}</td><td style="${ts}">${j.customerName ?? "Own Holding"}</td><td style="${tr}">${j.labourHours ?? 0}</td><td style="${tr}">${fmt((j.labourCostPence ?? 0) / 100)}</td><td style="${tr}">${fmt((j.partsCostPence ?? 0) / 100)}</td><td style="${tr}">${fmt(((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100)}</td></tr>`).join("");
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>Workshop Report</title>
-<style>
-*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:32px;color:#1a1a1a;font-size:13px}
-h1{font-size:22px;margin:0 0 4px}.sub{color:#666;font-size:13px;margin-bottom:24px;padding-bottom:10px;border-bottom:2px solid #f59e0b}
-h2{font-size:14px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #f59e0b;color:#78350f}
-table{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:4px}
-.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
-.kpi{border:1px solid #ddd;border-radius:6px;padding:10px 14px}
-.kl{font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.05em;margin-bottom:3px}
-.kv{font-size:20px;font-weight:700}.ks{font-size:11px;color:#666;margin-top:2px}
-@media print{.no-print{display:none!important}}
-</style></head><body>
-<h1>Workshop Management Report</h1>
-<div class="sub">${farmName} &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; Printed ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
-<h2>Summary</h2>
-<div class="kpi-grid">
-<div class="kpi"><div class="kl">Jobs in Period</div><div class="kv">${jobs.length}</div><div class="ks">${completedCount} completed \u00b7 ${awaitingPartsCount} awaiting parts</div></div>
-<div class="kpi"><div class="kl">Labour Hours</div><div class="kv">${totalHours} hrs</div><div class="ks">${chargeableHours} chargeable \u00b7 ${ownHoldingHours} own holding</div></div>
-<div class="kpi"><div class="kl">Total Spend</div><div class="kv">${fmt(totalCost)}</div><div class="ks">Labour ${fmt(totalLabour)} \u00b7 Parts ${fmt(totalParts)}</div></div>
-<div class="kpi"><div class="kl">Chargeable Revenue</div><div class="kv">${fmt(chargeableCost)}</div><div class="ks">${chargeableJobs.length} jobs \u00b7 ${chargeableHours} hrs</div></div>
-<div class="kpi"><div class="kl">Own Holding Cost</div><div class="kv">${fmt(ownHoldingCost)}</div><div class="ks">${ownHoldingJobs.length} jobs \u00b7 ${ownHoldingHours} hrs</div></div>
-<div class="kpi"><div class="kl">WIP Value (Live)</div><div class="kv">${fmt(wipValue)}</div><div class="ks">Open &amp; in-progress jobs</div></div>
-</div>
-${staffData.length > 0 ? `<h2>Hours by Staff Member</h2><table><thead><tr><th style="${th}">Staff Member</th><th style="${th}">Hours</th><th style="${th}">Jobs</th><th style="${th}">Labour Cost</th></tr></thead><tbody>${staffRows}</tbody></table>` : ""}
-${costByEquip.length > 0 ? `<h2>Cost by Asset / Machine</h2><table><thead><tr><th style="${th}">Asset</th><th style="${th}">Labour</th><th style="${th}">Parts</th><th style="${th}">Total</th></tr></thead><tbody>${assetRows}</tbody></table>` : ""}
-${completed.length > 0 ? `<h2>Completed Jobs (${completed.length})</h2><table><thead><tr><th style="${th}">Job No.</th><th style="${th}">Description</th><th style="${th}">Asset</th><th style="${th}">Customer / Type</th><th style="${th}">Hours</th><th style="${th}">Labour</th><th style="${th}">Parts</th><th style="${th}">Total</th></tr></thead><tbody>${jobRows}</tbody></table>` : ""}
-<p style="font-size:10px;color:#bbb;margin-top:32px;text-align:center">BDE Farm Trac \u00b7 Workshop Module</p>
-<div class="no-print" style="position:fixed;bottom:20px;right:20px"><button onclick="window.print()" style="padding:9px 20px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)">Print / Save PDF</button></div>
-</body></html>`);
-    w.document.close();
+    const ra = "text-align:right";
+
+    const summaryHtml = `
+<div class="section-head">Summary — ${periodLabel}</div>
+<table><thead><tr>
+  <th>Metric</th><th>Value</th><th>Detail</th>
+</tr></thead><tbody>
+  <tr><td>Jobs in Period</td><td style="${ra}">${jobs.length}</td><td>${completedCount} completed · ${awaitingPartsCount} awaiting parts · ${jobs.length - completedCount - awaitingPartsCount} other</td></tr>
+  <tr><td>Labour Hours</td><td style="${ra}">${totalHours} hrs</td><td>${chargeableHours} chargeable · ${ownHoldingHours} own holding</td></tr>
+  <tr><td>Total Spend</td><td style="${ra}">${fmt(totalCost)}</td><td>Labour ${fmt(totalLabour)} · Parts ${fmt(totalParts)}</td></tr>
+  <tr><td>Chargeable Revenue</td><td style="${ra}">${fmt(chargeableCost)}</td><td>${chargeableJobs.length} jobs · ${chargeableHours} hrs</td></tr>
+  <tr><td>Own Holding Cost</td><td style="${ra}">${fmt(ownHoldingCost)}</td><td>${ownHoldingJobs.length} jobs · ${ownHoldingHours} hrs</td></tr>
+  <tr><td>WIP Value (Live)</td><td style="${ra}">${fmt(wipValue)}</td><td>Open &amp; in-progress jobs</td></tr>
+</tbody></table>`;
+
+    const staffHtml = staffData.length > 0 ? `
+<div class="section-head">Hours by Staff Member</div>
+<table><thead><tr><th>Staff Member</th><th style="${ra}">Hours</th><th style="${ra}">Jobs</th><th style="${ra}">Labour Cost</th></tr></thead><tbody>
+${staffData.map(s => `<tr><td>${s.name}</td><td style="${ra}">${s.hours}</td><td style="${ra}">${s.jobs}</td><td style="${ra}">${fmt(s.cost)}</td></tr>`).join("")}
+</tbody></table>` : "";
+
+    const assetHtml = costByEquip.length > 0 ? `
+<div class="section-head">Cost by Asset / Machine</div>
+<table><thead><tr><th>Asset</th><th style="${ra}">Labour</th><th style="${ra}">Parts</th><th style="${ra}">Total</th></tr></thead><tbody>
+${costByEquip.map(e => `<tr><td>${e.name}</td><td style="${ra}">${fmt(e.labour)}</td><td style="${ra}">${fmt(e.parts)}</td><td style="${ra}">${fmt(e.labour + e.parts)}</td></tr>`).join("")}
+</tbody></table>` : "";
+
+    const jobHtml = completed.length > 0 ? `
+<div class="section-head">Completed Jobs (${completed.length})</div>
+<table><thead><tr><th>Job No.</th><th>Description</th><th>Asset</th><th>Customer / Type</th><th style="${ra}">Hours</th><th style="${ra}">Labour</th><th style="${ra}">Parts</th><th style="${ra}">Total</th></tr></thead><tbody>
+${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.description ?? "—"}</td><td>${j.equipmentName ?? "—"}</td><td>${j.customerName ?? "Own Holding"}</td><td style="${ra}">${j.labourHours ?? 0}</td><td style="${ra}">${fmt((j.labourCostPence ?? 0) / 100)}</td><td style="${ra}">${fmt((j.partsCostPence ?? 0) / 100)}</td><td style="${ra}">${fmt(((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100)}</td></tr>`).join("")}
+</tbody></table>` : "";
+
+    printProReport({
+      title: "Workshop Management Report",
+      farmName,
+      subtitle: periodLabel,
+      tableHtml: summaryHtml + staffHtml + assetHtml + jobHtml,
+      footerNote: "Workshop records — retain for a minimum of 3 years.",
+      landscape: true,
+    });
   }
 
   if (jobsQ.isLoading) return <div className="py-16 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading workshop data\u2026</div>;
