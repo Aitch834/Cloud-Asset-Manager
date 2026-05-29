@@ -86,6 +86,7 @@
     "jspdf-autotable": "^5.0.7",
     "leaflet": "^1.9.4",
     "qrcode.react": "^4.2.0",
+    "react-qr-code": "^2.0.21",
     "zustand": "^5.0.11"
   }
 }

@@ -1805,10 +1805,14 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
 
 // ─── Parts Store tab ───────────────────────────────────────────────────────────
 
+interface WorkshopShelf { id: number; bayId: number; farmId: number; name: string; qrToken: string; createdAt: string; updatedAt: string; }
+interface WorkshopBay { id: number; farmId: number; name: string; description: string | null; shelfCount: number; shelves: WorkshopShelf[]; createdAt: string; updatedAt: string; }
+
 interface Part {
   id: number; name: string; category: string | null; productCode: string | null;
   unit: string | null; reorderLevel: string | null; unitCostPence: number | null; unitSellPricePence: number | null;
-  storageLocation: string | null; defaultSupplierId: number | null; supplierName: string | null;
+  storageLocation: string | null; shelfId: number | null; shelfName: string | null; bayId: number | null; bayName: string | null;
+  defaultSupplierId: number | null; supplierName: string | null;
   notes: string | null; currentQuantity: string;
 }
 
@@ -2157,7 +2161,216 @@ function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) 
   );
 }
 
-const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", unitSellPricePence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
+function printQRLabel(qrValue: string, title: string, subtitle: string = "") {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><title>QR Label — ${title}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff}
+  .label{width:200px;border:1.5px solid #333;border-radius:6px;padding:12px;text-align:center;page-break-inside:avoid}
+  .label h2{font-size:13px;margin:10px 0 4px;word-break:break-word}
+  .label p{font-size:10px;color:#555;margin:2px 0}
+  .label .url{font-size:8px;color:#999;margin-top:6px;word-break:break-all}
+  button{display:block;margin:20px auto;padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px}
+  @media print{button{display:none}body{min-height:auto}}
+</style></head><body>
+<div>
+  <div class="label">
+    <div id="qr"></div>
+    <h2>${title}</h2>
+    ${subtitle ? `<p>${subtitle}</p>` : ""}
+    <p class="url">${qrValue}</p>
+  </div>
+  <button onclick="window.print()">🖨 Print</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+<script>new QRCode(document.getElementById('qr'),{text:"${qrValue.replace(/"/g, '\\"')}",width:160,height:160,correctLevel:QRCode.CorrectLevel.M})<\/script>
+</body></html>`);
+  w.document.close();
+}
+
+function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [bayForm, setBayForm] = useState({ name: "", description: "" });
+  const [editingBay, setEditingBay] = useState<WorkshopBay | null>(null);
+  const [shelfFormByBay, setShelfFormByBay] = useState<Record<number, string>>({});
+  const [editingShelf, setEditingShelf] = useState<{ id: number; name: string } | null>(null);
+  const [expandedBays, setExpandedBays] = useState<Set<number>>(new Set());
+
+  const { data: bays = [], isLoading } = useQuery<WorkshopBay[]>({
+    queryKey: ["workshop-bays-lm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/bays`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const createBay = useMutation({
+    mutationFn: (body: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setBayForm({ name: "", description: "" }); },
+  });
+
+  const updateBay = useMutation({
+    mutationFn: ({ id, ...body }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setEditingBay(null); },
+  });
+
+  const deleteBay = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }),
+  });
+
+  const createShelf = useMutation({
+    mutationFn: ({ bayId, name }: { bayId: number; name: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(r => r.json()),
+    onSuccess: (_data, vars) => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setShelfFormByBay(f => ({ ...f, [vars.bayId]: "" })); },
+  });
+
+  const updateShelf = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }); setEditingShelf(null); },
+  });
+
+  const deleteShelf = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-bays-lm", farmId] }),
+  });
+
+  function toggleBay(id: number) { setExpandedBays(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5 text-primary" />Parts Store Location Manager</DialogTitle>
+          <p className="text-sm text-gray-500 mt-0.5">Organise storage into Bays and Shelves. Each shelf gets a unique QR code for rapid scanning during stock takes and parts issuance.</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* Add bay */}
+          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add New Bay</p>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Label className="text-xs">Bay Name *</Label>
+                <Input className="h-8 text-sm mt-1" placeholder="e.g. Main Workshop, Cold Store" value={bayForm.name} onChange={e => setBayForm(f => ({ ...f, name: e.target.value }))} onKeyDown={e => { if (e.key === "Enter" && bayForm.name.trim()) createBay.mutate(bayForm); }} />
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs">Description (optional)</Label>
+                <Input className="h-8 text-sm mt-1" placeholder="e.g. North end of workshop" value={bayForm.description} onChange={e => setBayForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <Button size="sm" className="h-8" disabled={!bayForm.name.trim() || createBay.isPending} onClick={() => createBay.mutate(bayForm)}>
+                {createBay.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Plus className="h-3.5 w-3.5 mr-1" />Add Bay</>}
+              </Button>
+            </div>
+          </div>
+
+          {/* Bays list */}
+          {isLoading ? (
+            <div className="py-8 text-center"><Loader2 className="h-6 w-6 animate-spin text-gray-300 mx-auto" /></div>
+          ) : bays.length === 0 ? (
+            <div className="py-8 text-center text-gray-400">
+              <QrCode className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm font-medium text-gray-500">No bays set up yet</p>
+              <p className="text-xs mt-1">Add your first bay above to start organising your parts store</p>
+            </div>
+          ) : (
+            bays.map(bay => (
+              <div key={bay.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                {/* Bay header */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <button onClick={() => toggleBay(bay.id)} className="shrink-0 text-gray-400 hover:text-gray-600">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", expandedBays.has(bay.id) ? "rotate-180" : "")} />
+                  </button>
+                  {editingBay?.id === bay.id ? (
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input className="h-7 text-sm flex-1" value={editingBay.name} onChange={e => setEditingBay(b => b ? { ...b, name: e.target.value } : b)} autoFocus />
+                      <Input className="h-7 text-sm flex-1" value={editingBay.description ?? ""} onChange={e => setEditingBay(b => b ? { ...b, description: e.target.value } : b)} placeholder="Description" />
+                      <Button size="sm" className="h-7 text-xs" onClick={() => updateBay.mutate({ id: bay.id, name: editingBay.name, description: editingBay.description ?? "" })} disabled={updateBay.isPending}>Save</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingBay(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center gap-2">
+                      <div>
+                        <span className="font-semibold text-sm text-gray-900">{bay.name}</span>
+                        {bay.description && <span className="ml-2 text-xs text-gray-400">{bay.description}</span>}
+                      </div>
+                      <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">{bay.shelfCount} shelf{bay.shelfCount !== 1 ? "ves" : ""}</span>
+                    </div>
+                  )}
+                  {editingBay?.id !== bay.id && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => { setEditingBay(bay); setExpandedBays(s => new Set([...s, bay.id])); }} className="p-1 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => deleteBay.mutate(bay.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete bay (and all its shelves)"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Shelves */}
+                {expandedBays.has(bay.id) && (
+                  <div className="p-4 space-y-3">
+                    {bay.shelves.length === 0 && (
+                      <p className="text-xs text-gray-400 italic">No shelves in this bay yet.</p>
+                    )}
+                    {bay.shelves.map(shelf => (
+                      <div key={shelf.id} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white p-3">
+                        <div className="shrink-0 bg-white rounded border border-gray-200 p-1.5">
+                          <QRCodeSVG value={`${window.location.origin}/dashboard/workshop?shelf=${shelf.qrToken}`} size={56} level="M" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {editingShelf?.id === shelf.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input className="h-7 text-sm flex-1" value={editingShelf.name} onChange={e => setEditingShelf(s => s ? { ...s, name: e.target.value } : s)} autoFocus />
+                              <Button size="sm" className="h-7 text-xs" onClick={() => updateShelf.mutate({ id: shelf.id, name: editingShelf.name })} disabled={updateShelf.isPending}>Save</Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingShelf(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm font-medium text-gray-900">{shelf.name}</p>
+                              <p className="text-xs text-gray-400 font-mono">{bay.name} / {shelf.name}</p>
+                            </>
+                          )}
+                        </div>
+                        {editingShelf?.id !== shelf.id && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => printQRLabel(`${window.location.origin}/dashboard/workshop?shelf=${shelf.qrToken}`, `${bay.name} / ${shelf.name}`, "Scan to view parts on this shelf")}
+                              className="p-1.5 text-gray-400 hover:text-primary rounded" title="Print QR label"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => setEditingShelf({ id: shelf.id, name: shelf.name })} className="p-1.5 text-gray-400 hover:text-gray-700 rounded"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => deleteShelf.mutate(shelf.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded"><Trash2 className="h-3.5 w-3.5" /></button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add shelf */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input
+                        className="h-7 text-sm flex-1"
+                        placeholder="New shelf name, e.g. Row A, Shelf 1…"
+                        value={shelfFormByBay[bay.id] ?? ""}
+                        onChange={e => setShelfFormByBay(f => ({ ...f, [bay.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === "Enter" && (shelfFormByBay[bay.id] ?? "").trim()) createShelf.mutate({ bayId: bay.id, name: shelfFormByBay[bay.id] }); }}
+                      />
+                      <Button size="sm" className="h-7 text-xs shrink-0" disabled={!(shelfFormByBay[bay.id] ?? "").trim() || createShelf.isPending} onClick={() => createShelf.mutate({ bayId: bay.id, name: shelfFormByBay[bay.id] })}>
+                        {createShelf.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Plus className="h-3 w-3 mr-1" />Add Shelf</>}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <DialogFooter className="shrink-0 pt-3 border-t">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", unitSellPricePence: "", shelfId: "", defaultSupplierId: "", notes: "" };
 
 interface PartDoc {
   id: number;
@@ -2282,7 +2495,6 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Details</p>
             {[
               { label: "Category", value: part.category },
-              { label: "Location", value: part.storageLocation },
               { label: "Unit Cost", value: part.unitCostPence ? `£${(part.unitCostPence / 100).toFixed(2)} per ${part.unit ?? "unit"}` : null },
               { label: "Sell Price", value: part.unitSellPricePence ? `£${(part.unitSellPricePence / 100).toFixed(2)} per ${part.unit ?? "unit"}` : null },
               { label: "Default Supplier", value: part.supplierName },
@@ -2293,9 +2505,40 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
                 <span className="text-gray-900 text-right">{value}</span>
               </div>
             ))}
+            {(part.bayName || part.storageLocation) && (
+              <div className="flex items-start justify-between text-sm">
+                <span className="text-gray-500 shrink-0 w-32">Location</span>
+                <span className="text-gray-900 text-right">
+                  {part.bayName ? <>{part.bayName}{part.shelfName && <> / {part.shelfName}</>}</> : part.storageLocation}
+                </span>
+              </div>
+            )}
             {part.notes && (
               <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 leading-relaxed">{part.notes}</div>
             )}
+          </div>
+
+          {/* Part QR Code */}
+          <div className="px-5 mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Part QR Code</p>
+              <button
+                className="text-xs text-primary underline underline-offset-2 hover:no-underline flex items-center gap-1"
+                onClick={() => {
+                  const qrValue = `${window.location.origin}/dashboard/workshop?part=${part.id}`;
+                  const w = window.open("", "_blank");
+                  if (!w) return;
+                  w.document.write(`<!DOCTYPE html><html><head><title>QR — ${part.name}</title><style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff}canvas,svg{width:180px!important;height:180px!important}h2{font-size:16px;margin-top:12px;text-align:center}p{font-size:11px;color:#666;margin:4px 0;text-align:center}@media print{button{display:none}}</style></head><body><div id="qr"></div><h2>${part.name}</h2>${part.productCode ? `<p>Code: ${part.productCode}</p>` : ""}<p style="font-size:9px;color:#999;margin-top:8px">${qrValue}</p><br><button onclick="window.print()">🖨 Print</button><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qr'),{text:"${qrValue}",width:180,height:180})<\/script></body></html>`);
+                  w.document.close();
+                }}
+              >
+                <Printer className="h-3.5 w-3.5" />Print Label
+              </button>
+            </div>
+            <div className="flex items-center justify-center bg-white border rounded-lg p-4">
+              <QRCodeSVG value={`${window.location.origin}/dashboard/workshop?part=${part.id}`} size={120} level="M" />
+            </div>
+            <p className="text-xs text-gray-400 text-center mt-1.5">Scan to open this part record</p>
           </div>
 
           {/* Documents */}
@@ -2412,8 +2655,11 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   const [usePart, setUsePart] = useState<Part | null>(null);
   const [useForm, setUseForm] = useState({ qty: "", jobId: "", performedBy: "", notes: "" });
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [locationManagerOpen, setLocationManagerOpen] = useState(false);
+  const [formBayId, setFormBayId] = useState<string>("");
 
   const { data: parts = [], isLoading } = useQuery<Part[]>({ queryKey: ["workshop-parts", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts`), { credentials: "include" }).then(r => r.json()) });
+  const { data: bays = [] } = useQuery<WorkshopBay[]>({ queryKey: ["workshop-bays", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/bays`), { credentials: "include" }).then(r => r.json()) });
   const { data: movements = [] } = useQuery<Movement[]>({ queryKey: ["workshop-parts-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts/movements`), { credentials: "include" }).then(r => r.json()), enabled: view === "history" });
   const { data: jobsData } = useQuery<{ jobs: { job: { id: number; jobNumber: string; title: string; status: string } }[] }>({ queryKey: ["workshop-jobs", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()) });
   const { data: suppliersData } = useQuery<any[]>({ queryKey: ["suppliers-list", farmId], queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json().then(d => Array.isArray(d) ? d : []); }) });
@@ -2426,11 +2672,11 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   const savePart = useMutation({
     mutationFn: async (body: Record<string, string>) => {
       const supplierId = body.defaultSupplierId && body.defaultSupplierId !== "__none__" ? body.defaultSupplierId : null;
-      const payload = { ...body, unitCostPence: body.unitCostPence ? Math.round(parseFloat(body.unitCostPence) * 100) : null, unitSellPricePence: body.unitSellPricePence ? Math.round(parseFloat(body.unitSellPricePence) * 100) : null, reorderLevel: body.reorderLevel || null, defaultSupplierId: supplierId };
+      const payload = { ...body, unitCostPence: body.unitCostPence ? Math.round(parseFloat(body.unitCostPence) * 100) : null, unitSellPricePence: body.unitSellPricePence ? Math.round(parseFloat(body.unitSellPricePence) * 100) : null, reorderLevel: body.reorderLevel || null, shelfId: body.shelfId || null, defaultSupplierId: supplierId };
       const url = editing ? api(`farms/${farmId}/workshop/parts/${editing.id}`) : api(`farms/${farmId}/workshop/parts`);
       return fetch(url, { method: editing ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setAddOpen(false); setEditing(null); setForm(EMPTY_PART); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setAddOpen(false); setEditing(null); setForm(EMPTY_PART); setFormBayId(""); },
   });
 
   const deletePart = useMutation({
@@ -2452,13 +2698,13 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 
   const filteredParts = parts.filter(p => {
     const q = search.toLowerCase();
-    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q);
+    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q) || (p.shelfName ?? "").toLowerCase().includes(q) || (p.bayName ?? "").toLowerCase().includes(q);
     const matchesCat = catFilter === "all" || p.category === catFilter;
     return matchesSearch && matchesCat;
   });
 
-  function openAdd() { setEditing(null); setForm(EMPTY_PART); setAddOpen(true); }
-  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); setSelectedPart(null); }
+  function openAdd() { setEditing(null); setForm(EMPTY_PART); setFormBayId(""); setAddOpen(true); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", shelfId: p.shelfId ? String(p.shelfId) : "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setFormBayId(p.bayId ? String(p.bayId) : ""); setAddOpen(true); setSelectedPart(null); }
   function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
   function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
 
@@ -2486,7 +2732,14 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             <Package className="h-3 w-3 inline-block mr-1" />Stocktake
           </button>
         </div>
-        {view === "catalogue" && <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Part</Button>}
+        {view === "catalogue" && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setLocationManagerOpen(true)}>
+              <QrCode className="h-4 w-4 mr-1" />Manage Locations
+            </Button>
+            <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Part</Button>
+          </div>
+        )}
       </div>
 
       {/* Low-stock alert banner */}
@@ -2577,7 +2830,16 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600">{p.category || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{p.storageLocation || "—"}</td>
+                      <td className="px-4 py-3">
+                        {p.bayName ? (
+                          <div className="text-xs">
+                            <p className="text-gray-700 font-medium">{p.bayName}</p>
+                            {p.shelfName && <p className="text-gray-400">{p.shelfName}</p>}
+                          </div>
+                        ) : p.storageLocation ? (
+                          <span className="text-gray-600 text-xs">{p.storageLocation}</span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={cn("font-semibold", isLow ? "text-amber-600" : "text-gray-900")}>
                           {fmtQty(p.currentQuantity, p.unit)}
@@ -2719,7 +2981,29 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
               <div><Label>Cost Price (£)</Label><Input type="number" step="0.01" min="0" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" /></div>
               <div><Label>Sell Price (£) <span className="text-xs text-muted-foreground font-normal">— external customers</span></Label><Input type="number" step="0.01" min="0" value={form.unitSellPricePence} onChange={e => setF("unitSellPricePence", e.target.value)} placeholder="0.00" /></div>
               <div><Label>Reorder Level{form.unit ? ` (${form.unit})` : ""}</Label><Input type="number" step={qtyStep(form.unit)} min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder={WHOLE_UNITS.includes((form.unit ?? "").toLowerCase()) ? "e.g. 2" : "e.g. 5.0"} /></div>
-              <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setF("storageLocation", e.target.value)} placeholder="e.g. Shelf A3, Drawer 2" /></div>
+              <div className="col-span-2">
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Storage Location <span className="text-xs text-muted-foreground font-normal">— Bay &amp; Shelf</span></Label>
+                  <button type="button" className="text-xs text-primary underline underline-offset-2 hover:no-underline" onClick={() => setLocationManagerOpen(true)}>Manage Locations</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={formBayId} onValueChange={v => { setFormBayId(v); setF("shelfId", ""); }}>
+                    <SelectTrigger><SelectValue placeholder="Select Bay…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No bay</SelectItem>
+                      {bays.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={form.shelfId} onValueChange={v => setF("shelfId", v)} disabled={!formBayId || formBayId === "__none__"}>
+                    <SelectTrigger><SelectValue placeholder="Select Shelf…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No shelf</SelectItem>
+                      {(bays.find(b => String(b.id) === formBayId)?.shelves ?? []).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {bays.length === 0 && <p className="text-xs text-gray-400 mt-1">No bays set up yet — click <em>Manage Locations</em> to create them.</p>}
+              </div>
               <div className="col-span-2">
                 <Label>Default Supplier</Label>
                 <Select value={form.defaultSupplierId || "__none__"} onValueChange={v => setF("defaultSupplierId", v === "__none__" ? "" : v)}>
@@ -2815,6 +3099,11 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Location Manager */}
+      {locationManagerOpen && (
+        <LocationManager farmId={farmId} onClose={() => { setLocationManagerOpen(false); qc.invalidateQueries({ queryKey: ["workshop-bays", farmId] }); }} />
       )}
     </div>
   );

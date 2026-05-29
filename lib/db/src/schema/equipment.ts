@@ -391,3 +391,22 @@ export const workshopLabourEntriesTable = pgTable("workshop_labour_entries", {
   performedBy: text("performed_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const workshopBaysTable = pgTable("workshop_bays", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const workshopShelvesTable = pgTable("workshop_shelves", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  bayId: integer("bay_id").notNull().references(() => workshopBaysTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  qrToken: text("qr_token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});

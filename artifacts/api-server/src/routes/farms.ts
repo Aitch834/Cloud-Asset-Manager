@@ -45,6 +45,8 @@ import {
   workshopGoodsReturnsTable,
   workshopStocktakeSessionsTable,
   workshopStocktakeItemsTable,
+  workshopBaysTable,
+  workshopShelvesTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   herdHealthEventsTable,
@@ -16667,6 +16669,10 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
       unitCostPence: stockItemsTable.unitCostPence,
       unitSellPricePence: stockItemsTable.unitSellPricePence,
       storageLocation: stockItemsTable.storageLocation,
+      shelfId: stockItemsTable.shelfId,
+      shelfName: workshopShelvesTable.name,
+      bayId: workshopBaysTable.id,
+      bayName: workshopBaysTable.name,
       defaultSupplierId: stockItemsTable.defaultSupplierId,
       supplierName: suppliersTable.name,
       notes: stockItemsTable.notes,
@@ -16675,6 +16681,8 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
     })
     .from(stockItemsTable)
     .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
+    .leftJoin(workshopShelvesTable, eq(stockItemsTable.shelfId, workshopShelvesTable.id))
+    .leftJoin(workshopBaysTable, eq(workshopShelvesTable.bayId, workshopBaysTable.id))
     .where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true)))
     .orderBy(asc(stockItemsTable.name));
 
@@ -16690,14 +16698,16 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
 router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes } = req.body;
   if (!name) { res.status(400).json({ error: "Name required" }); return; }
   const [record] = await db.insert(stockItemsTable).values({
     farmId, name, stockType: "workshop-part", category, productCode, unit,
     reorderLevel: reorderLevel ? String(reorderLevel) : null,
     unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
     unitSellPricePence: unitSellPricePence ? parseInt(unitSellPricePence) : null,
-    storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
+    storageLocation: storageLocation || null,
+    shelfId: shelfId ? parseInt(shelfId) : null,
+    defaultSupplierId: defaultSupplierId || null, notes,
   }).returning();
   res.json(record);
 });
@@ -16707,14 +16717,16 @@ router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requ
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes } = req.body;
   const [record] = await db.update(stockItemsTable)
     .set({
       name, category, productCode, unit,
       reorderLevel: reorderLevel ? String(reorderLevel) : null,
       unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
       unitSellPricePence: unitSellPricePence ? parseInt(unitSellPricePence) : null,
-      storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
+      storageLocation: storageLocation || null,
+      shelfId: shelfId ? parseInt(shelfId) : null,
+      defaultSupplierId: defaultSupplierId || null, notes,
     })
     .where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)))
     .returning();
@@ -16902,6 +16914,64 @@ router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireA
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const docId = parseInt(req.params.docId as string); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
   await db.delete(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.id, docId));
+  res.json({ success: true });
+});
+
+// ── Workshop Bays & Shelves ──────────────────────────────────
+router.get("/farms/:farmId/workshop/bays", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const bays = await db.select().from(workshopBaysTable).where(eq(workshopBaysTable.farmId, farmId)).orderBy(asc(workshopBaysTable.name));
+  const shelves = await db.select().from(workshopShelvesTable).where(eq(workshopShelvesTable.farmId, farmId)).orderBy(asc(workshopShelvesTable.name));
+  const shelfCounts = Object.fromEntries(bays.map(b => [b.id, 0]));
+  shelves.forEach(s => { if (shelfCounts[s.bayId] !== undefined) shelfCounts[s.bayId]++; });
+  res.json(bays.map(b => ({ ...b, shelfCount: shelfCounts[b.id] ?? 0, shelves: shelves.filter(s => s.bayId === b.id) })));
+});
+
+router.post("/farms/:farmId/workshop/bays", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { name, description } = req.body;
+  if (!name) { res.status(400).json({ error: "Name required" }); return; }
+  const [record] = await db.insert(workshopBaysTable).values({ farmId, name, description: description || null }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/workshop/bays/:bayId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const bayId = parseInt(req.params.bayId as string); if (isNaN(bayId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { name, description } = req.body;
+  const [record] = await db.update(workshopBaysTable).set({ name, description: description || null }).where(and(eq(workshopBaysTable.id, bayId), eq(workshopBaysTable.farmId, farmId))).returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/workshop/bays/:bayId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const bayId = parseInt(req.params.bayId as string); if (isNaN(bayId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(workshopBaysTable).where(and(eq(workshopBaysTable.id, bayId), eq(workshopBaysTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/workshop/bays/:bayId/shelves", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const bayId = parseInt(req.params.bayId as string); if (isNaN(bayId)) { res.status(400).json({ error: "Invalid bay ID" }); return; }
+  const { name } = req.body;
+  if (!name) { res.status(400).json({ error: "Name required" }); return; }
+  const qrToken = crypto.randomUUID();
+  const [record] = await db.insert(workshopShelvesTable).values({ farmId, bayId, name, qrToken }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/workshop/shelves/:shelfId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const shelfId = parseInt(req.params.shelfId as string); if (isNaN(shelfId)) { res.status(400).json({ error: "Invalid shelf ID" }); return; }
+  const { name } = req.body;
+  const [record] = await db.update(workshopShelvesTable).set({ name }).where(and(eq(workshopShelvesTable.id, shelfId), eq(workshopShelvesTable.farmId, farmId))).returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/workshop/shelves/:shelfId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const shelfId = parseInt(req.params.shelfId as string); if (isNaN(shelfId)) { res.status(400).json({ error: "Invalid shelf ID" }); return; }
+  await db.delete(workshopShelvesTable).where(and(eq(workshopShelvesTable.id, shelfId), eq(workshopShelvesTable.farmId, farmId)));
   res.json({ success: true });
 });
 

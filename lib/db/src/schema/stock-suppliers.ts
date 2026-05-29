@@ -41,6 +41,7 @@ export const stockItemsTable = pgTable("stock_items", {
   unitCostPence: integer("unit_cost_pence"),
   unitSellPricePence: integer("unit_sell_price_pence"),
   storageLocation: text("storage_location"),
+  shelfId: integer("shelf_id"),
   defaultSupplierId: integer("default_supplier_id").references(() => suppliersTable.id),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
