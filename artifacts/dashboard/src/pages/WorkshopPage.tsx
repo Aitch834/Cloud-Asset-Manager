@@ -21,7 +21,7 @@ import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
 import { printProReport } from "@/lib/print-report";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ComposedChart, LabelList } from "recharts";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 
@@ -3299,87 +3299,174 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 const WS_PIE_COLOURS = ["#f59e0b","#16a34a","#ef4444","#8b5cf6","#3b82f6","#14b8a6"];
 
 function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.record?.name ?? "BDE Farm";
+
   const jobsQ = useQuery({
     queryKey: ["workshop-jobs", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
     select: (d: any) => (d.jobs ?? []).map((j: any) => ({ ...j.job, equipmentName: j.equipmentName, assetNumber: j.assetNumber, customerName: j.customerName })),
   });
-  const equipQ = useQuery({
-    queryKey: ["equipment", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d: any) => d.records ?? [],
-  });
+
   const allJobs: any[] = jobsQ.data ?? [];
-  const equipment: any[] = equipQ.data ?? [];
-  const equipMap = useMemo(() => new Map(equipment.map((e: any) => [e.id, e.name ?? assetNumber(e)])), [equipment]);
 
-  const availableYears = useMemo(() => {
-    const ys = new Set<number>();
-    allJobs.forEach((j: any) => {
-      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
-      if (ds) ys.add(new Date(ds).getFullYear());
-    });
-    return [...ys].sort((a, b) => b - a);
-  }, [allJobs]);
-
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
+  type Period = "week" | "month" | "last-month" | "quarter" | "year" | "all";
+  const PERIODS: { key: Period; label: string }[] = [
+    { key: "week", label: "This Week" },
+    { key: "month", label: "This Month" },
+    { key: "last-month", label: "Last Month" },
+    { key: "quarter", label: "This Quarter" },
+    { key: "year", label: "This Year" },
+    { key: "all", label: "All Time" },
+  ];
+  const [period, setPeriod] = useState<Period>("month");
 
   const jobs: any[] = useMemo(() => {
-    if (selectedYear === "all") return allJobs;
+    if (period === "all") return allJobs;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let start: Date;
+    let end: Date = now;
+    if (period === "week") {
+      const dow = today.getDay();
+      start = new Date(today);
+      start.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    } else if (period === "month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === "last-month") {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    } else if (period === "quarter") {
+      const q = Math.floor(now.getMonth() / 3);
+      start = new Date(now.getFullYear(), q * 3, 1);
+    } else {
+      start = new Date(now.getFullYear(), 0, 1);
+    }
     return allJobs.filter((j: any) => {
       const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
-      return ds ? new Date(ds).getFullYear() === selectedYear : false;
+      if (!ds) return false;
+      const d = new Date(ds);
+      return d >= start && d <= end;
     });
-  }, [allJobs, selectedYear]);
+  }, [allJobs, period]);
 
-  const equipCostMap = useMemo(() => {
-    const m = new Map<number, { name: string; labour: number; parts: number }>();
+  const wipValue = useMemo(() => allJobs.filter((j: any) => ["open", "in-progress"].includes(j.status)).reduce((s: number, j: any) => s + (j.labourCostPence ?? 0) + (j.partsCostPence ?? 0), 0) / 100, [allJobs]);
+  const awaitingPartsCount = useMemo(() => allJobs.filter((j: any) => j.status === "awaiting-parts").length, [allJobs]);
+
+  const totalLabour = useMemo(() => jobs.reduce((s: number, j: any) => s + (j.labourCostPence ?? 0), 0) / 100, [jobs]);
+  const totalParts = useMemo(() => jobs.reduce((s: number, j: any) => s + (j.partsCostPence ?? 0), 0) / 100, [jobs]);
+  const totalCost = totalLabour + totalParts;
+  const totalHours = useMemo(() => jobs.reduce((s: number, j: any) => s + (j.labourHours ?? 0), 0), [jobs]);
+  const completedCount = useMemo(() => jobs.filter((j: any) => j.status === "completed").length, [jobs]);
+
+  const chargeableJobs = useMemo(() => jobs.filter((j: any) => j.customerId), [jobs]);
+  const ownHoldingJobs = useMemo(() => jobs.filter((j: any) => !j.customerId), [jobs]);
+  const chargeableCost = chargeableJobs.reduce((s: number, j: any) => s + (j.labourCostPence ?? 0) + (j.partsCostPence ?? 0), 0) / 100;
+  const ownHoldingCost = ownHoldingJobs.reduce((s: number, j: any) => s + (j.labourCostPence ?? 0) + (j.partsCostPence ?? 0), 0) / 100;
+  const chargeableHours = chargeableJobs.reduce((s: number, j: any) => s + (j.labourHours ?? 0), 0);
+  const ownHoldingHours = ownHoldingJobs.reduce((s: number, j: any) => s + (j.labourHours ?? 0), 0);
+
+  const staffData = useMemo(() => {
+    const m = new Map<string, { hours: number; jobs: number; cost: number }>();
     jobs.forEach((j: any) => {
-      if (!j.equipmentId) return;
-      const name = equipMap.get(j.equipmentId) ?? `Asset #${j.equipmentId}`;
-      if (!m.has(j.equipmentId)) m.set(j.equipmentId, { name, labour: 0, parts: 0 });
-      const b = m.get(j.equipmentId)!;
+      const name = j.assignedTo?.trim() || "Unassigned";
+      if (!m.has(name)) m.set(name, { hours: 0, jobs: 0, cost: 0 });
+      const b = m.get(name)!;
+      b.hours += j.labourHours ?? 0;
+      b.jobs++;
+      b.cost += (j.labourCostPence ?? 0) / 100;
+    });
+    return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.hours - a.hours);
+  }, [jobs]);
+
+  const costByEquip = useMemo(() => {
+    const m = new Map<string, { name: string; labour: number; parts: number }>();
+    jobs.forEach((j: any) => {
+      const name = j.equipmentName ?? (j.assetNumber ? `Asset ${j.assetNumber}` : j.equipmentId ? `Asset #${j.equipmentId}` : "No Asset");
+      const key = String(j.equipmentId ?? name);
+      if (!m.has(key)) m.set(key, { name, labour: 0, parts: 0 });
+      const b = m.get(key)!;
       b.labour += (j.labourCostPence ?? 0) / 100;
       b.parts += (j.partsCostPence ?? 0) / 100;
     });
-    return m;
-  }, [jobs, equipMap]);
+    return [...m.values()].map(e => ({ ...e, total: e.labour + e.parts, labour: parseFloat(e.labour.toFixed(2)), parts: parseFloat(e.parts.toFixed(2)) })).sort((a, b) => b.total - a.total).slice(0, 12);
+  }, [jobs]);
 
-  const costByEquip = [...equipCostMap.values()].map(e => ({ ...e, total: e.labour + e.parts, labour: parseFloat(e.labour.toFixed(2)), parts: parseFloat(e.parts.toFixed(2)) })).sort((a, b) => b.total - a.total).slice(0, 12);
-
-  const monthMap = useMemo(() => {
-    const m = new Map<string, { label: string; total: number; count: number }>();
-    jobs.forEach((j: any) => {
-      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt;
+  const monthlyData = useMemo(() => {
+    const m = new Map<string, { label: string; spend: number; count: number; hours: number }>();
+    allJobs.forEach((j: any) => {
+      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
       if (!ds) return;
       const d = new Date(ds);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-      if (!m.has(key)) m.set(key, { label, total: 0, count: 0 });
+      if (!m.has(key)) m.set(key, { label, spend: 0, count: 0, hours: 0 });
       const b = m.get(key)!;
-      b.total += ((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100;
+      b.spend += ((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100;
       b.count++;
+      b.hours += j.labourHours ?? 0;
     });
-    return m;
-  }, [jobs]);
-  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, total: parseFloat(v.total.toFixed(2)) }));
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-18).map(([, v]) => ({ ...v, spend: parseFloat(v.spend.toFixed(2)) }));
+  }, [allJobs]);
 
-  const statusMap = useMemo(() => {
+  const statusData = useMemo(() => {
     const m = new Map<string, number>();
     jobs.forEach((j: any) => { const s = j.status ?? "unknown"; m.set(s, (m.get(s) ?? 0) + 1); });
-    return m;
+    return [...m.entries()].map(([name, value]) => ({ name: JOB_STATUS[name]?.label ?? name, value }));
   }, [jobs]);
-  const statusData = [...statusMap.entries()].map(([name, value]) => ({ name: JOB_STATUS[name]?.label ?? name, value }));
 
-  const totalLabour = jobs.reduce((s: number, j: any) => s + (j.labourCostPence ?? 0), 0) / 100;
-  const totalParts = jobs.reduce((s: number, j: any) => s + (j.partsCostPence ?? 0), 0) / 100;
-  const totalCost = totalLabour + totalParts;
   const splitData = [{ name: "Labour", value: parseFloat(totalLabour.toFixed(2)) }, { name: "Parts", value: parseFloat(totalParts.toFixed(2)) }];
+  const fmt = (v: number) => `\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const periodLabel = PERIODS.find(p => p.key === period)?.label ?? "";
 
-  if (jobsQ.isLoading) return <div className="py-16 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading workshop data…</div>;
+  function printReport() {
+    const completed = jobs.filter((j: any) => j.status === "completed");
+    const ts = "border:1px solid #ddd;padding:6px 8px;";
+    const th = "border:1px solid #ddd;padding:6px 8px;background:#f5f5f5;font-weight:600;text-align:left";
+    const tr = "border:1px solid #ddd;padding:6px 8px;text-align:right";
+    const staffRows = staffData.map(s => `<tr><td style="${ts}">${s.name}</td><td style="${tr}">${s.hours}</td><td style="${tr}">${s.jobs}</td><td style="${tr}">${fmt(s.cost)}</td></tr>`).join("");
+    const assetRows = costByEquip.map(e => `<tr><td style="${ts}">${e.name}</td><td style="${tr}">${fmt(e.labour)}</td><td style="${tr}">${fmt(e.parts)}</td><td style="${tr}">${fmt(e.labour + e.parts)}</td></tr>`).join("");
+    const jobRows = completed.map((j: any) => `<tr><td style="${ts}">${j.jobNumber ?? "\u2014"}</td><td style="${ts}">${j.description ?? "\u2014"}</td><td style="${ts}">${j.equipmentName ?? "\u2014"}</td><td style="${ts}">${j.customerName ?? "Own Holding"}</td><td style="${tr}">${j.labourHours ?? 0}</td><td style="${tr}">${fmt((j.labourCostPence ?? 0) / 100)}</td><td style="${tr}">${fmt((j.partsCostPence ?? 0) / 100)}</td><td style="${tr}">${fmt(((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100)}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Workshop Report</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:32px;color:#1a1a1a;font-size:13px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:#666;font-size:13px;margin-bottom:24px;padding-bottom:10px;border-bottom:2px solid #f59e0b}
+h2{font-size:14px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #f59e0b;color:#78350f}
+table{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:4px}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
+.kpi{border:1px solid #ddd;border-radius:6px;padding:10px 14px}
+.kl{font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.05em;margin-bottom:3px}
+.kv{font-size:20px;font-weight:700}.ks{font-size:11px;color:#666;margin-top:2px}
+@media print{.no-print{display:none!important}}
+</style></head><body>
+<h1>Workshop Management Report</h1>
+<div class="sub">${farmName} &nbsp;|&nbsp; ${periodLabel} &nbsp;|&nbsp; Printed ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</div>
+<h2>Summary</h2>
+<div class="kpi-grid">
+<div class="kpi"><div class="kl">Jobs in Period</div><div class="kv">${jobs.length}</div><div class="ks">${completedCount} completed \u00b7 ${awaitingPartsCount} awaiting parts</div></div>
+<div class="kpi"><div class="kl">Labour Hours</div><div class="kv">${totalHours} hrs</div><div class="ks">${chargeableHours} chargeable \u00b7 ${ownHoldingHours} own holding</div></div>
+<div class="kpi"><div class="kl">Total Spend</div><div class="kv">${fmt(totalCost)}</div><div class="ks">Labour ${fmt(totalLabour)} \u00b7 Parts ${fmt(totalParts)}</div></div>
+<div class="kpi"><div class="kl">Chargeable Revenue</div><div class="kv">${fmt(chargeableCost)}</div><div class="ks">${chargeableJobs.length} jobs \u00b7 ${chargeableHours} hrs</div></div>
+<div class="kpi"><div class="kl">Own Holding Cost</div><div class="kv">${fmt(ownHoldingCost)}</div><div class="ks">${ownHoldingJobs.length} jobs \u00b7 ${ownHoldingHours} hrs</div></div>
+<div class="kpi"><div class="kl">WIP Value (Live)</div><div class="kv">${fmt(wipValue)}</div><div class="ks">Open &amp; in-progress jobs</div></div>
+</div>
+${staffData.length > 0 ? `<h2>Hours by Staff Member</h2><table><thead><tr><th style="${th}">Staff Member</th><th style="${th}">Hours</th><th style="${th}">Jobs</th><th style="${th}">Labour Cost</th></tr></thead><tbody>${staffRows}</tbody></table>` : ""}
+${costByEquip.length > 0 ? `<h2>Cost by Asset / Machine</h2><table><thead><tr><th style="${th}">Asset</th><th style="${th}">Labour</th><th style="${th}">Parts</th><th style="${th}">Total</th></tr></thead><tbody>${assetRows}</tbody></table>` : ""}
+${completed.length > 0 ? `<h2>Completed Jobs (${completed.length})</h2><table><thead><tr><th style="${th}">Job No.</th><th style="${th}">Description</th><th style="${th}">Asset</th><th style="${th}">Customer / Type</th><th style="${th}">Hours</th><th style="${th}">Labour</th><th style="${th}">Parts</th><th style="${th}">Total</th></tr></thead><tbody>${jobRows}</tbody></table>` : ""}
+<p style="font-size:10px;color:#bbb;margin-top:32px;text-align:center">BDE Farm Trac \u00b7 Workshop Module</p>
+<div class="no-print" style="position:fixed;bottom:20px;right:20px"><button onclick="window.print()" style="padding:9px 20px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)">Print / Save PDF</button></div>
+</body></html>`);
+    w.document.close();
+  }
+
+  if (jobsQ.isLoading) return <div className="py-16 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading workshop data\u2026</div>;
 
   if (allJobs.length === 0) return (
     <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
@@ -3391,77 +3478,105 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
-      {/* Year filter */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Year</span>
-        {availableYears.map(y => (
-          <button key={y} onClick={() => setSelectedYear(y)}
-            style={{ padding: "4px 14px", borderRadius: 20, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.12s",
-              background: selectedYear === y ? "#f59e0b" : "#fff",
-              color: selectedYear === y ? "#fff" : "#374151",
-              borderColor: selectedYear === y ? "#f59e0b" : "#e5e7eb" }}>
-            {y}
-          </button>
-        ))}
-        <button onClick={() => setSelectedYear("all")}
-          style={{ padding: "4px 14px", borderRadius: 20, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.12s",
-            background: selectedYear === "all" ? "#6b7280" : "#fff",
-            color: selectedYear === "all" ? "#fff" : "#374151",
-            borderColor: selectedYear === "all" ? "#6b7280" : "#e5e7eb" }}>
-          All years
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Period</span>
+          {PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={cn("px-3 py-1 rounded-full text-xs font-semibold border transition-colors", period === p.key ? "bg-amber-500 text-white border-amber-500" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={printReport} className="flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50 hover:border-gray-300 transition-colors">
+          <Printer className="h-3.5 w-3.5" />Management Report
         </button>
-        {selectedYear !== "all" && jobs.length === 0 && (
-          <span className="text-xs text-gray-400 ml-2">No jobs in {selectedYear}</span>
-        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Job Cost</p>
-          <p className="text-2xl font-bold text-amber-700">£{totalCost.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-bold text-amber-700">{fmt(totalCost)}</p>
+          <p className="text-xs text-gray-500 mt-1">Labour {fmt(totalLabour)} \u00b7 Parts {fmt(totalParts)}</p>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Labour Cost</p>
-          <p className="text-2xl font-bold text-blue-700">£{totalLabour.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Labour Hours</p>
+          <p className="text-2xl font-bold text-blue-700">{totalHours} <span className="text-sm font-normal text-blue-400">hrs</span></p>
+          <p className="text-xs text-gray-500 mt-1">{chargeableHours} chargeable \u00b7 {ownHoldingHours} own</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Jobs Completed</p>
+          <p className="text-2xl font-bold text-green-700">{completedCount}</p>
+          <p className="text-xs text-gray-500 mt-1">of {jobs.length} in period</p>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Parts Cost</p>
-          <p className="text-2xl font-bold text-purple-700">£{totalParts.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">WIP / Open Value</p>
+          <p className="text-2xl font-bold text-purple-700">{fmt(wipValue)}</p>
+          {awaitingPartsCount > 0 && <p className="text-xs text-orange-500 font-medium mt-1">{awaitingPartsCount} awaiting parts</p>}
         </div>
       </div>
 
-      {costByEquip.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Cost by Asset / Machine (£)</p>
-          <ResponsiveContainer width="100%" height={Math.max(200, costByEquip.length * 36)}>
-            <BarChart data={costByEquip} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-              <XAxis type="number" tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
-              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
-              <Legend />
-              <Bar dataKey="labour" stackId="a" fill="#3b82f6" name="Labour" />
-              <Bar dataKey="parts" stackId="a" fill="#8b5cf6" name="Parts" radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-4">Chargeable vs Own Holding \u2014 {periodLabel}</p>
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <p className="text-xs text-gray-400 uppercase font-medium mb-2.5">By Cost</p>
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <p className="text-xs text-orange-600 font-semibold">Chargeable</p>
+                <p className="text-lg font-bold text-orange-700 mt-1">{fmt(chargeableCost)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{chargeableJobs.length} job{chargeableJobs.length !== 1 ? "s" : ""}</p>
+              </div>
+              <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs text-gray-600 font-semibold">Own Holding</p>
+                <p className="text-lg font-bold text-gray-700 mt-1">{fmt(ownHoldingCost)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{ownHoldingJobs.length} job{ownHoldingJobs.length !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase font-medium mb-2.5">By Hours</p>
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <p className="text-xs text-orange-600 font-semibold">Chargeable</p>
+                <p className="text-lg font-bold text-orange-700 mt-1">{chargeableHours} <span className="text-sm font-normal">hrs</span></p>
+                <p className="text-xs text-gray-400 mt-0.5">{totalHours > 0 ? Math.round(chargeableHours / totalHours * 100) : 0}% of total</p>
+              </div>
+              <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs text-gray-600 font-semibold">Own Holding</p>
+                <p className="text-lg font-bold text-gray-700 mt-1">{ownHoldingHours} <span className="text-sm font-normal">hrs</span></p>
+                <p className="text-xs text-gray-400 mt-0.5">{totalHours > 0 ? Math.round(ownHoldingHours / totalHours * 100) : 0}% of total</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Labour vs Parts Split</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={splitData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
-                <Cell fill="#3b82f6" />
-                <Cell fill="#8b5cf6" />
-              </Pie>
-              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
-              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 12 }}>{n}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
+        {staffData.length > 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Hours by Staff Member</p>
+            {staffData.every(s => s.hours === 0) ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No hours recorded for this period</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(140, staffData.length * 38)}>
+                <BarChart data={staffData} layout="vertical" margin={{ top: 2, right: 48, left: 0, bottom: 2 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v}h`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip formatter={(v: number) => [`${v} hrs`, "Hours"]} />
+                  <Bar dataKey="hours" fill="#3b82f6" radius={[0, 3, 3, 0]}>
+                    <LabelList dataKey="hours" position="right" style={{ fontSize: 11, fill: "#374151" }} formatter={(v: number) => v > 0 ? `${v}h` : ""} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl p-5 flex items-center justify-center">
+            <p className="text-sm text-gray-400">No staff assigned to jobs in this period</p>
+          </div>
+        )}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <p className="text-sm font-semibold text-gray-700 mb-4">Jobs by Status</p>
           <ResponsiveContainer width="100%" height={220}>
@@ -3476,17 +3591,55 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
         </div>
       </div>
 
-      {monthData.length > 0 && (
+      {costByEquip.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Job Spend (£)</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+          <p className="text-sm font-semibold text-gray-700 mb-4">Cost by Asset / Machine (\u00a3)</p>
+          <ResponsiveContainer width="100%" height={Math.max(200, costByEquip.length * 36)}>
+            <BarChart data={costByEquip} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tickFormatter={(v: number) => `\u00a3${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
+              <Tooltip formatter={(v: number) => [`\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+              <Legend />
+              <Bar dataKey="labour" stackId="a" fill="#3b82f6" name="Labour" />
+              <Bar dataKey="parts" stackId="a" fill="#8b5cf6" name="Parts" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {monthlyData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-1">Monthly Trend <span className="text-xs font-normal text-gray-400">(all time \u00b7 last 18 months)</span></p>
+          <p className="text-xs text-gray-400 mb-4">Spend (bars) \u00b7 Jobs (green line) \u00b7 Hours (blue dashed)</p>
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={monthlyData} margin={{ top: 4, right: 36, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} width={60} />
-              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Cost"]} />
-              <Line type="monotone" dataKey="total" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: "#f59e0b" }} />
-            </LineChart>
+              <YAxis yAxisId="left" tickFormatter={(v: number) => `\u00a3${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: number, n: string) => [n === "spend" ? `\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : n === "hours" ? `${v} hrs` : String(v), n === "spend" ? "Spend" : n === "count" ? "Jobs" : "Hours"]} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="spend" fill="#f59e0b" name="Spend (\u00a3)" radius={[2, 2, 0, 0]} opacity={0.85} />
+              <Line yAxisId="right" type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} name="Jobs" />
+              <Line yAxisId="right" type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={2} strokeDasharray="4 2" dot={{ r: 3, fill: "#3b82f6" }} name="Hours" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {totalCost > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 md:max-w-xs">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Labour vs Parts Split</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={splitData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={80} label={false}>
+                <Cell fill="#3b82f6" />
+                <Cell fill="#8b5cf6" />
+              </Pie>
+              <Tooltip formatter={(v: number) => [`\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 12 }}>{n}</span>} />
+            </PieChart>
           </ResponsiveContainer>
         </div>
       )}
