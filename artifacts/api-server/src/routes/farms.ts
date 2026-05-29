@@ -357,7 +357,7 @@ import {
   ipmMonitoringLogsTable,
   lerapAssessmentsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne, alias } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
@@ -16658,7 +16658,6 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceI
 router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const supersedingPart = alias(stockItemsTable, "superseding_part");
   const parts = await db
     .select({
       id: stockItemsTable.id,
@@ -16685,15 +16684,14 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
       supersededById: stockItemsTable.supersededById,
       supersessionNotes: stockItemsTable.supersessionNotes,
       supersededAt: stockItemsTable.supersededAt,
-      supersededByName: supersedingPart.name,
-      supersededByProductCode: supersedingPart.productCode,
+      supersededByName: sql<string | null>`(SELECT name FROM stock_items WHERE id = ${stockItemsTable.supersededById})`,
+      supersededByProductCode: sql<string | null>`(SELECT product_code FROM stock_items WHERE id = ${stockItemsTable.supersededById})`,
     })
     .from(stockItemsTable)
     .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
     .leftJoin(workshopShelvesTable, eq(stockItemsTable.shelfId, workshopShelvesTable.id))
     .leftJoin(workshopBaysTable, eq(workshopShelvesTable.bayId, workshopBaysTable.id))
     .leftJoin(workshopRowsTable, eq(workshopBaysTable.rowId, workshopRowsTable.id))
-    .leftJoin(supersedingPart, eq(stockItemsTable.supersededById, supersedingPart.id))
     .where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true)))
     .orderBy(asc(stockItemsTable.name));
 

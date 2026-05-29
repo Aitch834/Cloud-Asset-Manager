@@ -2615,10 +2615,10 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
                     <p className="text-xs font-semibold text-amber-800">This part has been superseded</p>
                     {part.supersededByName && (
                       <p className="text-xs text-amber-700 mt-0.5">
-                        Replaced by: <button className="font-medium underline underline-offset-2 hover:no-underline" onClick={() => { const rep = parts.find(x => x.id === part.supersededById); if (rep) setSelectedPart(rep); }}>{part.supersededByName}{part.supersededByProductCode && <span className="ml-1 font-mono font-normal">{part.supersededByProductCode}</span>}</button>
+                        Replaced by: <span className="font-medium">{part.supersededByName}{part.supersededByProductCode && <span className="ml-1 font-mono font-normal text-amber-600">{part.supersededByProductCode}</span>}</span>
                       </p>
                     )}
-                    {part.supersededAt && <p className="text-xs text-amber-600 mt-0.5">Effective: {fmtDate(part.supersededAt)}</p>}
+                    {part.supersededAt && <p className="text-xs text-amber-600 mt-0.5">Effective: {new Date(part.supersededAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>}
                     {part.supersessionNotes && <p className="text-xs text-amber-700 mt-1 italic">{part.supersessionNotes}</p>}
                   </div>
                 </div>
