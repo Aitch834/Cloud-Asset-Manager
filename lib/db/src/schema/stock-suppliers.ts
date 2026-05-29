@@ -47,6 +47,9 @@ export const stockItemsTable = pgTable("stock_items", {
   isActive: boolean("is_active").notNull().default(true),
   approvalRequired: boolean("approval_required").notNull().default(false),
   approverId: integer("approver_id"),
+  supersededById: integer("superseded_by_id"),
+  supersessionNotes: text("supersession_notes"),
+  supersededAt: date("superseded_at"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

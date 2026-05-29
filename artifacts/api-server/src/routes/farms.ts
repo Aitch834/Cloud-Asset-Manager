@@ -357,7 +357,7 @@ import {
   ipmMonitoringLogsTable,
   lerapAssessmentsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne, alias } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
@@ -16658,6 +16658,7 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceI
 router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  const supersedingPart = alias(stockItemsTable, "superseding_part");
   const parts = await db
     .select({
       id: stockItemsTable.id,
@@ -16681,12 +16682,18 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
       notes: stockItemsTable.notes,
       isActive: stockItemsTable.isActive,
       createdAt: stockItemsTable.createdAt,
+      supersededById: stockItemsTable.supersededById,
+      supersessionNotes: stockItemsTable.supersessionNotes,
+      supersededAt: stockItemsTable.supersededAt,
+      supersededByName: supersedingPart.name,
+      supersededByProductCode: supersedingPart.productCode,
     })
     .from(stockItemsTable)
     .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
     .leftJoin(workshopShelvesTable, eq(stockItemsTable.shelfId, workshopShelvesTable.id))
     .leftJoin(workshopBaysTable, eq(workshopShelvesTable.bayId, workshopBaysTable.id))
     .leftJoin(workshopRowsTable, eq(workshopBaysTable.rowId, workshopRowsTable.id))
+    .leftJoin(supersedingPart, eq(stockItemsTable.supersededById, supersedingPart.id))
     .where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true)))
     .orderBy(asc(stockItemsTable.name));
 
@@ -16702,7 +16709,7 @@ router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireM
 router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes, supersedesId } = req.body;
   if (!name) { res.status(400).json({ error: "Name required" }); return; }
   const [record] = await db.insert(stockItemsTable).values({
     farmId, name, stockType: "workshop-part", category, productCode, unit,
@@ -16713,6 +16720,12 @@ router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, require
     shelfId: shelfId ? parseInt(shelfId) : null,
     defaultSupplierId: defaultSupplierId || null, notes,
   }).returning();
+  if (supersedesId) {
+    const oldId = parseInt(supersedesId);
+    if (!isNaN(oldId)) {
+      await db.update(stockItemsTable).set({ supersededById: record.id, supersededAt: new Date().toISOString().slice(0, 10) }).where(and(eq(stockItemsTable.id, oldId), eq(stockItemsTable.farmId, farmId)));
+    }
+  }
   res.json(record);
 });
 
@@ -16721,7 +16734,7 @@ router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requ
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes } = req.body;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, unitSellPricePence, storageLocation, shelfId, defaultSupplierId, notes, supersededById, supersessionNotes, supersededAt } = req.body;
   const [record] = await db.update(stockItemsTable)
     .set({
       name, category, productCode, unit,
@@ -16731,6 +16744,9 @@ router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requ
       storageLocation: storageLocation || null,
       shelfId: shelfId ? parseInt(shelfId) : null,
       defaultSupplierId: defaultSupplierId || null, notes,
+      supersededById: supersededById ? parseInt(supersededById) : null,
+      supersessionNotes: supersessionNotes || null,
+      supersededAt: supersededAt || null,
     })
     .where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)))
     .returning();

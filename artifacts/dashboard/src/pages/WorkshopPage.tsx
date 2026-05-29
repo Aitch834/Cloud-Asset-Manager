@@ -1815,6 +1815,8 @@ interface Part {
   storageLocation: string | null; shelfId: number | null; shelfName: string | null; bayId: number | null; bayName: string | null; rowId: number | null; rowName: string | null;
   defaultSupplierId: number | null; supplierName: string | null;
   notes: string | null; currentQuantity: string;
+  supersededById: number | null; supersessionNotes: string | null; supersededAt: string | null;
+  supersededByName: string | null; supersededByProductCode: string | null;
 }
 
 interface Movement {
@@ -2459,7 +2461,7 @@ function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => v
   );
 }
 
-const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", unitSellPricePence: "", shelfId: "", defaultSupplierId: "", notes: "" };
+const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", unitSellPricePence: "", shelfId: "", defaultSupplierId: "", notes: "", supersededById: "", supersessionNotes: "", supersededAt: "", supersedesId: "" };
 
 interface PartDoc {
   id: number;
@@ -2605,6 +2607,23 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
             {part.notes && (
               <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 leading-relaxed">{part.notes}</div>
             )}
+            {part.supersededById && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800">This part has been superseded</p>
+                    {part.supersededByName && (
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Replaced by: <button className="font-medium underline underline-offset-2 hover:no-underline" onClick={() => { const rep = parts.find(x => x.id === part.supersededById); if (rep) setSelectedPart(rep); }}>{part.supersededByName}{part.supersededByProductCode && <span className="ml-1 font-mono font-normal">{part.supersededByProductCode}</span>}</button>
+                      </p>
+                    )}
+                    {part.supersededAt && <p className="text-xs text-amber-600 mt-0.5">Effective: {fmtDate(part.supersededAt)}</p>}
+                    {part.supersessionNotes && <p className="text-xs text-amber-700 mt-1 italic">{part.supersessionNotes}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Part QR Code */}
@@ -2733,6 +2752,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<"catalogue" | "history" | "returns" | "stocktake">("catalogue");
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
+  const [showSuperseded, setShowSuperseded] = useState(false);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Part | null>(null);
@@ -2789,15 +2809,17 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 
   const lowStock = parts.filter(p => p.reorderLevel && parseFloat(p.currentQuantity) <= parseFloat(p.reorderLevel));
 
+  const supersededCount = parts.filter(p => p.supersededById).length;
   const filteredParts = parts.filter(p => {
     const q = search.toLowerCase();
     const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q) || (p.shelfName ?? "").toLowerCase().includes(q) || (p.bayName ?? "").toLowerCase().includes(q) || (p.rowName ?? "").toLowerCase().includes(q);
     const matchesCat = catFilter === "all" || p.category === catFilter;
-    return matchesSearch && matchesCat;
+    const matchesSuperseded = showSuperseded || !p.supersededById;
+    return matchesSearch && matchesCat && matchesSuperseded;
   });
 
   function openAdd() { setEditing(null); setForm(EMPTY_PART); setFormBayId(""); setFormRowId(""); setAddOpen(true); }
-  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", shelfId: p.shelfId ? String(p.shelfId) : "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setFormRowId(p.rowId ? String(p.rowId) : ""); setFormBayId(p.bayId ? String(p.bayId) : ""); setAddOpen(true); setSelectedPart(null); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", unitSellPricePence: p.unitSellPricePence ? (p.unitSellPricePence / 100).toFixed(2) : "", shelfId: p.shelfId ? String(p.shelfId) : "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "", supersededById: p.supersededById ? String(p.supersededById) : "", supersessionNotes: p.supersessionNotes ?? "", supersededAt: p.supersededAt ?? "", supersedesId: "" }); setFormRowId(p.rowId ? String(p.rowId) : ""); setFormBayId(p.bayId ? String(p.bayId) : ""); setAddOpen(true); setSelectedPart(null); }
   function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
   function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
 
@@ -2868,7 +2890,16 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             <option value="all">All categories</option>
             {PART_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          {(search || catFilter !== "all") && (
+          {supersededCount > 0 && (
+            <button
+              onClick={() => setShowSuperseded(v => !v)}
+              className={cn("h-8 text-xs px-2.5 rounded-md border flex items-center gap-1.5 whitespace-nowrap", showSuperseded ? "bg-amber-50 border-amber-200 text-amber-700" : "border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300")}
+            >
+              <History className="h-3.5 w-3.5" />
+              {showSuperseded ? "Hiding superseded" : `${supersededCount} superseded`}
+            </button>
+          )}
+          {(search || catFilter !== "all" || showSuperseded) && (
             <span className="text-xs text-gray-400">{filteredParts.length} of {parts.length} part{parts.length !== 1 ? "s" : ""}</span>
           )}
         </div>
@@ -2907,17 +2938,24 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                   const reorder = p.reorderLevel ? parseFloat(p.reorderLevel) : null;
                   const isLow = reorder !== null && qty <= reorder;
                   const isSelected = selectedPart?.id === p.id;
+                  const isSuperseded = !!p.supersededById;
                   return (
                     <tr
                       key={p.id}
-                      className={cn("cursor-pointer transition-colors", isSelected ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : "hover:bg-gray-50/80")}
+                      className={cn("cursor-pointer transition-colors", isSelected ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : isSuperseded ? "bg-gray-50/60 hover:bg-gray-100/60 opacity-75" : "hover:bg-gray-50/80")}
                       onClick={() => setSelectedPart(isSelected ? null : p)}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <div>
-                            <p className="font-medium text-gray-900">{p.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className={cn("font-medium", isSuperseded ? "text-gray-500 line-through decoration-gray-400" : "text-gray-900")}>{p.name}</p>
+                              {isSuperseded && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">Superseded</span>}
+                            </div>
                             {p.productCode && <p className="text-xs text-gray-400 font-mono">{p.productCode}</p>}
+                            {isSuperseded && p.supersededByName && (
+                              <p className="text-xs text-primary mt-0.5">→ {p.supersededByName}{p.supersededByProductCode && <span className="text-gray-400 ml-1 font-mono">{p.supersededByProductCode}</span>}</p>
+                            )}
                           </div>
                           {isSelected && <ChevronRight className="h-3.5 w-3.5 text-primary ml-1 shrink-0" />}
                         </div>
@@ -3119,6 +3157,51 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+              {/* Supersession */}
+              <div className="col-span-2 border-t border-gray-100 pt-3 mt-1">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Supersession</p>
+                {editing ? (
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs">Superseded by <span className="text-muted-foreground font-normal">(mark this part as replaced by another)</span></Label>
+                      <Select value={form.supersededById || "__none__"} onValueChange={v => setF("supersededById", v === "__none__" ? "" : v)}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Not superseded" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not superseded</SelectItem>
+                          {parts.filter(x => x.id !== editing.id && !x.supersededById).map(x => (
+                            <SelectItem key={x.id} value={String(x.id)}>{x.name}{x.productCode && ` (${x.productCode})`}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.supersededById && form.supersededById !== "__none__" && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Effective Date</Label>
+                          <Input type="date" className="mt-1 h-8 text-sm" value={form.supersededAt} onChange={e => setF("supersededAt", e.target.value)} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Reason / Notes</Label>
+                          <Input className="mt-1 h-8 text-sm" placeholder="e.g. Updated design, Rev 2" value={form.supersessionNotes} onChange={e => setF("supersessionNotes", e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-xs">This part replaces (optional) <span className="text-muted-foreground font-normal">— marks the old part as superseded</span></Label>
+                    <Select value={form.supersedesId || "__none__"} onValueChange={v => setF("supersedesId", v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Does not replace any part" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Does not replace any part</SelectItem>
+                        {parts.filter(x => !x.supersededById).map(x => (
+                          <SelectItem key={x.id} value={String(x.id)}>{x.name}{x.productCode && ` (${x.productCode})`}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditing(null); }}>Cancel</Button>
