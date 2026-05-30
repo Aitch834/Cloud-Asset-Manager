@@ -3613,8 +3613,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
 
       {monthlyData.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-1">Monthly Trend</p>
-          <p className="text-xs text-gray-400 mb-4">Spend (bars) \u00b7 Jobs (green line) \u00b7 Hours (blue dashed)</p>
+          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Trend</p>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={monthlyData} margin={{ top: 4, right: 36, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
