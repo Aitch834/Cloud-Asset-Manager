@@ -55,11 +55,24 @@ interface EquipmentRecord {
   disposalBuyerOrContractor?: string | null;
   wasteTransferNoteRef?: string | null;
   disposalNotes?: string | null;
+  complianceCategory?: string | null;
   puwerLastAssessmentDate?: string | null;
   puwerNextReviewDate?: string | null;
   puwerAssessor?: string | null;
   puwerOutcome?: string | null;
   puwerNotes?: string | null;
+  lolerLastExamDate?: string | null;
+  lolerNextExamDate?: string | null;
+  lolerExaminer?: string | null;
+  lolerOutcome?: string | null;
+  lolerReportRef?: string | null;
+  lolerNotes?: string | null;
+  pssrLastExamDate?: string | null;
+  pssrNextExamDate?: string | null;
+  pssrExaminer?: string | null;
+  pssrWrittenSchemeRef?: string | null;
+  pssrOutcome?: string | null;
+  pssrNotes?: string | null;
   insurerName?: string | null;
   insurancePolicyRef?: string | null;
   insuranceRenewalDate?: string | null;
@@ -1221,7 +1234,7 @@ export default function EquipmentPage() {
             <TabButton active={manageTab === "service"} onClick={() => setManageTab("service")}>
               <span className="flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5" /> Service &amp; MOT History</span>
             </TabButton>
-            <TabButton active={manageTab === "compliance"} onClick={() => { setManageTab("compliance"); if (managingItem) setCompForm({ puwerLastAssessmentDate: managingItem.puwerLastAssessmentDate?.slice(0,10) ?? "", puwerNextReviewDate: managingItem.puwerNextReviewDate?.slice(0,10) ?? "", puwerAssessor: managingItem.puwerAssessor ?? "", puwerOutcome: managingItem.puwerOutcome ?? "", puwerNotes: managingItem.puwerNotes ?? "", insurerName: managingItem.insurerName ?? "", insurancePolicyRef: managingItem.insurancePolicyRef ?? "", insuranceRenewalDate: managingItem.insuranceRenewalDate?.slice(0,10) ?? "", insurancePremiumPence: managingItem.insurancePremiumPence != null ? String(managingItem.insurancePremiumPence / 100) : "", depreciationMethod: managingItem.depreciationMethod ?? "none", depreciationRatePct: managingItem.depreciationRatePct != null ? String(managingItem.depreciationRatePct) : "", purchasePricePence: managingItem.purchasePricePence != null ? String(managingItem.purchasePricePence / 100) : "", purchaseDate: managingItem.purchaseDate?.slice(0,10) ?? "" }); }}>
+            <TabButton active={manageTab === "compliance"} onClick={() => { setManageTab("compliance"); if (managingItem) setCompForm({ complianceCategory: managingItem.complianceCategory ?? "standard", puwerLastAssessmentDate: managingItem.puwerLastAssessmentDate?.slice(0,10) ?? "", puwerNextReviewDate: managingItem.puwerNextReviewDate?.slice(0,10) ?? "", puwerAssessor: managingItem.puwerAssessor ?? "", puwerOutcome: managingItem.puwerOutcome ?? "", puwerNotes: managingItem.puwerNotes ?? "", lolerLastExamDate: managingItem.lolerLastExamDate?.slice(0,10) ?? "", lolerNextExamDate: managingItem.lolerNextExamDate?.slice(0,10) ?? "", lolerExaminer: managingItem.lolerExaminer ?? "", lolerOutcome: managingItem.lolerOutcome ?? "", lolerReportRef: managingItem.lolerReportRef ?? "", lolerNotes: managingItem.lolerNotes ?? "", pssrLastExamDate: managingItem.pssrLastExamDate?.slice(0,10) ?? "", pssrNextExamDate: managingItem.pssrNextExamDate?.slice(0,10) ?? "", pssrExaminer: managingItem.pssrExaminer ?? "", pssrWrittenSchemeRef: managingItem.pssrWrittenSchemeRef ?? "", pssrOutcome: managingItem.pssrOutcome ?? "", pssrNotes: managingItem.pssrNotes ?? "", insurerName: managingItem.insurerName ?? "", insurancePolicyRef: managingItem.insurancePolicyRef ?? "", insuranceRenewalDate: managingItem.insuranceRenewalDate?.slice(0,10) ?? "", insurancePremiumPence: managingItem.insurancePremiumPence != null ? String(managingItem.insurancePremiumPence / 100) : "", depreciationMethod: managingItem.depreciationMethod ?? "none", depreciationRatePct: managingItem.depreciationRatePct != null ? String(managingItem.depreciationRatePct) : "", purchasePricePence: managingItem.purchasePricePence != null ? String(managingItem.purchasePricePence / 100) : "", purchaseDate: managingItem.purchaseDate?.slice(0,10) ?? "" }); }}>
               <span className="flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5" /> Compliance</span>
             </TabButton>
           </TabBar>
@@ -1481,7 +1494,30 @@ export default function EquipmentPage() {
           {managingItem && manageTab === "compliance" && (
             <div className="space-y-6 mt-2" style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
 
-              {/* PUWER Assessment */}
+              {/* ── Compliance Category ── */}
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 10, padding: "1rem 1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <ClipboardList size={16} style={{ color: "#0369a1" }} />
+                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#0c4a6e" }}>Equipment Compliance Classification</span>
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Category <span style={{ color: "#ef4444" }}>*</span></label>
+                  <select className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" value={compForm.complianceCategory ?? "standard"} onChange={e => setCompForm((f: any) => ({ ...f, complianceCategory: e.target.value }))}>
+                    <option value="standard">Standard Work Equipment — PUWER only</option>
+                    <option value="lifting_goods">Lifting Equipment (Goods) — PUWER + LOLER (12-month examination)</option>
+                    <option value="lifting_persons">Lifting Equipment (Persons) — PUWER + LOLER (6-month examination)</option>
+                    <option value="pressure_system">Pressure System — PUWER + PSSR</option>
+                  </select>
+                  <p style={{ fontSize: "0.72rem", color: "#0369a1", marginTop: 6 }}>
+                    {compForm.complianceCategory === "lifting_goods" && "Telehandlers, front loaders, bale grabs, pallet forks, chain hoists, grain elevators — annual LOLER thorough examination required."}
+                    {compForm.complianceCategory === "lifting_persons" && "Cherry pickers, MEWPs, vehicle lifts — 6-monthly LOLER thorough examination required by insurance engineer."}
+                    {compForm.complianceCategory === "pressure_system" && "Air compressors, grain drier LPG systems, pressure vessels — Written Scheme of Examination required; examination by specialist engineer."}
+                    {(!compForm.complianceCategory || compForm.complianceCategory === "standard") && "Tractors, combines, sprayers, drills, workshop equipment — annual PUWER assessment by a competent person (can be internal)."}
+                  </p>
+                </div>
+              </div>
+
+              {/* ── PUWER Assessment ── */}
               <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.25rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
                   <ClipboardList size={16} style={{ color: "#2563eb" }} />
@@ -1491,11 +1527,15 @@ export default function EquipmentPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Last Assessment Date</label>
-                    <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerLastAssessmentDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerLastAssessmentDate: e.target.value }))} />
+                    <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerLastAssessmentDate ?? ""} onChange={e => {
+                      const val = e.target.value;
+                      const next = val ? (() => { const d = new Date(val); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 10); })() : "";
+                      setCompForm((f: any) => ({ ...f, puwerLastAssessmentDate: val, puwerNextReviewDate: f.puwerNextReviewDate || next }));
+                    }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Next Review Date</label>
-                    <input type="date" min={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerNextReviewDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNextReviewDate: e.target.value }))} />
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Next Review Date <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 400 }}>(auto-set +12 months)</span></label>
+                    <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.puwerNextReviewDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNextReviewDate: e.target.value }))} />
                     {compForm.puwerNextReviewDate && (() => { const d = dueStatus(compForm.puwerNextReviewDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
                   </div>
                   <div>
@@ -1510,9 +1550,8 @@ export default function EquipmentPage() {
                       <option value="advisory">Advisory — Defects noted, not immediate risk</option>
                       <option value="fail">Fail — Equipment must not be used</option>
                     </select>
-                    {compForm.puwerOutcome === "fail" && (
-                      <p style={{ fontSize: "0.72rem", color: "#dc2626", marginTop: 3 }}>&#9888; Equipment must be taken out of service until defects are rectified.</p>
-                    )}
+                    {compForm.puwerOutcome === "fail" && <p style={{ fontSize: "0.72rem", color: "#dc2626", marginTop: 3 }}>&#9888; FAIL — A task and SMS alert will be sent to the farm manager on save. Equipment status will be set to Grounded.</p>}
+                    {compForm.puwerOutcome === "advisory" && <p style={{ fontSize: "0.72rem", color: "#d97706", marginTop: 3 }}>&#9888; Advisory — A task will be raised for the farm manager to review defects.</p>}
                   </div>
                 </div>
                 <div style={{ marginTop: 12 }}>
@@ -1520,9 +1559,119 @@ export default function EquipmentPage() {
                   <textarea className="w-full border border-border rounded-md px-3 py-2 text-sm" rows={3} placeholder="Defects found, actions required, guarding condition, operator training requirements..." value={compForm.puwerNotes ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, puwerNotes: e.target.value }))} />
                 </div>
                 <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 8, padding: "8px 12px", background: "#eff6ff", borderRadius: 6 }}>
-                  PUWER requires all work equipment to be maintained in an efficient state, efficient working order and in good repair. Thorough examination records must be kept and made available for inspection.
+                  PUWER applies to all work equipment. Assessments can be performed by an internal competent person. Annual review recommended. Records must be kept and available for inspection.
                 </p>
               </div>
+
+              {/* ── LOLER Section ── */}
+              {(compForm.complianceCategory === "lifting_goods" || compForm.complianceCategory === "lifting_persons") && (
+                <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "1.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                    <ClipboardList size={16} style={{ color: "#c2410c" }} />
+                    <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>LOLER Thorough Examination</span>
+                    <span style={{ fontSize: "0.72rem", background: "#fed7aa", color: "#c2410c", borderRadius: 999, padding: "1px 8px", fontWeight: 600 }}>Lifting Operations & Lifting Equipment Regs 1998</span>
+                    <span style={{ fontSize: "0.72rem", background: "#fef3c7", color: "#92400e", borderRadius: 999, padding: "1px 8px", fontWeight: 600, marginLeft: 2 }}>
+                      {compForm.complianceCategory === "lifting_persons" ? "6-month interval" : "12-month interval"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Last Examination Date</label>
+                      <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.lolerLastExamDate ?? ""} onChange={e => {
+                        const val = e.target.value;
+                        const months = compForm.complianceCategory === "lifting_persons" ? 6 : 12;
+                        const next = val ? (() => { const d = new Date(val); d.setMonth(d.getMonth() + months); return d.toISOString().slice(0, 10); })() : "";
+                        setCompForm((f: any) => ({ ...f, lolerLastExamDate: val, lolerNextExamDate: f.lolerNextExamDate || next }));
+                      }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>
+                        Next Examination Due <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 400 }}>(auto-set {compForm.complianceCategory === "lifting_persons" ? "+6" : "+12"} months)</span>
+                      </label>
+                      <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.lolerNextExamDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, lolerNextExamDate: e.target.value }))} />
+                      {compForm.lolerNextExamDate && (() => { const d = dueStatus(compForm.lolerNextExamDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examiner Name / Company</label>
+                      <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. NFU Mutual Insurance Engineer, Zurich Engineering" value={compForm.lolerExaminer ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, lolerExaminer: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Report / Certificate Reference</label>
+                      <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. LOLER-2024-00123" value={compForm.lolerReportRef ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, lolerReportRef: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examination Outcome</label>
+                      <select className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" value={compForm.lolerOutcome ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, lolerOutcome: e.target.value }))}>
+                        <option value="">— Select outcome —</option>
+                        <option value="pass">Pass — No defects found, fit for purpose</option>
+                        <option value="advisory">Advisory — Defects noted, use with caution</option>
+                        <option value="fail">Fail — Must not be used until repaired</option>
+                      </select>
+                      {compForm.lolerOutcome === "fail" && <p style={{ fontSize: "0.72rem", color: "#dc2626", marginTop: 3 }}>&#9888; FAIL — A task and SMS alert will be sent on save. Equipment will be Grounded. LOLER requires the equipment to be taken out of service immediately.</p>}
+                      {compForm.lolerOutcome === "advisory" && <p style={{ fontSize: "0.72rem", color: "#d97706", marginTop: 3 }}>&#9888; Advisory — A task will be raised for the farm manager.</p>}
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examination Notes</label>
+                    <textarea className="w-full border border-border rounded-md px-3 py-2 text-sm" rows={3} placeholder="Defects found, safe working load, test certificates, required repairs..." value={compForm.lolerNotes ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, lolerNotes: e.target.value }))} />
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 8, padding: "8px 12px", background: "#fef3c7", borderRadius: 6 }}>
+                    LOLER requires all lifting equipment to undergo a thorough examination by a competent person ({compForm.complianceCategory === "lifting_persons" ? "every 6 months where used to lift persons" : "every 12 months for goods-only lifting equipment"}). In practice this is performed by an insurance engineer. The written report must be kept for at least 2 years.
+                  </p>
+                </div>
+              )}
+
+              {/* ── PSSR Section ── */}
+              {compForm.complianceCategory === "pressure_system" && (
+                <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "1.25rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                    <ClipboardList size={16} style={{ color: "#7c3aed" }} />
+                    <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>PSSR Examination</span>
+                    <span style={{ fontSize: "0.72rem", background: "#ede9fe", color: "#6d28d9", borderRadius: 999, padding: "1px 8px", fontWeight: 600 }}>Pressure Systems Safety Regulations 2000</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Written Scheme Reference</label>
+                      <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. WSE-2024-FARM001" value={compForm.pssrWrittenSchemeRef ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, pssrWrittenSchemeRef: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examiner Name / Company</label>
+                      <input type="text" className="w-full border border-border rounded-md px-3 py-2 text-sm" placeholder="e.g. Zurich Engineering, Allianz Engineering" value={compForm.pssrExaminer ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, pssrExaminer: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Last Examination Date</label>
+                      <input type="date" max={new Date().toISOString().slice(0, 10)} className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.pssrLastExamDate ?? ""} onChange={e => {
+                        const val = e.target.value;
+                        const next = val ? (() => { const d = new Date(val); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 10); })() : "";
+                        setCompForm((f: any) => ({ ...f, pssrLastExamDate: val, pssrNextExamDate: f.pssrNextExamDate || next }));
+                      }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Next Examination Due <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 400 }}>(auto-set +12 months)</span></label>
+                      <input type="date" className="w-full border border-border rounded-md px-3 py-2 text-sm" value={compForm.pssrNextExamDate ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, pssrNextExamDate: e.target.value }))} />
+                      {compForm.pssrNextExamDate && (() => { const d = dueStatus(compForm.pssrNextExamDate); return <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: d.bg, color: d.color, marginTop: 3, display: "inline-block" }}>{d.label}</span>; })()}
+                    </div>
+                    <div className="col-span-2">
+                      <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examination Outcome</label>
+                      <select className="w-full border border-border rounded-md px-3 py-2 text-sm bg-white" value={compForm.pssrOutcome ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, pssrOutcome: e.target.value }))}>
+                        <option value="">— Select outcome —</option>
+                        <option value="pass">Pass — Safe to operate as per Written Scheme</option>
+                        <option value="advisory">Advisory — Minor defects, use with conditions</option>
+                        <option value="fail">Fail — Must not be operated until repaired</option>
+                      </select>
+                      {compForm.pssrOutcome === "fail" && <p style={{ fontSize: "0.72rem", color: "#dc2626", marginTop: 3 }}>&#9888; FAIL — A task and SMS alert will be sent on save. Equipment will be Grounded. PSSR prohibits operation of a failed system.</p>}
+                      {compForm.pssrOutcome === "advisory" && <p style={{ fontSize: "0.72rem", color: "#d97706", marginTop: 3 }}>&#9888; Advisory — A task will be raised for the farm manager.</p>}
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Examination Notes</label>
+                    <textarea className="w-full border border-border rounded-md px-3 py-2 text-sm" rows={3} placeholder="Defects found, operating conditions, required repairs, Written Scheme amendments..." value={compForm.pssrNotes ?? ""} onChange={e => setCompForm((f: any) => ({ ...f, pssrNotes: e.target.value }))} />
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "#5b21b6", marginTop: 8, padding: "8px 12px", background: "#ede9fe", borderRadius: 6 }}>
+                    PSSR requires a Written Scheme of Examination drawn up by a competent person (specialist engineer) before the system is operated. The scheme specifies examination intervals, typically 12–48 months. The examination report must be kept until the next examination.
+                  </p>
+                </div>
+              )}
 
               {/* Insurance */}
               <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.25rem" }}>
@@ -1617,11 +1766,24 @@ export default function EquipmentPage() {
                     setCompSaving(true);
                     try {
                       const body: any = {
+                        complianceCategory: compForm.complianceCategory || "standard",
                         puwerLastAssessmentDate: compForm.puwerLastAssessmentDate || null,
                         puwerNextReviewDate: compForm.puwerNextReviewDate || null,
                         puwerAssessor: compForm.puwerAssessor || null,
                         puwerOutcome: compForm.puwerOutcome || null,
                         puwerNotes: compForm.puwerNotes || null,
+                        lolerLastExamDate: compForm.lolerLastExamDate || null,
+                        lolerNextExamDate: compForm.lolerNextExamDate || null,
+                        lolerExaminer: compForm.lolerExaminer || null,
+                        lolerOutcome: compForm.lolerOutcome || null,
+                        lolerReportRef: compForm.lolerReportRef || null,
+                        lolerNotes: compForm.lolerNotes || null,
+                        pssrLastExamDate: compForm.pssrLastExamDate || null,
+                        pssrNextExamDate: compForm.pssrNextExamDate || null,
+                        pssrExaminer: compForm.pssrExaminer || null,
+                        pssrWrittenSchemeRef: compForm.pssrWrittenSchemeRef || null,
+                        pssrOutcome: compForm.pssrOutcome || null,
+                        pssrNotes: compForm.pssrNotes || null,
                         insurerName: compForm.insurerName || null,
                         insurancePolicyRef: compForm.insurancePolicyRef || null,
                         insuranceRenewalDate: compForm.insuranceRenewalDate || null,

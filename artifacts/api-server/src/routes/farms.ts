@@ -2197,7 +2197,59 @@ router.put("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(equipmentTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId))).returning();
+  const body = req.body as Record<string, unknown>;
+  // Fetch existing record to detect outcome changes
+  const [existing] = await db.select({ puwerOutcome: equipmentTable.puwerOutcome, lolerOutcome: equipmentTable.lolerOutcome, pssrOutcome: equipmentTable.pssrOutcome })
+    .from(equipmentTable).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId))).limit(1);
+  const [record] = await db.update(equipmentTable).set(sanitiseBody(body)).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId))).returning();
+  // ── Non-pass compliance triggers ──────────────────────────────────────────
+  const nonPass = ["fail", "advisory"];
+  const puwerChanged = body.puwerOutcome !== undefined && body.puwerOutcome !== existing?.puwerOutcome && nonPass.includes(String(body.puwerOutcome));
+  const lolerChanged = body.lolerOutcome !== undefined && body.lolerOutcome !== existing?.lolerOutcome && nonPass.includes(String(body.lolerOutcome));
+  const pssrChanged  = body.pssrOutcome  !== undefined && body.pssrOutcome  !== existing?.pssrOutcome  && nonPass.includes(String(body.pssrOutcome));
+  if ((puwerChanged || lolerChanged || pssrChanged) && record) {
+    const issues: string[] = [];
+    if (puwerChanged) issues.push(`PUWER ${body.puwerOutcome}${body.puwerNotes ? ` — ${String(body.puwerNotes).slice(0, 80)}` : ""}`);
+    if (lolerChanged) issues.push(`LOLER ${body.lolerOutcome}${body.lolerNotes ? ` — ${String(body.lolerNotes).slice(0, 80)}` : ""}`);
+    if (pssrChanged)  issues.push(`PSSR ${body.pssrOutcome}${body.pssrNotes  ? ` — ${String(body.pssrNotes).slice(0, 80)}`  : ""}`);
+    const hasFail = String(body.puwerOutcome) === "fail" || String(body.lolerOutcome) === "fail" || String(body.pssrOutcome) === "fail";
+    const issueText = issues.join("; ");
+    const taskTitle = `${hasFail ? "⚠ FAIL" : "Advisory"}: Compliance Issue — ${record.name}`;
+    const taskDesc = `Assessment of '${record.name}' (${record.type || "equipment"}) returned a non-pass result. ${issueText}. Review defects, arrange rectification, and re-assess before returning to service. Update the record in Workshop → Equipment → Compliance.`;
+    // Look up first admin/manager member to assign task
+    const [manager] = await db.select({ id: farmMembersTable.id, firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
+      .from(farmMembersTable)
+      .where(and(eq(farmMembersTable.farmId, farmId), or(eq(farmMembersTable.farmRole, "admin"), eq(farmMembersTable.farmRole, "manager"), eq(farmMembersTable.farmRole, "owner"))))
+      .orderBy(farmMembersTable.id).limit(1);
+    if (manager) {
+      const staffName = `${manager.firstName} ${manager.lastName}`.trim();
+      await db.insert(farmTaskAssignmentsTable).values({
+        farmId, tenantId: farmId,
+        assignedToMemberId: manager.id,
+        assignedByUserId: "system",
+        taskType: "compliance_defect",
+        taskSourceId: `equipment-${recordId}`,
+        title: taskTitle,
+        description: taskDesc,
+        dueDate: new Date().toISOString().split("T")[0],
+        module: "Workshop & Equipment",
+        href: `/workshop?tab=equipment&open=${recordId}`,
+        staffName,
+        staffPhone: manager.phone ?? null,
+        status: "pending",
+        smsSent: false,
+      });
+      if (manager.phone) {
+        const smsMsg = `BDE Farm Trac: ${taskTitle}. ${issueText.slice(0, 120)}. Log in to assign rectification.`;
+        await sendSms(manager.phone, smsMsg).catch(() => {});
+      }
+    }
+    // Ground equipment on fail
+    if (hasFail) {
+      await db.update(equipmentTable).set({ status: "grounded" }).where(eq(equipmentTable.id, recordId));
+      (record as any).status = "grounded";
+    }
+  }
   res.json({ record });
 });
 
@@ -14292,6 +14344,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     organicVitCertRows,
     organicVitBlockRows,
     puwerReviewRows, equipInsuranceRows,
+    lolerReviewRows, pssrReviewRows,
     feedContingencyReviewRows, shopHygieneReinspRows,
     bvdNextTestRows, johnesNextTestRows, salmNextSamplingRows,
     ipmReviewRows, lerapExpiryRows,
@@ -14745,6 +14798,14 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, insuranceRenewalDate: equipmentTable.insuranceRenewalDate, insurerName: equipmentTable.insurerName, isActive: equipmentTable.isActive })
       .from(equipmentTable)
       .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentTable.insuranceRenewalDate), gte(equipmentTable.insuranceRenewalDate, overdueStart.toISOString().split("T")[0]), lt(equipmentTable.insuranceRenewalDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, complianceCategory: equipmentTable.complianceCategory, lolerNextExamDate: equipmentTable.lolerNextExamDate, lolerOutcome: equipmentTable.lolerOutcome, isActive: equipmentTable.isActive })
+      .from(equipmentTable)
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentTable.lolerNextExamDate), gte(equipmentTable.lolerNextExamDate, overdueStart.toISOString().split("T")[0]), lt(equipmentTable.lolerNextExamDate, rangeEnd.toISOString().split("T")[0]))),
+
+    db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, pssrNextExamDate: equipmentTable.pssrNextExamDate, pssrOutcome: equipmentTable.pssrOutcome, isActive: equipmentTable.isActive })
+      .from(equipmentTable)
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentTable.pssrNextExamDate), gte(equipmentTable.pssrNextExamDate, overdueStart.toISOString().split("T")[0]), lt(equipmentTable.pssrNextExamDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: feedContingencyPlansTable.id, nextReviewDate: feedContingencyPlansTable.nextReviewDate, versionNumber: feedContingencyPlansTable.versionNumber })
       .from(feedContingencyPlansTable)
@@ -15512,6 +15573,15 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of puwerReviewRows) {
     if (!r.puwerNextReviewDate || r.isActive === false) continue;
     tasks.push({ id: `puwer-${r.id}`, type: "puwer_review", title: `PUWER Assessment Review Due — ${r.name}`, description: `The PUWER (Work Equipment) assessment for '${r.name}' (${r.type}) is due for review. Carry out the assessment and update the record in Workshop → Equipment.`, dueDate: toISO(r.puwerNextReviewDate)!, module: "Workshop & Equipment", href: `/workshop?tab=equipment&open=${r.id}`, colour: "orange" });
+  }
+  for (const r of lolerReviewRows) {
+    if (!r.lolerNextExamDate || r.isActive === false) continue;
+    const interval = r.complianceCategory === "lifting_persons" ? "6-monthly" : "12-monthly";
+    tasks.push({ id: `loler-${r.id}`, type: "loler_exam", title: `LOLER Thorough Examination Due — ${r.name}`, description: `The LOLER (Lifting Operations) ${interval} thorough examination for '${r.name}' (${r.type}) is due. This must be carried out by a competent person (typically an insurance engineer). Update the record in Workshop → Equipment → Compliance.`, dueDate: toISO(r.lolerNextExamDate)!, module: "Workshop & Equipment", href: `/workshop?tab=equipment&open=${r.id}`, colour: "red" });
+  }
+  for (const r of pssrReviewRows) {
+    if (!r.pssrNextExamDate || r.isActive === false) continue;
+    tasks.push({ id: `pssr-${r.id}`, type: "pssr_exam", title: `PSSR Examination Due — ${r.name}`, description: `The PSSR (Pressure Systems Safety) examination for '${r.name}' (${r.type}) is due as per its Written Scheme of Examination. This must be performed by a competent specialist engineer. Update the record in Workshop → Equipment → Compliance.`, dueDate: toISO(r.pssrNextExamDate)!, module: "Workshop & Equipment", href: `/workshop?tab=equipment&open=${r.id}`, colour: "red" });
   }
   for (const r of equipInsuranceRows) {
     if (!r.insuranceRenewalDate || r.isActive === false) continue;
