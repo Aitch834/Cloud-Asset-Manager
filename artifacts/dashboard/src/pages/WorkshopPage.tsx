@@ -3348,7 +3348,7 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
       start = new Date(now.getFullYear(), 0, 1);
     }
     return allJobs.filter((j: any) => {
-      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
+      const ds = j.openedAt ?? j.completedAt ?? j.createdAt;
       if (!ds) return false;
       const d = new Date(ds);
       return d >= start && d <= end;
@@ -3400,7 +3400,7 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
   const monthlyData = useMemo(() => {
     const m = new Map<string, { label: string; spend: number; count: number; hours: number }>();
     allJobs.forEach((j: any) => {
-      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt ?? j.createdAt;
+      const ds = j.openedAt ?? j.completedAt ?? j.createdAt;
       if (!ds) return;
       const d = new Date(ds);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -3636,7 +3636,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={monthlyData} margin={{ top: 4, right: 36, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-35} textAnchor="end" height={48} />
               <YAxis yAxisId="left" tickFormatter={(v: number) => `\u00a3${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} tick={{ fontSize: 11 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, n: string) => n === "Spend" ? [`\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Spend"] : n === "Hours" ? [`${v} hrs`, "Hours"] : [String(v), "Jobs"]} />
