@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { openPrintWindow } from "@/lib/print-report";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -468,6 +469,31 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
     enabled: addOpen && linkType === "harvest_record",
   });
 
+  function printStockMovements() {
+    const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+    const rows = visible.map(m => `<tr>
+      <td>${fmtD(m.movementDate)}</td>
+      <td>${m.direction === "in" ? "IN" : "OUT"}</td>
+      <td>${m.movementType ?? "—"}</td>
+      <td>${m.commodity ?? "—"}</td>
+      <td>${m.variety ?? "—"}</td>
+      <td>${m.cropYear ?? "—"}</td>
+      <td style="text-align:right">${parseFloat(m.quantityTonnes || "0").toFixed(3)}</td>
+      <td>${m.reference ?? "—"}</td>
+      <td>${m.notes ?? "—"}</td>
+    </tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Stock Movements Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}tfoot td{font-weight:700;border-top:2px solid #d1d5db;padding:4px 6px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Stock Movements Register</h1>
+<h2>${visible.length} movement${visible.length !== 1 ? "s" : ""}${filterYear !== "__all__" ? ` · ${filterYear}` : ""} · In: ${totalIn.toFixed(3)}t · Out: ${totalOut.toFixed(3)}t · Balance: ${balance.toFixed(3)}t · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Direction</th><th>Type</th><th>Commodity</th><th>Variety</th><th>Crop Year</th><th>Quantity (t)</th><th>Reference</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody>
+<tfoot><tr><td colspan="6">Balance</td><td style="text-align:right">${balance.toFixed(3)}</td><td colspan="2"></td></tr></tfoot>
+</table>
+</body></html>`);
+  }
+
   function openAdd() { setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null); setAddOpen(true); }
   function openEdit(m: StockMovement) {
     setEditMovement(m);
@@ -519,9 +545,16 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
             <option value="__all__">All years</option>
           </select>
         </div>
-        <Button size="sm" className="gap-1.5 text-xs h-8" onClick={openAdd}>
-          <Plus className="h-3.5 w-3.5" /> Record Movement
-        </Button>
+        <div className="flex gap-2">
+          {visible.length > 0 && (
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={printStockMovements}>
+              <Printer className="h-3.5 w-3.5" /> Print Register
+            </Button>
+          )}
+          <Button size="sm" className="gap-1.5 text-xs h-8" onClick={openAdd}>
+            <Plus className="h-3.5 w-3.5" /> Record Movement
+          </Button>
+        </div>
       </div>
 
       {/* Balance summary */}

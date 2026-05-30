@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
+import { openPrintWindow } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList, Printer, BarChart3 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -98,6 +99,31 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  function printWeighReport() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.weighDate)}</td>
+      <td>${fmt(r.groupRef)}</td>
+      <td>${fmt(r.breed)}</td>
+      <td>${fmt(r.category)}</td>
+      <td>${fmt(r.numberOfAnimals)}</td>
+      <td>${fmtNum(r.averageLiveWeightKg)}</td>
+      <td>${fmtNum(r.totalLiveWeightKg)}</td>
+      <td>${fmtNum(r.dlwgGPerDay)}</td>
+      <td>${fmt(r.averageBcsScore)}</td>
+      <td>${fmt(r.weighedBy)}</td>
+    </tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Beef Weigh-in & DLWG Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Beef Weigh-in &amp; DLWG Records</h1>
+<h2>Red Tractor Beef &amp; Dairy · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Group</th><th>Breed</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Total Wt (kg)</th><th>DLWG (g/day)</th><th>Avg BCS</th><th>Weighed By</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p style="margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px">Red Tractor Beef &amp; Dairy: weight records and DLWG must be maintained as evidence of performance monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`);
+  }
+
   const cols = [
     { key: "weighDate", label: "Date", render: (r: Record<string, unknown>) => fmtDate(r.weighDate) },
     { key: "groupRef", label: "Group" },
@@ -112,7 +138,10 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Beef Weigh-in & DLWG Records</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printWeighReport}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable cols={cols} rows={rows} onView={setViewing} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />
@@ -201,11 +230,39 @@ function FinishingTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-finishing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  function printFinishingReport() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmt(r.animalTagNumber)}</td>
+      <td>${fmt(r.breed)}</td>
+      <td>${fmt(r.sex)}</td>
+      <td>${fmtDate(r.dateEnteredFinishing)}</td>
+      <td>${fmtNum(r.entryLiveWeightKg)}</td>
+      <td>${fmtDate(r.targetSlaughterDate)}</td>
+      <td>${fmtNum(r.targetSlaughterWeightKg)}</td>
+      <td>${fmt(r.finishingSystem)}</td>
+      <td>${fmtDate(r.slaughterDate)}</td>
+      <td>${fmtNum(r.overallDlwgGPerDay)}</td>
+      <td>${fmt(r.status)}</td>
+    </tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Beef Finishing Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Beef Finishing Records</h1>
+<h2>Red Tractor Beef &amp; Dairy · ${(rows as Record<string, unknown>[]).length} animal${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Tag No.</th><th>Breed</th><th>Sex</th><th>Entered Finishing</th><th>Entry Wt (kg)</th><th>Target Slaughter Date</th><th>Target Wt (kg)</th><th>System</th><th>Slaughter Date</th><th>DLWG (g/day)</th><th>Status</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p style="margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px">Red Tractor Beef &amp; Dairy: individual animal finishing records support traceability and performance monitoring requirements. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Finishing Records</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Animal</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printFinishingReport}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Animal</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
@@ -483,8 +540,36 @@ function ReportsTab({ farmId }: { farmId: number }) {
             <option value="__all__">All Time</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer className="w-4 h-4 mr-1" />Print
+          <Button size="sm" variant="outline" onClick={() => {
+            const gradeRows = Object.entries(gradeMap).map(([g, n]) => `<tr><td>${g}</td><td style="text-align:right">${n}</td></tr>`).join("");
+            const statusRows = Object.entries(statusMap).map(([s, n]) => `<tr><td style="text-transform:capitalize">${s}</td><td style="text-align:right">${n}</td></tr>`).join("");
+            openPrintWindow(`<!DOCTYPE html><html><head><title>Beef Production Report — ${periodLabel}</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}h3{font-size:11px;margin:14px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:2px}table{border-collapse:collapse;margin-bottom:12px}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;padding:4px 8px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 8px;border:1px solid #e5e7eb}.stats{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}.stat{text-align:center;border:1px solid #e5e7eb;border-radius:6px;padding:8px 14px}.stat-n{font-size:20px;font-weight:700}.stat-l{font-size:9px;color:#666;margin-top:2px}@media print{@page{margin:1.5cm}}</style>
+</head><body>
+<h1>Beef Production Report — ${periodLabel}</h1>
+<h2>Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<h3>Weigh-in &amp; DLWG</h3>
+<div class="stats">
+  <div class="stat"><div class="stat-n">${fw.length}</div><div class="stat-l">Records</div></div>
+  <div class="stat"><div class="stat-n">${avgDlwg ?? "—"}</div><div class="stat-l">Avg DLWG (g/day)</div></div>
+  <div class="stat"><div class="stat-n">${groups || "—"}</div><div class="stat-l">Groups Weighed</div></div>
+</div>
+<h3>Finishing Records</h3>
+<div class="stats">
+  <div class="stat"><div class="stat-n">${ff.length}</div><div class="stat-l">Total Records</div></div>
+</div>
+${statusRows ? `<table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>${statusRows}</tbody></table>` : ""}
+<h3>Deadweight Settlements</h3>
+<div class="stats">
+  <div class="stat"><div class="stat-n">${fd.length}</div><div class="stat-l">Kill Sheets</div></div>
+  <div class="stat"><div class="stat-n">${totalDw > 0 ? `${totalDw.toFixed(0)}kg` : "—"}</div><div class="stat-l">Total Deadweight</div></div>
+  <div class="stat"><div class="stat-n">${avgKillOut ? `${avgKillOut}%` : "—"}</div><div class="stat-l">Avg Kill-Out</div></div>
+  <div class="stat"><div class="stat-n">${totalSettlement > 0 ? `£${totalSettlement.toLocaleString("en-GB", { maximumFractionDigits: 0 })}` : "—"}</div><div class="stat-l">Total Settlement</div></div>
+</div>
+${gradeRows ? `<table><thead><tr><th>EUROP Grade</th><th>Count</th></tr></thead><tbody>${gradeRows}</tbody></table>` : ""}
+</body></html>`);
+          }}>
+            <Printer className="w-4 h-4 mr-1" />Print Report
           </Button>
         </div>
       </div>

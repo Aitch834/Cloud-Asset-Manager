@@ -6846,6 +6846,33 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({ result: "negative" }); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
+  function printBvdRegister() {
+    const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+    const rows = (records as any[]).map((r: any) => `<tr>
+      <td>${fmtD(r.testDate)}</td>
+      <td>${BVD_TEST_TYPES.find((t: any) => t.value === r.testType)?.label ?? r.testType ?? "—"}</td>
+      <td>${herds.find((h: any) => h.id === r.herdId)?.name ?? "—"}</td>
+      <td>${r.result}</td>
+      <td>${r.animalsTestedCount ?? "—"}</td>
+      <td>${r.piAnimalsFound ?? 0}</td>
+      <td>${r.labName ?? "—"}</td>
+      <td>${r.labRef ?? "—"}</td>
+      <td>${BVD_ACCRED.find((a: any) => a.value === r.accreditationStatus)?.label ?? "—"}</td>
+      <td>${fmtD(r.nextTestDue)}</td>
+      <td>${r.vetName ?? "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>BVD Testing Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>BVD Testing Register</h1>
+<h2>Bovine Viral Diarrhoea Monitoring — Red Tractor Beef &amp; Dairy · ${records.length} record${records.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Test Date</th><th>Test Type</th><th>Herd</th><th>Result</th><th>Animals Tested</th><th>PI Found</th><th>Lab</th><th>Lab Ref</th><th>Accreditation Status</th><th>Next Test Due</th><th>Vet</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<p class="footer">Red Tractor Beef &amp; Dairy: BVD monitoring records must be maintained and available at audit. Persistent Infectees (PIs) must be removed promptly. Retain records for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   async function save() {
     const url = editing ? `/api/farms/${farmId}/bvd-tests/${editing.id}` : `/api/farms/${farmId}/bvd-tests`;
     await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
@@ -6873,7 +6900,10 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">BVD Testing Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor Beef &amp; Dairy requires documented BVD monitoring. Record individual tests, PI findings, and herd accreditation status.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+        <div className="flex gap-2">
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={printBvdRegister}><Printer className="w-3.5 h-3.5 mr-1" />Print Register</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+        </div>
       </div>
 
       {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
@@ -7038,6 +7068,32 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({ species: "Cattle", method: "captive_bolt", veterinaryInvolved: false }); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
+  function printCasualtyRegister() {
+    const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+    const rows = (records as any[]).map((r: any) => `<tr>
+      <td>${fmtD(r.eventDate)}</td>
+      <td>${r.animalEarTag ?? "—"}</td>
+      <td>${r.species}</td>
+      <td>${r.ageOrDescription ?? "—"}</td>
+      <td>${r.reasonForSlaughter ?? "—"}</td>
+      <td>${CASUALTY_METHODS.find((m: any) => m.value === r.method)?.label ?? r.method ?? "—"}</td>
+      <td>${r.veterinaryInvolved ? (r.vetName ?? r.performedBy ?? "—") : (r.performedBy ?? "—")}</td>
+      <td>${r.veterinaryInvolved ? (r.rcvsNumber ?? "—") : (r.waskWatokCertRef ?? "—")}</td>
+      <td>${CARCASE_DISPOSAL.find((c: any) => c.value === r.carcaseDisposalMethod)?.label ?? r.carcaseDisposalMethod ?? "—"}</td>
+      <td>${r.notes ?? "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Casualty / Emergency Slaughter Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Casualty / Emergency Slaughter Register</h1>
+<h2>On-Farm Emergency Killing Record — Red Tractor · ${records.length} event${records.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Ear Tag</th><th>Species</th><th>Age / Description</th><th>Reason</th><th>Method</th><th>Performed By</th><th>WASK/WATOK / RCVS No.</th><th>Disposal</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<p class="footer">Red Tractor requires a record of every on-farm emergency killing. The person carrying out the slaughter must hold a valid WASK/WATOK certificate, or where a barbiturate injection is used, the attending vet must be RCVS registered. Records must be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   async function save() {
     const payload = { ...form };
     if (payload.veterinaryInvolved && !payload.performedBy && payload.vetName) {
@@ -7066,7 +7122,10 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">Casualty / Emergency Slaughter Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a record of every on-farm emergency killing. The person carrying out the slaughter must hold a valid WASK/WATOK certificate.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Event</Button>
+        <div className="flex gap-2">
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={printCasualtyRegister}><Printer className="w-3.5 h-3.5 mr-1" />Print Register</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Event</Button>
+        </div>
       </div>
 
       {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (

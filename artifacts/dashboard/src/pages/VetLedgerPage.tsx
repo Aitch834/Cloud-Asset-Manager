@@ -285,6 +285,68 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
     w.print();
   }
 
+  function printVisitLog() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const rows = visits.map(v => `<tr>
+      <td>${fmtD(v.visitDate)}</td>
+      <td>${String(v.vetName ?? "—")}</td>
+      <td>${String(v.vetPractice ?? "—")}</td>
+      <td>${String(v.reasonForVisit ?? "—")}</td>
+      <td>${String(v.diagnoses ?? "—")}</td>
+      <td>${v.estimatedTotalGbp ? `£${parseFloat(String(v.estimatedTotalGbp)).toFixed(2)}` : "—"}</td>
+      <td>${v.followUpDueDate ? fmtD(v.followUpDueDate) : "—"}</td>
+      <td>${String(v.notes ?? "—")}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Vet Visit Log</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Vet Visit Log</h1>
+<h2>Farm: <strong>${farmProfile?.farmName ?? "—"}</strong> · CPH: <strong>${farmProfile?.cphNumber ?? "—"}</strong> · ${visits.length} visit${visits.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Visit Date</th><th>Vet Name</th><th>Practice</th><th>Reason for Visit</th><th>Diagnoses</th><th>Est. Cost</th><th>Follow-up Due</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<p class="footer">Red Tractor requires documented vet visit records including the reason for visit and any medicines prescribed. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.addEventListener("afterprint", () => w.close());
+    w.print();
+  }
+
+  function printInvoiceRegister() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const fmtGbpP = (v: unknown) => v ? `£${parseFloat(String(v)).toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : "—";
+    const rows = invoices.map(inv => `<tr>
+      <td>${String(inv.invoiceNumber ?? "—")}</td>
+      <td>${fmtD(inv.invoiceDate)}</td>
+      <td>${String(inv.vetPractice ?? "—")}</td>
+      <td>${String(inv.vetName ?? "—")}</td>
+      <td>${fmtGbpP(inv.totalAmountGbp)}</td>
+      <td>${String(inv.paymentStatus ?? "—")}</td>
+      <td>${inv.paymentDate ? fmtD(inv.paymentDate) : "—"}</td>
+      <td>${String(inv.reconciliationStatus ?? "—")}</td>
+    </tr>`).join("");
+    const total = invoices.reduce((s, i) => s + (parseFloat(String(i.totalAmountGbp ?? 0)) || 0), 0);
+    const html = `<!DOCTYPE html><html><head><title>Vet Invoice Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}tfoot td{font-weight:700;border-top:2px solid #d1d5db}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Vet Invoice Register</h1>
+<h2>Farm: <strong>${farmProfile?.farmName ?? "—"}</strong> · CPH: <strong>${farmProfile?.cphNumber ?? "—"}</strong> · ${invoices.length} invoice${invoices.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Invoice No.</th><th>Date</th><th>Practice</th><th>Vet</th><th>Total</th><th>Payment Status</th><th>Payment Date</th><th>Reconciliation</th></tr></thead>
+<tbody>${rows}</tbody>
+<tfoot><tr><td colspan="4">Total</td><td>£${total.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</td><td colspan="3"></td></tr></tfoot>
+</table>
+<p class="footer">Vet invoice records should be retained and reconciled against payment records. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.addEventListener("afterprint", () => w.close());
+    w.print();
+  }
+
   // Individual animals — for per-animal medicine linkage
   const animalsQ = useQuery({
     queryKey: ["animals", farmId],
@@ -512,13 +574,25 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
           </div>
         </div>
         {tab !== "amrm" && (
-          <Button
-            className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm"
-            onClick={() => tab === "visits" ? openVisitEdit() : openInvoiceEdit()}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            {tab === "visits" ? "Log Visit" : "Add Invoice"}
-          </Button>
+          <div className="flex gap-2">
+            {tab === "visits" && visits.length > 0 && (
+              <Button variant="outline" className="h-8 px-3 text-sm" onClick={printVisitLog}>
+                <Printer className="w-3.5 h-3.5 mr-1" /> Print Visit Log
+              </Button>
+            )}
+            {tab === "invoices" && invoices.length > 0 && (
+              <Button variant="outline" className="h-8 px-3 text-sm" onClick={printInvoiceRegister}>
+                <Printer className="w-3.5 h-3.5 mr-1" /> Print Invoice Register
+              </Button>
+            )}
+            <Button
+              className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm"
+              onClick={() => tab === "visits" ? openVisitEdit() : openInvoiceEdit()}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              {tab === "visits" ? "Log Visit" : "Add Invoice"}
+            </Button>
+          </div>
         )}
         {tab === "amrm" && (
           <Button className="bg-green-800 hover:bg-green-900 text-white h-8 px-3 text-sm" onClick={printAmrmReport}>

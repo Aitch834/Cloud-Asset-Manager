@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { openPrintWindow } from "@/lib/print-report";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -2143,6 +2144,49 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
     setPlanOpen(true);
   }
 
+  function printIpmPlan() {
+    if (!selectedPlan) return;
+    const fmtD = (d: string | null) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-GB") : "—";
+    const threshRows = (thresholds as any[]).map((t: any) => `<tr>
+      <td>${t.pestOrDisease}</td>
+      <td>${t.monitoringMethod ?? "—"}${t.monitoringFrequency ? ` / ${t.monitoringFrequency}` : ""}</td>
+      <td>${t.actionThreshold ?? "—"}</td>
+      <td>${t.chemicalThreshold ?? "—"}</td>
+      <td>${t.nonChemicalOption ?? "—"}</td>
+      <td>${t.resistanceManagementGroup ?? "—"}</td>
+    </tr>`).join("");
+    const logRows = (monitoringLogs as any[]).map((l: any) => `<tr>
+      <td>${fmtD(l.logDate)}</td>
+      <td>${l.fieldName ?? l.fieldId ?? "—"}</td>
+      <td>${l.pestOrDisease ?? "—"}</td>
+      <td>${l.populationCount ?? l.infestation ?? "—"}</td>
+      <td>${l.thresholdExceeded ? "Yes" : "No"}</td>
+      <td>${l.actionTaken ?? "—"}</td>
+      <td>${l.loggedBy ?? "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>IPM Plan — ${cropYearLabel(selectedPlan.planYear)}${selectedPlan.cropName ? ` — ${selectedPlan.cropName}` : ""}</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}h3{font-size:11px;margin:14px 0 5px;border-bottom:1px solid #e5e7eb;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}.meta{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:10px}.meta span{color:#555}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style>
+</head><body>
+<h1>IPM Plan — ${cropYearLabel(selectedPlan.planYear)}${selectedPlan.cropName ? ` — ${selectedPlan.cropName}` : ""}</h1>
+<h2>Integrated Pest Management — Red Tractor Combinable Crops</h2>
+<div class="meta">
+  ${selectedPlan.agronomistName ? `<span>Agronomist: <strong>${selectedPlan.agronomistName}</strong></span>` : ""}
+  ${selectedPlan.basisNumber ? `<span>BASIS No.: <strong>${selectedPlan.basisNumber}</strong></span>` : ""}
+  ${selectedPlan.validFrom ? `<span>Valid: <strong>${fmtD(selectedPlan.validFrom)} – ${fmtD(selectedPlan.validTo)}</strong></span>` : ""}
+  ${selectedPlan.reviewDate ? `<span>Review Due: <strong>${fmtD(selectedPlan.reviewDate)}</strong></span>` : ""}
+  <span>Status: <strong>${selectedPlan.status ?? "active"}</strong></span>
+  <span>Printed: <strong>${new Date().toLocaleDateString("en-GB")}</strong></span>
+</div>
+${selectedPlan.cropManagementNotes ? `<p style="font-size:10px;margin-bottom:10px"><strong>Crop Management Notes:</strong> ${selectedPlan.cropManagementNotes}</p>` : ""}
+<h3>Pest / Weed / Disease Thresholds &amp; Actions (${(thresholds as any[]).length} ${(thresholds as any[]).length === 1 ? "entry" : "entries"})</h3>
+${(thresholds as any[]).length === 0 ? "<p style='font-style:italic;color:#888'>No threshold entries recorded.</p>" : `<table><thead><tr><th>Pest / Weed / Disease</th><th>Method / Frequency</th><th>Action Threshold</th><th>Chemical Threshold</th><th>Non-Chemical Control</th><th>Resistance Group</th></tr></thead><tbody>${threshRows}</tbody></table>`}
+<h3>Monitoring Log (${(monitoringLogs as any[]).length} ${(monitoringLogs as any[]).length === 1 ? "entry" : "entries"})</h3>
+${(monitoringLogs as any[]).length === 0 ? "<p style='font-style:italic;color:#888'>No monitoring log entries recorded.</p>" : `<table><thead><tr><th>Date</th><th>Field</th><th>Pest / Disease</th><th>Count / Level</th><th>Threshold Exceeded</th><th>Action Taken</th><th>Logged By</th></tr></thead><tbody>${logRows}</tbody></table>`}
+<p class="footer">Red Tractor Combinable Crops: A written IPM plan per crop per year is required, covering monitoring protocols, economic thresholds, and preference for non-chemical controls. Records must be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   const thresholdPestNames: string[] = (thresholds as any[]).map((t: any) => t.pestOrDisease).filter(Boolean);
 
   const detailTabBtn = (tab: "thresholds" | "monitoring", label: string, count: number) => (
@@ -2237,9 +2281,12 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
                     <span className="font-semibold text-gray-900 text-sm">{cropYearLabel(selectedPlan.planYear)}{selectedPlan.cropName ? ` — ${selectedPlan.cropName}` : ""}</span>
                     {ipmStatusBadge(selectedPlan.status ?? "active")}
                   </div>
-                  <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg">
-                    {detailTabBtn("thresholds", "Thresholds & Actions", (thresholds as any[]).length)}
-                    {detailTabBtn("monitoring", "Monitoring Log", (monitoringLogs as any[]).length)}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={printIpmPlan}><Printer className="w-3 h-3 mr-1" />Print Plan</Button>
+                    <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg">
+                      {detailTabBtn("thresholds", "Thresholds & Actions", (thresholds as any[]).length)}
+                      {detailTabBtn("monitoring", "Monitoring Log", (monitoringLogs as any[]).length)}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -2667,6 +2714,37 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     toast({ title: "Assessment deleted" });
   }
 
+  function printLerapRegister() {
+    const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+    const outcomeLbl = (o: string) => ({ full_buffer_maintained: "Full Buffer Maintained", reduced_buffer: "Reduced Buffer", no_spray: "No Spray Zone", pending: "Pending Review" }[o as string] ?? o);
+    const getF = (id: number | null) => id ? (fields.find((f: any) => f.id === id)?.name ?? `Field #${id}`) : "—";
+    const getP = (id: number | null) => id ? (products.find((p: any) => p.id === id)?.name ?? `Product #${id}`) : "—";
+    const rows = (records as any[]).map((r: any) => `<tr>
+      <td>LERAP-${r.id}</td>
+      <td>${fmtD(r.assessmentDate)}</td>
+      <td>${getF(r.fieldId)}</td>
+      <td>${getP(r.productId)}</td>
+      <td>Step ${r.step ?? "—"}</td>
+      <td>${r.watercourseDescription ?? "—"}</td>
+      <td>${r.standardBufferM != null ? r.standardBufferM + "m" : "—"}</td>
+      <td>${r.lerapBufferM != null ? r.lerapBufferM + "m" : "—"}</td>
+      <td>${r.outcome ? outcomeLbl(r.outcome) : "—"}</td>
+      <td>${fmtD(r.validUntil)}</td>
+      <td>${r.assessorName ?? "—"}</td>
+      <td>${r.reviewedBy ? `${r.reviewedBy} (${fmtD(r.reviewedAt)})` : r.pendingReviewBy ? `Pending: ${r.pendingReviewBy}` : "—"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>LERAP Assessments Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:9px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 5px;border:1px solid #e5e7eb;text-align:left}td{padding:3px 5px;border:1px solid #e5e7eb;font-size:9px}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>LERAP Assessments Register</h1>
+<h2>Local Environmental Risk Assessment for Pesticides · ${records.length} record${records.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Ref</th><th>Date</th><th>Field</th><th>Product</th><th>Level</th><th>Watercourse</th><th>Std Buffer</th><th>LERAP Buffer</th><th>Outcome</th><th>Valid Until</th><th>Assessor</th><th>Review</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<p class="footer">LERAP assessments must be completed for each application of a product with a LERAP label near a surface watercourse. Red Tractor requires evidence of completed assessments and maintained buffer zones. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   const getFieldName = (id: number | null) => id ? (fields.find(f => f.id === id)?.name ?? `Field #${id}`) : "—";
   const getProductName = (id: number | null) => id ? (products.find(p => p.id === id)?.name ?? `Product #${id}`) : "—";
@@ -2682,7 +2760,10 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
           <h3 className="font-semibold text-gray-900">LERAP Assessments Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Local Environmental Risk Assessment for Pesticides. Required when spraying products with a LERAP label near surface water. Red Tractor requires evidence of completed assessments and maintained buffer zones.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Assessment</Button>
+        <div className="flex gap-2 shrink-0">
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={printLerapRegister}><Printer className="w-3.5 h-3.5 mr-1" />Print Register</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Assessment</Button>
+        </div>
       </div>
 
       {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (

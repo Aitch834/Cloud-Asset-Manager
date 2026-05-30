@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package, Printer } from "lucide-react";
+import { openPrintWindow } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1065,6 +1066,30 @@ const HYGIENE_RELATES_TO = ["Farm Shop", "Food Processing", "Dairy / Artisan Pro
 function HygieneInspectionsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "farm-shop-hygiene-inspections", "shop-hygiene");
+
+  function printHygieneRegister() {
+    const rows = (records as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmt(r.relatesTo)}</td>
+      <td>${fmtDate(r.inspectionDate)}</td>
+      <td>${fmt(r.inspectionType)}</td>
+      <td>${fmt(r.inspectorName)}</td>
+      <td>${fmt(r.inspectorOrganisation)}</td>
+      <td>${r.hygieneRating != null ? `${r.hygieneRating} / 5` : "—"}</td>
+      <td>${r.reinspectionRequired ? "Yes" : "No"}</td>
+      <td>${fmtDate(r.reinspectionDate)}</td>
+      <td>${fmt(r.findingsSummary)}</td>
+      <td>${fmt(r.correctiveActions)}</td>
+    </tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Hygiene & Food Safety Inspection Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px;vertical-align:top}tr:nth-child(even) td{background:#fafafa}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Hygiene &amp; Food Safety Inspection Register</h1>
+<h2>${(records as Record<string, unknown>[]).length} inspection${(records as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Relates To</th><th>Date</th><th>Type</th><th>Inspector</th><th>Organisation</th><th>Rating</th><th>Reinspection</th><th>Reinspection Date</th><th>Findings</th><th>Corrective Actions</th></tr></thead>
+<tbody>${rows}</tbody></table>
+</body></html>`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -1072,7 +1097,10 @@ function HygieneInspectionsTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Hygiene &amp; Food Safety Inspections</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Log all hygiene and food safety inspections across diversification activities — Farm Shop, food processing, events catering and more.</p>
         </div>
-        <Button size="sm" onClick={() => openAdd({ reinspectionRequired: false })}><Plus className="w-4 h-4 mr-1" />Add Inspection</Button>
+        <div className="flex gap-2">
+          {(records as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printHygieneRegister}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => openAdd({ reinspectionRequired: false })}><Plus className="w-4 h-4 mr-1" />Add Inspection</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -1264,9 +1292,46 @@ function EquineTab({ farmId }: { farmId: number }) {
 function ShootingTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "shooting-game-records", "shooting");
+
+  function printShootRegister() {
+    const rows = (records as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.shootDate)}</td>
+      <td>${fmt(r.shootType)}</td>
+      <td>${fmt(r.organiser)}</td>
+      <td>${fmt(r.gamekeeperName)}</td>
+      <td>${fmt(r.numberOfGuns)}</td>
+      <td>${fmt(r.bagsPheasant)}</td>
+      <td>${fmt(r.bagsPartridge)}</td>
+      <td>${fmt(r.bagsGrouse)}</td>
+      <td>${fmt(r.bagsDuck)}</td>
+      <td>${fmt(r.bagsWoodcock)}</td>
+      <td>${fmt(r.bagsOther)}</td>
+      <td>${fmt(r.totalBag)}</td>
+      <td>${fmt(r.gameDealer)}</td>
+      <td>${r.incomeLeaseFee ? `£${parseFloat(String(r.incomeLeaseFee)).toFixed(2)}` : "—"}</td>
+    </tr>`).join("");
+    const totalIncome = (records as Record<string, unknown>[]).reduce((s, r) => s + (parseFloat(String(r.incomeLeaseFee ?? 0)) || 0), 0);
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Shooting & Game Day Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}tfoot td{font-weight:700;border-top:2px solid #d1d5db}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Shooting &amp; Game Day Register</h1>
+<h2>${(records as Record<string, unknown>[]).length} shoot day${(records as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Type</th><th>Organiser</th><th>Gamekeeper</th><th>Guns</th><th>Pheasant</th><th>Partridge</th><th>Grouse</th><th>Duck</th><th>Woodcock</th><th>Other</th><th>Total Bag</th><th>Game Dealer</th><th>Income</th></tr></thead>
+<tbody>${rows}</tbody>
+<tfoot><tr><td colspan="13">Total Income</td><td>£${totalIncome.toFixed(2)}</td></tr></tfoot>
+</table>
+</body></html>`);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Shooting & Game Records</h3><Button size="sm" onClick={() => openAdd({ bagsPheasant: "0", bagsPartridge: "0", bagsGrouse: "0", bagsDuck: "0", bagsWoodcock: "0", bagsOther: "0", totalBag: "0" })}><Plus className="w-4 h-4 mr-1" />Log Shoot</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Shooting & Game Records</h3>
+        <div className="flex gap-2">
+          {(records as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printShootRegister}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => openAdd({ bagsPheasant: "0", bagsPartridge: "0", bagsGrouse: "0", bagsDuck: "0", bagsWoodcock: "0", bagsOther: "0", totalBag: "0" })}><Plus className="w-4 h-4 mr-1" />Log Shoot</Button>
+        </div>
+      </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "shootDate", label: "Date", fmt: r => fmtDate(r.shootDate) }, { key: "shootType", label: "Type" }, { key: "organiser", label: "Organiser" }, { key: "numberOfGuns", label: "Guns" }, { key: "totalBag", label: "Total Bag" }, { key: "gameDealer", label: "Game Dealer" }, { key: "incomeLeaseFee", label: "Income (£)" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
 
       {viewRecord && (
@@ -1381,6 +1446,32 @@ function IncomeTab({ farmId }: { farmId: number }) {
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }
 
   const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
+
+  function printIncomeRegister() {
+    const tableRows = (records as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.incomeDate)}</td>
+      <td>${fmt(r.incomeType)}</td>
+      <td>${fmt(r.activityId)}</td>
+      <td>${fmt(r.description)}</td>
+      <td>${r.grossAmount ? `£${parseFloat(String(r.grossAmount)).toFixed(2)}` : "—"}</td>
+      <td>${r.vatRate ? String(r.vatRate).replace(/_/g, " ") : "—"}</td>
+      <td>${r.netAmount ? `£${parseFloat(String(r.netAmount)).toFixed(2)}` : "—"}</td>
+      <td>${fmt(r.paymentMethod)}</td>
+      <td>${fmt(r.reference)}</td>
+    </tr>`).join("");
+    const totalGross = (records as Record<string, unknown>[]).reduce((s, r) => s + (parseFloat(String(r.grossAmount ?? 0)) || 0), 0);
+    const totalNet = (records as Record<string, unknown>[]).reduce((s, r) => s + (parseFloat(String(r.netAmount ?? 0)) || 0), 0);
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Diversification Income Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;font-size:10px}tr:nth-child(even) td{background:#fafafa}tfoot td{font-weight:700;border-top:2px solid #d1d5db}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Diversification Income Register</h1>
+<h2>${(records as Record<string, unknown>[]).length} record${(records as Record<string, unknown>[]).length !== 1 ? "s" : ""}${year ? ` · ${year}` : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Type</th><th>Activity</th><th>Description</th><th>Gross</th><th>VAT Rate</th><th>Net</th><th>Payment Method</th><th>Reference</th></tr></thead>
+<tbody>${tableRows}</tbody>
+<tfoot><tr><td colspan="4">Total</td><td>£${totalGross.toFixed(2)}</td><td></td><td>£${totalNet.toFixed(2)}</td><td colspan="2"></td></tr></tfoot>
+</table>
+</body></html>`);
+  }
   const fmtGbpLong = (v: number) => `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const summary = useMemo(() => {
@@ -1451,6 +1542,7 @@ function IncomeTab({ farmId }: { farmId: number }) {
             <option value="">All Years</option>
             {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+          {(records as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printIncomeRegister}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Income</Button>
         </div>
       </div>

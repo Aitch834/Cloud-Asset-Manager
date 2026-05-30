@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer } from "lucide-react";
+import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -122,11 +123,37 @@ function TuppingTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({ progesteroneUsed: "false" }); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
+  function printTuppingRecords() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.tuppingStartDate)}</td>
+      <td>${fmtDate(r.tuppingEndDate)}</td>
+      <td>${fmt(r.ramBreed)}</td>
+      <td>${fmt(r.ramTagNumber)}</td>
+      <td>${fmt(r.ewesExposed)}</td>
+      <td>${fmtDate(r.expectedLambingStart)}</td>
+      <td>${r.progesteroneUsed ? "Yes" : "No"}</td>
+      <td>${fmt(r.notes)}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Tupping Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style>
+</head><body>
+<h1>Tupping Records</h1>
+<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Start Date</th><th>End Date</th><th>Ram Breed</th><th>Ram Tag</th><th>Ewes Exposed</th><th>Expected Lambing</th><th>Progesterone</th><th>Notes</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance requires tupping records to be maintained and available at audit. Retain records for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Tupping Records</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printTuppingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
@@ -223,11 +250,40 @@ function ScanningTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-scanning-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-scanning", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  function printScanningRecords() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.scanDate)}</td>
+      <td>${fmt(r.scannerName)}</td>
+      <td>${fmt(r.ewesScanned)}</td>
+      <td>${fmt(r.ewesInLamb)}</td>
+      <td>${fmt(r.ewesBare)}</td>
+      <td>${fmt(r.singlesCount)}</td>
+      <td>${fmt(r.twinsCount)}</td>
+      <td>${fmt(r.triplesCount)}</td>
+      <td>${fmt(r.quadsCount)}</td>
+      <td>${fmt(r.scanningPercentage)}%</td>
+      <td>${fmt(r.expectedLambsTotal)}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Scanning Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Scanning Records</h1>
+<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Scan Date</th><th>Scanner</th><th>Scanned</th><th>In Lamb</th><th>Bare</th><th>Singles</th><th>Twins</th><th>Triplets</th><th>Quads</th><th>Scanning %</th><th>Expected Lambs</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: scanning records must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Scanning Records</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printScanningRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
@@ -300,11 +356,38 @@ function WeighTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  function printWeighRecords() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.weighDate)}</td>
+      <td>${fmt(r.weighBatchRef)}</td>
+      <td>${fmt(r.animalCategory)}</td>
+      <td>${fmt(r.numberOfAnimalsWeighed)}</td>
+      <td>${fmtNum(r.averageWeightKg)}</td>
+      <td>${fmtNum(r.totalWeightKg)}</td>
+      <td>${fmtNum(r.targetWeightKg)}</td>
+      <td>${fmtNum(r.dlwgGPerDay, 0)}</td>
+      <td>${fmt(r.bodyConditionScore)}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Sheep Weigh-in & Performance Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Sheep Weigh-in &amp; Performance Records</h1>
+<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Batch Ref</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Total Wt (kg)</th><th>Target (kg)</th><th>DLWG (g/day)</th><th>BCS</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: weight records and body condition scores must be maintained to demonstrate welfare monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Weigh-in & Performance Records</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printWeighRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
@@ -395,11 +478,39 @@ function ShearingTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-shearing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-shearing", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  function printShearingRecords() {
+    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
+      <td>${fmtDate(r.shearingDate)}</td>
+      <td>${fmt(r.shearerName)}</td>
+      <td>${r.isContractor ? "Contractor" : "Own staff"}</td>
+      <td>${fmt(r.numberOfSheepSheared)}</td>
+      <td>${fmtNum(r.woolWeightKg)}</td>
+      <td>${fmt(r.woolGrade)}</td>
+      <td>${fmt(r.britishWoolBoardRef)}</td>
+      <td>${gbp(r.woolSaleValue)}</td>
+      <td>${r.ectoparasiteTreatmentApplied ? "Yes" : "No"}</td>
+      <td>${fmt(r.treatmentProductName)}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Shearing Records</title>
+<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
+</head><body>
+<h1>Shearing Records</h1>
+<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Shearer</th><th>Contractor?</th><th>Head Sheared</th><th>Wool (kg)</th><th>Grade</th><th>BWB Ref</th><th>Sale Value</th><th>Ectoparasite Tx</th><th>Treatment Product</th></tr></thead>
+<tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: shearing records including wool movement and any ectoparasite treatment applied must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Shearing Records</h3>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ isContractor: "false", ectoparasiteTreatmentApplied: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2">
+          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printShearingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ isContractor: "false", ectoparasiteTreatmentApplied: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
