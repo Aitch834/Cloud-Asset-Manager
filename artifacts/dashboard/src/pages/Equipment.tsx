@@ -991,16 +991,16 @@ export default function EquipmentPage() {
       )}
 
       <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
-        <table className="w-full text-left">
+        <table className="w-full text-left text-sm">
           <thead className="bg-black/5 text-sm uppercase tracking-wider text-foreground/60 font-semibold border-b border-border/50">
             <tr>
-              <th className="px-6 py-4">Asset No.</th>
-              <th className="px-6 py-4">Equipment</th>
-              <th className="px-6 py-4">Reg/Serial</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">MOT Due</th>
-              <th className="px-6 py-4">Next Service</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-4 py-3">Asset No.</th>
+              <th className="px-4 py-3">Equipment</th>
+              <th className="px-4 py-3">Reg/Serial</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">MOT Due</th>
+              <th className="px-4 py-3">Next Service</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
@@ -1027,10 +1027,10 @@ export default function EquipmentPage() {
               const svcSt = dueStatus(item.nextServiceDue);
               return (
               <tr key={item.id} className={`hover:bg-black/5 transition-colors ${isDisposed ? "opacity-60" : ""}`}>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3 whitespace-nowrap">
                   {item.assetNumber ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-semibold text-primary text-sm">{item.assetNumber}</span>
+                      <span className="font-mono font-semibold text-primary text-xs">{item.assetNumber}</span>
                       <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-700" onClick={() => setQrItem(item)} title="Print QR label">
                         <QrCode className="h-3.5 w-3.5" />
                       </Button>
@@ -1047,7 +1047,7 @@ export default function EquipmentPage() {
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4 font-medium">
+                <td className="px-4 py-3 font-medium">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-orange-50 flex-shrink-0 flex items-center justify-center">
                       {parsePhotos(item.photos)[0]
@@ -1065,8 +1065,8 @@ export default function EquipmentPage() {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '—'}</td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3 text-xs font-mono text-foreground/60 whitespace-nowrap">{item.serialNumber || item.registrationNumber || '—'}</td>
+                <td className="px-4 py-3">
                   {isDisposed && dispMeta ? (
                     <div>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 20, fontSize: "0.75rem", fontWeight: 700, background: dispMeta.bg, color: dispMeta.color }}>
@@ -1080,17 +1080,17 @@ export default function EquipmentPage() {
                     <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3">
                   {isDisposed ? <span className="text-xs text-foreground/30">—</span> : item.nextMotDue
                     ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: motSt.bg, color: motSt.color }}>{motSt.label}</span>
                     : <span className="text-xs text-foreground/40">—</span>}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3">
                   {isDisposed ? <span className="text-xs text-foreground/30">—</span> : item.nextServiceDue
                     ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: svcSt.bg, color: svcSt.color }}>{svcSt.label}</span>
                     : <span className="text-xs text-foreground/40">—</span>}
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-4 py-3 text-right">
                   {isDisposed ? (
                     <Button variant="ghost" size="sm" onClick={() => openManage(item)}>
                       <Eye className="w-4 h-4 mr-1.5" /> View
