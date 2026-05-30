@@ -1039,55 +1039,66 @@ const CONTENT: [string, string][] = [
 <p>The intramammary antibiotic withdrawal period for milk runs from the expected calving date, not the dry-off date. The platform calculates the earliest safe date to enter the milk supply after calving based on the product's withdrawal period.</p>`,
   ],
 
-  // 42 — Workshop & Asset Management — Overview
+  // 42 — Equipment Module — Overview
   [
-    "An overview of the Workshop & Asset Management module in BDE Farm Trac, covering asset registration, service history, defect reporting, and depreciation.",
-    `<h2>Workshop & Asset Management — Overview</h2>
-<p>The Workshop &amp; Asset Management module extends the Equipment Register with a full asset lifecycle view — acquisition cost, depreciation, workshop job cards, and a defect reporting workflow. It is particularly useful for farms with on-farm workshops, machinery rings, or larger fleets where tracking workshop time and asset value matters.</p>
-<h3>Asset register</h3>
-<p>Each piece of equipment in the Equipment Register can be assigned an acquisition date, purchase price, and depreciation method (straight-line over a chosen number of years). The current book value is calculated automatically and shown on the asset card, ready for inclusion in your farm's balance sheet.</p>
-<h3>Workshop job cards</h3>
-<p>Navigate to <strong>Equipment → Workshop Jobs</strong> to log each workshop job — planned service, breakdown repair, or modification. Each job card captures the machine, the fault description or planned job type, the date raised, estimated hours, actual hours, parts used, and the job status (Open, In Progress, or Completed). Job cards can be assigned to a named mechanic for workload tracking.</p>
+    "An overview of the Equipment module in BDE Farm Trac, covering the Equipment Register, asset numbers, QR labels, service history, PUWER compliance, insurance, depreciation, defect reporting, and Workshop Analytics.",
+    `<h2>Equipment Module — Overview</h2>
+<p>The Equipment module in BDE Farm Trac provides a full asset lifecycle view for every piece of farm machinery and equipment — from acquisition and asset registration through service history, PUWER compliance, insurance tracking, depreciation, and defect reporting. Workshop job cards, parts store management, fuel records, and analytics are all included within the same module.</p>
+<h3>Equipment Register and asset numbers</h3>
+<p>Navigate to <strong>Equipment → Equipment Register</strong> to view all registered machinery. Each row displays the asset number (EQ- prefix), make, model, registration or serial number, type, and current status. The asset number column includes an inline <strong>Assign / QR</strong> button — click it to assign an asset number to new equipment or to print the QR label for that machine.</p>
+<h3>QR code labels</h3>
+<p>Every piece of equipment in the register has a unique EQ- code. Click <strong>Assign / QR</strong> on the equipment row to generate and print the label. Print on weatherproof stock and fix to the machine cab or chassis. Mobile app users can scan the label to open the machine record and log defects, service notes, or pre-use checks instantly.</p>
+<h3>PUWER compliance tab</h3>
+<p>The PUWER (Provision and Use of Work Equipment Regulations 1998) tab within each equipment record tracks mandatory inspection and thorough examination records. Record the examination date, examining engineer, result (Pass / Fail / Action Required), any defects identified, and the next examination due date. Overdue examinations are flagged with a red warning on the equipment row and on the PUWER tab summary card.</p>
+<h3>Insurance tab</h3>
+<p>The Insurance tab within each equipment record links the machine to one or more policies from your Farm Insurance Register. Record the policy type (e.g. Combined Farm, Motor/Plant), insurer, policy number, and coverage period per machine. This provides a per-asset insurance audit trail without duplicating policy data held centrally in the Insurance Register.</p>
+<h3>Depreciation tab</h3>
+<p>The Depreciation tab records the acquisition date, purchase price, and depreciation method (straight-line over a chosen number of years). The current book value is calculated automatically and shown on the asset card for each piece of equipment, ready for inclusion in your farm's balance sheet or asset register for accountancy purposes.</p>
 <h3>Defect reports</h3>
-<p>Operators report defects from the mobile app by selecting the machine and entering the defect description. The defect appears as an open item in the Workshop Jobs list and can be escalated to a full job card. The pre-use check log captures whether a defect was identified before the machine was used — important for H&amp;S compliance.</p>
-<h3>PAT testing and fire extinguishers</h3>
-<p>The PAT Testing tab tracks portable appliance test records for all electrical equipment used on the farm. The Fire Extinguisher tab records each extinguisher's location, type, last service date, and next service due date — these are annual legal requirements.</p>`,
+<p>Operators report defects from the mobile app by selecting the machine and entering the defect description. The defect appears as an open item in <strong>Equipment → Defect Reports</strong>. High and critical severity defects trigger a warning banner flagging the equipment as potentially unsafe to operate until resolved. Raise Task from any open defect to assign a named staff member with a due date and repair instructions.</p>
+<h3>Workshop job cards</h3>
+<p>Navigate to <strong>Equipment → Workshop Jobs</strong> to log each workshop job — planned service, breakdown repair, or modification. Each job card captures the machine, fault description or job type, date raised, estimated and actual hours, parts used from the Parts Store, and job status (Open, In Progress, Completed). Job cards can be linked to Farm Services customers and invoiced with one click.</p>
+<h3>Workshop Analytics tab</h3>
+<p>The Workshop Analytics tab provides a summary of workshop activity across a selected date range — total jobs completed, average completion time, most-serviced machines, mechanic workload breakdown, parts cost totals, and open-job count by priority. Use it to identify machines with high maintenance frequency or to review workshop throughput for cost control.</p>`,
   ],
 
   // 43 — Scanning QR Codes with the Mobile App
   [
-    "How to use the BDE Farm Trac mobile app to scan QR codes for fields, animals, storage locations, and buildings.",
+    "How to use the BDE Farm Trac mobile app to scan QR codes for fields, animals, equipment, storage locations, and buildings.",
     `<h2>Scanning QR Codes with the Mobile App</h2>
-<p>BDE Farm Trac generates unique QR codes for fields, individual animals, storage locations, and farm buildings. Scanning a QR code in the field opens that item's record instantly — no searching or typing required. This speeds up data entry significantly when recording spray applications, medicine treatments, or stock movements at the point of activity.</p>
+<p>BDE Farm Trac generates unique QR codes for fields, individual animals, equipment, storage locations, and farm buildings. Scanning a QR code in the field opens that item's record instantly — no searching or typing required. This speeds up data entry significantly when recording spray applications, medicine treatments, defect reports, or stock movements at the point of activity.</p>
 <h3>How to scan a QR code</h3>
 <p>Open the BDE Farm Trac mobile app and tap the QR scanner icon in the top toolbar. Point the camera at the code. If the device is online, the app resolves the item immediately and opens its record. If offline, the item is looked up from the locally cached reference data.</p>
 <h3>What you can scan</h3>
 <ul>
 <li><strong>Field labels:</strong> scan a field stake or gate label to open the field's record and log a spray application, soil sample, or field operation directly against that field.</li>
 <li><strong>Animal tags:</strong> scan a QR code printed for an individual animal to open its medicine treatment history, add a new treatment, or record a health observation.</li>
+<li><strong>Equipment labels:</strong> scan a machine's EQ- QR label (generated from the Equipment module) to open its service history and log a defect report, pre-use check, or maintenance note instantly from the field or yard.</li>
 <li><strong>Storage locations:</strong> scan a grain store or chemical store QR code to view the current stock balance and log a stock movement.</li>
-<li><strong>Equipment:</strong> scan a machine's QR label to open its service history and log a defect report.</li>
 </ul>
 <h3>Generating and printing QR labels</h3>
-<p>QR labels are generated from the corresponding register page. For fields, use the Field Register. For animals, use the Individual Animal Register. Labels are printed as A5 or A4 sheets with the QR code and the item name for easy identification. Use weatherproof label materials for outdoor use.</p>`,
+<p>QR labels are generated from the corresponding register page in the dashboard. For fields, use the Field Register. For animals, use the Individual Animal Register. For equipment, use the Equipment Register — click the <strong>Assign / QR</strong> button on any equipment row. Labels are printed as A5 or A4 sheets with the QR code and the item name for easy identification. Use weatherproof label materials for outdoor use.</p>`,
   ],
 
-  // 44 — Generating QR Labels for Fields, Animals, and Storage
+  // 44 — Generating QR Labels for Fields, Animals, Equipment, and Storage
   [
-    "How to generate and print QR code labels for fields, animals, and storage locations in BDE Farm Trac.",
-    `<h2>Generating QR Labels for Fields, Animals, and Storage</h2>
-<p>QR code labels provide a fast way to connect physical farm locations and assets to their digital records in BDE Farm Trac. Once a QR label is printed and placed on a gate, tag, or store door, any user with the mobile app can scan it to open the relevant record immediately.</p>
+    "How to generate and print QR code labels for fields, animals, equipment, and storage locations in BDE Farm Trac.",
+    `<h2>Generating QR Labels for Fields, Animals, Equipment, and Storage</h2>
+<p>QR code labels provide a fast way to connect physical farm locations and assets to their digital records in BDE Farm Trac. Once a QR label is printed and placed on a gate, tag, machine cab, or store door, any user with the mobile app can scan it to open the relevant record immediately.</p>
 <h3>Generating a field label</h3>
 <p>Navigate to <strong>Field &amp; Crop Management → Field Register</strong> and open the field detail. Click <strong>Generate QR Label</strong>. The label downloads as a PDF containing the QR code, the field name, the OS parcel reference, and the field area. Print on a weatherproof label or laminate an A5 sheet for gate mounting.</p>
 <h3>Generating an animal label</h3>
 <p>Navigate to <strong>Livestock → Individual Animals</strong> and open the animal's record. Click <strong>Generate QR Label</strong>. The label shows the QR code alongside the primary ear tag number, species and breed, and date of birth. Print on adhesive label stock or on a durable card for pen-side mounting.</p>
+<h3>Generating an equipment label</h3>
+<p>Navigate to <strong>Equipment → Equipment Register</strong> and locate the machine in the list. Click the <strong>Assign / QR</strong> button on the equipment row. If no asset number has been assigned yet, you will be prompted to assign one first (EQ- prefix, e.g. EQ-0042). The label downloads as a PDF showing the QR code, the asset number, the machine name (make and model), and the registration or serial number. Print on weatherproof stock and fix to the machine cab or chassis plate. Once printed, mobile app users can scan the label to log defect reports, pre-use checks, and maintenance notes directly against that machine without searching.</p>
 <h3>Generating a storage location label</h3>
 <p>Navigate to <strong>Grain &amp; Crop Storage → Locations</strong> and open the location record. Click <strong>Generate QR Label</strong>. The label shows the store name, location type, and current commodity. Print and fix to the store door or silo access panel.</p>
 <h3>Best practice</h3>
 <ul>
-<li>Regenerate labels if the item's key details change (e.g. field renamed, animal retagged).</li>
+<li>Regenerate labels if the item's key details change (e.g. field renamed, animal retagged, equipment renamed).</li>
 <li>Mount labels at a consistent height for ease of scanning from the mobile app camera.</li>
 <li>Laminate or use UV-resistant printing for outdoor labels to ensure the QR code remains scannable throughout the season.</li>
+<li>For equipment, fix labels inside the cab near the steering column or on the chassis where they are protected from dirt and weather.</li>
 </ul>`,
   ],
 
@@ -2085,7 +2096,7 @@ const CONTENT: [string, string][] = [
 
   // 102 — Farm Insurance Register
   [
-    "How to record farm insurance policies in BDE Farm Trac, including coverage types, sums insured, renewal dates, and policy documents.",
+    "How to record farm insurance policies in BDE Farm Trac, including coverage types, sums insured, renewal dates, per-machine insurance tabs in Equipment, and policy documents.",
     `<h2>Farm Insurance Register</h2>
 <p>The Farm Insurance Register provides a central, searchable record of all your farm insurance policies — farm combined, public liability, employer's liability, product liability, crop insurance, livestock insurance, vehicle insurance, and any specialist policies. Keeping policy details in one place ensures renewal dates are not missed and coverage levels can be checked quickly when needed.</p>
 <h3>Recording a policy</h3>
@@ -2099,6 +2110,8 @@ const CONTENT: [string, string][] = [
 <li><strong>Key coverage details:</strong> brief note of what is covered (e.g. all farm buildings and contents up to £2.5m, all farm vehicles).</li>
 </ul>
 <p>Attach the policy schedule document to the record.</p>
+<h3>Per-machine insurance tab in Equipment</h3>
+<p>Each individual equipment record in the Equipment Register has an Insurance tab. Use this tab to link one or more policies from your Farm Insurance Register to that specific machine — recording the policy type, insurer, policy number, and coverage period per asset. This gives you a per-machine insurance audit trail without duplicating the full policy details held centrally in the Insurance Register. For example, you might link a Motor/Plant policy to a combine harvester and a separate Public Liability policy when that machine is used for contract work.</p>
 <h3>Renewal alerts</h3>
 <p>Policies approaching renewal (within 60 days) are flagged with amber warnings on the Insurance Register dashboard card. An SMS alert is sent to opted-in managers at 60 days before expiry.</p>
 <h3>Coverage cross-reference</h3>

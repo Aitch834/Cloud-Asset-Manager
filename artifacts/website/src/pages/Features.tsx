@@ -170,21 +170,6 @@ const sections: Section[] = [
           "Entry source tracking — each reading is tagged as manual, csv, or api so you can see at a glance which records came from direct entry, a data logger export, or an automated integration; foundation for future FieldClimate and ZENTRA Cloud API connections",
         ],
       },
-      {
-        title: "Grain & Crop Storage",
-        icon: Warehouse,
-        color: "bg-amber-50 text-amber-700 border-amber-100",
-        badge: "module",
-        features: [
-          "Storage location register — register grain stores, silos, bins, general storage, ambient warehouses, cold stores, chemical stores, fertiliser stores, and off-farm merchant or elevator positions; each location records the commodity, variety, maximum capacity, GPS coordinates, and location type",
-          "Stock movements — log all movement types: Intake (harvest or delivery into store), Dispatch (crop leaving for sale or transfer), Transfer In and Transfer Out (internal movements between two locations on the same farm), Sample Withdrawal (a sample taken and not returned, treated as a stock reduction), Drying Loss (moisture-driven weight reduction), and Manual Adjustment (stock corrections with a free-choice in/out direction); stock balance recalculated in real time from all recorded movements",
-          "Live stock balance — summary cards show Total In, Total Out, and current Balance in tonnes to three decimal places; apply the year filter to calculate a crop-year net position or reconcile tonnage against a merchant statement",
-          "Grain quality tests — record quality test results per storage location covering moisture (%), specific weight (kg/hl), protein (%), Hagberg falling number, and screenings (%); full test history per location with date and lab reference",
-          "Temperature monitoring — log bin temperature readings over time with automatic alerts for rising or out-of-spec readings before grain condition is compromised",
-          "Link movements to farm records — optionally link any stock movement to an existing Haulage Record, Grain Sale, or Harvest Record; linked movements show a clickable reference chip in the movement table — click to open the full source record (weighbridge ticket, buyer, field, crop, grade, and more) without leaving the screen; creates a complete chain of custody from harvest field through store to sale",
-          "Merchant storage charges — log charges from off-farm merchants for storage, drying, cleaning, and handling; record date, charge type, description, quantity in tonnes, rate, and total amount; filter by crop year with a running total footer for cross-checking merchant statements",
-        ],
-      },
     ],
   },
   {
@@ -192,7 +177,7 @@ const sections: Section[] = [
     description: "Full lifecycle management for machinery, vehicles, workshop job cards, fuel compliance, and energy metering — in one module.",
     modules: [
       {
-        title: "Equipment, Workshop & Fuel",
+        title: "Equipment Register, Workshop & Fuel",
         icon: Tractor,
         color: "bg-orange-50 text-orange-600 border-orange-100",
         badge: "module",

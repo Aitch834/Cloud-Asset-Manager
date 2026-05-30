@@ -25,7 +25,7 @@ const FARM_TYPES = [
 ];
 
 const MODULES = [
-  { id: "crop-management", label: "Crop Management (spray records, field journal, varieties)" },
+  { id: "field-crop-management", label: "Field & Crop Management (spray records, field journal, varieties)" },
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
   { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, individual animal linking, Bluetooth RFID scanning, lambing records with perinatal ABP disposal, season analytics, date-validated forms, staff/assessor name auto-populates, BVD Testing Register, Johne's Disease Monitoring Register, Casualty/Emergency Slaughter Records with mobile capture, Dairy Management with DCT — POM-V enforcement, VMD medicine database, Vet Ledger finance trail)" },
   { id: "biosecurity", label: "Biosecurity & Visitors (visitor log with digital signature & photo/document attachments, pest control with attachments, COSHH with SDS photo, cleaning & disinfection with photo evidence, biosecurity plan)" },
@@ -38,7 +38,7 @@ const MODULES = [
   { id: "finance", label: "Finance & Business (Trade Contacts with supplier directory & UFAS/FEMAS tracking, Purchase Orders with multi-stage status tracking and manager approval workflow, Goods Received Notes with 3-way matching, Financial Records & Business Reports)" },
   { id: "safety-risk-audits", label: "Safety, Risk & Audits (risk assessments, COSHH, PAT testing with BDE-PAT-XXXX QR label printing & mobile scan-to-test, fire extinguisher register, accident book, contractor H&S file, waste disposal, fly-tipping & encampments, printable H&S Register)" },
   { id: "environment-sustainability", label: "Environment & Sustainability (SFI / ELM agreement manager with action codes, evidence-due deadline alerts, and print-ready compliance report; Slurry & Manure Management with store register, fill-level progress bars, Fill & Intake Events log, and species-specific storage enforcement with 🔒 locked material types and server-side validation; Carbon & Sustainability: DEFRA 2023 GHG Auto-Calculator — Pre-fill from Farm Records pulls fuel, fertiliser, livestock, and electricity data and returns Scope 1/2 tCO₂e with one-click Create Audit flow; Sustainability Reports tab with certifying body lookup, submission status, PO/invoice tracking, and document attachments)" },
-  { id: "equipment-workshop", label: "Equipment, Workshop & Fuel (date-validated records, operator name auto-populates)" },
+  { id: "equipment-workshop", label: "Equipment, Workshop & Fuel (Equipment Register with PUWER, insurance & depreciation tabs per machine, QR labels, Workshop job cards & analytics, Fuel & Energy)" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "water-irrigation", label: "Water & Irrigation Management" },
   { id: "fresh-produce", label: "Fresh Produce" },
