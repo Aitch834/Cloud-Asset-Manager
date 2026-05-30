@@ -3613,7 +3613,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
 
       {monthlyData.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-gray-700 mb-1">Monthly Trend <span className="text-xs font-normal text-gray-400">(all time \u00b7 last 18 months)</span></p>
+          <p className="text-sm font-semibold text-gray-700 mb-1">Monthly Trend</p>
           <p className="text-xs text-gray-400 mb-4">Spend (bars) \u00b7 Jobs (green line) \u00b7 Hours (blue dashed)</p>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={monthlyData} margin={{ top: 4, right: 36, left: 0, bottom: 4 }}>
