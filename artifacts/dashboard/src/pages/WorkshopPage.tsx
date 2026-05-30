@@ -77,65 +77,7 @@ function StatusBadge({ value, map }: { value: string; map: Record<string, { labe
   return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", s.colour)}>{s.label}</span>;
 }
 
-// ─── QR Label dialog ───────────────────────────────────────────────────────────
-
-const LABEL_CSS = `
-  @page{size:62mm 90mm;margin:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}
-  .brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
-  .divider{border:none;border-top:1px solid #e5e7eb;margin:4px 0}
-  .farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}
-  svg{display:block;margin:0 auto}
-  .code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}
-  .iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}
-  .desc{font-size:9px;color:#9ca3af;margin-top:2px}
-  .hint{font-size:8px;color:#d1d5db;margin-top:4px}
-`;
-
-function QRDialog({ equip, farmId, farmName, onClose }: {
-  equip: { id: number; assetNumber?: string | null; name: string; make?: string | null; model?: string | null };
-  farmId: number;
-  farmName: string;
-  onClose: () => void;
-}) {
-  const an = assetNumber(equip);
-  const qrValue = `BDE:F${farmId}:${an}`;
-  const printRef = useRef<HTMLDivElement>(null);
-
-  function handlePrint() {
-    const win = window.open("", "_blank");
-    if (!win || !printRef.current) return;
-    win.document.write(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
-    win.document.close();
-    win.focus();
-    win.addEventListener("afterprint", () => win.close());
-    win.print();
-  }
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>Asset QR Label</DialogTitle></DialogHeader>
-        <div className="flex flex-col items-center gap-1.5 py-2 border rounded-xl bg-white px-5 shadow-sm" ref={printRef}>
-          <p className="brand text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
-          <hr className="divider w-full border-gray-200" />
-          <p className="farm text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
-          <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
-          <p className="code font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{an}</p>
-          <p className="iname text-sm font-semibold text-gray-700">{equip.name}</p>
-          {(equip.make || equip.model) && <p className="desc text-xs text-gray-400">{[equip.make, equip.model].filter(Boolean).join(" · ")}</p>}
-          <p className="hint text-[10px] text-gray-300 mb-1">Scan to view equipment record</p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={handlePrint}><Printer className="h-4 w-4 mr-1" />Print Label</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Assets tab ────────────────────────────────────────────────────────────────
+// ─── Equipment interface (used by job cards, service schedule etc.) ────────────
 
 interface Equipment {
   id: number;
@@ -156,225 +98,6 @@ interface Equipment {
   disposalMethod: string | null;
   disposalDate: string | null;
   disposalBuyerOrContractor: string | null;
-}
-
-function AssetsTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const [qrEquip, setQrEquip] = useState<Equipment | null>(null);
-  const [showDisposed, setShowDisposed] = useState(false);
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-
-  const { data: farmData } = useQuery<{ record: { name: string } }>({
-    queryKey: ["farm", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()),
-  });
-  const farmName = farmData?.record?.name ?? "BDE Farm";
-
-  const { data, isLoading } = useQuery<{ records: Equipment[] }>({
-    queryKey: ["equipment", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
-  });
-
-  const assignNumber = useMutation({
-    mutationFn: async (equip: Equipment) => {
-      const an = `EQ-${String(equip.id).padStart(4, "0")}`;
-      await fetch(api(`farms/${farmId}/equipment/${equip.id}`), {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assetNumber: an }),
-      });
-      return an;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment", farmId] }),
-  });
-
-  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
-
-  const allEquipment = data?.records ?? [];
-  const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
-  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
-
-  const wsq = search.trim().toLowerCase();
-  const wsFiltered = equipment.filter(e => {
-    const matchSearch = !wsq
-      || (e.name ?? "").toLowerCase().includes(wsq)
-      || (e.make ?? "").toLowerCase().includes(wsq)
-      || (e.model ?? "").toLowerCase().includes(wsq)
-      || (e.assetNumber ?? "").toLowerCase().includes(wsq);
-    const matchType = !typeFilter || e.type === typeFilter;
-    return matchSearch && matchType;
-  });
-
-  const wsAvailableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
-
-  const wsGrouped: { label: string; value: string; items: Equipment[] }[] = [];
-  for (const t of EQUIPMENT_TYPES) {
-    const items = wsFiltered.filter(e => e.type === t.value);
-    if (items.length) wsGrouped.push({ label: t.label, value: t.value, items });
-  }
-  const wsUnknownItems = wsFiltered.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
-  if (wsUnknownItems.length) wsGrouped.push({ label: "Other / Unclassified", value: "__unknown", items: wsUnknownItems });
-
-  const handleAssetPrint = () => {
-    const printGroups: { label: string; items: Equipment[] }[] = [];
-    for (const t of EQUIPMENT_TYPES) {
-      const items = allEquipment.filter(e => e.type === t.value);
-      if (items.length) printGroups.push({ label: t.label, items });
-    }
-    const unknownPrint = allEquipment.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
-    if (unknownPrint.length) printGroups.push({ label: "Other / Unclassified", items: unknownPrint });
-
-    const cols = `<th>Asset No.</th><th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Status</th><th>Hours</th><th>Location</th>`;
-    const itemRow = (eq: Equipment) => `<tr>
-      <td style="font-family:monospace;font-weight:600">${eq.assetNumber || `EQ-${String(eq.id).padStart(4, "0")}`}</td>
-      <td><strong>${eq.name}</strong></td>
-      <td>${eq.type || "—"}</td>
-      <td>${[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
-      <td style="font-family:monospace">${eq.serialNumber || eq.registrationNumber || "—"}</td>
-      <td>${eq.status === "disposed" ? "Disposed" : "Active"}</td>
-      <td>${eq.currentHours != null ? eq.currentHours + " hrs" : "—"}</td>
-      <td>${eq.location || "—"}</td>
-    </tr>`;
-
-    const rows = printGroups.map(group => `
-      <tr style="background:#1a3a1a!important">
-        <td colspan="8" style="padding:5px 6px;font-size:8.5px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.07em;border:none">
-          ${group.label} <span style="font-weight:400;opacity:0.7">(${group.items.length})</span>
-        </td>
-      </tr>
-      ${group.items.map(itemRow).join("")}
-    `).join("");
-
-    printProReport({
-      title: "Workshop & Asset Register",
-      farmName: farmName,
-      recordCount: allEquipment.length,
-      recordLabel: "asset",
-      tableHtml: `<table><thead><tr>${cols}</tr></thead><tbody>${rows}</tbody></table>`,
-      landscape: true,
-      footerNote: "Asset register for workshop planning and compliance. Retain with service records for Red Tractor audit inspection.",
-    });
-  };
-
-  return (
-    <div>
-      {qrEquip && <QRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
-      {allEquipment.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No equipment registered. Add equipment on the Equipment page first.</CardContent></Card>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search assets..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-3 text-xs rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              {disposedCount > 0 && (
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => setShowDisposed(v => !v)}>
-                  {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  {showDisposed ? "Hide disposed" : `Show ${disposedCount} disposed`}
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleAssetPrint} disabled={allEquipment.length === 0}>
-                <Printer className="h-3.5 w-3.5" />
-                Print Register
-              </Button>
-            </div>
-          </div>
-          {wsAvailableTypes.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setTypeFilter("")}
-                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${!typeFilter ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
-              >
-                All ({equipment.length})
-              </button>
-              {wsAvailableTypes.map(t => {
-                const count = equipment.filter(e => e.type === t.value).length;
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => setTypeFilter(prev => prev === t.value ? "" : t.value)}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${typeFilter === t.value ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
-                  >
-                    {t.label} ({count})
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="overflow-x-auto rounded-lg border bg-white">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Asset No.</th>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Make / Model</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Hours</th>
-                  <th className="px-4 py-3 text-left">Location</th>
-                  <th className="px-4 py-3 text-left">QR</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {wsFiltered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">No assets match your search or filter.</td></tr>
-                ) : wsGrouped.map(group => <Fragment key={group.value}>
-                  {!typeFilter && (
-                    <tr className="bg-blue-50/60 border-b border-blue-100">
-                      <td colSpan={8} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-blue-700">
-                        {group.label} <span className="font-normal text-blue-400 ml-1">({group.items.length})</span>
-                      </td>
-                    </tr>
-                  )}
-                  {group.items.map(eq => (
-                  <tr key={eq.id} className={cn("hover:bg-gray-50", eq.status === "disposed" && "opacity-60")}>
-                    <td className="px-4 py-3">
-                      {eq.assetNumber ? (
-                        <span className="font-mono font-semibold text-primary">{eq.assetNumber}</span>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-sm text-gray-400 tabular-nums">{assetNumber(eq)}</span>
-                          {eq.status !== "disposed" && (
-                            <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
-                              onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}
-                              title="Save this asset number permanently">
-                              Save
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium">{eq.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{eq.type}</td>
-                    <td className="px-4 py-3 text-gray-500">{[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
-                    <td className="px-4 py-3"><EquipStatusCell eq={eq} /></td>
-                    <td className="px-4 py-3 text-gray-500">{eq.currentHours != null ? `${eq.currentHours} hrs` : "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{eq.location || "—"}</td>
-                    <td className="px-4 py-3">
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setQrEquip(eq)}>
-                        <QrCode className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                </Fragment>)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Job Cards tab ─────────────────────────────────────────────────────────────
@@ -1723,12 +1446,12 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-1">Fleet Status</h3>
-        <p className="text-xs text-gray-400 mb-3">Click a card to view those assets</p>
+        <p className="text-xs text-gray-400 mb-3">Asset register & QR codes are on the Equipment page</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Assets" value={equipment.length} colour="text-gray-900" onClick={() => onNavigate("assets")} />
-          <StatCard title="Operational" value={byStatus["active"] || 0} colour="text-green-600" sub={`${Math.round(((byStatus["active"] || 0) / Math.max(equipment.length, 1)) * 100)}% availability`} onClick={() => onNavigate("assets")} />
-          <StatCard title="Broken Down" value={byStatus["broken"] || 0} colour="text-red-600" onClick={() => onNavigate("assets")} />
-          <StatCard title="In Service" value={byStatus["in-service"] || 0} colour="text-amber-600" onClick={() => onNavigate("assets")} />
+          <StatCard title="Total Assets" value={equipment.length} colour="text-gray-900" />
+          <StatCard title="Operational" value={byStatus["active"] || 0} colour="text-green-600" sub={`${Math.round(((byStatus["active"] || 0) / Math.max(equipment.length, 1)) * 100)}% availability`} />
+          <StatCard title="Broken Down" value={byStatus["broken"] || 0} colour="text-red-600" onClick={() => onNavigate("jobs")} />
+          <StatCard title="In Service" value={byStatus["in-service"] || 0} colour="text-amber-600" onClick={() => onNavigate("jobs")} />
         </div>
       </div>
 
@@ -3888,11 +3611,11 @@ function CustomersTab({ farmId, onViewJobs }: { farmId: number; onViewJobs: () =
   );
 }
 
-type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts" | "analytics" | "customers";
+type Tab = "jobs" | "schedule" | "overview" | "parts" | "analytics" | "customers";
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts","analytics","customers"]; return t && valid.includes(t) ? t : "assets"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["jobs","schedule","overview","parts","analytics","customers"]; return t && valid.includes(t) ? t : "jobs"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [jobNavStatus, setJobNavStatus] = useState<string>("all");
   const [jobNavKey, setJobNavKey] = useState(0);
@@ -3908,15 +3631,14 @@ export default function WorkshopPage() {
   if (!farmId) return <Redirect to="/select" />;
 
   return (
-    <AppLayout title="Workshop & Assets">
+    <AppLayout title="Workshop">
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Workshop & Asset Management</h1>
-          <p className="text-gray-500 text-sm mt-1">Asset numbers, QR labels, job cards, service schedules, parts store, and fleet overview.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Workshop</h1>
+          <p className="text-gray-500 text-sm mt-1">Job cards, service schedules, parts store, fleet overview, and analytics.</p>
         </div>
 
         <TabBar>
-          <TabButton active={tab === "assets"} onClick={() => setTab("assets")}><Wrench className="h-3.5 w-3.5 mr-1 inline-block" />Assets & QR Codes</TabButton>
           <TabButton active={tab === "jobs"} onClick={() => { setJobNavStatus("all"); setTab("jobs"); }}>Job Cards</TabButton>
           <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")}>Service Schedule</TabButton>
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>Fleet Overview</TabButton>
@@ -3926,7 +3648,6 @@ export default function WorkshopPage() {
         </TabBar>
 
         <div className="mt-6">
-          {tab === "assets" && <AssetsTab farmId={farmId} />}
           {tab === "jobs" && <JobCardsTab key={jobNavKey} farmId={farmId} openId={openId} initialStatus={jobNavStatus} />}
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
           {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={navigateTo} />}

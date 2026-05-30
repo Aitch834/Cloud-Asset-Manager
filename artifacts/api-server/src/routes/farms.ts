@@ -15940,7 +15940,7 @@ router.get("/:farmId/reports/assets", requireAuth, requireTenant, requireModuleB
 
 // ─── Workshop & Asset Management ───────────────────────────────────────────────
 
-router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { assetNumber } = req.params;
