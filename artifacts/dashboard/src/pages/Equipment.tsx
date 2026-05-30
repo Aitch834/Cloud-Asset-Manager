@@ -281,252 +281,6 @@ function EquipQRDialog({ equip, farmId, farmName, onClose }: {
   );
 }
 
-// ─── Asset status helpers ──────────────────────────────────────────────────────
-
-const ASSET_STATUS_STYLES: Record<string, string> = {
-  active:       "bg-green-100 text-green-700",
-  broken:       "bg-red-100 text-red-700",
-  "in-service": "bg-amber-100 text-amber-700",
-  disposed:     "bg-gray-100 text-gray-500",
-};
-
-const ASSET_STATUS_LABELS: Record<string, string> = {
-  active:       "Operational",
-  broken:       "Broken Down",
-  "in-service": "In Service",
-  disposed:     "Disposed",
-};
-
-const ASSET_DISPOSAL_LABELS: Record<string, string> = {
-  sold:          "Sold",
-  scrapped:      "Scrapped",
-  part_exchange: "Part Exchange",
-  stolen:        "Stolen / Lost",
-  transferred:   "Transferred",
-  other:         "Disposed",
-};
-
-function AssetStatusCell({ item }: { item: EquipmentRecord }) {
-  if (item.status === "disposed") {
-    const label = ASSET_DISPOSAL_LABELS[item.disposalMethod ?? ""] ?? "Disposed";
-    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">{label}</span>;
-  }
-  const cls = ASSET_STATUS_STYLES[item.status ?? ""] ?? "bg-gray-100 text-gray-600";
-  const lbl = ASSET_STATUS_LABELS[item.status ?? ""] ?? item.status;
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{lbl}</span>;
-}
-
-// ─── Assets & QR Codes tab ─────────────────────────────────────────────────────
-
-function AssetsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
-  const qc = useQueryClient();
-  const [qrEquip, setQrEquip] = useState<EquipmentRecord | null>(null);
-  const [showDisposed, setShowDisposed] = useState(false);
-  const [assetSearch, setAssetSearch] = useState("");
-  const [assetTypeFilter, setAssetTypeFilter] = useState("");
-
-  const { data, isLoading } = useQuery<{ records: EquipmentRecord[] }>({
-    queryKey: ["equipment", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }).then(r => r.json()),
-  });
-
-  const assignNumber = useMutation({
-    mutationFn: async (item: EquipmentRecord) => {
-      const an = `EQ-${String(item.id).padStart(4, "0")}`;
-      await fetch(`/api/farms/${farmId}/equipment/${item.id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assetNumber: an }),
-      });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["equipment", farmId] }),
-  });
-
-  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
-
-  const allEquipment = data?.records ?? [];
-  const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
-  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
-
-  const sq = assetSearch.trim().toLowerCase();
-  const filtered = equipment.filter(e => {
-    const matchSearch = !sq
-      || (e.name ?? "").toLowerCase().includes(sq)
-      || (e.make ?? "").toLowerCase().includes(sq)
-      || (e.model ?? "").toLowerCase().includes(sq)
-      || (e.assetNumber ?? "").toLowerCase().includes(sq);
-    const matchType = !assetTypeFilter || e.type === assetTypeFilter;
-    return matchSearch && matchType;
-  });
-
-  const availableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
-
-  const grouped: { label: string; value: string; items: EquipmentRecord[] }[] = [];
-  for (const t of EQUIPMENT_TYPES) {
-    const items = filtered.filter(e => e.type === t.value);
-    if (items.length) grouped.push({ label: t.label, value: t.value, items });
-  }
-  const unknownItems = filtered.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
-  if (unknownItems.length) grouped.push({ label: "Other / Unclassified", value: "__unknown", items: unknownItems });
-
-  const handlePrint = () => {
-    const printGroups: { label: string; items: EquipmentRecord[] }[] = [];
-    for (const t of EQUIPMENT_TYPES) {
-      const items = allEquipment.filter(e => e.type === t.value);
-      if (items.length) printGroups.push({ label: t.label, items });
-    }
-    const unknownPrint = allEquipment.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
-    if (unknownPrint.length) printGroups.push({ label: "Other / Unclassified", items: unknownPrint });
-    const cols = `<th>Asset No.</th><th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Status</th><th>Hours</th><th>Location</th>`;
-    const row = (eq: EquipmentRecord) => `<tr>
-      <td style="font-family:monospace;font-weight:600">${eq.assetNumber || `EQ-${String(eq.id).padStart(4, "0")}`}</td>
-      <td><strong>${eq.name ?? ""}</strong></td>
-      <td>${eq.type || "—"}</td>
-      <td>${[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
-      <td style="font-family:monospace">${eq.serialNumber || eq.registrationNumber || "—"}</td>
-      <td>${eq.status === "disposed" ? "Disposed" : "Active"}</td>
-      <td>${eq.currentHours != null ? eq.currentHours + " hrs" : "—"}</td>
-      <td>${eq.location || "—"}</td>
-    </tr>`;
-    const rows = printGroups.map(g => `
-      <tr style="background:#1a3a1a!important">
-        <td colspan="8" style="padding:5px 6px;font-size:8.5px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.07em;border:none">
-          ${g.label} <span style="font-weight:400;opacity:0.7">(${g.items.length})</span>
-        </td>
-      </tr>
-      ${g.items.map(row).join("")}
-    `).join("");
-    printProReport({
-      title: "Asset Register",
-      farmName,
-      recordCount: allEquipment.length,
-      recordLabel: "asset",
-      tableHtml: `<table><thead><tr>${cols}</tr></thead><tbody>${rows}</tbody></table>`,
-      landscape: true,
-      footerNote: "Asset register for compliance and QR label management. Retain with service records for Red Tractor audit inspection.",
-    });
-  };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {qrEquip && <EquipQRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
-      {allEquipment.length === 0 ? (
-        <div className="py-8 text-center text-gray-400 text-sm">No equipment registered yet. Add equipment using the Equipment Register tab.</div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search assets..."
-                value={assetSearch}
-                onChange={e => setAssetSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-3 text-xs rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              {disposedCount > 0 && (
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => setShowDisposed(v => !v)}>
-                  {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  {showDisposed ? "Hide disposed" : `Show ${disposedCount} disposed`}
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handlePrint} disabled={allEquipment.length === 0}>
-                <Printer className="h-3.5 w-3.5" />
-                Print Register
-              </Button>
-            </div>
-          </div>
-          {availableTypes.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setAssetTypeFilter("")}
-                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${!assetTypeFilter ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
-              >
-                All ({equipment.length})
-              </button>
-              {availableTypes.map(t => {
-                const count = equipment.filter(e => e.type === t.value).length;
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => setAssetTypeFilter(prev => prev === t.value ? "" : t.value)}
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${assetTypeFilter === t.value ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
-                  >
-                    {t.label} ({count})
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="overflow-x-auto rounded-lg border bg-white">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Asset No.</th>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Make / Model</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Hours</th>
-                  <th className="px-4 py-3 text-left">Location</th>
-                  <th className="px-4 py-3 text-left">QR</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">No assets match your search or filter.</td></tr>
-                ) : grouped.map(group => <Fragment key={group.value}>
-                  {!assetTypeFilter && (
-                    <tr className="bg-blue-50/60 border-b border-blue-100">
-                      <td colSpan={8} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-blue-700">
-                        {group.label} <span className="font-normal text-blue-400 ml-1">({group.items.length})</span>
-                      </td>
-                    </tr>
-                  )}
-                  {group.items.map(eq => (
-                    <tr key={eq.id} className={`hover:bg-gray-50${eq.status === "disposed" ? " opacity-60" : ""}`}>
-                      <td className="px-4 py-3">
-                        {eq.assetNumber ? (
-                          <span className="font-mono font-semibold text-primary">{eq.assetNumber}</span>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono text-sm text-gray-400 tabular-nums">{equipAssetNumber(eq)}</span>
-                            {eq.status !== "disposed" && (
-                              <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
-                                onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}
-                                title="Save this asset number permanently">
-                                Save
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-medium">{eq.name ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-500">{eq.type}</td>
-                      <td className="px-4 py-3 text-gray-500">{[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
-                      <td className="px-4 py-3"><AssetStatusCell item={eq} /></td>
-                      <td className="px-4 py-3 text-gray-500">{eq.currentHours != null ? `${eq.currentHours} hrs` : "—"}</td>
-                      <td className="px-4 py-3 text-gray-500">{eq.location || "—"}</td>
-                      <td className="px-4 py-3">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setQrEquip(eq)}>
-                          <QrCode className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </Fragment>)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
 
 
@@ -786,7 +540,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"assets" | "equipment" | "defects">("assets");
+  const [tab, setTab] = useState<"equipment" | "defects">("equipment");
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
@@ -874,6 +628,19 @@ export default function EquipmentPage() {
       toast({ title: "Disposal reversed", description: "The item has been restored to your active fleet." });
     },
     onError: () => toast({ title: "Failed to undo disposal", variant: "destructive" }),
+  });
+
+  const assignNumberMutation = useMutation({
+    mutationFn: async (item: EquipmentRecord) => {
+      const an = `EQ-${String(item.id).padStart(4, "0")}`;
+      await fetch(`/api/farms/${farmId}/equipment/${item.id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetNumber: an }),
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }),
+    onError: () => toast({ title: "Failed to assign asset number", variant: "destructive" }),
   });
 
   const maintQ = useQuery<{ records: MaintenanceLog[] }>({
@@ -1005,7 +772,8 @@ export default function EquipmentPage() {
       || (e.make ?? "").toLowerCase().includes(sq)
       || (e.model ?? "").toLowerCase().includes(sq)
       || (e.serialNumber ?? "").toLowerCase().includes(sq)
-      || (e.registrationNumber ?? "").toLowerCase().includes(sq);
+      || (e.registrationNumber ?? "").toLowerCase().includes(sq)
+      || (e.assetNumber ?? "").toLowerCase().includes(sq);
     const matchType = !typeFilter || e.type === typeFilter;
     return matchSearch && matchType;
   });
@@ -1092,13 +860,11 @@ export default function EquipmentPage() {
         }
       `}</style>
       <TabBar className="mb-6">
-        <TabButton active={tab === "assets"} onClick={() => setTab("assets")}><QrCode className="h-3.5 w-3.5 mr-1 inline-block" />Assets & QR Codes</TabButton>
         <TabButton active={tab === "equipment"} onClick={() => setTab("equipment")}>Equipment Register</TabButton>
         <TabButton active={tab === "defects"} onClick={() => setTab("defects")}>
           <span className="flex items-center gap-1"><Wrench className="h-3.5 w-3.5" /> Defect Reports</span>
         </TabButton>
       </TabBar>
-      {tab === "assets" && farmId && <AssetsTab farmId={farmId} farmName={farm?.name ?? "Farm"} />}
       {tab === "defects" && farmId && <EquipmentDefectsSection farmId={farmId} />}
       {tab === "equipment" && <>
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
@@ -1228,6 +994,7 @@ export default function EquipmentPage() {
         <table className="w-full text-left">
           <thead className="bg-black/5 text-sm uppercase tracking-wider text-foreground/60 font-semibold border-b border-border/50">
             <tr>
+              <th className="px-6 py-4">Asset No.</th>
               <th className="px-6 py-4">Equipment</th>
               <th className="px-6 py-4">Reg/Serial</th>
               <th className="px-6 py-4">Status</th>
@@ -1238,9 +1005,9 @@ export default function EquipmentPage() {
           </thead>
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-foreground/50">
                 {equipment.length === 0
                   ? (showDisposed && disposedCount > 0 ? "All equipment is disposed." : "No equipment registered.")
                   : "No equipment matches your search or filter."}
@@ -1248,7 +1015,7 @@ export default function EquipmentPage() {
             ) : grouped.map(group => <Fragment key={group.value}>
               {!typeFilter && (
                 <tr className="bg-orange-50/70 border-b border-orange-100">
-                  <td colSpan={6} className="px-6 py-2 text-xs font-bold uppercase tracking-wider text-orange-700">
+                  <td colSpan={7} className="px-6 py-2 text-xs font-bold uppercase tracking-wider text-orange-700">
                     {group.label} <span className="font-normal text-orange-400 ml-1">({group.items.length})</span>
                   </td>
                 </tr>
@@ -1260,6 +1027,26 @@ export default function EquipmentPage() {
               const svcSt = dueStatus(item.nextServiceDue);
               return (
               <tr key={item.id} className={`hover:bg-black/5 transition-colors ${isDisposed ? "opacity-60" : ""}`}>
+                <td className="px-6 py-4">
+                  {item.assetNumber ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-semibold text-primary text-sm">{item.assetNumber}</span>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-700" onClick={() => setQrItem(item)} title="Print QR label">
+                        <QrCode className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-gray-400">{`EQ-${String(item.id).padStart(4, "0")}`}</span>
+                      {!isDisposed && (
+                        <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
+                          onClick={() => assignNumberMutation.mutate(item)}
+                          disabled={assignNumberMutation.isPending}
+                          title="Save this asset number permanently">Save</Button>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className="px-6 py-4 font-medium">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-orange-50 flex-shrink-0 flex items-center justify-center">
