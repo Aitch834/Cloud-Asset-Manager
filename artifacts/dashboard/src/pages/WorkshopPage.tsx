@@ -3411,8 +3411,27 @@ function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
       b.count++;
       b.hours += j.labourHours ?? 0;
     });
-    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-18).map(([, v]) => ({ ...v, spend: parseFloat(v.spend.toFixed(2)) }));
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-18).map(([key, v]) => ({ ...v, key, spend: parseFloat(v.spend.toFixed(2)) }));
   }, [allJobs]);
+
+  const periodMonths = useMemo((): Set<string> | null => {
+    const ym = (y: number, mo: number) => `${y}-${String(mo + 1).padStart(2, "0")}`;
+    const now = new Date();
+    if (period === "all") return null;
+    if (period === "week" || period === "month") return new Set([ym(now.getFullYear(), now.getMonth())]);
+    if (period === "last-month") {
+      const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return new Set([ym(d.getFullYear(), d.getMonth())]);
+    }
+    if (period === "quarter") {
+      const q = Math.floor(now.getMonth() / 3);
+      return new Set([0, 1, 2].map(i => ym(now.getFullYear(), q * 3 + i)));
+    }
+    if (period === "year") {
+      return new Set(Array.from({ length: now.getMonth() + 1 }, (_, i) => ym(now.getFullYear(), i)));
+    }
+    return null;
+  }, [period]);
 
   const statusData = useMemo(() => {
     const m = new Map<string, number>();
@@ -3500,12 +3519,12 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Job Cost</p>
           <p className="text-2xl font-bold text-amber-700">{fmt(totalCost)}</p>
-          <p className="text-xs text-gray-500 mt-1">Labour {fmt(totalLabour)} \u00b7 Parts {fmt(totalParts)}</p>
+          <p className="text-xs text-gray-500 mt-1">Labour {fmt(totalLabour)} · Parts {fmt(totalParts)}</p>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-xs text-gray-400 uppercase font-medium mb-1">Labour Hours</p>
           <p className="text-2xl font-bold text-blue-700">{totalHours} <span className="text-sm font-normal text-blue-400">hrs</span></p>
-          <p className="text-xs text-gray-500 mt-1">{chargeableHours} chargeable \u00b7 {ownHoldingHours} own</p>
+          <p className="text-xs text-gray-500 mt-1">{chargeableHours} chargeable · {ownHoldingHours} own holding</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <p className="text-xs text-gray-400 uppercase font-medium mb-1">Jobs Completed</p>
@@ -3622,7 +3641,12 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, n: string) => n === "Spend" ? [`\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Spend"] : n === "Hours" ? [`${v} hrs`, "Hours"] : [String(v), "Jobs"]} />
               <Legend />
-              <Bar yAxisId="left" dataKey="spend" fill="#f59e0b" name="Spend" radius={[2, 2, 0, 0]} opacity={0.85} />
+              <Bar yAxisId="left" dataKey="spend" name="Spend" radius={[2, 2, 0, 0]}>
+                {monthlyData.map((entry, i) => {
+                  const inPeriod = periodMonths === null || periodMonths.has(entry.key);
+                  return <Cell key={i} fill={inPeriod ? "#f59e0b" : "#fde68a"} fillOpacity={inPeriod ? 0.9 : 0.45} />;
+                })}
+              </Bar>
               <Line yAxisId="right" type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} name="Jobs" />
               <Line yAxisId="right" type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={2} strokeDasharray="4 2" dot={{ r: 3, fill: "#3b82f6" }} name="Hours" />
             </ComposedChart>
