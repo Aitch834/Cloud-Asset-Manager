@@ -3620,7 +3620,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="left" tickFormatter={(v: number) => `\u00a3${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} tick={{ fontSize: 11 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number, n: string) => [n === "spend" ? `\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : n === "hours" ? `${v} hrs` : String(v), n === "spend" ? "Spend" : n === "count" ? "Jobs" : "Hours"]} />
+              <Tooltip formatter={(v: number, n: string) => n === "Spend" ? [`\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Spend"] : n === "Hours" ? [`${v} hrs`, "Hours"] : [String(v), "Jobs"]} />
               <Legend />
               <Bar yAxisId="left" dataKey="spend" fill="#f59e0b" name="Spend" radius={[2, 2, 0, 0]} opacity={0.85} />
               <Line yAxisId="right" type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} name="Jobs" />
