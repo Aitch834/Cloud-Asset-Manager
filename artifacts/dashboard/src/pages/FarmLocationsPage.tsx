@@ -16,6 +16,20 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
+import { openPrintWindow } from "@/lib/print-report";
+
+const LABEL_CSS = `
+  @page{size:62mm 90mm;margin:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}
+  .brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+  .divider{border:none;border-top:1px solid #e5e7eb;margin:4px 0}
+  .farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}
+  svg{display:block;margin:0 auto}
+  .code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}
+  .iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}
+  .desc{font-size:9px;color:#9ca3af;margin-top:2px}
+  .hint{font-size:8px;color:#d1d5db;margin-top:4px}
+`;
 
 interface FarmLocation {
   id: number;
@@ -68,7 +82,14 @@ export default function FarmLocationsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [showMap, setShowMap] = useState(false);
   const [qrLoc, setQrLoc] = useState<FarmLocation | null>(null);
-  const qrRef = useRef<HTMLDivElement>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const { data: farmData } = useQuery<{ record: { name?: string } }>({
+    queryKey: ["farm-for-print", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.record?.name ?? "Farm";
 
   const { data: locations = [], isLoading } = useQuery<FarmLocation[]>({
     queryKey: ["farm-locations", farmId],
@@ -463,62 +484,36 @@ export default function FarmLocationsPage() {
       {/* QR Code dialog */}
       {qrLoc && (() => {
         const t = typeMap[qrLoc.locationType];
-        const qrValue = [
-          `BDE Farm Trac`,
-          `Location: ${qrLoc.name}`,
-          `Type: ${t?.label ?? qrLoc.locationType}`,
-          qrLoc.description ? `Desc: ${qrLoc.description}` : null,
-          qrLoc.latitude != null ? `GPS: ${qrLoc.latitude.toFixed(5)}, ${qrLoc.longitude!.toFixed(5)}` : null,
-          `Status: ${qrLoc.isActive ? "Active" : "Inactive"}`,
-        ].filter(Boolean).join("\n");
+        const locCode = `LOC-${String(qrLoc.id).padStart(4, "0")}`;
+        const qrValue = `BDE:F${farmId}:${locCode}`;
 
         function handlePrint() {
-          const svg = qrRef.current?.querySelector("svg");
-          if (!svg) return;
-          const svgData = new XMLSerializer().serializeToString(svg);
-          const win = window.open("", "_blank");
-          if (!win) return;
-          win.document.write(`<!DOCTYPE html><html><head><title>QR — ${qrLoc!.name}</title>
-            <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;gap:12px;}
-            .label{font-size:18px;font-weight:600;text-align:center;} .sub{font-size:13px;color:#555;text-align:center;}</style></head>
-            <body onload="window.print()">
-            ${svgData}
-            <div class="label">${qrLoc!.name}</div>
-            <div class="sub">${t?.label ?? qrLoc!.locationType}</div>
-            </body></html>`);
-          win.document.close();
+          if (!printRef.current) return;
+          openPrintWindow(`<html><head><title>Location Label — ${locCode}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
         }
 
         return (
           <Dialog open onOpenChange={() => setQrLoc(null)}>
-            <DialogContent className="max-w-sm">
+            <DialogContent style={{ maxWidth: "22rem" }}>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-primary" />
-                  QR Code — {qrLoc.name}
+                  <QrCode className="w-4 h-4 text-teal-600" /> Location QR Label
                 </DialogTitle>
-                <DialogDescription>
-                  Scan to identify this farm location. Print and affix to the building or area.
-                </DialogDescription>
               </DialogHeader>
-              <div className="flex flex-col items-center gap-4 py-2">
-                <div ref={qrRef} className="p-4 bg-white border rounded-xl shadow-sm">
-                  <QRCodeSVG value={qrValue} size={200} level="M" />
-                </div>
-                <div className="text-center">
-                  <p className="font-semibold text-foreground">{qrLoc.name}</p>
-                  <p className="text-sm text-foreground/60">{t?.label ?? qrLoc.locationType}</p>
-                  {qrLoc.latitude != null && (
-                    <p className="text-xs text-foreground/40 mt-0.5">
-                      {qrLoc.latitude.toFixed(5)}, {qrLoc.longitude!.toFixed(5)}
-                    </p>
-                  )}
-                </div>
+              <div className="flex flex-col items-center gap-1.5 border rounded-xl bg-white px-5 py-3 shadow-sm" ref={printRef}>
+                <p className="brand text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+                <hr className="divider w-full border-gray-200" />
+                <p className="farm text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+                <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+                <p className="code font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{locCode}</p>
+                <p className="iname text-sm font-semibold text-gray-700">{qrLoc.name}</p>
+                {t && <p className="desc text-xs text-gray-400">{t.label}</p>}
+                <p className="hint text-[10px] text-gray-300 mb-1">Scan to identify farm location</p>
               </div>
-              <DialogFooter className="gap-2">
+              <DialogFooter>
                 <Button variant="outline" onClick={() => setQrLoc(null)}>Close</Button>
                 <Button onClick={handlePrint} className="gap-2">
-                  <Printer className="w-4 h-4" /> Print QR
+                  <Printer className="w-4 h-4" /> Print Label
                 </Button>
               </DialogFooter>
             </DialogContent>

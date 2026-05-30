@@ -2404,10 +2404,8 @@ export default function StorageLocationsPage() {
             } finally { setIsSavingStorageCode(false); }
           };
           function handleQrPrint() {
-            const win = window.open("", "_blank");
-            if (!win || !qrPrintRef.current) return;
-            win.document.write(`<html><head><title>Storage Label</title><style>${LCSS}</style></head><body>${qrPrintRef.current.innerHTML}</body></html>`);
-            win.document.close(); win.focus(); win.addEventListener("afterprint", () => win.close()); win.print();
+            if (!qrPrintRef.current) return;
+            openPrintWindow(`<html><head><title>Storage Label</title><style>${LCSS}</style></head><body>${qrPrintRef.current.innerHTML}</body></html>`);
           }
           return (
             <Dialog open onOpenChange={(o) => { if (!o) setQrLocation(null); }}>

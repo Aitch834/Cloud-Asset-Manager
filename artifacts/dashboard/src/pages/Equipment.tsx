@@ -1,6 +1,7 @@
 import { useState, useRef, Fragment, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
+import { openPrintWindow } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -250,13 +251,8 @@ function EquipQRDialog({ equip, farmId, farmName, onClose }: {
   const printRef = useRef<HTMLDivElement>(null);
 
   function handlePrint() {
-    const win = window.open("", "_blank");
-    if (!win || !printRef.current) return;
-    win.document.write(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
-    win.document.close();
-    win.focus();
-    win.addEventListener("afterprint", () => win.close());
-    win.print();
+    if (!printRef.current) return;
+    openPrintWindow(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
   }
 
   return (
