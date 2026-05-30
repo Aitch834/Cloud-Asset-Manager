@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import {
-  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map, Eye,
+  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map, Eye, QrCode, Printer,
 } from "lucide-react";
 import { Link } from "wouter";
+import { QRCodeSVG } from "qrcode.react";
 
 interface FarmLocation {
   id: number;
@@ -66,6 +67,8 @@ export default function FarmLocationsPage() {
   const [editing, setEditing] = useState<FarmLocation | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showMap, setShowMap] = useState(false);
+  const [qrLoc, setQrLoc] = useState<FarmLocation | null>(null);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const { data: locations = [], isLoading } = useQuery<FarmLocation[]>({
     queryKey: ["farm-locations", farmId],
@@ -304,13 +307,16 @@ export default function FarmLocationsPage() {
                       )}
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <Button variant="ghost" size="sm" onClick={() => setViewRecord(loc)}>
+                      <Button variant="ghost" size="sm" onClick={() => setViewRecord(loc)} title="View details">
                         <Eye className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(loc)}>
+                      <Button variant="ghost" size="sm" onClick={() => setQrLoc(loc)} title="QR code">
+                        <QrCode className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(loc)} title="Edit">
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteId(loc.id)} className="text-destructive hover:text-destructive">
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteId(loc.id)} className="text-destructive hover:text-destructive" title="Delete">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -453,6 +459,72 @@ export default function FarmLocationsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* QR Code dialog */}
+      {qrLoc && (() => {
+        const t = typeMap[qrLoc.locationType];
+        const qrValue = [
+          `BDE Farm Trac`,
+          `Location: ${qrLoc.name}`,
+          `Type: ${t?.label ?? qrLoc.locationType}`,
+          qrLoc.description ? `Desc: ${qrLoc.description}` : null,
+          qrLoc.latitude != null ? `GPS: ${qrLoc.latitude.toFixed(5)}, ${qrLoc.longitude!.toFixed(5)}` : null,
+          `Status: ${qrLoc.isActive ? "Active" : "Inactive"}`,
+        ].filter(Boolean).join("\n");
+
+        function handlePrint() {
+          const svg = qrRef.current?.querySelector("svg");
+          if (!svg) return;
+          const svgData = new XMLSerializer().serializeToString(svg);
+          const win = window.open("", "_blank");
+          if (!win) return;
+          win.document.write(`<!DOCTYPE html><html><head><title>QR — ${qrLoc!.name}</title>
+            <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;gap:12px;}
+            .label{font-size:18px;font-weight:600;text-align:center;} .sub{font-size:13px;color:#555;text-align:center;}</style></head>
+            <body onload="window.print()">
+            ${svgData}
+            <div class="label">${qrLoc!.name}</div>
+            <div class="sub">${t?.label ?? qrLoc!.locationType}</div>
+            </body></html>`);
+          win.document.close();
+        }
+
+        return (
+          <Dialog open onOpenChange={() => setQrLoc(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-primary" />
+                  QR Code — {qrLoc.name}
+                </DialogTitle>
+                <DialogDescription>
+                  Scan to identify this farm location. Print and affix to the building or area.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-2">
+                <div ref={qrRef} className="p-4 bg-white border rounded-xl shadow-sm">
+                  <QRCodeSVG value={qrValue} size={200} level="M" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-foreground">{qrLoc.name}</p>
+                  <p className="text-sm text-foreground/60">{t?.label ?? qrLoc.locationType}</p>
+                  {qrLoc.latitude != null && (
+                    <p className="text-xs text-foreground/40 mt-0.5">
+                      {qrLoc.latitude.toFixed(5)}, {qrLoc.longitude!.toFixed(5)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setQrLoc(null)}>Close</Button>
+                <Button onClick={handlePrint} className="gap-2">
+                  <Printer className="w-4 h-4" /> Print QR
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Delete confirmation */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
