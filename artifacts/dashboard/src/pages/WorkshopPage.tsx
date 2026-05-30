@@ -3623,7 +3623,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number, n: string) => [n === "spend" ? `\u00a3${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}` : n === "hours" ? `${v} hrs` : String(v), n === "spend" ? "Spend" : n === "count" ? "Jobs" : "Hours"]} />
               <Legend />
-              <Bar yAxisId="left" dataKey="spend" fill="#f59e0b" name="Spend (\u00a3)" radius={[2, 2, 0, 0]} opacity={0.85} />
+              <Bar yAxisId="left" dataKey="spend" fill="#f59e0b" name="Spend" radius={[2, 2, 0, 0]} opacity={0.85} />
               <Line yAxisId="right" type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} name="Jobs" />
               <Line yAxisId="right" type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={2} strokeDasharray="4 2" dot={{ r: 3, fill: "#3b82f6" }} name="Hours" />
             </ComposedChart>
