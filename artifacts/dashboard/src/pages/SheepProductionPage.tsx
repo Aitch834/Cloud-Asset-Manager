@@ -1,7 +1,8 @@
 // @ts-nocheck
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer, BarChart3 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -820,7 +821,141 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
 }
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist";
+type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist" | "analytics";
+
+const SHEEP_COLORS = ["#15803d", "#a16207", "#1d4ed8", "#b91c1c", "#7c3aed", "#0e7490"];
+
+function SheepAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: scanning = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-scanning", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-scanning-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: weigh = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: shearing = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-shearing", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-shearing-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: tupping = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-tupping", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()) });
+
+  const totalScanned = useMemo(() => scanning.reduce((s, r) => s + (Number(r.ewesScanned) || 0), 0), [scanning]);
+  const totalInLamb = useMemo(() => scanning.reduce((s, r) => s + (Number(r.ewesInLamb) || 0), 0), [scanning]);
+  const scanPct = totalScanned > 0 ? ((totalInLamb / totalScanned) * 100).toFixed(1) : null;
+
+  const litterData = useMemo(() => [
+    { name: "Singles", value: scanning.reduce((s, r) => s + (Number(r.singles) || 0), 0) },
+    { name: "Twins", value: scanning.reduce((s, r) => s + (Number(r.twins) || 0), 0) },
+    { name: "Triplets", value: scanning.reduce((s, r) => s + (Number(r.triplets) || 0), 0) },
+    { name: "Quads+", value: scanning.reduce((s, r) => s + (Number(r.quads) || 0), 0) },
+  ].filter(d => d.value > 0), [scanning]);
+
+  const dlwgData = useMemo(() => weigh.filter(r => r.dlwgGPerDay).slice(-10).map(r => ({
+    name: String(r.batchRef || r.animalCategory || "Batch").slice(0, 12),
+    dlwg: Math.round(Number(r.dlwgGPerDay)),
+  })), [weigh]);
+
+  const shearData = useMemo(() => {
+    const byYear: Record<string, { wool: number; head: number; value: number }> = {};
+    shearing.forEach(r => {
+      const yr = r.shearingDate ? String(r.shearingDate).slice(0, 4) : "Unknown";
+      if (!byYear[yr]) byYear[yr] = { wool: 0, head: 0, value: 0 };
+      byYear[yr].wool += Number(r.woolWeightKg) || 0;
+      byYear[yr].head += Number(r.headSheared) || 0;
+      byYear[yr].value += Number(r.saleValue) || 0;
+    });
+    return Object.entries(byYear).sort().map(([yr, d]) => ({ year: yr, wool: +d.wool.toFixed(1), head: d.head, value: +d.value.toFixed(2) }));
+  }, [shearing]);
+
+  const avgDlwg = useMemo(() => {
+    const valid = weigh.filter(r => r.dlwgGPerDay);
+    return valid.length ? Math.round(valid.reduce((s, r) => s + Number(r.dlwgGPerDay), 0) / valid.length) : null;
+  }, [weigh]);
+
+  const noData = scanning.length === 0 && weigh.length === 0 && shearing.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <BarChart3 className="w-8 h-8 mx-auto mb-3 opacity-30" />
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add scanning, weigh-in, or shearing records to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Scanning Records", value: scanning.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Overall Scanning %", value: scanPct ? `${scanPct}%` : "—", bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Avg DLWG (g/day)", value: avgDlwg ?? "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Shearing Records", value: shearing.length, bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {litterData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Litter Type Distribution (all scans)</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={litterData} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {litterData.map((_, i) => <Cell key={i} fill={SHEEP_COLORS[i % SHEEP_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v} ewes`, ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {dlwgData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">DLWG by Batch (g/day)</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dlwgData} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
+                  <Tooltip formatter={(v) => [`${v} g/day`, "DLWG"]} />
+                  <Bar dataKey="dlwg" fill="#15803d" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {shearData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-4">Wool Yield & Head Sheared by Year</h3>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={shearData} margin={{ left: 0, right: 24, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} unit="kg" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} unit="hd" />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="wool" name="Wool (kg)" fill="#15803d" radius={[3, 3, 0, 0]} />
+                <Bar yAxisId="right" dataKey="head" name="Head Sheared" fill="#a16207" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {tupping.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-3">Tupping Summary</h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div><p className="text-2xl font-bold">{tupping.length}</p><p className="text-xs text-muted-foreground">Tupping Cycles</p></div>
+            <div><p className="text-2xl font-bold">{tupping.reduce((s, r) => s + (Number(r.ewesExposed) || 0), 0)}</p><p className="text-xs text-muted-foreground">Total Ewes Exposed</p></div>
+            <div><p className="text-2xl font-bold">{[...new Set(tupping.map(r => r.ramBreed).filter(Boolean))].length}</p><p className="text-xs text-muted-foreground">Ram Breeds Used</p></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SheepProductionPage() {
   const farmId = useAppStore(s => s.farmId);
@@ -853,6 +988,7 @@ export default function SheepProductionPage() {
           <TabButton active={tab === "shearing"} onClick={() => setTab("shearing")}>Shearing</TabButton>
           <TabButton active={tab === "health"} onClick={() => setTab("health")}>Health Plans</TabButton>
           <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</TabButton>
         </TabBar>
 
         {tab === "flocks" && <FlocksTab farmId={farmId} />}
@@ -862,6 +998,7 @@ export default function SheepProductionPage() {
         {tab === "shearing" && <ShearingTab farmId={farmId} />}
         {tab === "health" && <HealthTab farmId={farmId} />}
         {tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
+        {tab === "analytics" && <SheepAnalyticsTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

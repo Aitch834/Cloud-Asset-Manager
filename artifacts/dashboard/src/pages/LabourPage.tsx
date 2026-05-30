@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { downloadCsvFile } from "@/lib/csv";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
-  CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap,
+  CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap, BarChart2,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2769,7 +2770,98 @@ function WorkingTimeTab({ farmId, staffNames, staffMembers }: { farmId: number; 
 
 // ─── Main Labour Page ─────────────────────────────────────────────────────────
 
-type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr";
+type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr" | "analytics";
+
+const LABOUR_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+function LabourAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: tsData } = useQuery({ queryKey: ["labour-timesheets", farmId], queryFn: () => fetch(`/api/farms/${farmId}/labour/timesheets`).then(r => r.json()) });
+  const { data: absData } = useQuery({ queryKey: ["labour-absences", farmId], queryFn: () => fetch(`/api/farms/${farmId}/labour/absences`).then(r => r.json()) });
+  const { data: membersData } = useQuery({ queryKey: ["staff-members", farmId], queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()) });
+
+  const timesheets: Record<string, unknown>[] = useMemo(() => tsData?.timesheets ?? tsData?.entries ?? tsData ?? [], [tsData]);
+  const absences: Record<string, unknown>[] = useMemo(() => absData?.absences ?? absData?.records ?? absData ?? [], [absData]);
+  const members: Record<string, unknown>[] = useMemo(() => membersData?.members ?? [], [membersData]);
+
+  const totalHours = useMemo(() => timesheets.reduce((s, r) => s + (Number(r.hoursWorked) || Number(r.hours) || 0), 0), [timesheets]);
+
+  const absenceByType = useMemo(() => {
+    const map: Record<string, number> = {};
+    absences.forEach(r => { const t = String(r.absenceType || r.type || "Other"); map[t] = (map[t] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [absences]);
+
+  const tssByMonth = useMemo(() => {
+    const map: Record<string, { entries: number; hours: number }> = {};
+    timesheets.forEach(r => {
+      const d = String(r.date || r.workDate || ""); const k = d.slice(0, 7); if (!k || k.length < 7) return;
+      if (!map[k]) map[k] = { entries: 0, hours: 0 };
+      map[k].entries++;
+      map[k].hours += Number(r.hoursWorked) || Number(r.hours) || 0;
+    });
+    return Object.entries(map).sort().slice(-12).map(([m, d]) => ({ month: m.slice(5), ...d, hours: +d.hours.toFixed(1) }));
+  }, [timesheets]);
+
+  const noData = timesheets.length === 0 && absences.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add timesheets or absence records to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Timesheet Entries", value: timesheets.length, bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Total Hours Logged", value: totalHours.toFixed(1), bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Absence Records", value: absences.length, bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Active Staff", value: members.filter(m => m.isActive !== false).length, bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {tssByMonth.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Hours Logged by Month</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={tssByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} unit="h" />
+                  <Tooltip formatter={(v) => [`${v}h`, "Hours"]} />
+                  <Bar dataKey="hours" fill="#1d4ed8" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {absenceByType.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Absences by Type</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={absenceByType} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                    {absenceByType.map((_, i) => <Cell key={i} fill={LABOUR_COLORS[i % LABOUR_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}`, "Absences"]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function LabourPage() {
   const { farmId } = useAppStore();
@@ -2831,6 +2923,7 @@ export default function LabourPage() {
         <TabBtn active={tab === "absence"} onClick={() => setTab("absence")} icon={UmbrellaOff} label="Holiday & Absence" badge={absencePendingBadge} />
         <TabBtn active={tab === "pay"} onClick={() => setTab("pay")} icon={PoundSterling} label="Pay Summary" />
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />
+        <TabBtn active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart2} label="Analytics" />
       </div>
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
@@ -2839,6 +2932,7 @@ export default function LabourPage() {
       {tab === "absence" && <AbsenceTab farmId={farmId} staffNames={staffNames} onPendingCount={setAbsencePendingBadge} staffMembers={staffMembers} />}
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
+      {tab === "analytics" && <LabourAnalyticsTab farmId={farmId} />}
     </AppLayout>
   );
 }

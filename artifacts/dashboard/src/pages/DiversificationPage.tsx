@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package, Printer } from "lucide-react";
 import { openPrintWindow } from "@/lib/print-report";
@@ -1749,11 +1750,107 @@ function IncomeTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "activities" | "shop" | "hygiene" | "equine" | "shooting" | "income";
+// ─── Analytics Tab ─────────────────────────────────────────────────────────────
+const DIV_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+function DiversificationAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: incomeRaw } = useQuery({ queryKey: ["div-income", farmId], queryFn: () => fetch(`/api/farms/${farmId}/diversification-income`, { credentials: "include" }).then(r => r.json()) });
+  const { data: activitiesRaw } = useQuery({ queryKey: ["div-activities", farmId], queryFn: () => fetch(`/api/farms/${farmId}/diversification-activities`, { credentials: "include" }).then(r => r.json()) });
+  const { data: hygieneRaw } = useQuery({ queryKey: ["hygiene-inspections", farmId], queryFn: () => fetch(`/api/farms/${farmId}/diversification-hygiene-inspections`, { credentials: "include" }).then(r => r.json()) });
+
+  const income: Record<string, unknown>[] = useMemo(() => incomeRaw?.records ?? incomeRaw ?? [], [incomeRaw]);
+  const activities: Record<string, unknown>[] = useMemo(() => activitiesRaw?.records ?? activitiesRaw ?? [], [activitiesRaw]);
+  const hygiene: Record<string, unknown>[] = useMemo(() => hygieneRaw?.records ?? hygieneRaw ?? [], [hygieneRaw]);
+
+  const totalIncome = useMemo(() => income.reduce((s, r) => s + (Number(r.amount) || Number(r.value) || Number(r.revenue) || 0), 0), [income]);
+
+  const incomeByCategory = useMemo(() => {
+    const map: Record<string, number> = {};
+    income.forEach(r => { const c = String(r.category || r.source || r.activityType || "Other"); map[c] = (map[c] || 0) + (Number(r.amount) || Number(r.value) || 0); });
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([name, value]) => ({ name: name.length > 14 ? name.slice(0,13)+"…" : name, value: +value.toFixed(2) }));
+  }, [income]);
+
+  const incomeByMonth = useMemo(() => {
+    const map: Record<string, number> = {};
+    income.forEach(r => {
+      const d = String(r.date || r.incomeDate || ""); const k = d.slice(0, 7); if (!k || k.length < 7) return;
+      map[k] = (map[k] || 0) + (Number(r.amount) || Number(r.value) || 0);
+    });
+    return Object.entries(map).sort().slice(-12).map(([m, val]) => ({ month: m.slice(5), income: +val.toFixed(2) }));
+  }, [income]);
+
+  const hygienePassRate = useMemo(() => {
+    const passed = hygiene.filter(r => r.result === "pass" || r.rating === 5 || Number(r.rating) >= 4 || r.passed === true).length;
+    return hygiene.length ? Math.round((passed / hygiene.length) * 100) : null;
+  }, [hygiene]);
+
+  const noData = income.length === 0 && activities.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <TrendingUp className="w-8 h-8 mx-auto mb-3 opacity-30" />
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add income or activity records to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Income Records", value: income.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Total Revenue", value: `£${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Activities", value: activities.length, bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Hygiene Pass Rate", value: hygienePassRate !== null ? `${hygienePassRate}%` : "—", bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {incomeByMonth.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Monthly Revenue</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={incomeByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `£${v}`} />
+                  <Tooltip formatter={(v) => [`£${Number(v).toLocaleString()}`, "Revenue"]} />
+                  <Bar dataKey="income" fill="#15803d" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {incomeByCategory.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Income Mix by Category</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={incomeByCategory} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                    {incomeByCategory.map((_, i) => <Cell key={i} fill={DIV_COLORS[i % DIV_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`£${Number(v).toLocaleString()}`, ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type Tab = "activities" | "shop" | "hygiene" | "equine" | "shooting" | "income" | "analytics";
 
 export default function DiversificationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","shooting"]; return t && valid.includes(t) ? t : "activities"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","shooting","analytics"]; return t && valid.includes(t) ? t : "activities"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Farm Diversification">
@@ -1765,6 +1862,7 @@ export default function DiversificationPage() {
           <TabButton active={tab === "hygiene"} onClick={() => setTab("hygiene")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Hygiene</TabButton>
           <TabButton active={tab === "equine"} onClick={() => setTab("equine")}><PawPrint className="w-3.5 h-3.5 mr-1" />Equine</TabButton>
           <TabButton active={tab === "shooting"} onClick={() => setTab("shooting")}><Crosshair className="w-3.5 h-3.5 mr-1" />Shooting</TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "activities" && <ActivitiesTab farmId={farmId} />}
@@ -1773,6 +1871,7 @@ export default function DiversificationPage() {
           {tab === "hygiene" && <HygieneInspectionsTab farmId={farmId} />}
           {tab === "equine" && <EquineTab farmId={farmId} />}
           {tab === "shooting" && <ShootingTab farmId={farmId} />}
+          {tab === "analytics" && <DiversificationAnalyticsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

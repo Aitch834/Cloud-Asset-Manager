@@ -1,4 +1,5 @@
-import { useState, useRef, Fragment } from "react";
+import { useState, useRef, Fragment, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList } from "lucide-react";
+import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList, BarChart3 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useForm } from "react-hook-form";
@@ -538,9 +539,95 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Equipment Analytics ───────────────────────────────────────────────────────
+const EQUIP_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+function EquipmentAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: equipRaw } = useQuery({ queryKey: ["equipment-list-analytics", farmId], queryFn: () => fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }).then(r => r.json()) });
+  const { data: defectsRaw } = useQuery({ queryKey: ["equipment-defects", farmId], queryFn: () => fetch(`/api/farms/${farmId}/equipment-defect-reports`, { credentials: "include" }).then(r => r.json()) });
+
+  const equipment: Record<string, unknown>[] = useMemo(() => equipRaw?.records ?? equipRaw ?? [], [equipRaw]);
+  const defects: Record<string, unknown>[] = useMemo(() => defectsRaw?.records ?? defectsRaw ?? [], [defectsRaw]);
+
+  const byType = useMemo(() => {
+    const map: Record<string, number> = {};
+    equipment.forEach(r => { const t = String(r.equipmentType || r.type || "Other"); map[t] = (map[t] || 0) + 1; });
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).map(([name, count]) => ({ name: name.length > 14 ? name.slice(0,13)+"…" : name, count }));
+  }, [equipment]);
+
+  const defectBySeverity = useMemo(() => {
+    const map: Record<string, number> = {};
+    defects.forEach(r => { const s = String(r.severity || r.priority || "Unknown"); map[s] = (map[s] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [defects]);
+
+  const openDefects = useMemo(() => defects.filter(r => r.status !== "resolved" && r.status !== "closed").length, [defects]);
+  const disposed = useMemo(() => equipment.filter(r => r.disposalDate || r.isDisposed || r.status === "disposed").length, [equipment]);
+
+  const noData = equipment.length === 0 && defects.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add equipment or defect reports to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Equipment", value: equipment.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Active Assets", value: equipment.length - disposed, bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Defect Reports", value: defects.length, bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Open Defects", value: openDefects, bg: openDefects > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100", text: openDefects > 0 ? "text-red-800" : "text-gray-800", sub: openDefects > 0 ? "text-red-700" : "text-gray-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {byType.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Equipment by Type</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={byType} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
+                  <Tooltip formatter={(v) => [`${v}`, "Assets"]} />
+                  <Bar dataKey="count" fill="#15803d" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {defectBySeverity.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Defects by Severity</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={defectBySeverity} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                    {defectBySeverity.map((_, i) => <Cell key={i} fill={EQUIP_COLORS[i % EQUIP_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}`, "Defects"]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"equipment" | "defects">("equipment");
+  const [tab, setTab] = useState<"equipment" | "defects" | "analytics">("equipment");
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
@@ -864,8 +951,12 @@ export default function EquipmentPage() {
         <TabButton active={tab === "defects"} onClick={() => setTab("defects")}>
           <span className="flex items-center gap-1"><Wrench className="h-3.5 w-3.5" /> Defect Reports</span>
         </TabButton>
+        <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
+          <span className="flex items-center gap-1"><BarChart3 className="h-3.5 w-3.5" /> Analytics</span>
+        </TabButton>
       </TabBar>
       {tab === "defects" && farmId && <EquipmentDefectsSection farmId={farmId} />}
+      {tab === "analytics" && farmId && <EquipmentAnalyticsTab farmId={farmId} />}
       {tab === "equipment" && <>
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">

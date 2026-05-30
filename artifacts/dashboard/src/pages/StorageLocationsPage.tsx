@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -2058,6 +2059,7 @@ export default function StorageLocationsPage() {
   const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const locations: StorageLocation[] = locationsQ.data?.records ?? [];
+  const [mainTab, setMainTab] = useState<"locations" | "analytics">("locations");
 
   const saveMut = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -2185,18 +2187,95 @@ export default function StorageLocationsPage() {
           </Button>
         </div>
 
-        {locationsQ.isLoading && (
+        {/* Top-level tab bar */}
+        <div className="flex gap-1 border-b border-gray-200 mb-2">
+          {(["locations", "analytics"] as const).map(t => (
+            <button key={t} onClick={() => setMainTab(t)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${mainTab === t ? "border-amber-600 text-amber-800" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+              {t === "locations" ? `Locations (${locations.length})` : "Analytics"}
+            </button>
+          ))}
+        </div>
+
+        {mainTab === "analytics" && (() => {
+          const byType = Object.entries(
+            locations.reduce<Record<string, number>>((m, l) => { m[l.type] = (m[l.type] || 0) + 1; return m; }, {})
+          ).sort((a,b) => b[1]-a[1]).map(([name, count]) => ({ name, count }));
+
+          const capByName = locations
+            .filter(l => l.capacityTonnes && Number(l.capacityTonnes) > 0)
+            .sort((a, b) => Number(b.capacityTonnes) - Number(a.capacityTonnes))
+            .slice(0, 10)
+            .map(l => ({ name: l.name.length > 14 ? l.name.slice(0,13)+"…" : l.name, capacity: Number(l.capacityTonnes) }));
+
+          const activeCount = locations.filter(l => l.isActive).length;
+          const totalCapacity = locations.reduce((s, l) => s + (Number(l.capacityTonnes) || 0), 0);
+          const STORE_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+          return (
+            <div className="space-y-6 pb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Total Locations", value: locations.length, bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+                  { label: "Active", value: activeCount, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+                  { label: "Inactive", value: locations.length - activeCount, bg: "bg-gray-50 border-gray-200", text: "text-gray-700", sub: "text-gray-500" },
+                  { label: "Total Capacity (t)", value: totalCapacity > 0 ? totalCapacity.toLocaleString() : "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+                ].map(c => (
+                  <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+                    <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+                    <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {byType.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    <h3 className="font-semibold text-sm mb-4">Locations by Type</h3>
+                    <div className="h-52">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={byType} cx="50%" cy="50%" outerRadius={75} dataKey="count" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                            {byType.map((_, i) => <Cell key={i} fill={STORE_COLORS[i % STORE_COLORS.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => [`${v}`, "Locations"]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+                {capByName.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    <h3 className="font-semibold text-sm mb-4">Capacity by Location (tonnes)</h3>
+                    <div className="h-52">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={capByName} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 10 }} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
+                          <Tooltip formatter={(v) => [`${v}t`, "Capacity"]} />
+                          <Bar dataKey="capacity" fill="#a16207" radius={[0, 3, 3, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {mainTab === "locations" && locationsQ.isLoading && (
           <p className="text-muted-foreground text-sm">Loading storage locations…</p>
         )}
 
-        {!locationsQ.isLoading && locations.length === 0 && (
+        {mainTab === "locations" && !locationsQ.isLoading && locations.length === 0 && (
           <div className="border rounded-xl p-12 text-center text-muted-foreground">
             <Warehouse className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No storage locations yet. Click <strong>Add Location</strong> to create your first entry.</p>
           </div>
         )}
 
-        {locations.length > 0 && (
+        {mainTab === "locations" && locations.length > 0 && (
           <div className="border rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">

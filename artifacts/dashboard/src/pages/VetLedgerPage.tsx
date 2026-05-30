@@ -1,5 +1,6 @@
 // @ts-nocheck
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,111 @@ function AnimalMultiPicker({ animals, selected, onChange, filterSpecies, filterH
   );
 }
 
+// ── Vet Analytics Section ─────────────────────────────────────────────────────
+const VET_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+function VetAnalyticsSection({ visits, invoices }: { visits: any[]; invoices: any[] }) {
+  const visitsByMonth = useMemo(() => {
+    const map: Record<string, number> = {};
+    visits.forEach(v => { const d = String(v.visitDate ?? ""); const k = d.slice(0, 7); if (k.length < 7) return; map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).sort().slice(-12).map(([m, count]) => ({ month: m.slice(5), count }));
+  }, [visits]);
+
+  const invoiceCostByMonth = useMemo(() => {
+    const map: Record<string, number> = {};
+    invoices.forEach(inv => {
+      const d = String(inv.invoiceDate ?? inv.date ?? ""); const k = d.slice(0, 7); if (k.length < 7) return;
+      map[k] = (map[k] || 0) + (Number(inv.totalAmountPence) / 100 || Number(inv.totalAmount) || 0);
+    });
+    return Object.entries(map).sort().slice(-12).map(([m, val]) => ({ month: m.slice(5), cost: +val.toFixed(2) }));
+  }, [invoices]);
+
+  const byVet = useMemo(() => {
+    const map: Record<string, number> = {};
+    visits.forEach(v => { const n = String(v.vetName || v.practice || "Unknown"); map[n] = (map[n] || 0) + 1; });
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0,8).map(([name, value]) => ({ name: name.length > 16 ? name.slice(0,15)+"…" : name, value }));
+  }, [visits]);
+
+  const totalCost = useMemo(() => invoices.reduce((s, inv) => s + (Number(inv.totalAmountPence) / 100 || Number(inv.totalAmount) || 0), 0), [invoices]);
+  const uniqueVets = useMemo(() => new Set(visits.map(v => v.vetName)).size, [visits]);
+
+  const noData = visits.length === 0 && invoices.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-gray-400 text-sm">
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Log vet visits and invoices to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Vet Visits", value: visits.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Unique Vets", value: uniqueVets, bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Invoices", value: invoices.length, bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Total Invoice Cost", value: `£${totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {visitsByMonth.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Vet Visits by Month</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={visitsByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip formatter={(v) => [`${v}`, "Visits"]} />
+                  <Bar dataKey="count" fill="#15803d" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {invoiceCostByMonth.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Invoice Cost by Month (£)</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={invoiceCostByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `£${v}`} />
+                  <Tooltip formatter={(v) => [`£${Number(v).toLocaleString()}`, "Cost"]} />
+                  <Bar dataKey="cost" fill="#1d4ed8" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {byVet.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Visits by Vet</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byVet} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                    {byVet.map((_, i) => <Cell key={i} fill={VET_COLORS[i % VET_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}`, "Visits"]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function VetLedgerPage() {
@@ -149,7 +255,7 @@ export default function VetLedgerPage() {
   const queryClient = useQueryClient();
   const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["vet-visits", farmId] }); queryClient.invalidateQueries({ queryKey: ["vet-invoices", farmId] }); };
 
-  type VetTab = "visits" | "invoices" | "amrm";
+  type VetTab = "visits" | "invoices" | "amrm" | "analytics";
   const [tab, setTab] = useState<VetTab>("visits");
   const [amrmYear, setAmrmYear] = useState<number>(new Date().getFullYear());
   const [search, setSearch] = useState("");
@@ -621,16 +727,16 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-4">
-        {(["visits", "invoices", "amrm"] as VetTab[]).map(t => (
+        {(["visits", "invoices", "amrm", "analytics"] as VetTab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-green-800 text-green-900" : "border-transparent text-gray-500 hover:text-gray-800"}`}
           >
-            {t === "visits" ? `Vet Visits (${visits.length})` : t === "invoices" ? `Invoices (${invoices.length})` : "AMRM Report"}
+            {t === "visits" ? `Vet Visits (${visits.length})` : t === "invoices" ? `Invoices (${invoices.length})` : t === "amrm" ? "AMRM Report" : "Analytics"}
           </button>
         ))}
-        {tab !== "amrm" && (
+        {tab !== "amrm" && tab !== "analytics" && (
           <div className="ml-auto mb-1">
             <Input
               placeholder={tab === "visits" ? "Search visits…" : "Search invoices…"}
@@ -850,6 +956,8 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
           </div>
         </div>
       )}
+
+      {tab === "analytics" && <VetAnalyticsSection visits={visits} invoices={invoices} />}
 
       {/* ══════════════════════════════════════════════════════════════════
           VET VISIT DIALOG (add / edit)

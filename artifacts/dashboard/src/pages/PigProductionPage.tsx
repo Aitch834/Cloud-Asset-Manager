@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -2272,12 +2273,135 @@ async function generatePigAuditPDF(farmId: number) {
   doc.save(`pig-audit-report-farm${safeFarmId}-${today.replace(/\//g, "-")}.pdf`);
 }
 
+// ─── Analytics Tab ─────────────────────────────────────────────────────────────
+const PIG_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
+
+function PigAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: farrowingRaw } = useQuery({ queryKey: ["pig-farrowing", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-farrowing-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: movementsRaw } = useQuery({ queryKey: ["pig-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-movements`), { credentials: "include" }).then(r => r.json()) });
+  const { data: feedRaw } = useQuery({ queryKey: ["pig-feed", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-feed-consumption`), { credentials: "include" }).then(r => r.json()) });
+
+  const farrowing: Record<string, unknown>[] = useMemo(() => farrowingRaw?.records ?? farrowingRaw ?? [], [farrowingRaw]);
+  const movements: Record<string, unknown>[] = useMemo(() => movementsRaw?.records ?? movementsRaw ?? [], [movementsRaw]);
+  const feed: Record<string, unknown>[] = useMemo(() => feedRaw?.records ?? feedRaw ?? [], [feedRaw]);
+
+  const avgBornAlive = useMemo(() => {
+    const valid = farrowing.filter(r => r.pigletsBornAlive);
+    return valid.length ? (valid.reduce((s, r) => s + Number(r.pigletsBornAlive), 0) / valid.length).toFixed(1) : null;
+  }, [farrowing]);
+
+  const avgWeaned = useMemo(() => {
+    const valid = farrowing.filter(r => r.pigletsWeaned);
+    return valid.length ? (valid.reduce((s, r) => s + Number(r.pigletsWeaned), 0) / valid.length).toFixed(1) : null;
+  }, [farrowing]);
+
+  const preWeanMortPct = useMemo(() => {
+    const bornAliveTotal = farrowing.reduce((s, r) => s + (Number(r.pigletsBornAlive) || 0), 0);
+    const weanedTotal = farrowing.reduce((s, r) => s + (Number(r.pigletsWeaned) || 0), 0);
+    return bornAliveTotal > 0 ? (((bornAliveTotal - weanedTotal) / bornAliveTotal) * 100).toFixed(1) : null;
+  }, [farrowing]);
+
+  const farrowingByMonth = useMemo(() => {
+    const map: Record<string, { farrowings: number; bornAlive: number; weaned: number }> = {};
+    farrowing.forEach(r => {
+      const d = String(r.farrowingDate || r.date || "");
+      const k = d.slice(0, 7); if (!k || k.length < 7) return;
+      if (!map[k]) map[k] = { farrowings: 0, bornAlive: 0, weaned: 0 };
+      map[k].farrowings++;
+      map[k].bornAlive += Number(r.pigletsBornAlive) || 0;
+      map[k].weaned += Number(r.pigletsWeaned) || 0;
+    });
+    return Object.entries(map).sort().slice(-12).map(([m, d]) => ({ month: m.slice(5), ...d }));
+  }, [farrowing]);
+
+  const movementTypes = useMemo(() => {
+    const map: Record<string, number> = {};
+    movements.forEach(r => { const t = String(r.movementType || r.type || "Unknown"); map[t] = (map[t] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [movements]);
+
+  const noData = farrowing.length === 0 && movements.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <TrendingUp className="w-8 h-8 mx-auto mb-3 opacity-30" />
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add farrowing or movement records to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Farrowing Records", value: farrowing.length, bg: "bg-pink-50 border-pink-100", text: "text-pink-800", sub: "text-pink-700" },
+          { label: "Avg Born Alive", value: avgBornAlive ?? "—", bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Avg Pigs Weaned", value: avgWeaned ?? "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Pre-wean Mortality", value: preWeanMortPct ? `${preWeanMortPct}%` : "—", bg: "bg-red-50 border-red-100", text: "text-red-800", sub: "text-red-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {farrowingByMonth.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Monthly Farrowings</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={farrowingByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend iconSize={10} />
+                  <Bar yAxisId="left" dataKey="bornAlive" name="Born Alive" fill="#15803d" radius={[3,3,0,0]} />
+                  <Bar yAxisId="left" dataKey="weaned" name="Weaned" fill="#a16207" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {movementTypes.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Movement Types</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={movementTypes} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                    {movementTypes.map((_, i) => <Cell key={i} fill={PIG_COLORS[i % PIG_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v} records`, ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {feed.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-3">Feed Consumption Summary</h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div><p className="text-2xl font-bold">{feed.length}</p><p className="text-xs text-muted-foreground">Feed Records</p></div>
+            <div><p className="text-2xl font-bold">{feed.reduce((s, r) => s + (Number(r.quantityKg) || Number(r.quantity) || 0), 0).toFixed(0)}</p><p className="text-xs text-muted-foreground">Total kg Consumed</p></div>
+            <div><p className="text-2xl font-bold">{[...new Set(feed.map(r => r.feedType || r.feedName).filter(Boolean))].length}</p><p className="text-xs text-muted-foreground">Feed Types Used</p></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella";
+type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "analytics";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella","analytics"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -2304,6 +2428,7 @@ export default function PigProductionPage() {
             <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
             <TabButton active={tab === "kill-records"} onClick={() => setTab("kill-records")}><Scale className="w-3.5 h-3.5 mr-1" />Kill Records</TabButton>
             <TabButton active={tab === "salmonella"} onClick={() => setTab("salmonella")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Salmonella</TabButton>
+            <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-2 shrink-0">
             {generating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileDown className="w-4 h-4 mr-1" />}
@@ -2324,6 +2449,7 @@ export default function PigProductionPage() {
           {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
           {tab === "kill-records" && <KillRecordsTab farmId={farmId} />}
           {tab === "salmonella" && <SalmonellaMonitoringTab farmId={farmId} />}
+          {tab === "analytics" && <PigAnalyticsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
