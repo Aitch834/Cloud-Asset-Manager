@@ -3520,7 +3520,7 @@ ${completed.map((j: any) => `<tr><td>${j.jobNumber ?? "—"}</td><td>${j.descrip
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <p className="text-sm font-semibold text-gray-700 mb-4">Chargeable vs Own Holding \u2014 {periodLabel}</p>
+        <p className="text-sm font-semibold text-gray-700 mb-4">Chargeable vs Own Holding</p>
         <div className="grid grid-cols-2 gap-6">
           <div>
             <p className="text-xs text-gray-400 uppercase font-medium mb-2.5">By Cost</p>
