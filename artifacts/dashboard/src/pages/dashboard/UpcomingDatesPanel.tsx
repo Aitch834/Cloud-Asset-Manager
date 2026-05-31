@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
-import { CalendarDays, ArrowRight, Landmark, ShieldCheck, Leaf } from "lucide-react";
+import { CalendarDays, ArrowRight, Landmark, ShieldCheck, Leaf, Tag } from "lucide-react";
 
 export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
   const now = new Date();
@@ -27,9 +27,16 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
     },
   });
 
+  const calvingQ = useQuery({
+    queryKey: ["dairy-calving", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dairy/calving-records`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => (d.records ?? []) as any[],
+  });
+
   const insurance: any[] = insuranceQ.data ?? [];
   const grants: any[] = grantsQ.data ?? [];
   const organicCerts: any[] = organicCertQ.data ?? [];
+  const calvings: any[] = calvingQ.data ?? [];
 
   type DateItem = { label: string; date: Date; daysUntil: number; href: string; type: string; urgent: boolean };
 
@@ -65,6 +72,24 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
         const daysUntil = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         items.push({ label: `${grant.schemeName} — claim deadline`, date: d, daysUntil, href: "/grants", type: "Grant", urgent: daysUntil <= 14 });
       }
+    }
+  }
+
+  // Calving tag deadlines: tag 1 within 36h of birth, tag 2 within 20 days
+  for (const c of calvings) {
+    if (c.calfOutcome !== "live") continue;
+    const birthDate = new Date(c.calvingDate);
+    const tag1Deadline = new Date(birthDate.getTime() + 36 * 60 * 60 * 1000);
+    const tag2Deadline = new Date(birthDate.getTime() + 20 * 24 * 60 * 60 * 1000);
+    const dam = c.cowEarTag ? ` (dam: ${c.cowEarTag})` : "";
+
+    if (!c.calfEarTag && tag1Deadline <= in60Days) {
+      const daysUntil = Math.ceil((tag1Deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      items.push({ label: `Calf tag 1 deadline${dam}`, date: tag1Deadline, daysUntil, href: "/dairy", type: "Calving", urgent: true });
+    }
+    if (!c.calfEarTag2 && tag2Deadline <= in60Days) {
+      const daysUntil = Math.ceil((tag2Deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      items.push({ label: `Calf tag 2 deadline${dam}`, date: tag2Deadline, daysUntil, href: "/dairy", type: "Calving", urgent: daysUntil <= 3 });
     }
   }
 
@@ -114,12 +139,14 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
             <Link key={i} href={item.href}>
               <div className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-black/[0.02] transition-colors cursor-pointer group">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "Grant" ? "bg-violet-50" : item.type === "Organic" ? "bg-green-50" : "bg-blue-50"}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.type === "Grant" ? "bg-violet-50" : item.type === "Organic" ? "bg-green-50" : item.type === "Calving" ? "bg-amber-50" : "bg-blue-50"}`}>
                     {item.type === "Grant"
                       ? <Landmark className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-violet-600"}`} />
                       : item.type === "Organic"
                         ? <Leaf className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-green-600"}`} />
-                        : <ShieldCheck className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-blue-600"}`} />
+                        : item.type === "Calving"
+                          ? <Tag className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-amber-600"}`} />
+                          : <ShieldCheck className={`w-4 h-4 ${item.urgent ? "text-red-500" : "text-blue-600"}`} />
                     }
                   </div>
                   <div className="min-w-0">

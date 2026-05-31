@@ -590,7 +590,7 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
       .limit(5),
   ]);
 
-  const overdueItems = [
+  const overdueItems: { type: "nonconformance" | "inspection"; description: string; href: string }[] = [
     ...overdueNcItems.map((nc) => ({
       type: "nonconformance" as const,
       description: `Open NC: ${nc.category}${nc.description ? ` — ${nc.description.slice(0, 60)}${nc.description.length > 60 ? "…" : ""}` : ""}`,
@@ -602,6 +602,38 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
       href: "/inspections",
     })),
   ];
+
+  // Calving tagging compliance: tag 1 within 36h, tag 2 within 20 days (Red Tractor Dairy / UK cattle tracing)
+  const cutoff36h = new Date(now.getTime() - 36 * 60 * 60 * 1000);
+  const cutoff20d = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
+  const cutoff30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const overdueTagCalvings = await db
+    .select({
+      calvingDate: dairyCalvingRecordsTable.calvingDate,
+      cowEarTag: dairyCalvingRecordsTable.cowEarTag,
+      calfEarTag: dairyCalvingRecordsTable.calfEarTag,
+      calfEarTag2: dairyCalvingRecordsTable.calfEarTag2,
+    })
+    .from(dairyCalvingRecordsTable)
+    .where(and(
+      eq(dairyCalvingRecordsTable.farmId, farmId),
+      eq(dairyCalvingRecordsTable.calfOutcome, "live"),
+      gte(dairyCalvingRecordsTable.calvingDate, cutoff30d),
+      or(
+        and(isNull(dairyCalvingRecordsTable.calfEarTag), lt(dairyCalvingRecordsTable.calvingDate, cutoff36h)),
+        and(isNull(dairyCalvingRecordsTable.calfEarTag2), lt(dairyCalvingRecordsTable.calvingDate, cutoff20d)),
+      )
+    ))
+    .orderBy(desc(dairyCalvingRecordsTable.calvingDate))
+    .limit(5);
+  for (const c of overdueTagCalvings) {
+    const dam = c.cowEarTag ? ` — dam: ${c.cowEarTag}` : "";
+    if (!c.calfEarTag) {
+      overdueItems.push({ type: "inspection", description: `Calf tag 1 overdue${dam} (tag within 36h of birth)`, href: "/dairy?tab=calving" });
+    } else if (!c.calfEarTag2) {
+      overdueItems.push({ type: "inspection", description: `Calf tag 2 overdue${dam} (second tag within 20 days)`, href: "/dairy?tab=calving" });
+    }
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 

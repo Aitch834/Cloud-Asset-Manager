@@ -1635,6 +1635,18 @@ export function CalvingTab({ farmId }: { farmId: number }) {
                     {r.calfOutcome && <span className={`text-xs px-2 py-0.5 rounded ${r.calfOutcome === "live" ? "bg-green-100 text-green-700" : r.calfOutcome === "stillborn" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>{r.calfOutcome.charAt(0).toUpperCase() + r.calfOutcome.slice(1)}</span>}
                     {r.calfSex && <span className="text-xs text-gray-500">{r.calfSex === "male" ? "Bull calf" : r.calfSex === "female" ? "Heifer calf" : r.calfSex}</span>}
                     {r.calfEarTag && <span className="text-xs text-gray-500 font-mono">Calf: {r.calfEarTag}</span>}
+                    {r.calfOutcome === "live" && !r.calfEarTag && (() => {
+                      const hoursOld = (Date.now() - new Date(r.calvingDate).getTime()) / 3600000;
+                      if (hoursOld >= 36) return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">⚠ Tag 1 overdue ({Math.floor(hoursOld)}h)</span>;
+                      return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Tag 1 due in {Math.ceil(36 - hoursOld)}h</span>;
+                    })()}
+                    {r.calfOutcome === "live" && (() => {
+                      if (r.calfEarTag2) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Tag 2 ✓</span>;
+                      const daysOld = Math.floor((Date.now() - new Date(r.calvingDate).getTime()) / 86400000);
+                      if (daysOld >= 20) return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">⚠ Tag 2 overdue ({daysOld}d)</span>;
+                      if (daysOld >= 15) return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Tag 2 due in {20 - daysOld}d</span>;
+                      return null;
+                    })()}
                     {r.calfAnimalId && <span className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded">In Livestock Register ✓</span>}
                     {r.colostrumGivenWithin2Hours !== null && r.colostrumGivenWithin2Hours !== undefined && (
                       <span className={`text-xs px-2 py-0.5 rounded ${r.colostrumGivenWithin2Hours ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
