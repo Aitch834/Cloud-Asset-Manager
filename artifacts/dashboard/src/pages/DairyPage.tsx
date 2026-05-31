@@ -77,7 +77,7 @@ export default function DairyPage() {
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Dairy Records</h1>
-          <p className="text-gray-500 text-sm mt-1">Red Tractor Dairy scheme compliance — milk recording, mastitis, calving, body condition, mobility, bulk tank, and dry cow therapy.</p>
+          <p className="text-gray-500 text-sm mt-1">Red Tractor Dairy scheme compliance — milk recording, mastitis, calving, body condition, mobility, bulk tank, and dry cow therapy. Supports dairy cattle and water buffalo herds (both regulated as bovines under BCMS).</p>
         </div>
 
         <TabBar>

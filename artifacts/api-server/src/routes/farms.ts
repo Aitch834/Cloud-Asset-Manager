@@ -356,6 +356,18 @@ import {
   ipmThresholdEntriesTable,
   ipmMonitoringLogsTable,
   lerapAssessmentsTable,
+  sheepDairyMilkRecordsTable,
+  sheepDairyMastitisRecordsTable,
+  sheepDairyKiddingRecordsTable,
+  sheepDairyBcsRecordsTable,
+  sheepDairyBulkTankRecordsTable,
+  sheepDairyMvMonitoringTable,
+  goatDairyMilkRecordsTable,
+  goatDairyMastitisRecordsTable,
+  goatDairyKiddingRecordsTable,
+  goatDairyBcsRecordsTable,
+  goatDairyBulkTankRecordsTable,
+  goatDairyCaeMonitoringTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
@@ -27555,3 +27567,347 @@ router.delete("/farms/:farmId/organic-arable/seed-movements/:id", requireAuth, r
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHEEP DAIRY ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/farms/:farmId/sheep-dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyMilkRecordsTable).where(eq(sheepDairyMilkRecordsTable.farmId, farmId)).orderBy(desc(sheepDairyMilkRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyMilkRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyMilkRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyMilkRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyMilkRecordsTable).where(and(eq(sheepDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyMilkRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyMastitisRecordsTable).where(eq(sheepDairyMastitisRecordsTable.farmId, farmId)).orderBy(desc(sheepDairyMastitisRecordsTable.incidentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyMastitisRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyMastitisRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyMastitisRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyMastitisRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyMastitisRecordsTable).where(and(eq(sheepDairyMastitisRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyMastitisRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-dairy/kidding-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyKiddingRecordsTable).where(eq(sheepDairyKiddingRecordsTable.farmId, farmId)).orderBy(desc(sheepDairyKiddingRecordsTable.lambingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/kidding-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyKiddingRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/kidding-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyKiddingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyKiddingRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyKiddingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/kidding-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyKiddingRecordsTable).where(and(eq(sheepDairyKiddingRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyKiddingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyBcsRecordsTable).where(eq(sheepDairyBcsRecordsTable.farmId, farmId)).orderBy(desc(sheepDairyBcsRecordsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyBcsRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyBcsRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyBcsRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyBcsRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyBcsRecordsTable).where(and(eq(sheepDairyBcsRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyBcsRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyBulkTankRecordsTable).where(eq(sheepDairyBulkTankRecordsTable.farmId, farmId)).orderBy(desc(sheepDairyBulkTankRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyBulkTankRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyBulkTankRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyBulkTankRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyBulkTankRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyBulkTankRecordsTable).where(and(eq(sheepDairyBulkTankRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyBulkTankRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sheep-dairy/mv-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(sheepDairyMvMonitoringTable).where(eq(sheepDairyMvMonitoringTable.farmId, farmId)).orderBy(desc(sheepDairyMvMonitoringTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/sheep-dairy/mv-monitoring", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sheepDairyMvMonitoringTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/sheep-dairy/mv-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(sheepDairyMvMonitoringTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyMvMonitoringTable.id, Number(req.params.recordId)), eq(sheepDairyMvMonitoringTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/sheep-dairy/mv-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(sheepDairyMvMonitoringTable).where(and(eq(sheepDairyMvMonitoringTable.id, Number(req.params.recordId)), eq(sheepDairyMvMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOAT DAIRY ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/farms/:farmId/goat-dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyMilkRecordsTable).where(eq(goatDairyMilkRecordsTable.farmId, farmId)).orderBy(desc(goatDairyMilkRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyMilkRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyMilkRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(goatDairyMilkRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyMilkRecordsTable).where(and(eq(goatDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(goatDairyMilkRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyMastitisRecordsTable).where(eq(goatDairyMastitisRecordsTable.farmId, farmId)).orderBy(desc(goatDairyMastitisRecordsTable.incidentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyMastitisRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyMastitisRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyMastitisRecordsTable.id, Number(req.params.recordId)), eq(goatDairyMastitisRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyMastitisRecordsTable).where(and(eq(goatDairyMastitisRecordsTable.id, Number(req.params.recordId)), eq(goatDairyMastitisRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/kidding-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyKiddingRecordsTable).where(eq(goatDairyKiddingRecordsTable.farmId, farmId)).orderBy(desc(goatDairyKiddingRecordsTable.kiddingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/kidding-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyKiddingRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/kidding-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyKiddingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyKiddingRecordsTable.id, Number(req.params.recordId)), eq(goatDairyKiddingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/kidding-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyKiddingRecordsTable).where(and(eq(goatDairyKiddingRecordsTable.id, Number(req.params.recordId)), eq(goatDairyKiddingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyBcsRecordsTable).where(eq(goatDairyBcsRecordsTable.farmId, farmId)).orderBy(desc(goatDairyBcsRecordsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyBcsRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyBcsRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyBcsRecordsTable.id, Number(req.params.recordId)), eq(goatDairyBcsRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyBcsRecordsTable).where(and(eq(goatDairyBcsRecordsTable.id, Number(req.params.recordId)), eq(goatDairyBcsRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyBulkTankRecordsTable).where(eq(goatDairyBulkTankRecordsTable.farmId, farmId)).orderBy(desc(goatDairyBulkTankRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyBulkTankRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyBulkTankRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyBulkTankRecordsTable.id, Number(req.params.recordId)), eq(goatDairyBulkTankRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyBulkTankRecordsTable).where(and(eq(goatDairyBulkTankRecordsTable.id, Number(req.params.recordId)), eq(goatDairyBulkTankRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/cae-monitoring", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyCaeMonitoringTable).where(eq(goatDairyCaeMonitoringTable.farmId, farmId)).orderBy(desc(goatDairyCaeMonitoringTable.testDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/goat-dairy/cae-monitoring", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyCaeMonitoringTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/goat-dairy/cae-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(goatDairyCaeMonitoringTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyCaeMonitoringTable.id, Number(req.params.recordId)), eq(goatDairyCaeMonitoringTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/goat-dairy/cae-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDairyCaeMonitoringTable).where(and(eq(goatDairyCaeMonitoringTable.id, Number(req.params.recordId)), eq(goatDairyCaeMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});

@@ -49,6 +49,8 @@ const MODULES = [
   { key: "sheep-production", name: "Sheep Production", description: "Flock register, tupping & scanning records, weigh-in & DLWG, shearing, cull records, vaccination programmes, disease monitoring and Red Tractor sheep checklist", monthlyPricePence: 2500 },
   { key: "beef-production", name: "Beef & Cattle Production", description: "Beef herd weigh-in & DLWG recording, finishing records, deadweight settlement tracking, body condition scoring and Red Tractor cattle checklist", monthlyPricePence: 2500 },
   { key: "viticulture", name: "Viticulture (Vineyard Growing)", description: "HMRC Vine Register, vineyard block management, BBCH phenology tracking, pruning & canopy operation records, vintage harvest data, and disease scouting (Downy/Powdery Mildew, Botrytis, Xylella watch) for UK vineyard compliance", monthlyPricePence: 2500 },
+  { key: "sheep-dairy", name: "Sheep Dairy", description: "Milk recording with SCC monitoring (1,500,000 cells/mL regulatory limit), mastitis records, lambing records with LIS tagging compliance, body condition scoring, bulk tank hygiene logs, and Maedi-Visna monitoring for UK dairy sheep enterprises — British Sheep Dairying Association assurance support", monthlyPricePence: 2500 },
+  { key: "goat-dairy", name: "Goat Dairy", description: "Milk recording with SCC monitoring (1,000,000 cells/mL regulatory limit), mastitis records, kidding records with LIS tagging compliance, body condition scoring, bulk tank hygiene logs, and CAE (Caprine Arthritis Encephalitis) monitoring for UK dairy goat enterprises — British Goat Society assurance support", monthlyPricePence: 2500 },
 ];
 
 export async function seedDefaults() {

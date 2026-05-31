@@ -89,6 +89,8 @@ import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
 import OrganicDairyPage from "@/pages/OrganicDairyPage";
+import SheepDairyPage from "@/pages/SheepDairyPage";
+import GoatDairyPage from "@/pages/GoatDairyPage";
 import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
 import OrganicViticulturePage from "@/pages/OrganicViticulturePage";
 import OrganicArablePage from "@/pages/OrganicArablePage";
@@ -377,6 +379,8 @@ function ProtectedContent() {
         <Route path="/organic" component={OrganicPage} />
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
+        <Route path="/sheep-dairy" component={SheepDairyPage} />
+        <Route path="/goat-dairy" component={GoatDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/organic-arable" component={OrganicArablePage} />
@@ -493,6 +497,8 @@ function DevBypassContent() {
         <Route path="/organic" component={OrganicPage} />
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
+        <Route path="/sheep-dairy" component={SheepDairyPage} />
+        <Route path="/goat-dairy" component={GoatDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/organic-arable" component={OrganicArablePage} />

@@ -136,6 +136,8 @@ const livestockNav: NavItem[] = [
   { name: "Herd Health Register", href: "/herd-health-register", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production"], requiresLivestock: true },
   { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management", "sheep-production", "beef-production"], requiresLivestock: true },
   { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management", "organic-dairy"], requiresLivestock: true },
+  { name: "Sheep Dairy", href: "/sheep-dairy", icon: Milk, moduleKeys: ["sheep-dairy"] },
+  { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
   { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
   { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "pig-production", "poultry-production"], requiresLivestock: true },
 ];
