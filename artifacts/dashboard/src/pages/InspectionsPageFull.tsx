@@ -1470,7 +1470,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                         queryKey={["assurance-certs", farmId]}
                         documentPath={r.documentPath ?? null}
                         documentName={r.documentName ?? null}
-                        portalUrl={r.certificationBody?.toLowerCase().includes("red tractor") ? "https://www.redtractor.org.uk" : undefined}
+                        portalUrl={r.certificationBody?.toLowerCase().includes("red tractor") ? "https://farmershub.redtractor.org.uk" : undefined}
                       />
                     </td>
                     <td style={{ padding: "0.5rem" }}>
