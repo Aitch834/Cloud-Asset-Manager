@@ -865,7 +865,7 @@ export default function FieldInspectionsPage() {
       )}
       {/* Add / Edit Inspection dialog */}
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeInspectionForm(); }}>
-        <DialogContent style={{ maxWidth: 560 }}>
+        <DialogContent style={{ maxWidth: 640 }}>
           <DialogHeader>
             <DialogTitle>{editRecord ? "Edit Inspection" : "Log Field Inspection"}</DialogTitle>
           </DialogHeader>
