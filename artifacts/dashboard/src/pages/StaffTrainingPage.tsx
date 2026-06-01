@@ -182,6 +182,74 @@ const CERT_GROUPS: { group: string; certs: string[] }[] = [
 
 const ALL_CERT_TYPES = CERT_GROUPS.flatMap(g => g.certs);
 
+const CERT_ISSUER_MAP: Record<string, string[]> = {
+  // Pesticides
+  "PA1 — Safe use of pesticides":                           ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "PA2 — Ground crop sprayers":                             ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "PA3 — Hand-held applicators":                            ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "PA4 — Broadcast air-assisted applicators":               ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "PA6 — Amenity & hard surfaces":                          ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "PA6AW — Aerial application (UAV/drone)":                 ["NPTC Awards (Lantra)", "Lantra Awards", "Civil Aviation Authority (CAA)"],
+  "Safe use of rodenticides":                               ["CRRU UK", "NPTC Awards (Lantra)"],
+  // Livestock Welfare
+  "WASK/WATOK — On-farm Emergency Slaughter Certificate of Competence": ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Cattle Disbudding & Dehorning (NPTC/Lantra)":            ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Cattle Castration (NPTC/Lantra)":                        ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Sheep Castration & Tail Docking (NPTC/Lantra)":          ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Pig Castration & Tail Docking (NPTC/Lantra)":            ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Bovine Artificial Insemination (AI) Certificate":        ["NPTC Awards (Lantra)", "Genus ABS", "Viking Genetics UK", "DAFFA"],
+  "Poultry Emergency Culling Competence":                   ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Poultry Catching & Handling (Lantra)":                   ["Lantra Awards", "NPTC Awards (Lantra)"],
+  // Animal Transport
+  "Animal Transport Certificate — Category 1 (journeys under 8 hours)": ["APHA (Animal & Plant Health Agency)", "DAERA (Northern Ireland)"],
+  "Animal Transport Certificate — Category 2 (long journeys, over 8 hours)": ["APHA (Animal & Plant Health Agency)", "DAERA (Northern Ireland)"],
+  "Certificate of Competence — Livestock Vehicle Driver":   ["APHA (Animal & Plant Health Agency)", "DAERA (Northern Ireland)"],
+  // Machinery
+  "Tractor & Machinery Safety":                             ["NPTC Awards (Lantra)", "Lantra Awards", "NPORS", "RTITB"],
+  "Telehandler Operator (NPORS/Lantra/RTITB)":              ["NPORS", "Lantra Awards", "RTITB", "CPCS"],
+  "Counterbalance Fork Lift Truck (FLT)":                   ["RTITB", "NPORS", "CPCS", "AITT"],
+  "Reach Fork Lift Truck (FLT)":                            ["RTITB", "NPORS", "CPCS", "AITT"],
+  "ATV / Quad Bike Safety Certificate (Lantra)":            ["Lantra Awards", "NPTC Awards (Lantra)"],
+  "ROLO — Reversing Operations & Lifting Operations (Banks Person)": ["CPCS", "NPORS"],
+  "Combine Harvester Operation (NPTC/Lantra)":              ["NPTC Awards (Lantra)", "Lantra Awards"],
+  "Grain Dryer Operation":                                  ["NPTC Awards (Lantra)", "Lantra Awards", "NABIM"],
+  // Chainsaw
+  "CS30 — Chainsaw crosscutting & maintenance":             ["NPTC Awards (Lantra)", "Lantra Awards", "City & Guilds"],
+  "CS31 — Felling small trees":                             ["NPTC Awards (Lantra)", "Lantra Awards", "City & Guilds"],
+  "CS32 — Felling medium trees":                            ["NPTC Awards (Lantra)", "Lantra Awards", "City & Guilds"],
+  "CS38 — Chainsaw from rope & harness":                    ["NPTC Awards (Lantra)", "Lantra Awards", "City & Guilds"],
+  // Health & Safety
+  "First Aid at Work (FAW) — 3 year":                       ["St John Ambulance", "British Red Cross", "RoSPA", "HSE-approved provider"],
+  "Emergency First Aid at Work (EFAW) — 1 year":            ["St John Ambulance", "British Red Cross", "RoSPA", "HSE-approved provider"],
+  "Fire Warden / Fire Marshal":                             ["IOSH", "NEBOSH", "Highfield Awarding Body", "St John Ambulance"],
+  "Manual Handling":                                        ["IOSH", "Highfield Awarding Body", "RoSPA"],
+  "Working at Height":                                      ["IPAF", "PASMA", "IOSH", "NEBOSH"],
+  "Confined Space Entry":                                   ["IOSH", "BOHS", "SPA (Safer People)"],
+  "Asbestos Awareness":                                     ["IOSH", "BOHS", "Highfield Awarding Body"],
+  "COSHH Awareness":                                        ["IOSH", "Highfield Awarding Body", "NEBOSH"],
+  // Agronomy
+  "BASIS Certificate in Agronomy":                          ["BASIS Registration Ltd"],
+  "BASIS Certificate in Crop Protection":                   ["BASIS Registration Ltd"],
+  "FACTS — Fertiliser Adviser":                             ["FACTS (Fertiliser Advisers Certification & Training Scheme)"],
+  "NRoSO — National Register of Spray Operators (CPD)":     ["NRoSO (National Register of Spray Operators)"],
+  // Veterinary
+  "AMTRA SQP — Suitably Qualified Person (veterinary medicines)": ["AMTRA"],
+  "Responsible for Medicines (named person)":               ["Veterinary Medicines Directorate (VMD)", "Farm veterinary practice"],
+  "BVetMed / MRCVS — Veterinary Surgeon":                   ["RCVS (Royal College of Veterinary Surgeons)"],
+  // Food & Hygiene
+  "Food Hygiene — Level 2 Award":                           ["Highfield Awarding Body", "RSPH (Royal Society for Public Health)", "CIEH (Chartered Institute of Environmental Health)", "City & Guilds"],
+  "Food Hygiene — Level 3 Award":                           ["Highfield Awarding Body", "RSPH (Royal Society for Public Health)", "CIEH (Chartered Institute of Environmental Health)", "City & Guilds"],
+  "Food Safety in Manufacturing (Level 3)":                 ["Highfield Awarding Body", "RSPH (Royal Society for Public Health)", "CIEH (Chartered Institute of Environmental Health)"],
+  "Water Hygiene Awareness":                                ["EUSR (Energy & Utility Skills Register)", "Highfield Awarding Body", "City & Guilds"],
+  // Formal Qualifications
+  "City & Guilds Level 2 Agriculture":                      ["City & Guilds"],
+  "City & Guilds Level 3 Agriculture":                      ["City & Guilds"],
+  "BTEC Level 3 Agriculture":                               ["Pearson / BTEC"],
+  "HND Agriculture":                                        ["Pearson / BTEC"],
+  "BSc Agriculture / Land Management":                      ["University awarding body"],
+  "NVQ Level 2 / 3 Agriculture":                            ["City & Guilds", "Lantra Awards", "NPTC Awards (Lantra)"],
+};
+
 const COMPLIANCE_FLAGS: { label: string; match: string; detail: string; severity: "error" | "warning" }[] = [
   { label: "WASK/WATOK (Emergency Slaughter)", match: "WASK/WATOK", detail: "Legally required — any farm with livestock must have at least one person holding a Certificate of Competence for on-farm emergency slaughter.", severity: "error" },
   { label: "Animal Transport Certificate Cat. 1", match: "Animal Transport Certificate — Category 1", detail: "Required by law for anyone transporting live animals on journeys over 65km.", severity: "error" },
@@ -612,6 +680,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<CertificateRecord | null>(null);
+  const [issuerOtherMode, setIssuerOtherMode] = useState(false);
 
   const membersQ = useFarmMembers(farmId);
   const memberNameMap = React.useMemo(() => {
@@ -662,11 +731,14 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   function openEdit(r: CertificateRecord) {
     setRenewMode(false);
     setEditItem(r);
+    const existingIssuer = r.issuer ?? "";
+    const suggestions = CERT_ISSUER_MAP[r.certificateType] ?? [];
+    setIssuerOtherMode(existingIssuer !== "" && !suggestions.includes(existingIssuer));
     setForm({
       userId: r.userId ?? "",
       certificateType: r.certificateType,
       certificateNumber: r.certificateNumber ?? "",
-      issuer: r.issuer ?? "",
+      issuer: existingIssuer,
       issueDate: r.issueDate ? r.issueDate.slice(0, 10) : "",
       expiryDate: r.expiryDate ? r.expiryDate.slice(0, 10) : "",
       notes: r.notes ?? "",
@@ -676,11 +748,14 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   function openRenew(r: CertificateRecord) {
     setEditItem(null);
     setRenewMode(true);
+    const existingIssuer = r.issuer ?? "";
+    const suggestions = CERT_ISSUER_MAP[r.certificateType] ?? [];
+    setIssuerOtherMode(existingIssuer !== "" && !suggestions.includes(existingIssuer));
     setForm({
       userId: r.userId ?? "",
       certificateType: r.certificateType,
       certificateNumber: "",
-      issuer: r.issuer ?? "",
+      issuer: existingIssuer,
       issueDate: "",
       expiryDate: "",
       notes: "",
@@ -831,7 +906,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
         </Dialog>
       )}
 
-      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); } }}>
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); setIssuerOtherMode(false); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Certificate" : renewMode ? "Renew Certificate" : "Add Certificate"}</DialogTitle>
@@ -848,7 +923,11 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div>
               <Label>Certificate Type *</Label>
-              <Select value={form.certificateType} onValueChange={v => setForm(f => ({ ...f, certificateType: v }))}>
+              <Select value={form.certificateType} onValueChange={v => {
+                const issuers = CERT_ISSUER_MAP[v] ?? [];
+                setIssuerOtherMode(false);
+                setForm(f => ({ ...f, certificateType: v, issuer: issuers.length === 1 ? issuers[0] : "" }));
+              }}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select category then type…" /></SelectTrigger>
                 <SelectContent className="max-h-80">
                   {CERT_GROUPS.map((g, gi) => (
@@ -864,7 +943,38 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
               </Select>
             </div>
             <div><Label>Certificate Number</Label><Input className="mt-1" value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} placeholder="e.g. PA1-123456" /></div>
-            <div><Label>Issuing Body</Label><Input className="mt-1" value={form.issuer} onChange={e => setForm(f => ({ ...f, issuer: e.target.value }))} placeholder="e.g. Lantra Awards, BASIS, FACTS" /></div>
+            <div>
+              <Label>Issuing Body</Label>
+              {(() => {
+                const suggestions = CERT_ISSUER_MAP[form.certificateType] ?? [];
+                if (suggestions.length === 0) {
+                  return <Input className="mt-1" value={form.issuer} onChange={e => setForm(f => ({ ...f, issuer: e.target.value }))} placeholder="e.g. Lantra Awards, BASIS, FACTS" />;
+                }
+                const inList = suggestions.includes(form.issuer);
+                const selectValue = inList ? form.issuer : (issuerOtherMode ? "__other__" : "");
+                return (
+                  <>
+                    <Select
+                      value={selectValue}
+                      onValueChange={v => {
+                        if (v === "__other__") { setIssuerOtherMode(true); setForm(f => ({ ...f, issuer: "" })); }
+                        else { setIssuerOtherMode(false); setForm(f => ({ ...f, issuer: v })); }
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select issuing body…" /></SelectTrigger>
+                      <SelectContent>
+                        {suggestions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        <SelectSeparator />
+                        <SelectItem value="__other__">Other / not listed…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {issuerOtherMode && (
+                      <Input className="mt-2" value={form.issuer} onChange={e => setForm(f => ({ ...f, issuer: e.target.value }))} placeholder="Enter issuing body…" autoFocus />
+                    )}
+                  </>
+                );
+              })()}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Issue Date *</Label><Input type="date" className="mt-1" value={form.issueDate} onChange={e => setForm(f => ({ ...f, issueDate: e.target.value }))} /></div>
               <div><Label>Expiry Date</Label><Input type="date" className="mt-1" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} /></div>
