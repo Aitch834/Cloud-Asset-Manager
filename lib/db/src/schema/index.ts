@@ -45,6 +45,7 @@ export * from "./vet-ledger";
 export * from "./help-articles";
 export * from "./compliance-gaps";
 export * from "./sheep-production";
+export * from "./goat-production";
 export * from "./beef-production";
 export * from "./grain-store";
 export * from "./settlement-notes";

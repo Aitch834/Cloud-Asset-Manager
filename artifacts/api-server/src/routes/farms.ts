@@ -330,6 +330,12 @@ import {
   sheepVaccinationProgrammesTable,
   sheepDiseaseMonitoringTable,
   sheepRedTractorChecklistTable,
+  goatMatingRecordsTable,
+  goatScanningRecordsTable,
+  goatWeighRecordsTable,
+  goatCullRecordsTable,
+  goatVaccinationProgrammesTable,
+  goatDiseaseMonitoringTable,
   beefWeighRecordsTable,
   beefAnimalWeighEntriesTable,
   beefFinishingRecordsTable,
@@ -28189,5 +28195,269 @@ router.delete("/farms/:farmId/organic-goat-dairy/treatments/:recordId", requireA
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   await db.delete(organicGoatDairyTreatmentsTable).where(and(eq(organicGoatDairyTreatmentsTable.id, Number(req.params.recordId)), eq(organicGoatDairyTreatmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── GOAT PRODUCTION ROUTES ───────────────────────────────────────────────────
+
+// Goat Herds (read-only via livestock register)
+router.get("/farms/:farmId/goat-herds", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), eq(herdFlockRegisterTable.type, "goat"))).orderBy(herdFlockRegisterTable.name);
+  res.json(herds.map(h => ({ id: h.id, flockName: h.name, breed: h.breed, flockPurpose: h.type, herdFlockNumber: h.herdNumber, notes: h.notes, status: h.isActive ? "active" : "archived", farmId: h.farmId, createdAt: h.createdAt })));
+});
+
+// Goat Mating Records
+router.get("/farms/:farmId/goat-mating-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatMatingRecordsTable).where(eq(goatMatingRecordsTable.farmId, farmId)).orderBy(desc(goatMatingRecordsTable.matingStartDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-mating-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatMatingRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, matingStartDate: String(b.matingStartDate ?? ""), matingEndDate: b.matingEndDate ? String(b.matingEndDate) : null, buckEarTag: b.buckEarTag ? String(b.buckEarTag) : null, buckBreed: b.buckBreed ? String(b.buckBreed) : null, buckOwner: b.buckOwner ? String(b.buckOwner) : null, buckHiredOrOwned: b.buckHiredOrOwned ? String(b.buckHiredOrOwned) : "owned", doesExposed: b.doesExposed ? Number(b.doesExposed) : null, expectedKiddingDate: b.expectedKiddingDate ? String(b.expectedKiddingDate) : null, progesteroneSpongeUsed: b.progesteroneSpongeUsed === "true" || b.progesteroneSpongeUsed === true, matingMethod: b.matingMethod ? String(b.matingMethod) : "natural", notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-mating-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.matingStartDate !== undefined) updates.matingStartDate = String(b.matingStartDate);
+  if (b.matingEndDate !== undefined) updates.matingEndDate = b.matingEndDate ? String(b.matingEndDate) : null;
+  if (b.buckEarTag !== undefined) updates.buckEarTag = b.buckEarTag ? String(b.buckEarTag) : null;
+  if (b.buckBreed !== undefined) updates.buckBreed = b.buckBreed ? String(b.buckBreed) : null;
+  if (b.buckOwner !== undefined) updates.buckOwner = b.buckOwner ? String(b.buckOwner) : null;
+  if (b.buckHiredOrOwned !== undefined) updates.buckHiredOrOwned = String(b.buckHiredOrOwned);
+  if (b.doesExposed !== undefined) updates.doesExposed = b.doesExposed ? Number(b.doesExposed) : null;
+  if (b.expectedKiddingDate !== undefined) updates.expectedKiddingDate = b.expectedKiddingDate ? String(b.expectedKiddingDate) : null;
+  if (b.progesteroneSpongeUsed !== undefined) updates.progesteroneSpongeUsed = b.progesteroneSpongeUsed === "true" || b.progesteroneSpongeUsed === true;
+  if (b.matingMethod !== undefined) updates.matingMethod = String(b.matingMethod);
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatMatingRecordsTable).set(updates).where(and(eq(goatMatingRecordsTable.id, id), eq(goatMatingRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-mating-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatMatingRecordsTable).where(and(eq(goatMatingRecordsTable.id, Number(req.params.id)), eq(goatMatingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Goat Scanning Records
+router.get("/farms/:farmId/goat-scanning-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatScanningRecordsTable).where(eq(goatScanningRecordsTable.farmId, farmId)).orderBy(desc(goatScanningRecordsTable.scanDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-scanning-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatScanningRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, scanDate: String(b.scanDate ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, scannerCompany: b.scannerCompany ? String(b.scannerCompany) : null, totalDoesScanned: Number(b.totalDoesScanned ?? 0), doesBarren: b.doesBarren ? Number(b.doesBarren) : 0, doesSingles: b.doesSingles ? Number(b.doesSingles) : 0, doesDoubles: b.doesDoubles ? Number(b.doesDoubles) : 0, doesTriples: b.doesTriples ? Number(b.doesTriples) : 0, expectedTotalKids: b.expectedTotalKids ? Number(b.expectedTotalKids) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.scanDate !== undefined) updates.scanDate = String(b.scanDate);
+  if (b.scannerName !== undefined) updates.scannerName = b.scannerName ? String(b.scannerName) : null;
+  if (b.scannerCompany !== undefined) updates.scannerCompany = b.scannerCompany ? String(b.scannerCompany) : null;
+  if (b.totalDoesScanned !== undefined) updates.totalDoesScanned = Number(b.totalDoesScanned);
+  if (b.doesBarren !== undefined) updates.doesBarren = Number(b.doesBarren ?? 0);
+  if (b.doesSingles !== undefined) updates.doesSingles = Number(b.doesSingles ?? 0);
+  if (b.doesDoubles !== undefined) updates.doesDoubles = Number(b.doesDoubles ?? 0);
+  if (b.doesTriples !== undefined) updates.doesTriples = Number(b.doesTriples ?? 0);
+  if (b.expectedTotalKids !== undefined) updates.expectedTotalKids = b.expectedTotalKids ? Number(b.expectedTotalKids) : null;
+  if (b.scanningPercentage !== undefined) updates.scanningPercentage = b.scanningPercentage ? String(b.scanningPercentage) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatScanningRecordsTable).set(updates).where(and(eq(goatScanningRecordsTable.id, id), eq(goatScanningRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatScanningRecordsTable).where(and(eq(goatScanningRecordsTable.id, Number(req.params.id)), eq(goatScanningRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Goat Weigh Records
+router.get("/farms/:farmId/goat-weigh-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatWeighRecordsTable).where(eq(goatWeighRecordsTable.farmId, farmId)).orderBy(desc(goatWeighRecordsTable.weighDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-weigh-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatWeighRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, weighDate: String(b.weighDate ?? ""), weighType: b.weighType ? String(b.weighType) : "routine", weighedBy: b.weighedBy ? String(b.weighedBy) : null, ageClassWeighed: b.ageClassWeighed ? String(b.ageClassWeighed) : null, numberWeighed: Number(b.numberWeighed ?? 0), averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, lowestWeightKg: b.lowestWeightKg ? String(b.lowestWeightKg) : null, highestWeightKg: b.highestWeightKg ? String(b.highestWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? Number(b.daysSincePreviousWeigh) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.weighDate !== undefined) updates.weighDate = String(b.weighDate);
+  if (b.weighType !== undefined) updates.weighType = String(b.weighType);
+  if (b.weighedBy !== undefined) updates.weighedBy = b.weighedBy ? String(b.weighedBy) : null;
+  if (b.ageClassWeighed !== undefined) updates.ageClassWeighed = b.ageClassWeighed ? String(b.ageClassWeighed) : null;
+  if (b.numberWeighed !== undefined) updates.numberWeighed = Number(b.numberWeighed);
+  if (b.averageWeightKg !== undefined) updates.averageWeightKg = b.averageWeightKg ? String(b.averageWeightKg) : null;
+  if (b.lowestWeightKg !== undefined) updates.lowestWeightKg = b.lowestWeightKg ? String(b.lowestWeightKg) : null;
+  if (b.highestWeightKg !== undefined) updates.highestWeightKg = b.highestWeightKg ? String(b.highestWeightKg) : null;
+  if (b.targetWeightKg !== undefined) updates.targetWeightKg = b.targetWeightKg ? String(b.targetWeightKg) : null;
+  if (b.dlwgGPerDay !== undefined) updates.dlwgGPerDay = b.dlwgGPerDay ? String(b.dlwgGPerDay) : null;
+  if (b.daysSincePreviousWeigh !== undefined) updates.daysSincePreviousWeigh = b.daysSincePreviousWeigh ? Number(b.daysSincePreviousWeigh) : null;
+  if (b.bodyConditionScore !== undefined) updates.bodyConditionScore = b.bodyConditionScore ? String(b.bodyConditionScore) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatWeighRecordsTable).set(updates).where(and(eq(goatWeighRecordsTable.id, id), eq(goatWeighRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatWeighRecordsTable).where(and(eq(goatWeighRecordsTable.id, Number(req.params.id)), eq(goatWeighRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Goat Cull / Draft / Market Records
+router.get("/farms/:farmId/goat-cull-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatCullRecordsTable).where(eq(goatCullRecordsTable.farmId, farmId)).orderBy(desc(goatCullRecordsTable.cullDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-cull-records", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: String(b.cullDate ?? ""), numberCulled: Number(b.numberCulled ?? 1), ageClass: b.ageClass ? String(b.ageClass) : null, reasonForCulling: String(b.reasonForCulling ?? ""), destination: String(b.destination ?? ""), destinationCph: b.destinationCph ? String(b.destinationCph) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, averageDeadweightKg: b.averageDeadweightKg ? String(b.averageDeadweightKg) : null, deadweightKilloutPercent: b.deadweightKilloutPercent ? String(b.deadweightKilloutPercent) : null, pricePerHeadGbp: b.pricePerHeadGbp ? String(b.pricePerHeadGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, finishGrade: b.finishGrade ? String(b.finishGrade) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.cullDate !== undefined) updates.cullDate = String(b.cullDate);
+  if (b.numberCulled !== undefined) updates.numberCulled = Number(b.numberCulled);
+  if (b.ageClass !== undefined) updates.ageClass = b.ageClass ? String(b.ageClass) : null;
+  if (b.reasonForCulling !== undefined) updates.reasonForCulling = String(b.reasonForCulling);
+  if (b.destination !== undefined) updates.destination = String(b.destination);
+  if (b.destinationCph !== undefined) updates.destinationCph = b.destinationCph ? String(b.destinationCph) : null;
+  if (b.averageLiveWeightKg !== undefined) updates.averageLiveWeightKg = b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null;
+  if (b.averageDeadweightKg !== undefined) updates.averageDeadweightKg = b.averageDeadweightKg ? String(b.averageDeadweightKg) : null;
+  if (b.deadweightKilloutPercent !== undefined) updates.deadweightKilloutPercent = b.deadweightKilloutPercent ? String(b.deadweightKilloutPercent) : null;
+  if (b.pricePerHeadGbp !== undefined) updates.pricePerHeadGbp = b.pricePerHeadGbp ? String(b.pricePerHeadGbp) : null;
+  if (b.totalValueGbp !== undefined) updates.totalValueGbp = b.totalValueGbp ? String(b.totalValueGbp) : null;
+  if (b.abattoirName !== undefined) updates.abattoirName = b.abattoirName ? String(b.abattoirName) : null;
+  if (b.finishGrade !== undefined) updates.finishGrade = b.finishGrade ? String(b.finishGrade) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatCullRecordsTable).set(updates).where(and(eq(goatCullRecordsTable.id, id), eq(goatCullRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatCullRecordsTable).where(and(eq(goatCullRecordsTable.id, Number(req.params.id)), eq(goatCullRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Goat Vaccination Programmes
+router.get("/farms/:farmId/goat-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatVaccinationProgrammesTable).where(eq(goatVaccinationProgrammesTable.farmId, farmId)).orderBy(desc(goatVaccinationProgrammesTable.vaccinationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-vaccination-programmes", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatVaccinationProgrammesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, numberTreated: Number(b.numberTreated ?? 0), ageClassTreated: b.ageClassTreated ? String(b.ageClassTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
+  if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
+  if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.numberTreated !== undefined) updates.numberTreated = Number(b.numberTreated);
+  if (b.ageClassTreated !== undefined) updates.ageClassTreated = b.ageClassTreated ? String(b.ageClassTreated) : null;
+  if (b.doseVolumeMl !== undefined) updates.doseVolumeMl = b.doseVolumeMl ? String(b.doseVolumeMl) : null;
+  if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
+  if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
+  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
+  if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatVaccinationProgrammesTable).set(updates).where(and(eq(goatVaccinationProgrammesTable.id, id), eq(goatVaccinationProgrammesTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatVaccinationProgrammesTable).where(and(eq(goatVaccinationProgrammesTable.id, Number(req.params.id)), eq(goatVaccinationProgrammesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Goat Disease Monitoring
+router.get("/farms/:farmId/goat-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(goatDiseaseMonitoringTable).where(eq(goatDiseaseMonitoringTable.farmId, farmId)).orderBy(desc(goatDiseaseMonitoringTable.monitoringDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/goat-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(goatDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, status: b.status ? String(b.status) : "pending", actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
+  if (b.schemeReference !== undefined) updates.schemeReference = b.schemeReference ? String(b.schemeReference) : null;
+  if (b.testingBody !== undefined) updates.testingBody = b.testingBody ? String(b.testingBody) : null;
+  if (b.numberOfSamples !== undefined) updates.numberOfSamples = b.numberOfSamples ? Number(b.numberOfSamples) : null;
+  if (b.positiveResults !== undefined) updates.positiveResults = Number(b.positiveResults ?? 0);
+  if (b.negativeResults !== undefined) updates.negativeResults = Number(b.negativeResults ?? 0);
+  if (b.status !== undefined) updates.status = String(b.status);
+  if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(goatDiseaseMonitoringTable).set(updates).where(and(eq(goatDiseaseMonitoringTable.id, id), eq(goatDiseaseMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(goatDiseaseMonitoringTable).where(and(eq(goatDiseaseMonitoringTable.id, Number(req.params.id)), eq(goatDiseaseMonitoringTable.farmId, farmId)));
   res.json({ success: true });
 });

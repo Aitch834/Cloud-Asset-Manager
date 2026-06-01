@@ -72,6 +72,7 @@ import WorkshopPage from "@/pages/WorkshopPage";
 import PigProductionPage from "@/pages/PigProductionPage";
 import PoultryProductionPage from "@/pages/PoultryProductionPage";
 import SheepProductionPage from "@/pages/SheepProductionPage";
+import GoatProductionPage from "@/pages/GoatProductionPage";
 import BeefProductionPage from "@/pages/BeefProductionPage";
 import ViticulturePage from "@/pages/ViticulturePage";
 import FreshProducePage from "@/pages/FreshProducePage";
@@ -365,6 +366,7 @@ function ProtectedContent() {
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />
+        <Route path="/goat-production" component={GoatProductionPage} />
         <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/viticulture" component={ViticulturePage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
@@ -485,6 +487,7 @@ function DevBypassContent() {
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />
+        <Route path="/goat-production" component={GoatProductionPage} />
         <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/viticulture" component={ViticulturePage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
