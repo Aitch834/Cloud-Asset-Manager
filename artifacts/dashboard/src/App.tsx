@@ -73,6 +73,8 @@ import PigProductionPage from "@/pages/PigProductionPage";
 import PoultryProductionPage from "@/pages/PoultryProductionPage";
 import SheepProductionPage from "@/pages/SheepProductionPage";
 import GoatProductionPage from "@/pages/GoatProductionPage";
+import VenisonProductionPage from "@/pages/VenisonProductionPage";
+import OrganicVenisonPage from "@/pages/OrganicVenisonPage";
 import BeefProductionPage from "@/pages/BeefProductionPage";
 import ViticulturePage from "@/pages/ViticulturePage";
 import FreshProducePage from "@/pages/FreshProducePage";
@@ -367,6 +369,8 @@ function ProtectedContent() {
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />
         <Route path="/goat-production" component={GoatProductionPage} />
+        <Route path="/venison-production" component={VenisonProductionPage} />
+        <Route path="/organic-venison" component={OrganicVenisonPage} />
         <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/viticulture" component={ViticulturePage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
@@ -488,6 +492,8 @@ function DevBypassContent() {
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />
         <Route path="/goat-production" component={GoatProductionPage} />
+        <Route path="/venison-production" component={VenisonProductionPage} />
+        <Route path="/organic-venison" component={OrganicVenisonPage} />
         <Route path="/beef-production" component={BeefProductionPage} />
         <Route path="/viticulture" component={ViticulturePage} />
         <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>

@@ -59,6 +59,7 @@ import {
   Scissors,
   Scale,
   Clock,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -119,6 +120,7 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Fresh Produce", href: "/organic-fresh-produce", icon: Leaf, moduleKeys: ["organic-fresh-produce"] },
   { name: "Organic Viticulture", href: "/organic-viticulture", icon: Grape, moduleKeys: ["organic-viticulture"] },
   { name: "Organic Arable", href: "/organic-arable", icon: Wheat, moduleKeys: ["organic-arable"] },
+  { name: "Organic Venison", href: "/organic-venison", icon: Leaf, moduleKeys: ["organic-venison"] },
 ];
 
 const biosecurityNav: NavItem[] = [
@@ -154,6 +156,7 @@ const specialistNav: NavItem[] = [
   { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
   { name: "Sheep Production", href: "/sheep-production", icon: Scissors, moduleKeys: ["sheep-production"] },
   { name: "Goat Production", href: "/goat-production", icon: HeartPulse, moduleKeys: ["goat-production"] },
+  { name: "Venison Production", href: "/venison-production", icon: Crosshair, moduleKeys: ["venison-production"] },
   { name: "Beef Production", href: "/beef-production", icon: Scale, moduleKeys: ["beef-production"] },
   { name: "Fresh Produce", href: "/fresh-produce", icon: ShoppingBag, moduleKeys: ["fresh-produce"] },
   { name: "Viticulture", href: "/viticulture", icon: TreePine, moduleKeys: ["viticulture"] },

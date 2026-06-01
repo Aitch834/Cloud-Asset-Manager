@@ -336,6 +336,15 @@ import {
   goatCullRecordsTable,
   goatVaccinationProgrammesTable,
   goatDiseaseMonitoringTable,
+  venisonCullRecordsTable,
+  venisonCarcassSalesTable,
+  venisonHerdMonitoringTable,
+  venisonHealthRecordsTable,
+  venisonFirearmsRegisterTable,
+  organicVenisonCertificationTable,
+  organicVenisonLandRegisterTable,
+  organicVenisonFeedSupplementsTable,
+  organicVenisonDerogationsTable,
   beefWeighRecordsTable,
   beefAnimalWeighEntriesTable,
   beefFinishingRecordsTable,
@@ -28459,5 +28468,381 @@ router.delete("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, require
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   await db.delete(goatDiseaseMonitoringTable).where(and(eq(goatDiseaseMonitoringTable.id, Number(req.params.id)), eq(goatDiseaseMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Venison Cull Records ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/venison-cull-records", requireAuth, requireTenant, requireModuleByKey("venison-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(venisonCullRecordsTable).where(eq(venisonCullRecordsTable.farmId, farmId)).orderBy(desc(venisonCullRecordsTable.cullDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/venison-cull-records", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(venisonCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: String(b.cullDate ?? ""), stalkerName: b.stalkerName ? String(b.stalkerName) : null, species: String(b.species ?? ""), sex: b.sex ? String(b.sex) : null, ageClass: b.ageClass ? String(b.ageClass) : null, locationBeat: b.locationBeat ? String(b.locationBeat) : null, larderNumber: b.larderNumber ? String(b.larderNumber) : null, carcassNumber: b.carcassNumber ? String(b.carcassNumber) : null, liveweightKg: b.liveweightKg ? String(b.liveweightKg) : null, grallochWeightKg: b.grallochWeightKg ? String(b.grallochWeightKg) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, killoutPercent: b.killoutPercent ? String(b.killoutPercent) : null, cullMethod: b.cullMethod ? String(b.cullMethod) : "rifle", cullReason: String(b.cullReason ?? ""), foodSafetyInspectionResult: b.foodSafetyInspectionResult ? String(b.foodSafetyInspectionResult) : "passed", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/venison-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.cullDate !== undefined) updates.cullDate = String(b.cullDate);
+  if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
+  if (b.stalkerName !== undefined) updates.stalkerName = b.stalkerName ? String(b.stalkerName) : null;
+  if (b.species !== undefined) updates.species = String(b.species);
+  if (b.sex !== undefined) updates.sex = b.sex ? String(b.sex) : null;
+  if (b.ageClass !== undefined) updates.ageClass = b.ageClass ? String(b.ageClass) : null;
+  if (b.locationBeat !== undefined) updates.locationBeat = b.locationBeat ? String(b.locationBeat) : null;
+  if (b.larderNumber !== undefined) updates.larderNumber = b.larderNumber ? String(b.larderNumber) : null;
+  if (b.carcassNumber !== undefined) updates.carcassNumber = b.carcassNumber ? String(b.carcassNumber) : null;
+  if (b.liveweightKg !== undefined) updates.liveweightKg = b.liveweightKg ? String(b.liveweightKg) : null;
+  if (b.grallochWeightKg !== undefined) updates.grallochWeightKg = b.grallochWeightKg ? String(b.grallochWeightKg) : null;
+  if (b.carcassWeightKg !== undefined) updates.carcassWeightKg = b.carcassWeightKg ? String(b.carcassWeightKg) : null;
+  if (b.killoutPercent !== undefined) updates.killoutPercent = b.killoutPercent ? String(b.killoutPercent) : null;
+  if (b.cullMethod !== undefined) updates.cullMethod = b.cullMethod ? String(b.cullMethod) : null;
+  if (b.cullReason !== undefined) updates.cullReason = String(b.cullReason);
+  if (b.foodSafetyInspectionResult !== undefined) updates.foodSafetyInspectionResult = b.foodSafetyInspectionResult ? String(b.foodSafetyInspectionResult) : null;
+  if (b.notifiableDiseaseSupect !== undefined) updates.notifiableDiseaseSupect = b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true";
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(venisonCullRecordsTable).set(updates).where(and(eq(venisonCullRecordsTable.id, id), eq(venisonCullRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/venison-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(venisonCullRecordsTable).where(and(eq(venisonCullRecordsTable.id, Number(req.params.id)), eq(venisonCullRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Venison Carcass Sales ────────────────────────────────────────────────────
+router.get("/farms/:farmId/venison-carcass-sales", requireAuth, requireTenant, requireModuleByKey("venison-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(venisonCarcassSalesTable).where(eq(venisonCarcassSalesTable.farmId, farmId)).orderBy(desc(venisonCarcassSalesTable.saleDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/venison-carcass-sales", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(venisonCarcassSalesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, saleDate: String(b.saleDate ?? ""), facilityType: String(b.facilityType ?? ""), species: b.species ? String(b.species) : null, numberCarcasses: Number(b.numberCarcasses ?? 0), carcassNumbers: b.carcassNumbers ? String(b.carcassNumbers) : null, gradeOrQuality: b.gradeOrQuality ? String(b.gradeOrQuality) : null, destinationType: String(b.destinationType ?? ""), buyerName: b.buyerName ? String(b.buyerName) : null, pricePerKgGbp: b.pricePerKgGbp ? String(b.pricePerKgGbp) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, invoiceReference: b.invoiceReference ? String(b.invoiceReference) : null, wildGameDeclarationNumber: b.wildGameDeclarationNumber ? String(b.wildGameDeclarationNumber) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/venison-carcass-sales/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.saleDate !== undefined) updates.saleDate = String(b.saleDate);
+  if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
+  if (b.facilityType !== undefined) updates.facilityType = String(b.facilityType);
+  if (b.species !== undefined) updates.species = b.species ? String(b.species) : null;
+  if (b.numberCarcasses !== undefined) updates.numberCarcasses = Number(b.numberCarcasses);
+  if (b.carcassNumbers !== undefined) updates.carcassNumbers = b.carcassNumbers ? String(b.carcassNumbers) : null;
+  if (b.gradeOrQuality !== undefined) updates.gradeOrQuality = b.gradeOrQuality ? String(b.gradeOrQuality) : null;
+  if (b.destinationType !== undefined) updates.destinationType = String(b.destinationType);
+  if (b.buyerName !== undefined) updates.buyerName = b.buyerName ? String(b.buyerName) : null;
+  if (b.pricePerKgGbp !== undefined) updates.pricePerKgGbp = b.pricePerKgGbp ? String(b.pricePerKgGbp) : null;
+  if (b.totalWeightKg !== undefined) updates.totalWeightKg = b.totalWeightKg ? String(b.totalWeightKg) : null;
+  if (b.totalValueGbp !== undefined) updates.totalValueGbp = b.totalValueGbp ? String(b.totalValueGbp) : null;
+  if (b.invoiceReference !== undefined) updates.invoiceReference = b.invoiceReference ? String(b.invoiceReference) : null;
+  if (b.wildGameDeclarationNumber !== undefined) updates.wildGameDeclarationNumber = b.wildGameDeclarationNumber ? String(b.wildGameDeclarationNumber) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(venisonCarcassSalesTable).set(updates).where(and(eq(venisonCarcassSalesTable.id, id), eq(venisonCarcassSalesTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/venison-carcass-sales/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(venisonCarcassSalesTable).where(and(eq(venisonCarcassSalesTable.id, Number(req.params.id)), eq(venisonCarcassSalesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Venison Herd Monitoring ──────────────────────────────────────────────────
+router.get("/farms/:farmId/venison-herd-monitoring", requireAuth, requireTenant, requireModuleByKey("venison-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(venisonHerdMonitoringTable).where(eq(venisonHerdMonitoringTable.farmId, farmId)).orderBy(desc(venisonHerdMonitoringTable.surveyDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/venison-herd-monitoring", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(venisonHerdMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, surveyDate: String(b.surveyDate ?? ""), surveyMethod: String(b.surveyMethod ?? ""), species: b.species ? String(b.species) : null, maleCount: b.maleCount ? Number(b.maleCount) : null, femaleCount: b.femaleCount ? Number(b.femaleCount) : null, youngCount: b.youngCount ? Number(b.youngCount) : null, totalCount: b.totalCount ? Number(b.totalCount) : null, maleFemaleRatio: b.maleFemaleRatio ? String(b.maleFemaleRatio) : null, recruitmentRatePercent: b.recruitmentRatePercent ? String(b.recruitmentRatePercent) : null, observedBy: b.observedBy ? String(b.observedBy) : null, weatherConditions: b.weatherConditions ? String(b.weatherConditions) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/venison-herd-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.surveyDate !== undefined) updates.surveyDate = String(b.surveyDate);
+  if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
+  if (b.surveyMethod !== undefined) updates.surveyMethod = String(b.surveyMethod);
+  if (b.species !== undefined) updates.species = b.species ? String(b.species) : null;
+  if (b.maleCount !== undefined) updates.maleCount = b.maleCount ? Number(b.maleCount) : null;
+  if (b.femaleCount !== undefined) updates.femaleCount = b.femaleCount ? Number(b.femaleCount) : null;
+  if (b.youngCount !== undefined) updates.youngCount = b.youngCount ? Number(b.youngCount) : null;
+  if (b.totalCount !== undefined) updates.totalCount = b.totalCount ? Number(b.totalCount) : null;
+  if (b.maleFemaleRatio !== undefined) updates.maleFemaleRatio = b.maleFemaleRatio ? String(b.maleFemaleRatio) : null;
+  if (b.recruitmentRatePercent !== undefined) updates.recruitmentRatePercent = b.recruitmentRatePercent ? String(b.recruitmentRatePercent) : null;
+  if (b.observedBy !== undefined) updates.observedBy = b.observedBy ? String(b.observedBy) : null;
+  if (b.weatherConditions !== undefined) updates.weatherConditions = b.weatherConditions ? String(b.weatherConditions) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(venisonHerdMonitoringTable).set(updates).where(and(eq(venisonHerdMonitoringTable.id, id), eq(venisonHerdMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/venison-herd-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(venisonHerdMonitoringTable).where(and(eq(venisonHerdMonitoringTable.id, Number(req.params.id)), eq(venisonHerdMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Venison Health Records ───────────────────────────────────────────────────
+router.get("/farms/:farmId/venison-health-records", requireAuth, requireTenant, requireModuleByKey("venison-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(venisonHealthRecordsTable).where(eq(venisonHealthRecordsTable.farmId, farmId)).orderBy(desc(venisonHealthRecordsTable.eventDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/venison-health-records", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(venisonHealthRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, eventDate: String(b.eventDate ?? ""), healthEventType: String(b.healthEventType ?? ""), productOrDescription: b.productOrDescription ? String(b.productOrDescription) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, btbTestResult: b.btbTestResult ? String(b.btbTestResult) : null, aphaReference: b.aphaReference ? String(b.aphaReference) : null, vetName: b.vetName ? String(b.vetName) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/venison-health-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.eventDate !== undefined) updates.eventDate = String(b.eventDate);
+  if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
+  if (b.healthEventType !== undefined) updates.healthEventType = String(b.healthEventType);
+  if (b.productOrDescription !== undefined) updates.productOrDescription = b.productOrDescription ? String(b.productOrDescription) : null;
+  if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
+  if (b.numberTreated !== undefined) updates.numberTreated = b.numberTreated ? Number(b.numberTreated) : null;
+  if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
+  if (b.btbTestResult !== undefined) updates.btbTestResult = b.btbTestResult ? String(b.btbTestResult) : null;
+  if (b.aphaReference !== undefined) updates.aphaReference = b.aphaReference ? String(b.aphaReference) : null;
+  if (b.vetName !== undefined) updates.vetName = b.vetName ? String(b.vetName) : null;
+  if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === true || b.vetPrescribed === "true";
+  if (b.notifiableDiseaseSupect !== undefined) updates.notifiableDiseaseSupect = b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true";
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(venisonHealthRecordsTable).set(updates).where(and(eq(venisonHealthRecordsTable.id, id), eq(venisonHealthRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/venison-health-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(venisonHealthRecordsTable).where(and(eq(venisonHealthRecordsTable.id, Number(req.params.id)), eq(venisonHealthRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Venison Firearms Register ────────────────────────────────────────────────
+router.get("/farms/:farmId/venison-firearms-register", requireAuth, requireTenant, requireModuleByKey("venison-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(venisonFirearmsRegisterTable).where(eq(venisonFirearmsRegisterTable.farmId, farmId)).orderBy(venisonFirearmsRegisterTable.holderName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/venison-firearms-register", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(venisonFirearmsRegisterTable).values({ farmId, holderName: String(b.holderName ?? ""), certificateType: String(b.certificateType ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, issuingAuthority: b.issuingAuthority ? String(b.issuingAuthority) : null, issueDate: b.issueDate ? String(b.issueDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, calibreOrDescription: b.calibreOrDescription ? String(b.calibreOrDescription) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/venison-firearms-register/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.holderName !== undefined) updates.holderName = String(b.holderName);
+  if (b.certificateType !== undefined) updates.certificateType = String(b.certificateType);
+  if (b.certificateNumber !== undefined) updates.certificateNumber = b.certificateNumber ? String(b.certificateNumber) : null;
+  if (b.issuingAuthority !== undefined) updates.issuingAuthority = b.issuingAuthority ? String(b.issuingAuthority) : null;
+  if (b.issueDate !== undefined) updates.issueDate = b.issueDate ? String(b.issueDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.calibreOrDescription !== undefined) updates.calibreOrDescription = b.calibreOrDescription ? String(b.calibreOrDescription) : null;
+  if (b.status !== undefined) updates.status = String(b.status);
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(venisonFirearmsRegisterTable).set(updates).where(and(eq(venisonFirearmsRegisterTable.id, id), eq(venisonFirearmsRegisterTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/venison-firearms-register/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(venisonFirearmsRegisterTable).where(and(eq(venisonFirearmsRegisterTable.id, Number(req.params.id)), eq(venisonFirearmsRegisterTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Venison Certification ────────────────────────────────────────────
+router.get("/farms/:farmId/organic-venison/certification", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(organicVenisonCertificationTable).where(eq(organicVenisonCertificationTable.farmId, farmId)).orderBy(desc(organicVenisonCertificationTable.issueDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-venison/certification", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(organicVenisonCertificationTable).values({ farmId, certifyingBody: String(b.certifyingBody ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, certificateType: b.certificateType ? String(b.certificateType) : "venison", issueDate: b.issueDate ? String(b.issueDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, scope: b.scope ? String(b.scope) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/organic-venison/certification/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.certifyingBody !== undefined) updates.certifyingBody = String(b.certifyingBody);
+  if (b.certificateNumber !== undefined) updates.certificateNumber = b.certificateNumber ? String(b.certificateNumber) : null;
+  if (b.certificateType !== undefined) updates.certificateType = String(b.certificateType);
+  if (b.issueDate !== undefined) updates.issueDate = b.issueDate ? String(b.issueDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.scope !== undefined) updates.scope = b.scope ? String(b.scope) : null;
+  if (b.status !== undefined) updates.status = String(b.status);
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(organicVenisonCertificationTable).set(updates).where(and(eq(organicVenisonCertificationTable.id, id), eq(organicVenisonCertificationTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/organic-venison/certification/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(organicVenisonCertificationTable).where(and(eq(organicVenisonCertificationTable.id, Number(req.params.id)), eq(organicVenisonCertificationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Venison Land Register ───────────────────────────────────────────
+router.get("/farms/:farmId/organic-venison/land-register", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(organicVenisonLandRegisterTable).where(eq(organicVenisonLandRegisterTable.farmId, farmId)).orderBy(organicVenisonLandRegisterTable.compartmentName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-venison/land-register", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(organicVenisonLandRegisterTable).values({ farmId, compartmentName: String(b.compartmentName ?? ""), areaHa: b.areaHa ? String(b.areaHa) : null, conversionStatus: b.conversionStatus ? String(b.conversionStatus) : "pre-conversion", conversionStartDate: b.conversionStartDate ? String(b.conversionStartDate) : null, certifiedOrganicDate: b.certifiedOrganicDate ? String(b.certifiedOrganicDate) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierReference: b.certifierReference ? String(b.certifierReference) : null, previousLandUse: b.previousLandUse ? String(b.previousLandUse) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/organic-venison/land-register/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.compartmentName !== undefined) updates.compartmentName = String(b.compartmentName);
+  if (b.areaHa !== undefined) updates.areaHa = b.areaHa ? String(b.areaHa) : null;
+  if (b.conversionStatus !== undefined) updates.conversionStatus = String(b.conversionStatus);
+  if (b.conversionStartDate !== undefined) updates.conversionStartDate = b.conversionStartDate ? String(b.conversionStartDate) : null;
+  if (b.certifiedOrganicDate !== undefined) updates.certifiedOrganicDate = b.certifiedOrganicDate ? String(b.certifiedOrganicDate) : null;
+  if (b.certifyingBody !== undefined) updates.certifyingBody = b.certifyingBody ? String(b.certifyingBody) : null;
+  if (b.certifierReference !== undefined) updates.certifierReference = b.certifierReference ? String(b.certifierReference) : null;
+  if (b.previousLandUse !== undefined) updates.previousLandUse = b.previousLandUse ? String(b.previousLandUse) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(organicVenisonLandRegisterTable).set(updates).where(and(eq(organicVenisonLandRegisterTable.id, id), eq(organicVenisonLandRegisterTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/organic-venison/land-register/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(organicVenisonLandRegisterTable).where(and(eq(organicVenisonLandRegisterTable.id, Number(req.params.id)), eq(organicVenisonLandRegisterTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Venison Feed & Supplements ──────────────────────────────────────
+router.get("/farms/:farmId/organic-venison/feed-supplements", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(organicVenisonFeedSupplementsTable).where(eq(organicVenisonFeedSupplementsTable.farmId, farmId)).orderBy(desc(organicVenisonFeedSupplementsTable.applicationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-venison/feed-supplements", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(organicVenisonFeedSupplementsTable).values({ farmId, applicationDate: String(b.applicationDate ?? ""), productName: String(b.productName ?? ""), productType: b.productType ? String(b.productType) : null, organicApprovalStatus: b.organicApprovalStatus ? String(b.organicApprovalStatus) : "certified organic", certifierApprovalReference: b.certifierApprovalReference ? String(b.certifierApprovalReference) : null, quantityKg: b.quantityKg ? String(b.quantityKg) : null, areaOrHerd: b.areaOrHerd ? String(b.areaOrHerd) : null, supplierName: b.supplierName ? String(b.supplierName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/organic-venison/feed-supplements/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.applicationDate !== undefined) updates.applicationDate = String(b.applicationDate);
+  if (b.productName !== undefined) updates.productName = String(b.productName);
+  if (b.productType !== undefined) updates.productType = b.productType ? String(b.productType) : null;
+  if (b.organicApprovalStatus !== undefined) updates.organicApprovalStatus = String(b.organicApprovalStatus);
+  if (b.certifierApprovalReference !== undefined) updates.certifierApprovalReference = b.certifierApprovalReference ? String(b.certifierApprovalReference) : null;
+  if (b.quantityKg !== undefined) updates.quantityKg = b.quantityKg ? String(b.quantityKg) : null;
+  if (b.areaOrHerd !== undefined) updates.areaOrHerd = b.areaOrHerd ? String(b.areaOrHerd) : null;
+  if (b.supplierName !== undefined) updates.supplierName = b.supplierName ? String(b.supplierName) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(organicVenisonFeedSupplementsTable).set(updates).where(and(eq(organicVenisonFeedSupplementsTable.id, id), eq(organicVenisonFeedSupplementsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/organic-venison/feed-supplements/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(organicVenisonFeedSupplementsTable).where(and(eq(organicVenisonFeedSupplementsTable.id, Number(req.params.id)), eq(organicVenisonFeedSupplementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Organic Venison Derogations ─────────────────────────────────────────────
+router.get("/farms/:farmId/organic-venison/derogations", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(organicVenisonDerogationsTable).where(eq(organicVenisonDerogationsTable.farmId, farmId)).orderBy(desc(organicVenisonDerogationsTable.applicationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/organic-venison/derogations", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(organicVenisonDerogationsTable).values({ farmId, caseReference: b.caseReference ? String(b.caseReference) : null, inputName: String(b.inputName ?? ""), inputType: b.inputType ? String(b.inputType) : null, regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, applicationDate: b.applicationDate ? String(b.applicationDate) : null, justification: b.justification ? String(b.justification) : null, status: b.status ? String(b.status) : "pending", decisionDate: b.decisionDate ? String(b.decisionDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.caseReference !== undefined) updates.caseReference = b.caseReference ? String(b.caseReference) : null;
+  if (b.inputName !== undefined) updates.inputName = String(b.inputName);
+  if (b.inputType !== undefined) updates.inputType = b.inputType ? String(b.inputType) : null;
+  if (b.regulatoryBasis !== undefined) updates.regulatoryBasis = b.regulatoryBasis ? String(b.regulatoryBasis) : null;
+  if (b.certifyingBody !== undefined) updates.certifyingBody = b.certifyingBody ? String(b.certifyingBody) : null;
+  if (b.applicationDate !== undefined) updates.applicationDate = b.applicationDate ? String(b.applicationDate) : null;
+  if (b.justification !== undefined) updates.justification = b.justification ? String(b.justification) : null;
+  if (b.status !== undefined) updates.status = String(b.status);
+  if (b.decisionDate !== undefined) updates.decisionDate = b.decisionDate ? String(b.decisionDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.approvalConditions !== undefined) updates.approvalConditions = b.approvalConditions ? String(b.approvalConditions) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(organicVenisonDerogationsTable).set(updates).where(and(eq(organicVenisonDerogationsTable.id, id), eq(organicVenisonDerogationsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(organicVenisonDerogationsTable).where(and(eq(organicVenisonDerogationsTable.id, Number(req.params.id)), eq(organicVenisonDerogationsTable.farmId, farmId)));
   res.json({ success: true });
 });

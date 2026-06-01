@@ -5,7 +5,7 @@ import {
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
-  Warehouse, Wrench, HeartPulse, Milk, Grape,
+  Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -737,6 +737,21 @@ const sections: Section[] = [
           "Disease monitoring — structured surveillance log for CAE (Caprine Arthritis Encephalitis), CLA (Caseous Lymphadenitis), Johne's Disease, foot rot, cryptosporidiosis, toxoplasmosis, chlamydiosis, mycoplasma, and faecal egg count; records testing body, samples, positive / negative results, status (Clear / Positive / Inconclusive), actions taken, and next test due date; CAE records support CAE Accreditation Scheme documentation requirements",
           "Analytics tab — KPI cards (mating records, avg scanning %, avg DLWG, total cull head), Kid Type Distribution pie chart aggregated across all scanning events, DLWG by Batch bar chart, Cull & Market Summary (records / head / total value), and Mating Summary (cycles / does exposed / buck breeds used)",
           "Mobile capture — mating, scanning, weigh-in, cull, vaccination, and disease monitoring all available in the mobile app for in-field and in-shed recording; saves offline and syncs automatically when connectivity is restored",
+        ],
+      },
+      {
+        title: "Venison Production",
+        icon: Crosshair,
+        color: "bg-green-50 text-green-700 border-green-100",
+        badge: "module",
+        features: [
+          "Deer herds are registered and managed centrally in Livestock → Herds & Animals (the single herd register); the Venison Production module links every cull record, carcass sale, population survey, health event, and firearms certificate to the relevant deer herd from that register",
+          "Stalking & cull records — log each cull event with cull date, stalker name, species (Red, Roe, Fallow, Sika, Muntjac, Chinese Water Deer, Reindeer), sex (Stag/Hind/Buck/Doe/Calf/Fawn), age class (Calf/Fawn, Yearling, Adult), location/beat, larder number, carcass number, liveweight (kg), gralloch weight (kg), carcass weight (kg), kill-out percentage, cull method (rifle/driven/trap), cull reason (population management, damage control, welfare, sporting, licensed emergency), food safety inspection result (Passed/Conditionally Passed/Failed/Not inspected), and notifiable disease suspect flag with APHA advisory banner on 03000 200 301",
+          "Carcass processing & venison sales — record each processing or sale event with facility type (on-farm approved larder, AGHE, licensed GHE, direct on-farm slaughter), species, number of carcasses, carcass numbers, grade/quality (A Premium / B Standard / C Manufacturing), destination type (game dealer, butcher, wholesale, direct consumer, restaurant, export, own consumption), buyer/game dealer name, price per kg (£), total weight (kg), total value (£), invoice reference, and Wild Game Declaration number",
+          "Herd population surveys — log regular population counts with survey method (driven count, thermal imaging, fixed point count, ADE aerial count, thermal drone, camera trap census), species, male/female/young/total counts, male:female ratio, recruitment rate %, observer name, and weather conditions; supports annual deer management plan evidence",
+          "Health records — structured health event log with event type (vaccination, vet visit, bTB SICCT skin test, bTB gamma-interferon blood test, post mortem, worming/parasite treatment, other vet treatment), product name, batch number, number treated, withdrawal period (days), bTB test result (Clear/Standard reactor/Inconclusive reactor), APHA reference, vet name and prescription flag, and notifiable disease suspect flag with APHA advisory; bTB test results display with colour-coded badges (green for Clear, red for reactor)",
+          "Firearms & stalking certificates register — record all Section 1 Firearms Certificates (FC), Section 2 Shotgun Certificates, DSC1 (Deer Stalking Certificate Level 1), DSC2, Scottish Stalking Certificates, Hunter Food Hygiene (WGMI) certificates, and Larder Hygiene certificates per holder; records expiry date, issuing authority, calibre/description, and status; amber warning banner when any certificate expires within 90 days, red banner for expired certificates — ensures all stalkers hold current valid authorisation before entering the field",
+          "Analytics tab — KPI cards (total culls, total carcass weight, total sales value, average herd count from surveys), Cull by Species pie chart, Monthly Cull Trend bar chart (last 12 months), and Venison Sales Summary with record count, total carcasses sold, and total value",
         ],
       },
       {

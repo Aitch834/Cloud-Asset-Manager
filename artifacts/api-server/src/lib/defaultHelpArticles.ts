@@ -256,6 +256,18 @@ const TITLES: [string, string][] = [
   ["Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets", "Goat Production"],
   ["Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring", "Goat Production"],
   ["Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases", "Goat Production"],
+  ["Venison Production Module — Overview and Getting Started", "Venison Production"],
+  ["Venison Cull Records — Stalking Events, Carcass Weights and Food Safety Inspection", "Venison Production"],
+  ["Venison Cull Records — Notifiable Disease Suspect Flag and APHA Advisory", "Venison Production"],
+  ["Venison Carcass Sales — Wild Game Declaration, Facility Type and Destination Recording", "Venison Production"],
+  ["Venison Herd Monitoring — Population Surveys: Driven Count, Thermal Imaging and Camera Trap", "Venison Production"],
+  ["Venison Health Records — bTB SICCT Skin Test, Gamma-Interferon Blood Test and APHA Reference", "Venison Production"],
+  ["Venison Firearms & Stalking Certificates — Section 1 FC, DSC1, DSC2 and WGMI Expiry Tracking", "Venison Production"],
+  ["Organic Venison Module — Overview and Getting Started", "Organic Venison"],
+  ["Organic Venison — Certification Tab: Certifying Body, Certificate Number and Scope Register", "Organic Venison"],
+  ["Organic Venison — Land Register: Grazing Compartment Conversion Status Tracking", "Organic Venison"],
+  ["Organic Venison — Feed and Supplement Log: Organic Approval Status and Certifier Reference", "Organic Venison"],
+  ["Organic Venison — Derogations: Case Register, Justification, Decision and Approval Conditions", "Organic Venison"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -4630,6 +4642,216 @@ const CONTENT: [string, string][] = [
 <p>Clicking any record in the list opens a structured <strong>View</strong> dialog first, showing all fields and attached documents. An <strong>Edit</strong> button within the view dialog opens the edit form, preventing accidental overwrites during audits.</p>
 <h3>Linking to the Auto-Calculator</h3>
 <p>After using the Carbon Auto-Calculator to pre-fill a new Carbon Audit record (see the Carbon Auto-Calculator help article), the resulting audit record provides the verified tCO₂e figures that form the basis of your Sustainability Report submission. Record the corresponding audit year in the Sustainability Report's Report Year field and attach the completed audit workings document to create a complete evidence chain from raw farm data through to the submitted supply chain declaration.</p>`,
+  ],
+  // Venison Production
+  [
+    "Overview of stalking & cull records, carcass processing, herd monitoring, health records, and the firearms certificate register for farmed and estate deer enterprises.",
+    `<h2>Venison Production Module — Overview</h2>
+<p>The <strong>Venison Production</strong> module provides a complete compliance and operational record for UK deer enterprises. It is available to any farm that has the <strong>Venison Production</strong> module enabled under Settings → Modules.</p>
+<h3>Tabs in this module</h3>
+<ul>
+<li><strong>Herds</strong> — shows your deer herds registered in Livestock → Herds &amp; Animals. Deer herds are the anchor for all records in this module.</li>
+<li><strong>Cull Records</strong> — stalking and culling events with full carcass yield data and food safety inspection results.</li>
+<li><strong>Carcass Sales</strong> — carcass processing and venison sales records with Wild Game Declaration numbers.</li>
+<li><strong>Herd Monitoring</strong> — population survey log supporting your annual deer management plan.</li>
+<li><strong>Health</strong> — vaccination, bTB test results, vet visits, and notifiable disease alerts.</li>
+<li><strong>Firearms &amp; Licences</strong> — certificate register for all stalkers and certificate holders, with expiry alerts.</li>
+<li><strong>Analytics</strong> — KPI cards, cull-by-species pie chart, and monthly cull trend chart.</li>
+</ul>
+<h3>Getting started</h3>
+<p>Before using this module, register your deer herd(s) in <strong>Livestock → Herds &amp; Animals</strong> and set the species to a deer species (Red Deer, Fallow Deer, Sika, Roe Deer, Muntjac, etc.). All records in Venison Production link back to herds from that central register.</p>`,
+  ],
+  [
+    "Record stalking and culling events with species, sex, age class, beat location, larder number, carcass weight data, and food safety inspection result.",
+    `<h2>Venison Cull Records</h2>
+<p>A cull record documents each individual or batch culling event on your deer enterprise. It is the primary compliance record for your stalking operations and supports Wild Game meat safety obligations.</p>
+<h3>Fields</h3>
+<ul>
+<li><strong>Cull Date</strong> — the date the cull took place (required).</li>
+<li><strong>Stalker Name</strong> — the name of the person who carried out the stalk or cull.</li>
+<li><strong>Species</strong> — select from Red Deer, Roe Deer, Fallow Deer, Sika Deer, Muntjac, Chinese Water Deer, Reindeer, or Other (required).</li>
+<li><strong>Sex</strong> — Stag, Hind, Buck, Doe, Calf, Fawn, Kid, or Unknown.</li>
+<li><strong>Age Class</strong> — Calf/Fawn, Yearling (Pricket/Knobber), Adult, or Unknown.</li>
+<li><strong>Location / Beat</strong> — the beat name or map compartment where the cull took place.</li>
+<li><strong>Larder Number / Carcass Number</strong> — reference numbers assigned at the larder for traceability.</li>
+<li><strong>Weights</strong> — liveweight (kg), gralloch weight (kg), and carcass weight (kg) for full yield tracking.</li>
+<li><strong>Kill-out %</strong> — calculated or entered kill-out percentage.</li>
+<li><strong>Cull Method</strong> — Rifle (stalking), Driven/Sika drive, or Trap (licensed).</li>
+<li><strong>Cull Reason</strong> — Population management (annual cull plan), Damage control, Welfare, Sporting cull, or Licensed out-of-season emergency.</li>
+<li><strong>Food Safety Inspection Result</strong> — Passed / Conditionally passed / Failed / Not inspected. Colour-coded badge on each record.</li>
+</ul>`,
+  ],
+  [
+    "Tick the Notifiable Disease Suspect flag to trigger an APHA advisory and record that APHA was contacted on 03000 200 301.",
+    `<h2>Notifiable Disease Suspect Flag — Venison Cull Records</h2>
+<p>When a disease is noticed during gralloch or larder inspection that may be notifiable (for example, signs consistent with bTB, foot-and-mouth disease, or bluetongue), you must tick the <strong>Notifiable Disease Suspect</strong> checkbox on the cull record.</p>
+<h3>What happens when you tick the box</h3>
+<p>A red advisory panel appears in the form reminding you:</p>
+<blockquote>Contact APHA immediately on <strong>03000 200 301</strong>. Mandatory notification must be made before laboratory confirmation.</blockquote>
+<h3>Legal requirement</h3>
+<p>Under the Animal Health Act 1981 and associated disease control legislation, keepers are legally required to notify APHA of any suspected notifiable disease. Failure to notify is a criminal offence. The system records the flag on the cull record so inspectors can see which events prompted APHA contact.</p>
+<p>APHA's emergency number is available 24 hours a day, 7 days a week: <strong>03000 200 301</strong>.</p>`,
+  ],
+  [
+    "Record each carcass sale or processing event with facility type, destination, buyer details, Wild Game Declaration number, price per kg, and total value.",
+    `<h2>Venison Carcass Sales — Wild Game Declaration and Destination Recording</h2>
+<p>The Carcass Sales tab records every carcass processing event and venison sale from your deer enterprise.</p>
+<h3>Facility Types</h3>
+<ul>
+<li><strong>On-farm approved larder</strong> — registered on-farm facility for primary processing.</li>
+<li><strong>AGHE (Approved Game Handling Establishment)</strong> — FSA-approved facility for wild game; required for venison entering commercial food chain without trained hunter inspection.</li>
+<li><strong>Licensed Game Handling Establishment (GHE)</strong> — licensed processor for game carcasses.</li>
+<li><strong>Direct on-farm slaughter</strong> — for farm retail and direct sales.</li>
+</ul>
+<h3>Wild Game Declaration (WGD)</h3>
+<p>A WGD is required under retained UK food hygiene law (Regulation (EC) No 852/2004) when deer carcasses enter the commercial food chain. It must be completed by a trained hunter holding a WGMI (Wild Game Meat Inspector) or equivalent certificate. Record the WGD reference number in the <strong>Wild Game Declaration No.</strong> field against each carcass batch sale.</p>
+<h3>Destination types</h3>
+<p>Game dealer, Butcher/butchery, Wholesale, Direct consumer sale, Restaurant/catering, Export, or Own consumption.</p>
+<h3>Financial fields</h3>
+<p>Record price per kg (£), total weight (kg), and total value (£) to track enterprise income across the season. The Analytics tab aggregates these into a total sales value KPI.</p>`,
+  ],
+  [
+    "Log regular herd population surveys using driven counts, thermal imaging, camera trap census, or aerial methods to support your annual deer management plan.",
+    `<h2>Venison Herd Monitoring — Population Surveys</h2>
+<p>The Herd Monitoring tab provides a log of population surveys across your deer range. Regular surveys are required as evidence for annual deer management plans submitted to deer management groups, SNH (NatureScot), or APHA where required.</p>
+<h3>Survey Methods</h3>
+<ul>
+<li><strong>Driven Count</strong> — organised drive with counters stationed at fixed positions; most reliable for woodland deer.</li>
+<li><strong>Thermal Imaging — Ground-based</strong> — vehicle or static-mounted thermal camera used at night; effective for open-ground and parkland deer.</li>
+<li><strong>Fixed Point Count (Vantage Point)</strong> — observer counts from elevated positions at dawn or dusk.</li>
+<li><strong>ADE Count — Aerial</strong> — aerial distance estimation from a low-level aircraft; used for red deer counts in open Scottish Highland.</li>
+<li><strong>Thermal Drone Survey</strong> — UAV-mounted thermal camera; increasingly used for estate and parkland deer.</li>
+<li><strong>Camera Trap Census</strong> — systematic camera trap grid with mark-recapture analysis.</li>
+</ul>
+<h3>Key recorded data</h3>
+<p>Species, male/female/young/total counts, male:female ratio, recruitment rate %, observer name, and weather conditions. The Analytics tab shows the average herd count across all survey events as a KPI card.</p>`,
+  ],
+  [
+    "Record vaccination events, bTB SICCT skin tests, gamma-interferon blood tests, post mortem examinations, and vet treatments with withdrawal period tracking.",
+    `<h2>Venison Health Records — bTB Testing and Vet Treatments</h2>
+<p>The Health Records tab in Venison Production provides a structured event log for all health-related activities on your deer enterprise.</p>
+<h3>bTB Testing</h3>
+<p>Farmed deer holdings may be subject to bovine tuberculosis (bTB) testing by APHA, particularly in High Risk Area (HRA) and Edge Area (EA) counties. Two test types are available:</p>
+<ul>
+<li><strong>bTB SICCT Skin Test</strong> — Single Intradermal Comparative Cervical Test; the standard statutory test.</li>
+<li><strong>bTB Gamma-Interferon Blood Test</strong> — interferon-gamma assay (IFN-γ); used as a supplementary or ancillary test in restricted herds.</li>
+</ul>
+<p>Record the test date, number of animals tested, APHA reference number, and overall result (Clear / Negative, Standard Reactor, Inconclusive Reactor, or Not Applicable). Results display with colour-coded badges: green for Clear, red for reactor results.</p>
+<h3>Withdrawal periods</h3>
+<p>Any veterinary medicine administered to deer must have its withdrawal period (in days) recorded. This is particularly important if carcasses are entering the human food chain — the food safety inspection at the larder must confirm no animals are within a withdrawal period at time of cull.</p>
+<h3>Notifiable disease suspect</h3>
+<p>If a notifiable disease is suspected during a health event or post mortem, tick the Notifiable Disease Suspect checkbox. Contact APHA on <strong>03000 200 301</strong> immediately.</p>`,
+  ],
+  [
+    "Register Section 1 Firearms Certificates, DSC1, DSC2, WGMI hunter food hygiene certificates, and other stalker licences with 90-day expiry alerts.",
+    `<h2>Firearms &amp; Stalking Certificates Register</h2>
+<p>The Firearms &amp; Licences tab provides a central register of all certificates and licences held by your stalkers and estate team. This register helps you ensure no one enters the field without current, valid authorisation.</p>
+<h3>Certificate Types</h3>
+<ul>
+<li><strong>Section 1 Firearms Certificate (FC)</strong> — required for any rifle used to cull deer; issued by the local police force; renewed every 5 years. The FC specifies the calibre(s) and condition of use.</li>
+<li><strong>Section 2 Shotgun Certificate (SGC)</strong> — required for shotguns; issued by local police; renewed every 5 years.</li>
+<li><strong>Deer Stalking Certificate Level 1 (DSC1)</strong> — foundation qualification covering deer biology, law, and rifle safety; issued by LANTRA/Deer Initiative.</li>
+<li><strong>Deer Stalking Certificate Level 2 (DSC2)</strong> — practical assessment of competent deer management; required for commercial venison suppliers in many supply chain contracts.</li>
+<li><strong>Scottish Stalking Certificate</strong> — Scottish equivalent qualification.</li>
+<li><strong>Hunter Food Hygiene Certificate (WGMI)</strong> — Wild Game Meat Inspector qualification; required to complete Wild Game Declarations for carcasses entering the commercial food chain.</li>
+<li><strong>Larder Hygiene Certificate</strong> — required for anyone operating an approved larder for primary processing.</li>
+</ul>
+<h3>Expiry alerts</h3>
+<p>An <strong>amber warning banner</strong> appears when any certificate expires within 90 days. A <strong>red banner</strong> appears for expired certificates. Review and renew certificates before the expiry date — lapsed FCs must be reported to the police authority and stalking must cease until a renewed certificate is obtained.</p>`,
+  ],
+  [
+    "Overview of the Organic Venison module — certification, land register, feed and supplement log, and derogation case management for certified organic farmed deer enterprises.",
+    `<h2>Organic Venison Module — Overview</h2>
+<p>The <strong>Organic Venison</strong> module provides organic compliance records for certified farmed deer enterprises under UK Organic Regulations (retained from EC No. 834/2007 and Commission Regulation (EC) No. 889/2008).</p>
+<h3>Important: wild venison cannot be certified organic</h3>
+<p>Only farmed deer — born and raised under organic management on certified organic land — are eligible for organic certification. Wild deer culled on open ground cannot hold organic status regardless of habitat or feeding habits.</p>
+<h3>Tabs in this module</h3>
+<ul>
+<li><strong>Certification</strong> — certifying body and certificate register (Soil Association, OF&amp;G, Biodynamic Association, OF&amp;G Scotland).</li>
+<li><strong>Land Register</strong> — deer park and grazing compartment conversion status register.</li>
+<li><strong>Feed &amp; Supplements</strong> — log of supplementary feed and mineral inputs with organic approval status.</li>
+<li><strong>Derogations</strong> — input derogation case management from application through to decision.</li>
+</ul>
+<h3>Certifying bodies</h3>
+<p>The main UK organic certifying bodies for deer enterprises are <strong>Soil Association Certification</strong> and <strong>OF&amp;G (Organic Farmers &amp; Growers)</strong>. Both are accredited under UKAS to certify against the UK Organic Regulations.</p>`,
+  ],
+  [
+    "Record certifying body details, certificate numbers, issue and expiry dates, scope, and active/pending/suspended status for organic venison certification.",
+    `<h2>Organic Venison — Certification Tab</h2>
+<p>The Certification tab is the central record of your organic certification status as a deer enterprise.</p>
+<h3>Certificate Types</h3>
+<ul>
+<li><strong>Venison / Deer Park</strong> — certification specifically covering your farmed deer enterprise for venison production.</li>
+<li><strong>Full Holding — All Products</strong> — whole-farm organic certification covering all enterprises.</li>
+<li><strong>Specific Enterprise Only</strong> — certification limited to the deer enterprise, with other enterprises operating conventionally.</li>
+<li><strong>In-Conversion Certificate</strong> — issued during the conversion period before full organic status is achieved.</li>
+</ul>
+<h3>Status values</h3>
+<ul>
+<li><strong>Active</strong> — current valid certificate. Shown in green.</li>
+<li><strong>Pending</strong> — application submitted, awaiting first inspection. Shown in amber.</li>
+<li><strong>Suspended</strong> — certificate suspended pending investigation.</li>
+<li><strong>Withdrawn</strong> — certificate withdrawn by certifier.</li>
+<li><strong>Expired</strong> — certificate lapsed and not renewed.</li>
+</ul>
+<h3>Scope field</h3>
+<p>Use the Scope field to record what the certificate covers, for example: <em>"Farmed red and fallow deer for venison — Deer Park compartments A, B and C"</em>. This helps cross-reference the certificate against the Land Register compartments.</p>`,
+  ],
+  [
+    "Track each deer park or grazing compartment through organic conversion from pre-conversion to certified organic with area, conversion dates, and certifier reference.",
+    `<h2>Organic Venison — Land Register</h2>
+<p>The Land Register records each discrete grazing compartment or deer park enclosure and tracks its progress through the organic conversion process.</p>
+<h3>Conversion Status values</h3>
+<ul>
+<li><strong>Pre-Conversion</strong> — land not yet notified to certifier as beginning conversion.</li>
+<li><strong>Year 1 In-Conversion</strong> — first year of the two-year minimum conversion period.</li>
+<li><strong>Year 2 In-Conversion</strong> — second year; eligible for first organic inspection at end of this year.</li>
+<li><strong>Certified Organic</strong> — full organic status achieved. Shown in green.</li>
+<li><strong>Suspended</strong> — organic status suspended by certifier.</li>
+<li><strong>Withdrawn</strong> — organic status withdrawn; land must restart conversion if it is to be recertified.</li>
+</ul>
+<h3>Key fields</h3>
+<ul>
+<li><strong>Compartment Name</strong> — name or reference for the deer park block (e.g. North Deer Park, Block A).</li>
+<li><strong>Area (ha)</strong> — total area of the compartment in hectares; used to calculate total certified organic area across the KPI card summary.</li>
+<li><strong>Conversion Start Date</strong> — the date the conversion period began (must match your certifier's notification record).</li>
+<li><strong>Certified Organic Date</strong> — the date full organic status was granted.</li>
+<li><strong>Certifier Reference</strong> — the parcel or compartment reference as shown on your certifier's inspection map.</li>
+<li><strong>Previous Land Use</strong> — e.g. conventional arable, improved pasture, woodland; reviewed by inspectors when assessing conversion eligibility.</li>
+</ul>`,
+  ],
+  [
+    "Log all supplementary feed and mineral inputs with organic approval status — Certified Organic, Approved for Organic Use, Derogation Required, or Not Permitted.",
+    `<h2>Organic Venison — Feed and Supplement Log</h2>
+<p>Under UK Organic Regulations, all supplementary feed and mineral inputs used on an organic deer enterprise must be documented and, where not fully certified organic, must have prior approval or a derogation from your certifying body.</p>
+<h3>Organic Approval Status values</h3>
+<ul>
+<li><strong>Certified Organic</strong> — product is certified organic; no additional approval required.</li>
+<li><strong>Approved for Organic Use (non-organic ingredient)</strong> — product contains a non-organic ingredient but has been approved by the certifier for use on an organic holding. Record the Certifier Approval Reference.</li>
+<li><strong>Derogation Required</strong> — product is not approved for organic use; a formal derogation must be applied for before use. Raise a case in the Derogations tab.</li>
+<li><strong>Not Permitted</strong> — product is prohibited under UK Organic Regulations and must not be used on an organic holding.</li>
+</ul>
+<h3>Certifier Approval Reference</h3>
+<p>When a product has been approved by your certifier for use (status: Approved for Organic Use), record the certifier's approval reference number in this field. This reference is checked by inspectors at your annual inspection to confirm each non-standard input was authorised.</p>
+<h3>What inputs must be recorded?</h3>
+<p>All supplementary inputs beyond the deer's natural grazing: mineral licks, salt blocks, hay and silage, concentrate feeds, organic concentrates, liquid supplements, and drenches. Natural pasture grazing does not require a separate record.</p>`,
+  ],
+  [
+    "Manage input derogation cases from application through to certifier decision, recording justification, regulatory basis, approval conditions, and expiry date.",
+    `<h2>Organic Venison — Derogations</h2>
+<p>A derogation is a formal permission from your certifying body to use a non-organic input or practice where no organic alternative is available. Under UK Organic Regulations, derogations must be applied for <strong>before</strong> the input is used.</p>
+<h3>Derogation lifecycle</h3>
+<ol>
+<li><strong>Identify the need</strong> — you need an input for which no certified organic equivalent is commercially available.</li>
+<li><strong>Apply</strong> — submit a written application to your certifying body with the input name, reason, and evidence that no organic alternative is available (Organic Farming Input Scheme (OFIS) / UKOAS availability search evidence).</li>
+<li><strong>Record the application</strong> — add a new derogation case in BDE Farm Trac with Status: Pending, Application Date, and Justification text.</li>
+<li><strong>Decision</strong> — update the case when a decision is received: Status: Approved or Refused, Decision Date, and for approved cases the Expiry Date and Approval Conditions.</li>
+<li><strong>Expiry</strong> — approved derogations have a fixed expiry date. Renew the application before expiry if the input is still needed.</li>
+</ol>
+<h3>Regulatory basis</h3>
+<p>Record the relevant regulatory article, e.g. <em>UK Organic Reg Art. 24</em> or <em>Commission Reg (EC) 889/2008 Annex V</em>. This demonstrates you applied correctly and that the certifier's approval has a sound legal basis.</p>
+<h3>Inspection review</h3>
+<p>Your certifying body inspector will review the derogations register at your annual inspection. All derogation cases — whether approved, refused, or withdrawn — should be retained for audit purposes.</p>`,
   ],
 ];
 
