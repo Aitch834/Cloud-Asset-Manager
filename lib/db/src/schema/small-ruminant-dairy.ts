@@ -305,6 +305,210 @@ export const goatDairyBulkTankRecordsTable = pgTable("goat_dairy_bulk_tank_recor
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORGANIC SHEEP DAIRY MODULE
+// Conversion period: typically 12 months (milk) under UK Organic Regulations
+// Certifiers: Soil Association, OF&G, Biodynamic Association
+// Feed: ≥95% certified organic dry matter target
+// Vet treatments: DOUBLED statutory withdrawal periods apply
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const organicSheepDairyFlockConversionTable = pgTable("organic_sheep_dairy_flock_conversion", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  flockName: text("flock_name").notNull(),
+  breed: text("breed"),
+  numberOfEwes: integer("number_of_ewes"),
+  conversionStartDate: date("conversion_start_date").notNull(),
+  expectedMilkCertDate: date("expected_milk_cert_date"),
+  actualMilkCertDate: date("actual_milk_cert_date"),
+  status: text("status").notNull().default("in-conversion"),
+  certifier: text("certifier"),
+  certificationRef: text("certification_ref"),
+  parallelProduction: boolean("parallel_production").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicSheepDairyCollectionsTable = pgTable("organic_sheep_dairy_collections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  collectionDate: date("collection_date").notNull(),
+  collectorName: text("collector_name"),
+  vehicleRegistration: text("vehicle_registration"),
+  volumeLitres: numeric("volume_litres", { precision: 10, scale: 2 }),
+  fatPercentage: numeric("fat_percentage", { precision: 5, scale: 2 }),
+  proteinPercentage: numeric("protein_percentage", { precision: 5, scale: 2 }),
+  sccCount: integer("scc_count"),        // k/mL — sheep regulatory limit 1,500k
+  tbcCount: integer("tbc_count"),
+  isOrganicCollection: boolean("is_organic_collection").notNull().default(true),
+  nonOrganicReason: text("non_organic_reason"),
+  processorRef: text("processor_ref"),
+  collectionSlipRef: text("collection_slip_ref"),
+  organicPremiumPence: integer("organic_premium_pence"),
+  deductionsPence: integer("deductions_pence"),
+  netValuePence: integer("net_value_pence"),
+  collectorSupplierId: integer("collector_supplier_id"),
+  recordedByUserId: text("recorded_by_user_id"),
+  recordedByUserName: text("recorded_by_user_name"),
+  witnessedBy: text("witnessed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicSheepDairyFeedTable = pgTable("organic_sheep_dairy_feed", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  recordDate: date("record_date").notNull(),
+  feedType: text("feed_type").notNull(),
+  feedProductName: text("feed_product_name").notNull(),
+  supplier: text("supplier"),
+  supplierApprovalNumber: text("supplier_approval_number"),
+  isOrganicApproved: boolean("is_organic_approved").notNull().default(true),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
+  organicPercentage: numeric("organic_percentage", { precision: 5, scale: 2 }),
+  dryMatterKg: numeric("dry_matter_kg", { precision: 10, scale: 2 }),
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
+  certifierApprovalRef: text("certifier_approval_ref"),
+  derogationReference: text("derogation_reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicSheepDairyTreatmentsTable = pgTable("organic_sheep_dairy_treatments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  treatmentDate: date("treatment_date").notNull(),
+  animalLisTags: text("animal_lis_tags"),
+  numberOfAnimals: integer("number_of_animals"),
+  productName: text("product_name").notNull(),
+  productCategory: text("product_category"),
+  activeIngredient: text("active_ingredient"),
+  doseAmount: text("dose_amount"),
+  routeOfAdministration: text("route_of_administration"),
+  vetName: text("vet_name"),
+  prescriptionRef: text("prescription_ref"),
+  standardMilkWithdrawalDays: integer("standard_milk_withdrawal_days"),
+  doubledMilkWithdrawalDays: integer("doubled_milk_withdrawal_days"),
+  standardMeatWithdrawalDays: integer("standard_meat_withdrawal_days"),
+  doubledMeatWithdrawalDays: integer("doubled_meat_withdrawal_days"),
+  milkWithdrawalEndDate: date("milk_withdrawal_end_date"),
+  meatWithdrawalEndDate: date("meat_withdrawal_end_date"),
+  certifierNotified: boolean("certifier_notified").notNull().default(false),
+  treatmentNumber: integer("treatment_number").notNull().default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORGANIC GOAT DAIRY MODULE
+// Same regulatory framework as organic sheep dairy; certifiers: SA, OF&G, BDOCA
+// CAE (Caprine Arthritis Encephalitis) monitoring continues from standard module
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const organicGoatDairyFlockConversionTable = pgTable("organic_goat_dairy_flock_conversion", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  flockName: text("flock_name").notNull(),
+  breed: text("breed"),
+  numberOfDoes: integer("number_of_does"),
+  conversionStartDate: date("conversion_start_date").notNull(),
+  expectedMilkCertDate: date("expected_milk_cert_date"),
+  actualMilkCertDate: date("actual_milk_cert_date"),
+  status: text("status").notNull().default("in-conversion"),
+  certifier: text("certifier"),
+  certificationRef: text("certification_ref"),
+  parallelProduction: boolean("parallel_production").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicGoatDairyCollectionsTable = pgTable("organic_goat_dairy_collections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  collectionDate: date("collection_date").notNull(),
+  collectorName: text("collector_name"),
+  vehicleRegistration: text("vehicle_registration"),
+  volumeLitres: numeric("volume_litres", { precision: 10, scale: 2 }),
+  fatPercentage: numeric("fat_percentage", { precision: 5, scale: 2 }),
+  proteinPercentage: numeric("protein_percentage", { precision: 5, scale: 2 }),
+  sccCount: integer("scc_count"),        // k/mL — goat regulatory limit 1,000k
+  tbcCount: integer("tbc_count"),
+  isOrganicCollection: boolean("is_organic_collection").notNull().default(true),
+  nonOrganicReason: text("non_organic_reason"),
+  processorRef: text("processor_ref"),
+  collectionSlipRef: text("collection_slip_ref"),
+  organicPremiumPence: integer("organic_premium_pence"),
+  deductionsPence: integer("deductions_pence"),
+  netValuePence: integer("net_value_pence"),
+  collectorSupplierId: integer("collector_supplier_id"),
+  recordedByUserId: text("recorded_by_user_id"),
+  recordedByUserName: text("recorded_by_user_name"),
+  witnessedBy: text("witnessed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicGoatDairyFeedTable = pgTable("organic_goat_dairy_feed", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  recordDate: date("record_date").notNull(),
+  feedType: text("feed_type").notNull(),
+  feedProductName: text("feed_product_name").notNull(),
+  supplier: text("supplier"),
+  supplierApprovalNumber: text("supplier_approval_number"),
+  isOrganicApproved: boolean("is_organic_approved").notNull().default(true),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
+  organicPercentage: numeric("organic_percentage", { precision: 5, scale: 2 }),
+  dryMatterKg: numeric("dry_matter_kg", { precision: 10, scale: 2 }),
+  poReference: text("po_reference"),
+  grnReference: text("grn_reference"),
+  certifierApprovalRef: text("certifier_approval_ref"),
+  derogationReference: text("derogation_reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const organicGoatDairyTreatmentsTable = pgTable("organic_goat_dairy_treatments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  treatmentDate: date("treatment_date").notNull(),
+  animalLisTags: text("animal_lis_tags"),
+  numberOfAnimals: integer("number_of_animals"),
+  productName: text("product_name").notNull(),
+  productCategory: text("product_category"),
+  activeIngredient: text("active_ingredient"),
+  doseAmount: text("dose_amount"),
+  routeOfAdministration: text("route_of_administration"),
+  vetName: text("vet_name"),
+  prescriptionRef: text("prescription_ref"),
+  standardMilkWithdrawalDays: integer("standard_milk_withdrawal_days"),
+  doubledMilkWithdrawalDays: integer("doubled_milk_withdrawal_days"),
+  standardMeatWithdrawalDays: integer("standard_meat_withdrawal_days"),
+  doubledMeatWithdrawalDays: integer("doubled_meat_withdrawal_days"),
+  milkWithdrawalEndDate: date("milk_withdrawal_end_date"),
+  meatWithdrawalEndDate: date("meat_withdrawal_end_date"),
+  certifierNotified: boolean("certifier_notified").notNull().default(false),
+  treatmentNumber: integer("treatment_number").notNull().default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 // CAE — Caprine Arthritis Encephalitis: the goat equivalent of MV/BVD
 // Progressive viral disease; management through CAEV accreditation programmes
 export const goatDairyCaeMonitoringTable = pgTable("goat_dairy_cae_monitoring", {

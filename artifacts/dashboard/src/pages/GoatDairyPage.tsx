@@ -244,7 +244,7 @@ interface MastitisRecord {
   attendingVet?: string | null; notes?: string | null;
 }
 
-function MastitisTab({ farmId }: { farmId: number }) {
+export function MastitisTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -376,7 +376,7 @@ function EaseScoreBadge({ v }: { v?: number | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls[v] || "bg-gray-100 text-gray-700"}`}>{v} — {lbl[v] || "Unknown"}</span>;
 }
 
-function KiddingTab({ farmId }: { farmId: number }) {
+export function KiddingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -524,7 +524,7 @@ interface BcsRecord {
   followUpDate?: string | null; notes?: string | null;
 }
 
-function BcsTab({ farmId }: { farmId: number }) {
+export function BcsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -604,7 +604,7 @@ interface TankRecord {
   tankerDriverName?: string | null; collectionRef?: string | null; notes?: string | null;
 }
 
-function BulkTankTab({ farmId }: { farmId: number }) {
+export function BulkTankTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -691,7 +691,7 @@ interface CaeRecord {
   actionTaken?: string | null; nextTestDue?: string | null; vetName?: string | null; notes?: string | null;
 }
 
-function CaeTab({ farmId }: { farmId: number }) {
+export function CaeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);

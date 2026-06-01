@@ -90,7 +90,9 @@ import OrganicPage from "@/pages/OrganicPage";
 import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
 import OrganicDairyPage from "@/pages/OrganicDairyPage";
 import SheepDairyPage from "@/pages/SheepDairyPage";
+import OrganicSheepDairyPage from "@/pages/OrganicSheepDairyPage";
 import GoatDairyPage from "@/pages/GoatDairyPage";
+import OrganicGoatDairyPage from "@/pages/OrganicGoatDairyPage";
 import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
 import OrganicViticulturePage from "@/pages/OrganicViticulturePage";
 import OrganicArablePage from "@/pages/OrganicArablePage";
@@ -380,7 +382,9 @@ function ProtectedContent() {
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/sheep-dairy" component={SheepDairyPage} />
+        <Route path="/organic-sheep-dairy" component={OrganicSheepDairyPage} />
         <Route path="/goat-dairy" component={GoatDairyPage} />
+        <Route path="/organic-goat-dairy" component={OrganicGoatDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/organic-arable" component={OrganicArablePage} />
@@ -498,7 +502,9 @@ function DevBypassContent() {
         <Route path="/organic-livestock" component={OrganicLivestockPage} />
         <Route path="/organic-dairy" component={OrganicDairyPage} />
         <Route path="/sheep-dairy" component={SheepDairyPage} />
+        <Route path="/organic-sheep-dairy" component={OrganicSheepDairyPage} />
         <Route path="/goat-dairy" component={GoatDairyPage} />
+        <Route path="/organic-goat-dairy" component={OrganicGoatDairyPage} />
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/organic-arable" component={OrganicArablePage} />
