@@ -108,7 +108,8 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost";
+  const url = new URL(req.url || "/", `http://${host}`);
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {

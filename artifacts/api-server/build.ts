@@ -60,8 +60,14 @@ async function buildAll() {
     bundle: true,
     format: "cjs",
     outfile: path.resolve(distDir, "index.cjs"),
+    // CJS bundles don't support import.meta.url natively — inject a shim so
+    // any fileURLToPath(import.meta.url) calls resolve correctly at runtime.
+    banner: {
+      js: 'var __importMetaUrl=require("url").pathToFileURL(__filename).href;',
+    },
     define: {
       "process.env.NODE_ENV": '"production"',
+      "import.meta.url": "__importMetaUrl",
     },
     minify: true,
     external: externals,
