@@ -23143,6 +23143,38 @@ router.delete("/farms/:farmId/organic-livestock/treatments/:id", requireAuth, re
   res.json({ ok: true });
 });
 
+
+// ─── Organic Livestock — Goat Kidding Records ────────────────────────────────
+router.get("/farms/:farmId/organic-livestock/kidding-records", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(goatDairyKiddingRecordsTable).where(eq(goatDairyKiddingRecordsTable.farmId, farmId)).orderBy(desc(goatDairyKiddingRecordsTable.kiddingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic-livestock/kidding-records", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(goatDairyKiddingRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/organic-livestock/kidding-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const [record] = await db.update(goatDairyKiddingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyKiddingRecordsTable.id, id), eq(goatDairyKiddingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic-livestock/kidding-records/:id", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(goatDairyKiddingRecordsTable).where(and(eq(goatDairyKiddingRecordsTable.id, id), eq(goatDairyKiddingRecordsTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
 // ─── Organic Dairy — Herd Conversion ─────────────────────────────────────────
 router.get("/farms/:farmId/organic-dairy/herd-conversion", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

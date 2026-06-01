@@ -2397,6 +2397,361 @@ function FeedDerogationTab({ farmId }: { farmId: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Organic Livestock Kidding Section ───────────────────────────────────────
+
+interface OlKiddingRecord {
+  id: number;
+  kiddingDate: string;
+  doeLisTag?: string | null;
+  birthOutcome: string;
+  kidCount?: number | null;
+  kidSex?: string | null;
+  kidBirthWeightKg?: string | null;
+  easeScore?: number | null;
+  assistanceRequired?: boolean;
+  assistanceType?: string | null;
+  vetAttended?: boolean;
+  vetName?: string | null;
+  colostrumGivenWithin2Hours?: boolean | null;
+  eidApplied?: boolean;
+  eidAppliedDate?: string | null;
+  lisTagNumber?: string | null;
+  doeComplications?: string | null;
+  notes?: string | null;
+}
+
+function KiddingEaseBadge({ v }: { v?: number | null }) {
+  if (!v) return <span className="text-muted-foreground">—</span>;
+  const map: Record<number, { label: string; cls: string }> = {
+    1: { label: "1 — Unassisted", cls: "bg-green-100 text-green-700" },
+    2: { label: "2 — Minor assist", cls: "bg-yellow-100 text-yellow-700" },
+    3: { label: "3 — Major assist", cls: "bg-orange-100 text-orange-700" },
+    4: { label: "4 — Vet required", cls: "bg-red-100 text-red-700" },
+  };
+  const d = map[v];
+  return d ? <span className={`text-xs px-2 py-0.5 rounded font-medium ${d.cls}`}>{d.label}</span> : null;
+}
+
+function KiddingSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const BLANK: Partial<OlKiddingRecord> = {
+    kiddingDate: todayStr(),
+    birthOutcome: "live-single",
+    kidCount: 1,
+    assistanceRequired: false,
+    vetAttended: false,
+    eidApplied: false,
+  };
+
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OlKiddingRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<OlKiddingRecord | null>(null);
+  const [form, setForm] = useState<Partial<OlKiddingRecord>>(BLANK);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+
+  const set = (k: keyof OlKiddingRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data, isLoading } = useQuery<{ records: OlKiddingRecord[] }>({
+    queryKey: ["ol-kidding-records", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/kidding-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const allRecords = data?.records ?? [];
+  const records = yearFilter === "all" ? allRecords : allRecords.filter(r => r.kiddingDate?.startsWith(yearFilter));
+  const availableYears = [...new Set(allRecords.map(r => r.kiddingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
+  if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
+
+  const liveKids = records.reduce((s, r) => s + (r.birthOutcome?.startsWith("live") ? (r.kidCount ?? 1) : 0), 0);
+  const eidPending = records.filter(r => r.birthOutcome?.startsWith("live") && !r.eidApplied).length;
+
+  const save = useMutation({
+    mutationFn: (body: Partial<OlKiddingRecord>) => {
+      const url = editing
+        ? `/api/farms/${farmId}/organic-livestock/kidding-records/${editing.id}`
+        : `/api/farms/${farmId}/organic-livestock/kidding-records`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ol-kidding-records", farmId] }); closeDialog(); toast({ title: editing ? "Record updated" : "Kidding record added" }); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/kidding-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ol-kidding-records", farmId] }); setConfirmDelete(null); },
+  });
+
+  function closeDialog() { setOpen(false); setEditing(null); setForm(BLANK); }
+  function openAdd() { setEditing(null); setForm({ ...BLANK, kiddingDate: todayStr() }); setOpen(true); }
+  function openEdit(r: OlKiddingRecord) { setEditing(r); setForm({ ...r, kiddingDate: r.kiddingDate?.slice(0, 10) ?? "" }); setOpen(true); }
+
+  return (
+    <div>
+      <div className="rounded-md border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-900 mb-4">
+        <strong>LIS Tagging:</strong> All goat kids must be electronically identified (EID) before first movement off the holding. Record EID application date and tag number for each live kid.
+      </div>
+      <div className="flex justify-between items-center mb-4 gap-3">
+        <div>
+          <p className="text-sm text-gray-500 mb-1">Goat kidding records — doe tag, litter size, ease score, colostrum, EID tagging compliance, and perinatal details.</p>
+          <p className="text-xs text-gray-400">Organic certification (Soil Association / OF&amp;G): kidding records contribute to herd health and welfare evidence at inspection.</p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Kidding Record</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">Litters Recorded</p>
+          <p className="text-2xl font-bold">{records.length}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">Live Kids</p>
+          <p className="text-2xl font-bold text-green-700">{liveKids}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <p className="text-xs text-muted-foreground mb-1">EID Pending</p>
+          <p className={`text-2xl font-bold ${eidPending > 0 ? "text-amber-700" : "text-muted-foreground"}`}>{eidPending}</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">Loading…</div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Doe LIS Tag</TableHead>
+              <TableHead>Outcome</TableHead>
+              <TableHead>Kids</TableHead>
+              <TableHead>Sex</TableHead>
+              <TableHead>Ease</TableHead>
+              <TableHead>EID</TableHead>
+              <TableHead>Colostrum ≤2h</TableHead>
+              <TableHead className="w-24" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {records.length === 0 ? (
+              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No kidding records for {yearFilter === "all" ? "any year" : yearFilter}. Add the first one above.</TableCell></TableRow>
+            ) : records.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{fmt(r.kiddingDate)}</TableCell>
+                <TableCell className="font-mono text-xs">{fmtRaw(r.doeLisTag)}</TableCell>
+                <TableCell className="capitalize">{r.birthOutcome?.replace(/-/g, " ") ?? "—"}</TableCell>
+                <TableCell>{r.kidCount ?? 1}</TableCell>
+                <TableCell className="capitalize">{r.kidSex ?? "—"}</TableCell>
+                <TableCell><KiddingEaseBadge v={r.easeScore} /></TableCell>
+                <TableCell>
+                  {r.eidApplied
+                    ? <span className="text-green-700 font-medium text-xs">✓ Applied</span>
+                    : r.birthOutcome?.startsWith("live")
+                      ? <span className="text-amber-600 text-xs font-medium">Pending</span>
+                      : <span className="text-muted-foreground text-xs">N/A</span>}
+                </TableCell>
+                <TableCell>
+                  {r.colostrumGivenWithin2Hours === true
+                    ? <span className="text-green-700 text-xs font-medium">✓ Yes</span>
+                    : r.colostrumGivenWithin2Hours === false
+                      ? <span className="text-red-600 text-xs font-medium">No</span>
+                      : <span className="text-muted-foreground text-xs">—</span>}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => setViewRecord(r)}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* View Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "38rem" }}>
+            <DialogHeader><DialogTitle>Kidding Record — {fmt(viewRecord.kiddingDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Doe LIS Tag</p><p className="font-mono font-medium">{fmtRaw(viewRecord.doeLisTag)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birth Outcome</p><p className="font-medium capitalize">{viewRecord.birthOutcome?.replace(/-/g, " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Kid Count</p><p className="font-medium">{viewRecord.kidCount ?? 1}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sex</p><p className="font-medium capitalize">{fmtRaw(viewRecord.kidSex)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birth Weight (kg)</p><p className="font-medium">{fmtRaw(viewRecord.kidBirthWeightKg)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ease Score</p><KiddingEaseBadge v={viewRecord.easeScore} /></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">EID Applied</p><p className="font-medium">{viewRecord.eidApplied ? `Yes — ${fmt(viewRecord.eidAppliedDate)}` : "Pending"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">LIS Tag Number</p><p className="font-mono font-medium">{fmtRaw(viewRecord.lisTagNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Required</p><p className="font-medium">{viewRecord.assistanceRequired ? `Yes — ${viewRecord.assistanceType ?? ""}` : "No"}</p></div>
+              {viewRecord.vetAttended && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetName ?? "Yes"}</p></div>}
+              {viewRecord.doeComplications && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Doe Complications</p><p className="font-medium">{viewRecord.doeComplications}</p></div>}
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="h-4 w-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={v => { if (!v) closeDialog(); }}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Kidding Record" : "Add Kidding Record"}</DialogTitle>
+            <DialogDescription>Record goat kidding details including ease score, EID tagging, and doe condition.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div>
+              <Label>Kidding Date *</Label>
+              <Input type="date" value={String(form.kiddingDate ?? "").slice(0, 10)} onChange={e => set("kiddingDate", e.target.value)} />
+            </div>
+            <div>
+              <Label>Doe LIS Tag</Label>
+              <Input value={form.doeLisTag ?? ""} onChange={e => set("doeLisTag", e.target.value)} placeholder="UK ear tag / LIS number" />
+            </div>
+            <div>
+              <Label>Birth Outcome *</Label>
+              <Select value={form.birthOutcome ?? "live-single"} onValueChange={v => set("birthOutcome", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live-single">Live — single</SelectItem>
+                  <SelectItem value="live-twins">Live — twins</SelectItem>
+                  <SelectItem value="live-triplets">Live — triplets</SelectItem>
+                  <SelectItem value="stillborn">Stillborn</SelectItem>
+                  <SelectItem value="mummified">Mummified</SelectItem>
+                  <SelectItem value="abortion">Abortion</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Kid Count</Label>
+              <Input type="number" min="1" value={form.kidCount ?? 1} onChange={e => set("kidCount", parseInt(e.target.value) || 1)} />
+            </div>
+            <div>
+              <Label>Sex</Label>
+              <Select value={form.kidSex ?? "__none__"} onValueChange={v => set("kidSex", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not recorded</SelectItem>
+                  <SelectItem value="doe">Doe kid (female)</SelectItem>
+                  <SelectItem value="buck">Buck kid (male)</SelectItem>
+                  <SelectItem value="mixed">Mixed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Birth Weight (kg)</Label>
+              <Input type="number" step="0.1" value={form.kidBirthWeightKg ?? ""} onChange={e => set("kidBirthWeightKg", e.target.value)} />
+            </div>
+            <div>
+              <Label>Ease Score</Label>
+              <Select value={String(form.easeScore ?? "")} onValueChange={v => set("easeScore", v ? parseInt(v) : null)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 — Unassisted</SelectItem>
+                  <SelectItem value="2">2 — Minor assistance</SelectItem>
+                  <SelectItem value="3">3 — Major assistance</SelectItem>
+                  <SelectItem value="4">4 — Vet required</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end pb-2 gap-2">
+              <Checkbox id="ol-k-assist" checked={!!form.assistanceRequired} onCheckedChange={v => set("assistanceRequired", !!v)} />
+              <label htmlFor="ol-k-assist" className="text-sm cursor-pointer">Assistance required</label>
+            </div>
+            {form.assistanceRequired && (
+              <div className="col-span-2">
+                <Label>Assistance Type</Label>
+                <Input value={form.assistanceType ?? ""} onChange={e => set("assistanceType", e.target.value)} placeholder="e.g. repositioning, lubrication" />
+              </div>
+            )}
+
+            <div className="col-span-2 border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">EID / LIS Tagging</p>
+            </div>
+            <div className="col-span-2 flex items-center gap-3">
+              <Checkbox id="ol-k-eid" checked={!!form.eidApplied} onCheckedChange={v => set("eidApplied", !!v)} />
+              <label htmlFor="ol-k-eid" className="text-sm cursor-pointer">EID tag applied</label>
+              {form.eidApplied && (
+                <Input type="date" className="w-40" value={String(form.eidAppliedDate ?? "").slice(0, 10)} onChange={e => set("eidAppliedDate", e.target.value)} />
+              )}
+            </div>
+            <div>
+              <Label>LIS Tag Number</Label>
+              <Input value={form.lisTagNumber ?? ""} onChange={e => set("lisTagNumber", e.target.value)} placeholder="UK8 tag number" />
+            </div>
+
+            <div className="col-span-2 border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Colostrum &amp; Doe Condition</p>
+            </div>
+            <div>
+              <Label>Colostrum Given ≤2h</Label>
+              <Select value={form.colostrumGivenWithin2Hours == null ? "__none__" : form.colostrumGivenWithin2Hours ? "yes" : "no"} onValueChange={v => set("colostrumGivenWithin2Hours", v === "__none__" ? null : v === "yes")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not recorded</SelectItem>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end pb-2 gap-2">
+              <Checkbox id="ol-k-vet" checked={!!form.vetAttended} onCheckedChange={v => set("vetAttended", !!v)} />
+              <label htmlFor="ol-k-vet" className="text-sm cursor-pointer">Vet attended</label>
+            </div>
+            {form.vetAttended && (
+              <div>
+                <Label>Vet Name</Label>
+                <Input value={form.vetName ?? ""} onChange={e => set("vetName", e.target.value)} />
+              </div>
+            )}
+            <div className="col-span-2">
+              <Label>Doe Complications</Label>
+              <Input value={form.doeComplications ?? ""} onChange={e => set("doeComplications", e.target.value)} placeholder="e.g. retained placenta, hypocalcaemia" />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea value={form.notes ?? ""} onChange={e => set("notes", e.target.value)} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={confirmDelete !== null} onOpenChange={v => { if (!v) setConfirmDelete(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Kidding Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This will permanently delete the kidding record. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => confirmDelete !== null && del.mutate(confirmDelete)} disabled={del.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function OrganicLivestockPage() {
   const { farmId } = useAppStore();
   const { data: farmData } = useQuery<{ name: string }>({
@@ -2431,6 +2786,7 @@ export default function OrganicLivestockPage() {
             <TabsTrigger value="tb-tests">TB Tests</TabsTrigger>
             <TabsTrigger value="welfare-outcomes">Welfare Outcomes</TabsTrigger>
             <TabsTrigger value="sheep-dipping">Sheep Dipping</TabsTrigger>
+            <TabsTrigger value="kidding">Goat Kidding</TabsTrigger>
           </TabsList>
           <TabsContent value="conversion" className="mt-4">
             <ConversionTab farmId={farmId} farmName={name} />
@@ -2491,6 +2847,9 @@ export default function OrganicLivestockPage() {
           </TabsContent>
           <TabsContent value="sheep-dipping" className="mt-4">
             <SheepDippingSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="kidding" className="mt-4">
+            <KiddingSection farmId={farmId} />
           </TabsContent>
         </Tabs>
       )}
