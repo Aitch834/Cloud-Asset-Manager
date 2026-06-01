@@ -17,11 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SmallRuminantPicker } from "@/components/ui/SmallRuminantPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 function todayDate(): string {
@@ -60,6 +62,7 @@ export default function KiddingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { flocks, loading: flocksLoading, fromCache: flocksCached, error: flocksError } = useApiGoatFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [kiddingDate, setKiddingDate] = useState(todayDate());
@@ -164,7 +167,7 @@ export default function KiddingRecordScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Herd / Group</Text>
-          <Input value={flockGroup} onChangeText={setFlockGroup} placeholder="e.g. Home herd — milkers" />
+          <SmallRuminantPicker species="goat" value={flockGroup} onChange={setFlockGroup} flocks={flocks} loading={flocksLoading} fromCache={flocksCached} error={flocksError} />
         </View>
 
         <Text style={styles.sectionTitle}>Litter Size</Text>

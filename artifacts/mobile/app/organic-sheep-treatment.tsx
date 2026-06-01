@@ -17,11 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SmallRuminantPicker } from "@/components/ui/SmallRuminantPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiSheepFlocks } from "@/lib/hooks/useApiSheepFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 function todayDate(): string {
@@ -58,6 +60,7 @@ export default function OrganicSheepTreatmentScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { flocks, loading: flocksLoading, fromCache: flocksCached, error: flocksError } = useApiSheepFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [treatmentDate, setTreatmentDate] = useState(todayDate());
@@ -181,7 +184,7 @@ export default function OrganicSheepTreatmentScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Flock / Group</Text>
-          <Input value={flockGroup} onChangeText={setFlockGroup} placeholder="e.g. Ewes — milkers" />
+          <SmallRuminantPicker species="sheep" value={flockGroup} onChange={setFlockGroup} flocks={flocks} loading={flocksLoading} fromCache={flocksCached} error={flocksError} />
         </View>
 
         <Text style={styles.sectionTitle}>Medicine</Text>
