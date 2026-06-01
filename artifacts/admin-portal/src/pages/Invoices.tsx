@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2, Mail, Users } from "lucide-react";
+import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2, Mail, Users, PenLine } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -442,6 +442,231 @@ function GenerateDialog({ tenants, onClose, onDone }: { tenants: Tenant[]; onClo
   );
 }
 
+// ─── Ad Hoc Invoice Dialog ────────────────────────────────────────────────────
+
+function AdHocInvoiceDialog({ tenants, onClose, onDone }: { tenants: Tenant[]; onClose: () => void; onDone: (inv: Invoice) => void }) {
+  const secret = getSecret()!;
+  const today = new Date().toISOString().slice(0, 10);
+  const [tenantId, setTenantId] = useState("");
+  const [serviceDate, setServiceDate] = useState(today);
+  const [vatPct, setVatPct] = useState(20);
+  const [notes, setNotes] = useState("");
+  const [billingName, setBillingName] = useState("");
+  const [billingEmail, setBillingEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  type LineItem = { id: number; description: string; quantity: string; unitPrice: string };
+  const [lineItems, setLineItems] = useState<LineItem[]>([{ id: 1, description: "", quantity: "1", unitPrice: "" }]);
+  const nextId = useRef(2);
+
+  function selectTenant(id: string) {
+    setTenantId(id);
+    const t = tenants.find(t => String(t.id) === id);
+    if (t) {
+      setBillingName(t.name);
+      setBillingEmail(t.contactEmail);
+    }
+  }
+
+  function updateItem(id: number, field: keyof Omit<LineItem, "id">, value: string) {
+    setLineItems(prev => prev.map(li => li.id === id ? { ...li, [field]: value } : li));
+  }
+
+  function addItem() {
+    setLineItems(prev => [...prev, { id: nextId.current++, description: "", quantity: "1", unitPrice: "" }]);
+  }
+
+  function removeItem(id: number) {
+    setLineItems(prev => prev.filter(li => li.id !== id));
+  }
+
+  const parsedItems = lineItems.map(li => {
+    const qty = parseFloat(li.quantity) || 0;
+    const unitPricePence = Math.round((parseFloat(li.unitPrice) || 0) * 100);
+    const netPence = Math.round(qty * unitPricePence);
+    return { description: li.description, quantity: qty, unitPricePence, netPence };
+  });
+
+  const netTotal = parsedItems.reduce((a, i) => a + i.netPence, 0);
+  const vatTotal = Math.round(netTotal * (vatPct / 100));
+  const grossTotal = netTotal + vatTotal;
+
+  async function handleCreate() {
+    if (!tenantId) { setError("Please select a customer"); return; }
+    if (!billingName.trim() || !billingEmail.trim()) { setError("Billing name and email are required"); return; }
+    if (parsedItems.some(i => !i.description.trim())) { setError("All line items need a description"); return; }
+    if (parsedItems.some(i => i.quantity <= 0 || i.unitPricePence <= 0)) { setError("All line items need a valid quantity and unit price"); return; }
+    setLoading(true); setError("");
+    try {
+      const result = await api.createAdHocInvoice({
+        tenantId: parseInt(tenantId, 10),
+        billingPeriodStart: serviceDate,
+        billingPeriodEnd: serviceDate,
+        lineItems: parsedItems,
+        vatRatePct: vatPct,
+        notes: notes.trim() || undefined,
+        billingName: billingName.trim(),
+        billingEmail: billingEmail.trim(),
+      }, secret);
+      onDone(result.invoice);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to create invoice");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-auto py-6">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 my-auto">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="font-semibold">Create Ad Hoc Invoice</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Manually enter line items — e.g. onsite support, consultancy, training</p>
+        </div>
+        <div className="p-5 space-y-5 max-h-[72vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Customer *</label>
+              <select value={tenantId} onChange={e => selectTenant(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background">
+                <option value="">Select customer…</option>
+                {tenants.filter(t => t.isActive).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Service Date *</label>
+              <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Billing Name *</label>
+              <input value={billingName} onChange={e => setBillingName(e.target.value)} placeholder="Auto-filled from customer" className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Billing Email *</label>
+              <input type="email" value={billingEmail} onChange={e => setBillingEmail(e.target.value)} placeholder="Auto-filled from customer" className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background" />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-muted-foreground">Line Items *</label>
+              <button onClick={addItem} className="text-xs text-green-800 hover:text-green-900 font-medium flex items-center gap-1 transition-colors">
+                <Plus className="w-3 h-3" /> Add Line
+              </button>
+            </div>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/30 text-xs text-muted-foreground border-b border-border">
+                    <th className="text-left px-3 py-2 font-medium" style={{ width: "48%" }}>Description</th>
+                    <th className="text-center px-3 py-2 font-medium" style={{ width: "10%" }}>Qty</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ width: "18%" }}>Unit Price (£)</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ width: "18%" }}>Net</th>
+                    <th className="px-2 py-2" style={{ width: "6%" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map(li => {
+                    const qty = parseFloat(li.quantity) || 0;
+                    const up = parseFloat(li.unitPrice) || 0;
+                    const net = qty * up;
+                    return (
+                      <tr key={li.id} className="border-b border-border last:border-0">
+                        <td className="px-2 py-1.5">
+                          <input
+                            value={li.description}
+                            onChange={e => updateItem(li.id, "description", e.target.value)}
+                            placeholder="e.g. One Day's Onsite Support During Go Live"
+                            className="w-full border border-border rounded px-2 py-1.5 text-xs bg-background"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={li.quantity}
+                            onChange={e => updateItem(li.id, "quantity", e.target.value)}
+                            className="w-full border border-border rounded px-2 py-1.5 text-xs bg-background text-center"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={li.unitPrice}
+                            onChange={e => updateItem(li.id, "unitPrice", e.target.value)}
+                            placeholder="0.00"
+                            className="w-full border border-border rounded px-2 py-1.5 text-xs bg-background text-right"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-xs font-mono text-muted-foreground whitespace-nowrap">
+                          {net > 0 ? fmt(Math.round(net * 100)) : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          {lineItems.length > 1 && (
+                            <button onClick={() => removeItem(li.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div style={{ width: "200px", flexShrink: 0 }}>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">VAT Rate</label>
+              <select value={vatPct} onChange={e => setVatPct(parseInt(e.target.value, 10))} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background">
+                <option value={20}>20% (Standard Rate)</option>
+                <option value={0}>0% (Zero Rated)</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Notes (optional)</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional notes for this invoice…" className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background resize-none" />
+            </div>
+          </div>
+
+          {netTotal > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Net Total</span>
+                <span className="font-mono">{fmt(netTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">VAT ({vatPct}%)</span>
+                <span className="font-mono">{fmt(vatTotal)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold border-t border-green-200 pt-2">
+                <span className="text-green-900">Total Due</span>
+                <span className="text-green-900 font-mono">{fmt(grossTotal)}</span>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-md transition-colors">Cancel</button>
+          <button onClick={handleCreate} disabled={loading} className="px-4 py-2 text-sm bg-green-800 text-white rounded-md hover:bg-green-900 transition-colors disabled:opacity-50 flex items-center gap-2">
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Create Draft Invoice
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Mark Sent Dialog ─────────────────────────────────────────────────────────
 
 const SEND_METHODS = [
@@ -712,6 +937,7 @@ export default function Invoices() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
   const [showGenerate, setShowGenerate] = useState(false);
+  const [showAdHoc, setShowAdHoc] = useState(false);
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [bulkEmailList, setBulkEmailList] = useState<Invoice[] | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
@@ -798,6 +1024,14 @@ export default function Invoices() {
           >
             <Mail className="w-4 h-4" />
             Email Drafts{draftInvoices.length > 0 ? ` (${draftInvoices.length})` : ""}
+          </button>
+          <button
+            onClick={() => setShowAdHoc(true)}
+            className="flex items-center gap-2 px-3 py-2 border border-border bg-white text-sm font-medium rounded-lg hover:bg-muted/40 transition-colors text-foreground"
+            title="Create an invoice for a one-off service — e.g. onsite support, consultancy"
+          >
+            <PenLine className="w-4 h-4" />
+            Ad Hoc Invoice
           </button>
           <button
             onClick={() => setShowGenerate(true)}
@@ -991,6 +1225,18 @@ export default function Invoices() {
           onDone={(method) => {
             updateMut.mutate({ id: markSentInvoice.id, updates: { status: "sent", sentMethod: method } });
             setMarkSentInvoice(null);
+          }}
+        />
+      )}
+      {showAdHoc && (
+        <AdHocInvoiceDialog
+          tenants={tenants}
+          onClose={() => setShowAdHoc(false)}
+          onDone={(inv) => {
+            qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+            qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+            setShowAdHoc(false);
+            setPrintInvoice(inv);
           }}
         />
       )}

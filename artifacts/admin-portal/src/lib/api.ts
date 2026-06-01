@@ -445,6 +445,22 @@ export const api = {
   generateInvoice: (tenantId: number, body: { billingPeriodStart: string; billingPeriodEnd: string; vatRatePct: number; notes: string }, secret: string) =>
     post<{ invoice: Invoice }>(`/admin/invoices/generate/${tenantId}`, body, secret),
 
+  createAdHocInvoice: (
+    body: {
+      tenantId: number;
+      billingPeriodStart: string;
+      billingPeriodEnd: string;
+      lineItems: Array<{ description: string; quantity: number; unitPricePence: number; netPence: number }>;
+      vatRatePct: number;
+      notes?: string;
+      billingName: string;
+      billingEmail: string;
+      billingAddress?: string;
+    },
+    secret: string
+  ) =>
+    post<{ invoice: Invoice }>("/admin/invoices", body, secret),
+
   updateInvoice: (id: number, updates: Record<string, unknown>, secret: string) =>
     patch<{ invoice: Invoice }>(`/admin/invoices/${id}`, updates, secret),
 
