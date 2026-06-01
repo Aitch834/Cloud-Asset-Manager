@@ -16,7 +16,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
-type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics";
+type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics" | "accountant-pack";
 
 const INCOME_CATEGORIES = [
   // Core agricultural sales
@@ -926,6 +926,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [markPaidId, setMarkPaidId] = useState<number | null>(null);
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
   const [paidRef, setPaidRef] = useState("");
@@ -1127,7 +1128,10 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
                             <CheckCircle2 size={11} className="mr-1" />Mark Paid
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", movementId: r.movementId ? String(r.movementId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }}>
+                        <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)} title="View">
+                          <Eye size={13} />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", movementId: r.movementId ? String(r.movementId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }} title="Edit">
                           <Pencil size={13} />
                         </Button>
                         <Button size="sm" variant="ghost" style={{ color: "#ef4444" }} onClick={() => setDeleteId(Number(r.id))}>
@@ -1142,6 +1146,70 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
+
+      {/* ─── VIEW DIALOG ─── */}
+      <Dialog open={viewRecord !== null} onOpenChange={o => { if (!o) setViewRecord(null); }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>Livestock Purchase Invoice</DialogTitle></DialogHeader>
+          {viewRecord && (() => {
+            const herd = herds.find((h: any) => Number(h.id) === Number(viewRecord.herdId));
+            const cfg = PURCHASE_STATUS_CONFIG[viewRecord.paymentStatus] ?? { label: viewRecord.paymentStatus, bg: "#f3f4f6", color: "#374151" };
+            const field = (label: string, value: React.ReactNode) => (
+              <div>
+                <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>{label}</p>
+                <p style={{ fontSize: "0.875rem", color: "#111827" }}>{value || "—"}</p>
+              </div>
+            );
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 20px", padding: "4px 0", maxHeight: "68vh", overflowY: "auto" }}>
+                {field("Invoice Date", fmt(viewRecord.invoiceDate))}
+                {field("Arrival Date", viewRecord.arrivalDate ? fmt(viewRecord.arrivalDate) : "—")}
+                {field("Invoice Ref", viewRecord.invoiceRef)}
+                {field("Species", viewRecord.species)}
+                {field("Supplier", viewRecord.supplierName)}
+                {field("Supplier CPH", viewRecord.supplierCph)}
+                {field("Market", viewRecord.marketName)}
+                {field("Herd", herd ? (herd.herdName || herd.name) : "—")}
+                {field("Number of Head", viewRecord.numberOfHead)}
+                {field("Price per Head", viewRecord.pricePerHeadPence ? `£${(Number(viewRecord.pricePerHeadPence) / 100).toFixed(2)}` : "—")}
+                {field("Total (ex-VAT)", fmtAmt(viewRecord.totalAmountPence))}
+                {field("VAT Amount", viewRecord.vatAmountPence ? fmtAmt(viewRecord.vatAmountPence) : "—")}
+                <div style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Payment Status</p>
+                    <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: "3px 10px", fontSize: "0.78rem", fontWeight: 600 }}>{cfg.label}</span>
+                  </div>
+                  {viewRecord.paymentStatus === "paid"
+                    ? field("Paid", fmt(viewRecord.paidDate))
+                    : field("Due", viewRecord.paymentDueDate ? fmt(viewRecord.paymentDueDate) : "—")}
+                </div>
+                {viewRecord.paymentStatus === "paid" && field("Payment Method", viewRecord.paymentMethod)}
+                {viewRecord.paymentStatus === "paid" && field("Payment Reference", viewRecord.paymentReference)}
+                {viewRecord.movementId && (
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Movement Record</p>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.78rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 5, padding: "3px 10px", color: "#166534", fontWeight: 600 }}>
+                      <Link2 size={11} />Movement #{viewRecord.movementId} linked
+                    </span>
+                  </div>
+                )}
+                {viewRecord.notes && (
+                  <div style={{ gridColumn: "1/-1" }}>
+                    <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p>
+                    <p style={{ fontSize: "0.875rem", whiteSpace: "pre-line", color: "#374151" }}>{viewRecord.notes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { const r = viewRecord; setViewRecord(null); setEditRecord(r); const knownMarkets = UK_LIVESTOCK_MARKETS.slice(0, -1); const marketIsOther = !!(r.marketName && !knownMarkets.includes(r.marketName)); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "", movementId: r.movementId ? String(r.movementId) : "", marketName: marketIsOther ? r.marketName : (r.marketName || ""), marketIsOther }); setAddOpen(true); }}>
+              <Pencil size={13} style={{ marginRight: 5 }} />Edit
+            </Button>
+            <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── MARK AS PAID DIALOG ─── */}
       <Dialog open={markPaidId !== null} onOpenChange={o => { if (!o) setMarkPaidId(null); }}>
@@ -1538,6 +1606,343 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ── Accountant's Pack Tab ─────────────────────────────────────────────────────
+function AccountantPackTab({ farmId }: { farmId: number }) {
+  const [yearFilter, setYearFilter] = useState<string>(String(CURRENT_YEAR));
+
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.record,
+  });
+  const farm = farmQ.data;
+
+  const txQ = useQuery({
+    queryKey: ["financial-transactions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/financial-transactions`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+
+  const purchasesQ = useQuery({
+    queryKey: ["livestock-purchases", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/livestock-purchases`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+
+  const allTx: any[] = txQ.data ?? [];
+  const allPurchases: any[] = purchasesQ.data ?? [];
+
+  const isLoading = txQ.isLoading || purchasesQ.isLoading || farmQ.isLoading;
+
+  const yearTx = allTx.filter(r => {
+    if (yearFilter === "all") return true;
+    return r.transactionDate && new Date(r.transactionDate).getFullYear() === parseInt(yearFilter);
+  });
+  const yearPurchases = allPurchases.filter(r => {
+    if (yearFilter === "all") return true;
+    const d = r.invoiceDate || r.arrivalDate;
+    return d && new Date(d).getFullYear() === parseInt(yearFilter);
+  });
+
+  const incomeTx = yearTx.filter(r => r.transactionType === "income");
+  const expenseTx = yearTx.filter(r => r.transactionType === "expense");
+
+  const incomeByCategory = INCOME_CATEGORIES
+    .map(cat => ({ cat, total: incomeTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
+    .filter(r => r.total > 0);
+
+  const otherIncome = incomeTx.filter(r => !INCOME_CATEGORIES.includes(r.category ?? "")).reduce((s, r) => s + (r.amountPence ?? 0), 0);
+  if (otherIncome > 0) incomeByCategory.push({ cat: "Other / Uncategorised Income", total: otherIncome });
+
+  const expenseByCategory = EXPENSE_CATEGORIES
+    .map(cat => ({ cat, total: expenseTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
+    .filter(r => r.total > 0);
+
+  const lsPurchaseTotal = yearPurchases.reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
+  const lsPurchaseVat   = yearPurchases.reduce((s, r) => s + (Number(r.vatAmountPence)   || 0), 0);
+  const txVatTotal      = yearTx.reduce((s, r) => s + (r.vatAmountPence ?? 0), 0);
+
+  if (lsPurchaseTotal > 0) {
+    expenseByCategory.unshift({ cat: "Livestock Purchases", total: lsPurchaseTotal });
+  }
+
+  const otherExpense = expenseTx.filter(r => !EXPENSE_CATEGORIES.includes(r.category ?? "")).reduce((s, r) => s + (r.amountPence ?? 0), 0);
+  if (otherExpense > 0) expenseByCategory.push({ cat: "Other / Uncategorised Expenses", total: otherExpense });
+
+  const totalIncome  = incomeByCategory.reduce((s, r) => s + r.total, 0);
+  const totalExpense = expenseByCategory.reduce((s, r) => s + r.total, 0);
+  const netProfit    = totalIncome - totalExpense;
+  const totalVat     = txVatTotal + lsPurchaseVat;
+
+  const periodLabel = yearFilter === "all" ? "All Years" : yearFilter;
+
+  function handlePrint() {
+    const farmName = farm?.name ?? "Farm";
+    const address = [farm?.addressLine1, farm?.addressTown, farm?.addressCounty, farm?.addressPostcode].filter(Boolean).join(", ");
+    const vatReg = farm?.vatNumber ? `VAT Reg No: ${farm.vatNumber}` : "";
+    const generated = new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+
+    const f = (pence: number) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const incomeRows = incomeByCategory.map(r =>
+      `<tr><td>${r.cat}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+    const expenseRows = expenseByCategory.map(r =>
+      `<tr><td>${r.cat}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Accountant's Financial Pack — ${farmName} — ${periodLabel}</title>
+  <style>
+    @page { size: A4 portrait; margin: 18mm 18mm 16mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; border-bottom: 3px solid #15803d; margin-bottom: 16px; }
+    .header h1 { font-size: 20pt; font-weight: 800; color: #15803d; }
+    .header h2 { font-size: 11pt; font-weight: 600; color: #374151; margin-top: 3px; }
+    .header p  { font-size: 9pt; color: #6b7280; margin-top: 2px; }
+    .header-right { text-align: right; font-size: 9pt; color: #6b7280; }
+    .header-right strong { display: block; font-size: 11pt; color: #111; font-weight: 700; }
+    .summary-bar { display: flex; gap: 16px; margin-bottom: 20px; }
+    .summary-card { flex: 1; border-radius: 6px; padding: 12px 16px; }
+    .summary-card .lbl { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .summary-card .amt { font-size: 16pt; font-weight: 800; }
+    .income-card  { background: #f0fdf4; border: 1.5px solid #16a34a; }
+    .income-card .lbl { color: #166534; } .income-card .amt { color: #15803d; }
+    .expense-card { background: #fff1f2; border: 1.5px solid #ef4444; }
+    .expense-card .lbl { color: #991b1b; } .expense-card .amt { color: #dc2626; }
+    .net-pos { background: #f0fdf4; border: 2px solid #15803d; }
+    .net-pos .lbl { color: #166534; } .net-pos .amt { color: #15803d; }
+    .net-neg { background: #fff1f2; border: 2px solid #dc2626; }
+    .net-neg .lbl { color: #991b1b; } .net-neg .amt { color: #dc2626; }
+    .section-title { font-size: 11pt; font-weight: 700; color: #374151; margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+    th { background: #f9fafb; text-align: left; padding: 6px 10px; font-size: 8.5pt; font-weight: 700; color: #374151; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .total-row td { font-weight: 700; background: #f9fafb; border-top: 2px solid #e5e7eb; border-bottom: none; }
+    .vat-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 9.5pt; }
+    .vat-box strong { color: #1d4ed8; }
+    .disclaimer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 8pt; color: #9ca3af; }
+    .footer { display: flex; justify-content: space-between; font-size: 8pt; color: #9ca3af; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>BDE Farm Trac</h1>
+      <h2>${farmName}</h2>
+      <p>${address}${vatReg ? " &nbsp;·&nbsp; " + vatReg : ""}</p>
+    </div>
+    <div class="header-right">
+      <strong>Accountant's Financial Pack</strong>
+      Period: ${periodLabel}<br>
+      Produced: ${generated}<br>
+      <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:8pt;font-weight:700;">Barnett Davies Enterprises Ltd</span>
+    </div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="summary-card income-card">
+      <div class="lbl">Total Income</div>
+      <div class="amt">${f(totalIncome)}</div>
+    </div>
+    <div class="summary-card expense-card">
+      <div class="lbl">Total Expenditure</div>
+      <div class="amt">${f(totalExpense)}</div>
+    </div>
+    <div class="summary-card ${netProfit >= 0 ? "net-pos" : "net-neg"}">
+      <div class="lbl">Net ${netProfit >= 0 ? "Profit" : "Loss"} Estimate</div>
+      <div class="amt">${netProfit < 0 ? "(" : ""}${f(Math.abs(netProfit))}${netProfit < 0 ? ")" : ""}</div>
+    </div>
+  </div>
+
+  <p class="section-title">Income</p>
+  <table>
+    <thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      ${incomeRows || "<tr><td colspan='2' style='color:#9ca3af;text-align:center'>No income recorded for this period</td></tr>"}
+      <tr class="total-row"><td>Total Income</td><td class="num">${f(totalIncome)}</td></tr>
+    </tbody>
+  </table>
+
+  <p class="section-title">Expenditure</p>
+  <table>
+    <thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      ${expenseRows || "<tr><td colspan='2' style='color:#9ca3af;text-align:center'>No expenditure recorded for this period</td></tr>"}
+      <tr class="total-row"><td>Total Expenditure</td><td class="num">${f(totalExpense)}</td></tr>
+    </tbody>
+  </table>
+
+  ${totalVat > 0 ? `<div class="vat-box"><strong>VAT Note:</strong> Total VAT recorded across all transactions and livestock purchases for ${periodLabel}: <strong>${f(totalVat)}</strong>. This figure is for reference only — please reconcile against your VAT returns.</div>` : ""}
+
+  <div class="disclaimer">
+    <p>This report is produced from records entered into BDE Farm Trac and is provided for information purposes only. It does not constitute a set of audited accounts. All figures should be verified by your accountant before submission to HMRC or other authorities. Auto-imported transactions from sales modules are included.</p>
+    <div class="footer">
+      <span>BDE Farm Trac — Barnett Davies Enterprises Ltd &nbsp;·&nbsp; Confidential</span>
+      <span>Generated: ${generated}</span>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=820,height=720");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#111827", marginBottom: 3 }}>Accountant's Financial Pack</h2>
+          <p style={{ fontSize: "0.825rem", color: "#6b7280" }}>
+            Income &amp; expenditure summary across all modules — ready to send to your accountant.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger style={{ width: 120 }}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {YEARS.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={handlePrint} disabled={isLoading} className="bg-green-800 hover:bg-green-900 text-white">
+            <FileText size={14} className="mr-2" />Generate &amp; Print Pack
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Loader2 size={28} style={{ margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+          <p style={{ fontSize: "0.875rem" }}>Loading financial data…</p>
+        </div>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+            <div style={{ background: "#fff", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.72rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Total Income</p>
+              <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#166534" }}>{fmtAmt(totalIncome)}</p>
+              <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>{incomeTx.length} transaction{incomeTx.length !== 1 ? "s" : ""}</p>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.72rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Total Expenditure</p>
+              <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#dc2626" }}>{fmtAmt(totalExpense)}</p>
+              <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>{expenseTx.length} transaction{expenseTx.length !== 1 ? "s" : ""}{lsPurchaseTotal > 0 ? ` + ${yearPurchases.length} livestock purchase invoice${yearPurchases.length !== 1 ? "s" : ""}` : ""}</p>
+            </div>
+            <div style={{ background: "#fff", border: `1px solid ${netProfit >= 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 10, padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.72rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Net {netProfit >= 0 ? "Profit" : "Loss"} Estimate</p>
+              <p style={{ fontSize: "1.5rem", fontWeight: 700, color: netProfit >= 0 ? "#166534" : "#dc2626" }}>{fmtAmt(Math.abs(netProfit))}</p>
+              <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>Before tax — verify with accountant</p>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {/* Income */}
+            <div>
+              <h3 style={{ fontSize: "0.875rem", fontWeight: 700, color: "#166534", marginBottom: 8 }}>Income by Category</h3>
+              {incomeByCategory.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9ca3af", padding: "1.5rem", border: "1px dashed #e5e7eb", borderRadius: 8, fontSize: "0.825rem" }}>No income recorded for {periodLabel}</div>
+              ) : (
+                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Category</th>
+                        <th style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {incomeByCategory.map((r, i, arr) => (
+                        <tr key={r.cat} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                          <td style={{ padding: "7px 10px", color: "#374151" }}>{r.cat}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#166534" }}>{fmtAmt(r.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid #d1fae5", background: "#f0fdf4" }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 700, color: "#111827" }}>Total Income</td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#166534", fontSize: "1rem" }}>{fmtAmt(totalIncome)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Expenditure */}
+            <div>
+              <h3 style={{ fontSize: "0.875rem", fontWeight: 700, color: "#dc2626", marginBottom: 8 }}>Expenditure by Category</h3>
+              {expenseByCategory.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9ca3af", padding: "1.5rem", border: "1px dashed #e5e7eb", borderRadius: 8, fontSize: "0.825rem" }}>No expenditure recorded for {periodLabel}</div>
+              ) : (
+                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Category</th>
+                        <th style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenseByCategory.map((r, i, arr) => (
+                        <tr key={r.cat} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                          <td style={{ padding: "7px 10px", color: "#374151" }}>{r.cat}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#dc2626" }}>{fmtAmt(r.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid #fecaca", background: "#fff1f2" }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 700, color: "#111827" }}>Total Expenditure</td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: "#dc2626", fontSize: "1rem" }}>{fmtAmt(totalExpense)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Net result + VAT note */}
+          <div style={{ marginTop: 20, display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 260, background: netProfit >= 0 ? "#f0fdf4" : "#fff1f2", border: `2px solid ${netProfit >= 0 ? "#16a34a" : "#dc2626"}`, borderRadius: 10, padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: netProfit >= 0 ? "#166534" : "#991b1b", marginBottom: 4 }}>Net {netProfit >= 0 ? "Profit" : "Loss"} Estimate — {periodLabel}</p>
+              <p style={{ fontSize: "1.8rem", fontWeight: 800, color: netProfit >= 0 ? "#15803d" : "#dc2626" }}>
+                {netProfit < 0 ? "(" : ""}{fmtAmt(Math.abs(netProfit))}{netProfit < 0 ? ")" : ""}
+              </p>
+              <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 4 }}>Before tax. Verify with your accountant before HMRC submission.</p>
+            </div>
+            {totalVat > 0 && (
+              <div style={{ flex: 1, minWidth: 260, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem 1.25rem" }}>
+                <p style={{ fontSize: "0.72rem", textTransform: "uppercase", fontWeight: 700, color: "#1d4ed8", marginBottom: 4 }}>VAT Reference Total</p>
+                <p style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1d4ed8" }}>{fmtAmt(totalVat)}</p>
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 4 }}>Combined VAT from all transactions &amp; livestock purchase invoices. Reconcile against your VAT returns.</p>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 16, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", fontSize: "0.78rem", color: "#6b7280" }}>
+            <strong style={{ color: "#374151" }}>Note:</strong> Income figures include auto-imported sales from grain, livestock, milk and other modules. Expenditure includes all financial transaction records plus livestock purchase invoices. This is an estimate — your accountant should verify against bank statements and source documents.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function FinancialPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("transactions");
@@ -1558,12 +1963,16 @@ export default function FinancialPage() {
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
             <span className="flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" />Analytics</span>
           </TabButton>
+          <TabButton active={tab === "accountant-pack"} onClick={() => setTab("accountant-pack")}>
+            <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />Accountant's Pack</span>
+          </TabButton>
         </TabBar>
         {farmId && tab === "transactions" && <TransactionsTab farmId={farmId} />}
         {farmId && tab === "crop-contracts" && <CropContractsTab farmId={farmId} />}
         {farmId && tab === "grants" && <GrantsTab farmId={farmId} />}
         {farmId && tab === "livestock-purchases" && <LivestockPurchasesTab farmId={farmId} />}
         {farmId && tab === "analytics" && <FinancialAnalyticsTab farmId={farmId} />}
+        {farmId && tab === "accountant-pack" && <AccountantPackTab farmId={farmId} />}
       </div>
     </AppLayout>
   );
