@@ -1,7 +1,8 @@
 // @ts-nocheck
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -757,11 +758,129 @@ function HealthTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── ANALYTICS TAB ────────────────────────────────────────────────────────────
+const GOAT_COLORS = ["#15803d", "#a16207", "#1d4ed8", "#b91c1c", "#7c3aed", "#0e7490"];
+
+function GoatAnalyticsTab({ farmId }: { farmId: number }) {
+  const { data: mating = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["goat-mating", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-mating-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: scanning = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["goat-scanning", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-scanning-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: weigh = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["goat-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: cull = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["goat-cull", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-cull-records`), { credentials: "include" }).then(r => r.json()) });
+
+  const avgScanPct = useMemo(() => {
+    const valid = scanning.filter(r => r.scanningPercentage);
+    return valid.length ? (valid.reduce((s, r) => s + Number(r.scanningPercentage), 0) / valid.length).toFixed(1) : null;
+  }, [scanning]);
+
+  const kidTypeData = useMemo(() => [
+    { name: "Barren", value: scanning.reduce((s, r) => s + (Number(r.doesBarren) || 0), 0) },
+    { name: "Singles", value: scanning.reduce((s, r) => s + (Number(r.doesSingles) || 0), 0) },
+    { name: "Doubles", value: scanning.reduce((s, r) => s + (Number(r.doesDoubles) || 0), 0) },
+    { name: "Triplets", value: scanning.reduce((s, r) => s + (Number(r.doesTriples) || 0), 0) },
+  ].filter(d => d.value > 0), [scanning]);
+
+  const dlwgData = useMemo(() => weigh.filter(r => r.dlwgGPerDay).slice(-10).map(r => ({
+    name: String(r.batchRef || r.animalCategory || "Batch").slice(0, 12),
+    dlwg: Math.round(Number(r.dlwgGPerDay)),
+  })), [weigh]);
+
+  const avgDlwg = useMemo(() => {
+    const valid = weigh.filter(r => r.dlwgGPerDay);
+    return valid.length ? Math.round(valid.reduce((s, r) => s + Number(r.dlwgGPerDay), 0) / valid.length) : null;
+  }, [weigh]);
+
+  const totalCullHead = useMemo(() => cull.reduce((s, r) => s + (Number(r.numberOfHead) || 0), 0), [cull]);
+  const totalCullValue = useMemo(() => cull.reduce((s, r) => s + (Number(r.saleValue) || 0), 0), [cull]);
+
+  const noData = mating.length === 0 && scanning.length === 0 && weigh.length === 0;
+  if (noData) return (
+    <div className="text-center py-16 text-muted-foreground text-sm">
+      <BarChart3 className="w-8 h-8 mx-auto mb-3 opacity-30" />
+      <p className="font-medium">No data yet</p>
+      <p className="text-xs mt-1">Add mating, scanning, or weigh-in records to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Mating Records", value: mating.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
+          { label: "Avg Scanning %", value: avgScanPct ? `${avgScanPct}%` : "—", bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
+          { label: "Avg DLWG (g/day)", value: avgDlwg ?? "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
+          { label: "Cull / Market Head", value: totalCullHead || "—", bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+        ].map(c => (
+          <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
+            <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {kidTypeData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">Kid Type Distribution (all scans)</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={kidTypeData} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {kidTypeData.map((_, i) => <Cell key={i} fill={GOAT_COLORS[i % GOAT_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v} does`, ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+        {dlwgData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-sm mb-4">DLWG by Batch (g/day)</h3>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dlwgData} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
+                  <Tooltip formatter={(v) => [`${v} g/day`, "DLWG"]} />
+                  <Bar dataKey="dlwg" fill="#15803d" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {cull.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-3">Cull &amp; Market Summary</h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div><p className="text-2xl font-bold">{cull.length}</p><p className="text-xs text-muted-foreground">Market Records</p></div>
+            <div><p className="text-2xl font-bold">{totalCullHead}</p><p className="text-xs text-muted-foreground">Total Head</p></div>
+            <div><p className="text-2xl font-bold">{totalCullValue > 0 ? `£${totalCullValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</p><p className="text-xs text-muted-foreground">Total Value</p></div>
+          </div>
+        </div>
+      )}
+
+      {mating.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-3">Mating Summary</h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div><p className="text-2xl font-bold">{mating.length}</p><p className="text-xs text-muted-foreground">Mating Cycles</p></div>
+            <div><p className="text-2xl font-bold">{mating.reduce((s, r) => s + (Number(r.doesExposed) || 0), 0)}</p><p className="text-xs text-muted-foreground">Total Does Exposed</p></div>
+            <div><p className="text-2xl font-bold">{[...new Set(mating.map(r => r.buckBreed).filter(Boolean))].length}</p><p className="text-xs text-muted-foreground">Buck Breeds Used</p></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function GoatProductionPage() {
   const { selectedFarm } = useAppStore();
   const farmId = selectedFarm?.id;
-  const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health">("herds");
+  const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics">("herds");
 
   if (!farmId) {
     return (
@@ -793,6 +912,7 @@ export default function GoatProductionPage() {
           <TabButton active={tab === "weigh"} onClick={() => setTab("weigh")}>Weigh-in</TabButton>
           <TabButton active={tab === "cull"} onClick={() => setTab("cull")}>Cull / Market</TabButton>
           <TabButton active={tab === "health"} onClick={() => setTab("health")}>Health</TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</TabButton>
         </TabBar>
 
         <div className="rounded-md border p-4 bg-card">
@@ -802,6 +922,7 @@ export default function GoatProductionPage() {
           {tab === "weigh" && <WeighTab farmId={farmId} />}
           {tab === "cull" && <CullTab farmId={farmId} />}
           {tab === "health" && <HealthTab farmId={farmId} />}
+          {tab === "analytics" && <GoatAnalyticsTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

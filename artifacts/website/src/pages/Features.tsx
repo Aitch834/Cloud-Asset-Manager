@@ -723,6 +723,23 @@ const sections: Section[] = [
         ],
       },
       {
+        title: "Goat Production",
+        icon: Leaf,
+        color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+        badge: "module",
+        features: [
+          "Herd register — goat herds are registered and managed centrally in Livestock → Herds & Animals (the single herd register); the Goat Production module links every mating, scanning, weigh-in, cull, and health record to the relevant herd from that register",
+          "Mating records — log each buck-to-doe service event with buck breed (Boer, Anglo-Nubian, Cashmere, Pygmy, Crossbred and others), ear tag, owner, mating method (natural service, AI with fresh or frozen semen, or embryo transfer), does exposed, expected kidding date, and CIDR / progesterone sponge flag; printable compliance report with 3-year retention reminder",
+          "Pregnancy scanning — record scan results per herd with scanner name, barren count, singles, doubles, and triplets; scanning percentage calculated automatically; expected total kids displayed; printable landscape scanning report",
+          "Weigh-in & DLWG — record group or individual weigh-in events with animal category (Kids, Weanlings, Yearlings, Does, Bucks), batch reference, average / lightest / heaviest weights, target weight, DLWG (g/day) auto-calculated and colour-coded against target, and BCS (Body Condition Score); Raise Task from any weigh-in record when performance falls below target",
+          "Cull & market records — log each market or slaughter exit with destination CPH, number of head, sale date, liveweight, deadweight, kill-out percentage, EUROP conformation grade, sale value, and reason for cull; summary header shows total head and total value across the filtered record set",
+          "Vaccination programmes — product name, batch / lot number, vaccination date, number of animals, dose (ml), administration route, withdrawal period (days), and vet prescription flag; printable compliance document for assurance scheme audits",
+          "Disease monitoring — structured surveillance log for CAE (Caprine Arthritis Encephalitis), CLA (Caseous Lymphadenitis), Johne's Disease, foot rot, cryptosporidiosis, toxoplasmosis, chlamydiosis, mycoplasma, and faecal egg count; records testing body, samples, positive / negative results, status (Clear / Positive / Inconclusive), actions taken, and next test due date; CAE records support CAE Accreditation Scheme documentation requirements",
+          "Analytics tab — KPI cards (mating records, avg scanning %, avg DLWG, total cull head), Kid Type Distribution pie chart aggregated across all scanning events, DLWG by Batch bar chart, Cull & Market Summary (records / head / total value), and Mating Summary (cycles / does exposed / buck breeds used)",
+          "Mobile capture — mating, scanning, weigh-in, cull, vaccination, and disease monitoring all available in the mobile app for in-field and in-shed recording; saves offline and syncs automatically when connectivity is restored",
+        ],
+      },
+      {
         title: "Beef Production",
         icon: HeartPulse,
         color: "bg-orange-50 text-orange-700 border-orange-100",

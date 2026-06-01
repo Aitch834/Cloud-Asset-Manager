@@ -250,6 +250,12 @@ const TITLES: [string, string][] = [
   ["Harvest Destination Type — Own Holding, Contract Processor and Grape Sale Selector", "Viticulture"],
   ["Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition", "Viticulture"],
   ["Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking", "Carbon & Sustainability"],
+  ["Goat Production Module — Overview and Getting Started", "Goat Production"],
+  ["Goat Herd Register — Herds are Registered in Livestock → Herds & Animals", "Goat Production"],
+  ["Goat Mating Records — Buck Selection, Mating Methods and Expected Kidding", "Goat Production"],
+  ["Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets", "Goat Production"],
+  ["Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring", "Goat Production"],
+  ["Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases", "Goat Production"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -4414,6 +4420,149 @@ const CONTENT: [string, string][] = [
 <p>Assign the task to the winemaker or harvest manager, set a due date, and click Raise Task. Skip if the concern has already been communicated verbally and no formal task record is required.</p>
 <h3>Mobile app</h3>
 <p>The same amber advisory and automatic RaiseTaskSheet prompt are present on the Vine Harvest screen in the mobile app — the task sheet opens after saving whenever Poor condition or botrytis &gt;30% is recorded, ensuring the follow-up is triggered regardless of whether the record is created in the field or at a desk.</p>`,
+  ],
+
+  // 232 — Goat Production Module — Overview and Getting Started
+  [
+    "An overview of the Goat Production module in BDE Farm Trac, covering all record types and how to get started.",
+    `<h2>Goat Production Module — Overview and Getting Started</h2>
+<p>The Goat Production module provides dedicated records for the key stages of the commercial and dairy goat production calendar. Herds are registered and managed centrally in <strong>Livestock → Herds &amp; Animals</strong> — the single herd register used across the platform — and every Goat Production record links back to the relevant herd from there.</p>
+<h3>Record types available</h3>
+<ul>
+<li><strong>Mating:</strong> buck-to-doe service records with buck breed, ear tag, owner, mating method (natural, AI fresh/frozen, ET), expected kidding date, and CIDR / progesterone sponge flag.</li>
+<li><strong>Pregnancy Scanning:</strong> scanning results per herd including barren, singles, doubles, and triples with automatic scanning percentage calculation.</li>
+<li><strong>Weigh-in &amp; DLWG:</strong> group or individual weigh-in events with animal category (Kids, Weanlings, Yearlings, Does, Bucks), DLWG auto-calculated and colour-coded against target, and BCS (Body Condition Score).</li>
+<li><strong>Cull / Market Records:</strong> destination CPH, auction or slaughter date, number of head, liveweight, deadweight, kill-out percentage, EUROP grade, sale value, and reason for cull.</li>
+<li><strong>Health — Vaccination Programmes:</strong> product name, batch number, dose, route, withdrawal period (days), and vet prescription flag.</li>
+<li><strong>Health — Disease Monitoring:</strong> CAE, CLA, Johne's disease, foot rot, cryptosporidiosis, mycoplasma, toxoplasmosis, chlamydiosis, and faecal egg count records with testing body, samples, positive/negative results, status, actions taken, and next test due date.</li>
+</ul>
+<h3>Analytics tab</h3>
+<p>The Analytics tab summarises performance across all record types: four KPI cards (mating cycles, average scanning %, average DLWG in g/day, total cull head), a Kid Type Distribution pie chart aggregated from all scanning events (barren / singles / doubles / triplets), a DLWG by Batch horizontal bar chart for the most recent ten weigh-in groups, a Cull &amp; Market Summary, and a Mating Summary.</p>
+<h3>Mobile recording</h3>
+<p>All six record types are available in the BDE Farm Trac mobile app under the Record tab. Records save offline and sync automatically when connectivity is restored — useful when scanning, weighing, or vaccinating outdoors.</p>
+<h3>Print reports</h3>
+<p>Every record type includes a Print button that generates a formatted A4 report suitable for assurance scheme audit packs. Mating and scanning reports include a footer reminding you to retain records for a minimum of 3 years.</p>`,
+  ],
+
+  // 233 — Goat Herd Register — Herds are Registered in Livestock → Herds & Animals
+  [
+    "How goat herds are registered and managed in BDE Farm Trac, and how the herd register links to Goat Production records.",
+    `<h2>Goat Herd Register — Herds are Registered in Livestock → Herds &amp; Animals</h2>
+<p>BDE Farm Trac uses a single herd and flock register across the entire platform. Goat herds are created and managed in <strong>Livestock → Herds &amp; Animals</strong> — not in the Goat Production module directly. Every tab in the Goat Production module (Mating, Scanning, Weigh-in, Cull / Market, and Health) links back to herds from that register.</p>
+<h3>Setting up a goat herd</h3>
+<p>Navigate to <strong>Livestock → Herds &amp; Animals</strong> and click <strong>Add Herd / Flock</strong>. Set the species to Goat. Record the herd name, breed, purpose (dairy, meat, dual-purpose, or fibre), your CPH herd number, and any notes. The herd status defaults to Active — archived herds are hidden from record forms but their historical records are retained.</p>
+<h3>Herd number (CPH herd identifier)</h3>
+<p>Your goat herd number is required for LIS (Livestock Information Service) goat movement submissions via the England CLA API. It appears on movement records and should match the registration held with APHA and LIS. Ensure the herd number is populated on each goat herd record in Livestock → Herds &amp; Animals before raising LIS movement submissions.</p>
+<h3>How herd selection works in Goat Production</h3>
+<p>When adding any Goat Production record, a herd picker displays all active goat herds registered on the farm. Select the relevant herd — its ID is stored with the record for reporting and filtering. If no goat herds appear in the picker, check that at least one herd with species set to Goat is registered as Active in Livestock → Herds &amp; Animals.</p>`,
+  ],
+
+  // 234 — Goat Mating Records
+  [
+    "How to record goat mating and breeding events in BDE Farm Trac, including buck details, mating method, expected kidding date, and CIDR/sponge use.",
+    `<h2>Goat Mating Records — Buck Selection, Mating Methods and Expected Kidding</h2>
+<p>Mating records document each breeding cycle on the holding — which buck was used, which does were exposed, the method of service, and the expected kidding date. These records provide the traceability evidence needed to manage kidding preparation and are retained for assurance scheme audits.</p>
+<h3>Adding a mating record</h3>
+<p>Navigate to <strong>Goat Production → Mating</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Mating Start Date *</strong> — date the buck was introduced to the group.</li>
+<li><strong>Mating End Date</strong> — date the buck was removed.</li>
+<li><strong>Buck Breed</strong> — selected from a list of UK commercial and dairy goat breeds (Boer, Kiko, Savanna, Anglo-Nubian, Cashmere, Pygmy, Pygmy x, Crossbred, and Other).</li>
+<li><strong>Buck Ear Tag</strong> — the individual ear tag number of the buck used.</li>
+<li><strong>Buck Owner</strong> — name of the owner if the buck was hired or belongs to another holding.</li>
+<li><strong>Buck Hired or Owned</strong> — indicates whether the buck is owned by the farm or hired in for the season.</li>
+<li><strong>Does Exposed</strong> — number of does in the mating group.</li>
+<li><strong>Mating Method</strong> — Natural, AI (fresh), AI (frozen), or ET (embryo transfer).</li>
+<li><strong>Expected Kidding Date</strong> — enter the expected kidding date based on your chosen gestation period; standard goat gestation is 150 days from mating start.</li>
+<li><strong>CIDR / Progesterone Sponge Used</strong> — tick if intravaginal progesterone devices were used to synchronise oestrus before mating.</li>
+</ul>
+<h3>Analytics</h3>
+<p>The Analytics tab Mating Summary shows the total number of mating cycles recorded, total does exposed across all cycles, and the number of distinct buck breeds used.</p>
+<h3>Print report</h3>
+<p>The Mating Records print report is a landscape A4 table including all key fields with a footer noting the 3-year record retention requirement. Suitable for compliance document packs and assurance scheme audits.</p>
+<h3>Mobile recording</h3>
+<p>Mating records can be entered in the mobile app's Record tab under <em>Goat Mating Record</em>. The record saves offline and syncs to the dashboard automatically when connectivity is restored.</p>`,
+  ],
+
+  // 235 — Goat Pregnancy Scanning
+  [
+    "How to record goat pregnancy scanning results in BDE Farm Trac, including does barren, singles, doubles, triplets, scanning percentage, and expected total kids.",
+    `<h2>Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets</h2>
+<p>Pregnancy scanning determines the litter distribution of the kidding crop and allows you to plan housing, nutrition, and labour requirements before kidding begins. BDE Farm Trac records the scanning event with a full litter breakdown and calculates the scanning percentage automatically.</p>
+<h3>Adding a scanning record</h3>
+<p>Navigate to <strong>Goat Production → Scanning</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Scan Date *</strong> — date of the scanning event.</li>
+<li><strong>Scanner Name</strong> — name of the scanning technician or vet performing the scan.</li>
+<li><strong>Scanner Company</strong> — the scanning company or veterinary practice.</li>
+<li><strong>Does Scanned *</strong> — total number of does put through the scanner.</li>
+<li><strong>Barren</strong> — number of does confirmed empty.</li>
+<li><strong>Singles</strong> — number of does carrying one kid.</li>
+<li><strong>Doubles</strong> — number of does carrying twins.</li>
+<li><strong>Triplets</strong> — number of does carrying three kids.</li>
+<li><strong>Scanning %</strong> — automatically calculated as (expected total kids ÷ does scanned) × 100; can be overridden if your scanning report shows a different figure.</li>
+<li><strong>Expected Kids Total</strong> — calculated from the litter breakdown entered above.</li>
+</ul>
+<h3>Analytics</h3>
+<p>The Analytics tab aggregates all scanning records into a <strong>Kid Type Distribution</strong> pie chart showing the proportion of barren, singles, doubles, and triplets across all scanning events on the farm. The <strong>Avg Scanning %</strong> KPI card shows the mean across all recorded rounds.</p>
+<h3>Print report</h3>
+<p>The Pregnancy Scanning print report uses landscape A4 layout with the full litter breakdown and a record retention footer. Suitable for veterinary health plan reviews and CAE accreditation scheme audit packs.</p>`,
+  ],
+
+  // 236 — Goat Weigh-in and DLWG
+  [
+    "How to record goat weigh-in events in BDE Farm Trac, including DLWG calculation, body condition scoring, and performance tracking against target.",
+    `<h2>Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring</h2>
+<p>Regular weight recording is the most reliable way to monitor kid and doe performance and to identify production issues early. BDE Farm Trac calculates the Daily Live Weight Gain (DLWG) from consecutive weigh-in records and colour-codes the result against your target to make underperformance immediately visible.</p>
+<h3>Adding a weigh-in record</h3>
+<p>Navigate to <strong>Goat Production → Weigh-in</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Weigh Date *</strong> — date of the weigh-in event.</li>
+<li><strong>Animal Category</strong> — Kids, Weanlings, Yearlings, Does, or Bucks — the age or class group being weighed.</li>
+<li><strong>Batch / Group Reference</strong> — a label to identify the group across multiple weigh-ins (e.g. "Spring Kids 2025"); used to link consecutive records when calculating DLWG.</li>
+<li><strong>Number Weighed</strong> — count of animals in the group at this weigh-in.</li>
+<li><strong>Average Weight (kg)</strong> — mean weight for the group or batch.</li>
+<li><strong>Lightest Weight (kg)</strong> and <strong>Heaviest Weight (kg)</strong> — range captured at the same event to indicate spread within the group.</li>
+<li><strong>Target Weight (kg)</strong> — the breed-standard or management target for this group at this stage.</li>
+<li><strong>Previous Weigh Date</strong> and <strong>Previous Avg Weight (kg)</strong> — used to calculate DLWG; enter the date and average weight from the preceding weigh-in for this batch.</li>
+<li><strong>DLWG (g/day)</strong> — calculated automatically from the difference between current and previous average weights divided by the number of days between weigh dates; colour-coded green (on or above target), amber (within 10% below target), or red (significantly below target).</li>
+<li><strong>BCS (Body Condition Score)</strong> — the 1–5 body condition score assessed at the time of weighing.</li>
+</ul>
+<h3>Raise Task</h3>
+<p>Each weigh-in record includes a <strong>Raise Task</strong> button in the View dialog. Use it to create a follow-up task when a group's DLWG is below target — the task appears on the Task Board assigned to the responsible team member.</p>
+<h3>Analytics</h3>
+<p>The Analytics tab shows the average DLWG (g/day) across all records as a KPI card and a <strong>DLWG by Batch</strong> horizontal bar chart for the most recent ten weigh-in groups. Groups consistently below target are immediately visible.</p>`,
+  ],
+
+  // 237 — Goat Health and Disease Monitoring
+  [
+    "How to record goat vaccination programmes and disease monitoring in BDE Farm Trac, covering CAE, CLA, Johne's disease, and the reportable disease advisory.",
+    `<h2>Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases</h2>
+<p>The Health tab in Goat Production provides two sub-sections: <strong>Vaccination Programmes</strong> for recording all vaccination events per herd, and <strong>Disease Monitoring</strong> for logging the results of disease surveillance tests and health observations.</p>
+<h3>Vaccination Programmes</h3>
+<p>Navigate to <strong>Goat Production → Health → Vaccinations</strong> and click <strong>Add Vaccination</strong>. Capture:</p>
+<ul>
+<li><strong>Product Name</strong> — the vaccine or biological product (e.g. Heptavac P Plus, Lambivac, Covexin 10, Bravoxin 10).</li>
+<li><strong>Batch / Lot Number</strong> — for product traceability in medicine records.</li>
+<li><strong>Vaccination Date *</strong> — date of administration.</li>
+<li><strong>Number of Animals</strong> — animals vaccinated in this event.</li>
+<li><strong>Dose (ml)</strong> and <strong>Route</strong> — subcutaneous, intramuscular, or oral.</li>
+<li><strong>Withdrawal Period (days)</strong> — the meat and/or milk withdrawal period for this product; displayed prominently on the saved record as a compliance reminder.</li>
+<li><strong>Vet Prescribed</strong> — tick if administered under veterinary prescription (POM-V product).</li>
+</ul>
+<p>Vaccination records print as a formatted A4 compliance document including batch traceability and withdrawal period reminder, suitable for veterinary health plan reviews and assurance scheme audits.</p>
+<h3>Disease Monitoring</h3>
+<p>Navigate to <strong>Goat Production → Health → Disease Monitoring</strong> and click <strong>Add</strong>. Monitoring types include:</p>
+<ul>
+<li><strong>CAE (Caprine Arthritis Encephalitis)</strong> — the most significant viral disease in UK dairy and fibre goat herds; records support CAE Accreditation Scheme documentation requirements (scheme reference, testing body, samples, result status).</li>
+<li><strong>CLA (Caseous Lymphadenitis)</strong> — caseous lymphadenitis serology or post-mortem confirmation records per herd.</li>
+<li><strong>Johne's Disease</strong> — paratuberculosis surveillance tests; tracks herd risk level and next test due across monitoring rounds.</li>
+<li><strong>Foot rot surveillance, Cryptosporidiosis, Toxoplasmosis, Chlamydiosis, Mycoplasma</strong> — additional important disease conditions captured with the same record structure.</li>
+<li><strong>Faecal egg count (worms)</strong> — FEC results per batch with number of samples and positive count for SCOPS-aligned anthelmintic decision making.</li>
+</ul>
+<p>Each monitoring record captures the testing body or laboratory, number of samples, positive and negative results, overall status (Pending / Clear / Positive / Inconclusive), actions taken, and the next test due date. Status is shown as a colour-coded badge — green for Clear, red for Positive, amber for Inconclusive or Pending.</p>
+<h3>Reportable diseases</h3>
+<p>If you suspect a notifiable disease — including Foot and Mouth Disease, Bluetongue, Anthrax, Scrapie, or any other listed disease — contact APHA immediately on <strong>03000 200 301</strong> before recording the observation in BDE Farm Trac. The statutory notification obligation is triggered by reasonable suspicion, not by laboratory confirmation. The formal incident record including the APHA reference number, isolation measures applied, and case outcome is recorded in <strong>Compliance &amp; Plans → Disease &amp; Incident Log</strong>.</p>`,
   ],
 
   // 222 — Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking
