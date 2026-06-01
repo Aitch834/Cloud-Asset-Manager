@@ -114,6 +114,8 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Compliance", href: "/organic", icon: Leaf, moduleKeys: ["organic-compliance"] },
   { name: "Organic Livestock", href: "/organic-livestock", icon: HeartPulse, moduleKeys: ["organic-livestock"] },
   { name: "Organic Dairy", href: "/organic-dairy", icon: Milk, moduleKeys: ["organic-dairy"] },
+  { name: "Organic Sheep Dairy", href: "/organic-sheep-dairy", icon: Milk, moduleKeys: ["organic-sheep-dairy"] },
+  { name: "Organic Goat Dairy", href: "/organic-goat-dairy", icon: Milk, moduleKeys: ["organic-goat-dairy"] },
   { name: "Organic Fresh Produce", href: "/organic-fresh-produce", icon: Leaf, moduleKeys: ["organic-fresh-produce"] },
   { name: "Organic Viticulture", href: "/organic-viticulture", icon: Grape, moduleKeys: ["organic-viticulture"] },
   { name: "Organic Arable", href: "/organic-arable", icon: Wheat, moduleKeys: ["organic-arable"] },
@@ -137,9 +139,7 @@ const livestockNav: NavItem[] = [
   { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management", "sheep-production", "beef-production"], requiresLivestock: true },
   { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management", "organic-dairy"], requiresLivestock: true },
   { name: "Sheep Dairy", href: "/sheep-dairy", icon: Milk, moduleKeys: ["sheep-dairy"] },
-  { name: "Organic Sheep Dairy", href: "/organic-sheep-dairy", icon: Milk, moduleKeys: ["organic-sheep-dairy"] },
   { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
-  { name: "Organic Goat Dairy", href: "/organic-goat-dairy", icon: Milk, moduleKeys: ["organic-goat-dairy"] },
   { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
   { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "pig-production", "poultry-production"], requiresLivestock: true },
 ];
