@@ -256,6 +256,28 @@ export const diversificationIncomeRecordsTable = pgTable("diversification_income
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const diversificationBookingsTable = pgTable("diversification_bookings", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  activityId: integer("activity_id").notNull().references(() => diversificationActivitiesTable.id),
+  bookingRef: text("booking_ref").notNull(),
+  guestName: text("guest_name").notNull(),
+  guestEmail: text("guest_email"),
+  guestPhone: text("guest_phone"),
+  unitName: text("unit_name"),
+  bookingType: text("booking_type").notNull().default("day_event"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  partySize: integer("party_size"),
+  status: text("status").notNull().default("confirmed"),
+  amountNet: numeric("amount_net", { precision: 10, scale: 2 }),
+  depositPaid: numeric("deposit_paid", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const shootingAndGameRecordsTable = pgTable("shooting_and_game_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
