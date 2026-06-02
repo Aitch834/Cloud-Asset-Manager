@@ -1126,6 +1126,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
   const [expandedRtwId, setExpandedRtwId] = useState<number | null>(null);
+  const [checkedByOther, setCheckedByOther] = useState(false);
 
   const emptyForm = { staffName: defaultMember ?? "", documentType: "", documentReference: "", checkDate: "", checkedBy: "", expiryDate: "", followUpDate: "", notes: "" };
   const [form, setForm] = useState({ ...emptyForm });
@@ -1158,12 +1159,14 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
 
   function openEdit(r: RtwRecord) {
     setEditItem(r);
+    const existingCheckedBy = r.checkedBy ?? "";
+    setCheckedByOther(existingCheckedBy !== "" && !staffNames.includes(existingCheckedBy));
     setForm({
       staffName: r.staffName,
       documentType: r.documentType,
       documentReference: r.documentReference ?? "",
       checkDate: r.checkDate ? r.checkDate.slice(0, 10) : "",
-      checkedBy: r.checkedBy ?? "",
+      checkedBy: existingCheckedBy,
       expiryDate: r.expiryDate ? r.expiryDate.slice(0, 10) : "",
       followUpDate: r.followUpDate ? r.followUpDate.slice(0, 10) : "",
       notes: r.notes ?? "",
@@ -1181,6 +1184,12 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
     const d = Math.floor((new Date(r.expiryDate).getTime() - now.getTime()) / 86400000);
     return d >= 0 && d <= 28;
   }).length;
+  const followUpOverdue = records.filter(r => r.followUpDate && new Date(r.followUpDate) < now).length;
+  const followUpSoon = records.filter(r => {
+    if (!r.followUpDate) return false;
+    const d = Math.floor((new Date(r.followUpDate).getTime() - now.getTime()) / 86400000);
+    return d >= 0 && d <= 28;
+  }).length;
 
   const checkedNames = new Set((q.data?.records ?? []).map(r => r.staffName));
   const uncheckedStaff = staffNames.filter(n => !checkedNames.has(n));
@@ -1192,6 +1201,8 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
         <div style={{ flex: 1 }} />
         {expired > 0 && <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={13} /> {expired} expired</Badge>}
         {urgent > 0 && <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>{urgent} expiring &lt;28 days</Badge>}
+        {followUpOverdue > 0 && <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={13} /> {followUpOverdue} repeat check overdue</Badge>}
+        {followUpSoon > 0 && <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>{followUpSoon} repeat check due &lt;28 days</Badge>}
         <Button size="sm" onClick={() => { setForm({ ...emptyForm }); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" /> Record RTW Check
         </Button>
@@ -1212,6 +1223,13 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
         <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>
           <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "#991b1b", display: "flex", alignItems: "center", gap: 6 }}>
             <AlertTriangle size={14} /> {expired} time-limited RTW check{expired !== 1 ? "s have" : " has"} expired — repeat checks must be completed immediately.
+          </p>
+        </div>
+      )}
+      {!q.isLoading && followUpOverdue > 0 && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a" }}>
+          <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "#92400e", display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertTriangle size={14} /> {followUpOverdue} repeat / follow-up RTW check{followUpOverdue !== 1 ? "s are" : " is"} overdue — carry out a new check and update the record.
           </p>
         </div>
       )}
@@ -1245,7 +1263,17 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
                     <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.documentReference || "—"}</td>
                     <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.checkDate)}</td>
                     <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.checkedBy || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.75rem" }}>{rtwStatusBadge(r.expiryDate)}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {rtwStatusBadge(r.expiryDate)}
+                        {r.followUpDate && (() => {
+                          const days = Math.floor((new Date(r.followUpDate).getTime() - Date.now()) / 86400000);
+                          if (days < 0) return <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontSize: "0.68rem" }}>Repeat overdue: {fmt(r.followUpDate)}</Badge>;
+                          if (days <= 28) return <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", fontSize: "0.68rem" }}>Repeat due: {fmt(r.followUpDate)}</Badge>;
+                          return <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", fontSize: "0.68rem" }}>Repeat: {fmt(r.followUpDate)}</Badge>;
+                        })()}
+                      </div>
+                    </td>
                     <td style={{ padding: "0.625rem 0.75rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
@@ -1279,7 +1307,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
         </div>
       )}
 
-      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setCheckedByOther(false); } }}>
         <DialogContent style={{ maxWidth: 540 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit RTW Record" : "Record Right to Work Check"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -1304,7 +1332,32 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
             <div><Label>Document Reference / Share Code</Label><Input className="mt-1" value={form.documentReference} onChange={e => setForm(f => ({ ...f, documentReference: e.target.value }))} placeholder="e.g. 4HB8YR or passport number" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Date Check Carried Out *</Label><Input type="date" className="mt-1" value={form.checkDate} onChange={e => setForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
-              <div><Label>Checked By</Label><Input className="mt-1" value={form.checkedBy} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} placeholder="e.g. Farm Manager" /></div>
+              <div>
+                <Label>Checked By</Label>
+                {staffNames.length > 0 ? (
+                  <>
+                    <Select
+                      value={checkedByOther ? "__other__" : (form.checkedBy || "")}
+                      onValueChange={v => {
+                        if (v === "__other__") { setCheckedByOther(true); setForm(f => ({ ...f, checkedBy: "" })); }
+                        else { setCheckedByOther(false); setForm(f => ({ ...f, checkedBy: v })); }
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select who carried out the check…" /></SelectTrigger>
+                      <SelectContent>
+                        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        <SelectSeparator />
+                        <SelectItem value="__other__">Other / not a listed member…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {checkedByOther && (
+                      <Input className="mt-2" value={form.checkedBy} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} placeholder="Enter name…" autoFocus />
+                    )}
+                  </>
+                ) : (
+                  <Input className="mt-1" value={form.checkedBy} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} placeholder="e.g. Farm Manager" />
+                )}
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
