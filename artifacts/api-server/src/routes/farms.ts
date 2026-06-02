@@ -14354,7 +14354,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     certRows, trainingRows, inspectionRows,
     correctiveRows, riskRows, ppeRiskRows,
     maintRows, calibRows,
-    insuranceRows, rtwRows,
+    insuranceRows, rtwRows, rtwFollowUpRows,
     medicineWithdrawalRows, vetHealthPlanRows,
     patTestRows, fireExtRows, workshopJobRows,
     biofuelCertRows, waterLicenceRows,
@@ -14471,6 +14471,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, expiryDate: staffRightToWorkTable.expiryDate })
       .from(staffRightToWorkTable)
       .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart as any), lt(staffRightToWorkTable.expiryDate, rangeEnd as any))),
+
+    // ── RTW: repeat / follow-up checks due ────────────────────────────────────
+    db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, followUpDate: staffRightToWorkTable.followUpDate })
+      .from(staffRightToWorkTable)
+      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.followUpDate), gte(staffRightToWorkTable.followUpDate, overdueStart as any), lt(staffRightToWorkTable.followUpDate, rangeEnd as any))),
 
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, withdrawalEndDate: livestockMedicineRecordsTable.withdrawalEndDate })
       .from(livestockMedicineRecordsTable)
@@ -14944,6 +14949,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of rtwRows) {
     if (!r.expiryDate) continue;
     tasks.push({ id: `rtw-${r.id}`, type: "rtw_expiry", title: `Right to Work Expiring — ${r.staffName}`, description: `${r.staffName}'s right-to-work document (${r.documentType || "time-limited visa"}) is due to expire. Arrange a follow-up check before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: `/training?tab=rtw&open=${r.id}`, colour: "indigo" });
+  }
+  for (const r of rtwFollowUpRows) {
+    if (!r.followUpDate) continue;
+    tasks.push({ id: `rtw-followup-${r.id}`, type: "rtw_followup", title: `RTW Repeat Check Due — ${r.staffName}`, description: `${r.staffName}'s right-to-work repeat / follow-up check${r.documentType ? ` (${r.documentType})` : ""} is due. Carry out a new check and update the record in Staff & Training → Right to Work.`, dueDate: toISO(r.followUpDate)!, module: "Staff & Training", href: `/training?tab=rtw&open=${r.id}`, colour: "indigo" });
   }
   for (const r of inspectionRows) {
     if (!r.nextInspectionDue) continue;
