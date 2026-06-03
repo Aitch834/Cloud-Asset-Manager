@@ -7,3 +7,4 @@
 - [Platform config key whitelist](platform-config-whitelist.md) — new config keys must be added to PLATFORM_CONFIG_DEFAULTS in admin.ts or PUT returns 400
 - [Test-dashboard Vite cache fix](test-dashboard-vite-cache.md) — clear node_modules/.vite on startup; "Invalid hook call" on CompliancePage = stale browserHash, not a hooks bug
 - [RLS fix script — regex multistatement pitfall](rls-fix-regex-multistatement.md) — bulk regex-line-replace silently drops trailing content; check with tsc after any bulk script
+- [TanStack Query shared-key cache-shape mismatch](tanstack-query-shared-key-shape-mismatch.md) — never unwrap arrays inside queryFn for shared keys; normalise at access point with Array.isArray guard

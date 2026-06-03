@@ -6968,11 +6968,15 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
-  const { data: herds = [] } = useQuery({
+  const { data: herdsRaw } = useQuery<{ records: any[] } | any[] | null>({
     queryKey: ["herds", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()).then(d => d.records ?? []),
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
     enabled: !!farmId,
   });
+  // Normalise: HerdsSection (default tab) caches { records: Herd[] }; if this
+  // queryFn runs first the API returns the same shape.  Guard Array.isArray so
+  // the component also handles a future schema change without crashing.
+  const herds: any[] = Array.isArray(herdsRaw) ? herdsRaw : ((herdsRaw as any)?.records ?? []);
 
   function openAdd() { setEditing(null); setForm({ result: "negative" }); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
