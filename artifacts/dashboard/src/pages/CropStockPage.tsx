@@ -9,10 +9,144 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer, ShieldCheck, ShieldAlert, Loader2, Droplets } from "lucide-react";
+import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer, ShieldCheck, ShieldAlert, Loader2, Droplets, Check, ChevronsUpDown, FlaskConical } from "lucide-react";
 import { openPrintWindow, buildProReport } from "@/lib/print-report";
+
+// ─── UK Approved Grain Store Treatment Products ────────────────────────────────
+const GRAIN_STORE_PRODUCTS: { name: string; activeIngredient: string; defaultDilution: string; category: string; notes?: string }[] = [
+  { name: "Actellic 50 EC", activeIngredient: "Pirimiphos-methyl 50%", defaultDilution: "15 ml in 5 L water per 100 m²", category: "Insecticide spray", notes: "MAPP 16048 — most widely used grain store insecticide" },
+  { name: "K-Othrine WG 25", activeIngredient: "Deltamethrin 25%", defaultDilution: "2 g per 1 L water per 100 m²", category: "Insecticide spray", notes: "MAPP 14228 — pyrethroid, good residual activity" },
+  { name: "Storcide II", activeIngredient: "Chlorpyrifos-methyl + Deltamethrin", defaultDilution: "As per product label", category: "Insecticide spray", notes: "Combination product — check current UK approval status" },
+  { name: "Pyrethrum 5 EC", activeIngredient: "Pyrethrin 5%", defaultDilution: "1 part product per 200 parts water", category: "Insecticide spray", notes: "Fast knockdown, short residual — suitable where harvest imminent" },
+  { name: "Exell", activeIngredient: "Cypermethrin", defaultDilution: "As per product label", category: "Insecticide spray" },
+  { name: "Coopex EC", activeIngredient: "Permethrin 25%", defaultDilution: "As per product label", category: "Insecticide spray" },
+  { name: "Diacon IGR", activeIngredient: "S-methoprene", defaultDilution: "As per product label", category: "Insect growth regulator", notes: "Controls immature stages of storage insects — use alongside a contact insecticide" },
+  { name: "Insecto (Diatomaceous Earth)", activeIngredient: "Diatomaceous earth 85%", defaultDilution: "Dry dust — per label rate", category: "Grain admixture / dust", notes: "Physical mode of action — approved for organic grain stores" },
+  { name: "Pyrethrum 6% EC (Organic)", activeIngredient: "Pyrethrin 6%", defaultDilution: "As per product label", category: "Insecticide spray", notes: "Approved for organic use — check Organic Control Body acceptance" },
+  { name: "Phostoxin", activeIngredient: "Aluminium phosphide 56%", defaultDilution: "Fumigation — licensed contractor only", category: "Fumigant", notes: "MAPP 12459 — must be applied by BASIS/CoC certificated contractor under PCS conditions" },
+  { name: "Quickphos Pellets", activeIngredient: "Aluminium phosphide 56%", defaultDilution: "Fumigation — licensed contractor only", category: "Fumigant", notes: "Licensed fumigant — requires sealed store and gas-tight sheeting" },
+  { name: "Magtoxin", activeIngredient: "Magnesium phosphide 66%", defaultDilution: "Fumigation — licensed contractor only", category: "Fumigant", notes: "MAPP 13863 — generates phosphine gas, trained operators only" },
+  { name: "Detaclean", activeIngredient: "Pyrethrin + Permethrin", defaultDilution: "As per product label", category: "Insecticide spray" },
+];
+
+// ─── Product Combobox ──────────────────────────────────────────────────────────
+function ProductCombobox({ value, onChange, onProductSelect, disabled }: {
+  value: string;
+  onChange: (v: string) => void;
+  onProductSelect: (product: typeof GRAIN_STORE_PRODUCTS[0] | null) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const matched = GRAIN_STORE_PRODUCTS.find(p => p.name.toLowerCase() === value.toLowerCase()) ?? null;
+
+  function handleSelect(productName: string) {
+    const product = GRAIN_STORE_PRODUCTS.find(p => p.name === productName) ?? null;
+    onChange(productName);
+    onProductSelect(product);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleQueryChange(q: string) {
+    setQuery(q);
+    onChange(q);
+    if (!GRAIN_STORE_PRODUCTS.find(p => p.name.toLowerCase() === q.toLowerCase())) {
+      onProductSelect(null);
+    }
+  }
+
+  const filtered = query.trim()
+    ? GRAIN_STORE_PRODUCTS.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.activeIngredient.toLowerCase().includes(query.toLowerCase()) ||
+        p.category.toLowerCase().includes(query.toLowerCase())
+      )
+    : GRAIN_STORE_PRODUCTS;
+
+  const grouped = filtered.reduce<Record<string, typeof GRAIN_STORE_PRODUCTS>>((acc, p) => {
+    if (!acc[p.category]) acc[p.category] = [];
+    acc[p.category].push(p);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-1.5">
+      <Popover open={open && !disabled} onOpenChange={o => { if (!disabled) setOpen(o); }}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className="w-full justify-between font-normal text-left h-9 px-3"
+          >
+            <span className={`truncate ${!value ? "text-muted-foreground" : ""}`}>
+              {value || "Search or type product name…"}
+            </span>
+            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[420px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search by product name or active ingredient…"
+              value={query}
+              onValueChange={handleQueryChange}
+            />
+            <CommandList className="max-h-64">
+              <CommandEmpty>
+                <div className="py-3 px-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-0.5">"{query}" not in list</p>
+                  <p>Press Enter or click below to use this as a custom product name.</p>
+                  {query && (
+                    <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => handleSelect(query)}>
+                      Use "{query}"
+                    </Button>
+                  )}
+                </div>
+              </CommandEmpty>
+              {Object.entries(grouped).map(([category, products]) => (
+                <CommandGroup key={category} heading={category}>
+                  {products.map(product => (
+                    <CommandItem
+                      key={product.name}
+                      value={product.name}
+                      onSelect={() => handleSelect(product.name)}
+                      className="flex items-start gap-2 py-2"
+                    >
+                      <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${value === product.name ? "opacity-100" : "opacity-0"}`} />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm leading-tight">{product.name}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">{product.activeIngredient}</p>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {matched && (
+        <div className="flex items-start gap-1.5 rounded-md bg-blue-50 border border-blue-100 px-2.5 py-1.5 text-xs text-blue-800">
+          <FlaskConical className="w-3 h-3 mt-0.5 shrink-0 text-blue-500" />
+          <div>
+            <span className="font-medium">{matched.activeIngredient}</span>
+            <span className="text-blue-600"> · {matched.category}</span>
+            {matched.notes && <p className="text-blue-600 mt-0.5">{matched.notes}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Tab = "stock" | "movements";
 
@@ -306,48 +440,78 @@ function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin
             <span className="flex items-center gap-2"><Droplets className="w-4 h-4 text-blue-600" />Log Store Clean — {bin.binName}</span>
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 py-1">
-          <div>
-            <Label>Cleaning Type <span className="text-red-500">*</span></Label>
-            <Select value={form.cleaningType} onValueChange={v => setForm(f => ({ ...f, cleaningType: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full_clean_and_treat">Full clean + insecticide treatment</SelectItem>
-                <SelectItem value="physical_clean">Physical clean only (sweep / vacuum)</SelectItem>
-                <SelectItem value="insecticide_treatment">Insecticide treatment only</SelectItem>
-                <SelectItem value="fumigation">Fumigation</SelectItem>
-                <SelectItem value="inspection_only">Inspection — no treatment required</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Products Used</Label>
-              <Input placeholder="e.g. Actellic 50EC" value={form.productsUsed} onChange={e => setForm(f => ({ ...f, productsUsed: e.target.value }))} />
+        {(() => {
+          const noChemicals = form.cleaningType === "physical_clean" || form.cleaningType === "inspection_only";
+          const isFumigation = form.cleaningType === "fumigation";
+          return (
+            <div className="space-y-3 py-1">
+              <div>
+                <Label>Cleaning Type <span className="text-red-500">*</span></Label>
+                <Select value={form.cleaningType} onValueChange={v => setForm(f => ({ ...f, cleaningType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full_clean_and_treat">Full clean + insecticide treatment</SelectItem>
+                    <SelectItem value="physical_clean">Physical clean only (sweep / vacuum)</SelectItem>
+                    <SelectItem value="insecticide_treatment">Insecticide treatment only</SelectItem>
+                    <SelectItem value="fumigation">Fumigation</SelectItem>
+                    <SelectItem value="inspection_only">Inspection — no treatment required</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {noChemicals ? (
+                <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-500 italic">
+                  No chemical product required for this cleaning type.
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label>Product Used{isFumigation ? " (Fumigant)" : " (Insecticide / Treatment)"}</Label>
+                    <ProductCombobox
+                      value={form.productsUsed}
+                      onChange={v => setForm(f => ({ ...f, productsUsed: v }))}
+                      onProductSelect={product => {
+                        if (product) setForm(f => ({ ...f, dilutionRate: product.defaultDilution }));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>Application Rate / Dilution</Label>
+                    <Input
+                      placeholder="e.g. 15 ml in 5 L water per 100 m²"
+                      value={form.dilutionRate}
+                      onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))}
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Auto-filled from product selection — always verify against the product label.</p>
+                  </div>
+                  {isFumigation && (
+                    <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                      <strong>⚠ Fumigation:</strong> Must be carried out by a BASIS/CoC certificated contractor. Ensure the store is sealed and all personnel are clear before treatment.
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Cleaned By</Label>
+                  <Input placeholder="Name" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Date Cleaned <span className="text-red-500">*</span></Label>
+                  <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Textarea rows={2} placeholder="Any additional observations or actions taken…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.78rem", color: "#0369a1" }}>
+                <strong>Red Tractor:</strong> Stores must be cleaned and treated with an approved grain store insecticide before each new fill. Keep this record for a minimum of 3 years.
+              </div>
             </div>
-            <div>
-              <Label>Dilution Rate</Label>
-              <Input placeholder="e.g. 1:200 in water" value={form.dilutionRate} onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Cleaned By</Label>
-              <Input placeholder="Name" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Date Cleaned <span className="text-red-500">*</span></Label>
-              <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <Label>Notes</Label>
-            <Textarea rows={2} placeholder="Any additional observations or actions taken…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-          </div>
-          <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.78rem", color: "#0369a1" }}>
-            <strong>Red Tractor:</strong> Stores must be cleaned and treated with an approved grain store insecticide before each new fill. Keep this record for a minimum of 3 years.
-          </div>
-        </div>
+          );
+        })()}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
