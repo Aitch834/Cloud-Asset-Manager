@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printProReport } from "@/lib/print-report";
-import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil, ClipboardList } from "lucide-react";
+import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil, ClipboardList, History } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useUpload } from "@workspace/object-storage-web";
 
@@ -257,6 +257,90 @@ const COMPLIANCE_FLAGS: { label: string; match: string; detail: string; severity
   { label: "PA1 — Safe use of pesticides", match: "PA1 —", detail: "Any person using or supervising the use of professional pesticide products must hold at minimum a PA1 certificate.", severity: "warning" },
 ];
 
+// ─── Staff Training History Dialog ────────────────────────────────────────────
+function StaffHistoryDialog({ member, allRecords, resolveStaffName, onClose }: { member: { userId: string; name: string }; allRecords: any[]; resolveStaffName: (uid: string) => string; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const memberRecords = allRecords.filter(r => r.userId === member.userId || resolveStaffName(r.userId) === member.name);
+  const sorted = [...memberRecords].sort((a, b) => new Date(b.trainingDate ?? 0).getTime() - new Date(a.trainingDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter(r => r.trainingDate && new Date(r.trainingDate).getFullYear() === yearFilter);
+
+  function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"; }
+  function expiryStatus(d: string | null | undefined): { text: string; color: string; bg: string } {
+    if (!d) return { text: "No expiry", color: "#6b7280", bg: "#f9fafb" };
+    const exp = new Date(d);
+    const now = new Date();
+    const days = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+    if (days < 0) return { text: `Expired ${fmtDate(d)}`, color: "#dc2626", bg: "#fef2f2" };
+    if (days <= 90) return { text: `Expires ${fmtDate(d)} (${days}d)`, color: "#b45309", bg: "#fffbeb" };
+    return { text: `Valid until ${fmtDate(d)}`, color: "#15803d", bg: "#f0fdf4" };
+  }
+
+  function handlePrint() {
+    const rows = filtered.map(r => { const ex = expiryStatus(r.expiryDate); return `<tr><td>${fmtDate(r.trainingDate)}</td><td>${r.trainingTitle}</td><td>${r.trainingProvider || "—"}</td><td>${r.competencyAchieved || "—"}</td><td>${r.expiryDate ? fmtDate(r.expiryDate) : "No expiry"}</td><td>${r.assessorName || "—"}</td><td>${r.notes || ""}</td></tr>`; }).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Training History — ${member.name}</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:5px 7px;text-align:left;font-size:8.5pt}td{padding:4px 7px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Training &amp; Competency Record — ${member.name}</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")} · ${filtered.length} record${filtered.length !== 1 ? "s" : ""}${yearFilter !== "all" ? ` (${yearFilter})` : ""}</p><table><thead><tr><th>Date</th><th>Training / Course</th><th>Provider</th><th>Competency Achieved</th><th>Expiry</th><th>Assessor</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">H&amp;S / COSHH requirement: retain training records for duration of employment plus 3 years.</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Training History — {member.name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+              <GraduationCap className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No training records for {member.name}{yearFilter !== "all" ? ` in ${yearFilter}` : ""}</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((r: any) => {
+                const exp = expiryStatus(r.expiryDate);
+                return (
+                  <div key={r.id} className="py-3 px-1 flex items-start gap-3">
+                    <div className="shrink-0 w-24 text-right">
+                      <p className="text-sm font-semibold text-gray-800 leading-tight">{r.trainingDate ? new Date(r.trainingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</p>
+                      <p className="text-xs text-muted-foreground">{r.trainingDate ? new Date(r.trainingDate).getFullYear() : ""}</p>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm font-semibold text-gray-800 leading-tight">{r.trainingTitle}</p>
+                      {r.trainingProvider && <p className="text-xs text-muted-foreground">{r.trainingProvider}</p>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span style={{ fontSize: "0.7rem", padding: "2px 7px", borderRadius: 99, background: exp.bg, color: exp.color, fontWeight: 600 }}>{exp.text}</span>
+                        {r.competencyAchieved && <span style={{ fontSize: "0.7rem", color: "#6b7280" }}>· {r.competencyAchieved}</span>}
+                      </div>
+                      {r.assessorName && <p className="text-xs text-muted-foreground">Assessed by: {r.assessorName}</p>}
+                      {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">H&amp;S / COSHH: retain training records for duration of employment plus <strong>3 years</strong>.</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button size="sm" variant="outline" onClick={handlePrint} className="gap-1.5"><Printer className="w-3.5 h-3.5" />Print / Export</Button>}
+            <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -267,6 +351,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const [search, setSearch] = useState(defaultMember ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [deptFilter, setDeptFilter] = useState("all");
+  const [historyMember, setHistoryMember] = useState<{ userId: string; name: string } | null>(null);
 
   const membersQ = useFarmMembers(farmId);
   const memberNameMap = React.useMemo(() => {
@@ -453,6 +538,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontSize: "0.8125rem" }}>{r.competencyAchieved || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#6b7280" }} onClick={() => setHistoryMember({ userId: String(r.userId), name: resolveStaffName(r.userId) })} title="Training history"><History size={13} /></Button>
                       <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
                       <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
                       <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
@@ -464,6 +550,8 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
           </table>
         </div>
       )}
+
+      {historyMember && <StaffHistoryDialog member={historyMember} allRecords={q.data?.records ?? []} resolveStaffName={resolveStaffName} onClose={() => setHistoryMember(null)} />}
 
       {viewItem && (
         <Dialog open onOpenChange={() => setViewItem(null)}>

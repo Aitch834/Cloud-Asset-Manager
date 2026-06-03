@@ -15,7 +15,7 @@ import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
   Camera, File, ChevronDown, ChevronUp, Pen, X, Clock, Package, HardHat,
-  ClipboardList,
+  ClipboardList, History, Droplets, FlaskConical,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -932,6 +932,91 @@ const EMPTY_CLEANING = {
 const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
 const EMPTY_SCHEDULE = { area: "", cleaningType: "", intervalDays: "" as string | number, notes: "", isActive: true };
 
+// ─── C&D History Dialog ────────────────────────────────────────────────────────
+const BIO_CLEAN_TYPE_LABELS: Record<string, string> = {
+  full_clean_and_treat: "Full Clean + Treatment", physical_clean: "Physical Clean",
+  insecticide_treatment: "Insecticide Treatment", fumigation: "Fumigation",
+  inspection_only: "Inspection Only",
+};
+const BIO_CLEAN_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  full_clean_and_treat: { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0" },
+  physical_clean:       { bg: "#f9fafb", text: "#6b7280", border: "#e5e7eb" },
+  insecticide_treatment:{ bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+  fumigation:           { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+  inspection_only:      { bg: "#f9fafb", text: "#6b7280", border: "#e5e7eb" },
+};
+function BioCleanHistoryDialog({ records, onClose }: { records: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const sorted = [...records].sort((a, b) => new Date(b.cleanedDate).getTime() - new Date(a.cleanedDate).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter(r => r.cleanedDate && new Date(r.cleanedDate).getFullYear() === yearFilter);
+
+  function handlePrint() {
+    const rows = filtered.map(r => `<tr><td>${r.cleanedDate ? new Date(r.cleanedDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.area}</td><td>${BIO_CLEAN_TYPE_LABELS[r.cleaningType] ?? r.cleaningType}</td><td>${r.productsUsed || "—"}</td><td>${r.dilutionRate || "—"}</td><td>${r.cleanedBy || "—"}</td><td>${r.notes || ""}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>C&D History</title><style>body{font-family:Arial,sans-serif;font-size:11pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:6px 8px;text-align:left;font-size:9pt}td{padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:9.5pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1>Cleaning & Disinfection History</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")}${yearFilter !== "all" ? ` · Year: ${yearFilter}` : ""}</p><table><thead><tr><th>Date</th><th>Area / Location</th><th>Type</th><th>Product</th><th>Dilution</th><th>Carried Out By</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">Red Tractor &amp; APHA: retain C&D records for a minimum of 3 years.</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Cleaning &amp; Disinfection History</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2">
+              <ShieldCheck className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No records for {yearFilter === "all" ? "any year" : yearFilter}</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((r: any) => {
+                const date = r.cleanedDate ? new Date(r.cleanedDate) : null;
+                const col = BIO_CLEAN_TYPE_COLORS[r.cleaningType] ?? BIO_CLEAN_TYPE_COLORS.inspection_only;
+                return (
+                  <div key={r.id} className="py-3 px-1">
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 w-24 text-right">
+                        {date ? (<><p className="text-sm font-semibold text-gray-800 leading-tight">{date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</p><p className="text-xs text-muted-foreground">{date.getFullYear()}</p></>) : <span className="text-xs text-muted-foreground">—</span>}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-800">{r.area}</span>
+                          <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: col.bg, color: col.text, border: `1px solid ${col.border}` }}>{BIO_CLEAN_TYPE_LABELS[r.cleaningType] ?? r.cleaningType}</span>
+                          {r.cleanedBy && <span className="text-xs text-muted-foreground">by {r.cleanedBy}</span>}
+                        </div>
+                        {r.productsUsed && <div className="flex items-center gap-1.5 text-sm text-gray-700"><FlaskConical className="w-3 h-3 text-blue-400 shrink-0" /><span className="font-medium">{r.productsUsed}</span>{r.dilutionRate && <span className="text-xs text-muted-foreground">— {r.dilutionRate}</span>}</div>}
+                        {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">Retain C&amp;D records for at least <strong>3 years</strong> (APHA / Red Tractor requirement).</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5"><Printer className="w-3.5 h-3.5" />Print / Export</Button>}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function printCleaningRegister(records: CleaningRecord[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
@@ -961,6 +1046,7 @@ function printCleaningRegister(records: CleaningRecord[], farmName: string, year
 
 function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
@@ -1142,9 +1228,13 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
           <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} showAllYears />
+        <Button variant="outline" onClick={() => setHistoryOpen(true)} className="gap-2 shrink-0">
+          <History className="w-4 h-4" /> C&amp;D History
+        </Button>
         <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
+        {historyOpen && <BioCleanHistoryDialog records={records} onClose={() => setHistoryOpen(false)} />}
         <Button onClick={() => { resetCleaningDialog(); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
         </Button>

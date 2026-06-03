@@ -21,7 +21,7 @@ import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
   TestTube, Printer, FlaskConical, ArrowRight, CheckCircle, Clock, Archive,
   MoreHorizontal, MapPin, Map, TrendingUp, TrendingDown, Minus, Activity,
-  Users, Building2, UserCheck,
+  Users, Building2, UserCheck, History,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -100,11 +100,95 @@ const STATUS_FILTER_TABS: { key: StatusFilter; label: string }[] = [
   { key: "archived", label: "Archived" },
 ];
 
+// ─── Soil Field History Dialog ─────────────────────────────────────────────────
+function SoilFieldHistoryDialog({ field, tests, onClose }: { field: { id: number; name: string }; tests: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const fieldTests = tests.filter((t: any) => t.fieldId === field.id);
+  const sorted = [...fieldTests].sort((a: any, b: any) => new Date(b.sampleDate ?? 0).getTime() - new Date(a.sampleDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter((t: any) => t.sampleDate && new Date(t.sampleDate).getFullYear() === yearFilter);
+  const fmtDate = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  const STATUS_LABELS: Record<string, { text: string; color: string; bg: string }> = {
+    sampled:          { text: "Sampled", color: "#92400e", bg: "#fffbeb" },
+    sent_to_lab:      { text: "Sent to Lab", color: "#1d4ed8", bg: "#eff6ff" },
+    results_received: { text: "Results In", color: "#15803d", bg: "#f0fdf4" },
+    archived:         { text: "Archived", color: "#6b7280", bg: "#f3f4f6" },
+  };
+
+  function handlePrint() {
+    const rows = filtered.map((t: any) => `<tr><td>${fmtDate(t.sampleDate)}</td><td>${t.sampleReference || "—"}</td><td>${t.laboratory || "—"}</td><td>${t.sampleDepthCm ? `${t.sampleDepthCm} cm` : "—"}</td><td>${t.sampledBy || "—"}</td><td>${(STATUS_LABELS[t.status ?? "sampled"] ?? {}).text ?? t.status}</td><td>${t.notes || ""}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Soil Test History — ${field.name}</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#d97706;color:#fff;padding:5px 7px;text-align:left;font-size:8.5pt}td{padding:4px 7px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Soil Test History — ${field.name}</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")} · ${filtered.length} test${filtered.length !== 1 ? "s" : ""}${yearFilter !== "all" ? ` (${yearFilter})` : ""}</p><table><thead><tr><th>Sample Date</th><th>Reference</th><th>Laboratory</th><th>Depth</th><th>Sampled By</th><th>Status</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">NVZ regulations require soil test records to be retained for at least 5 years.</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-amber-600" />Soil Test History — {field.name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #d97706" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#fffbeb" : "#fff", color: yearFilter === y ? "#92400e" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2">
+              <FlaskConical className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No soil tests{yearFilter !== "all" ? ` in ${yearFilter}` : ""} for {field.name}</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((t: any) => {
+                const sl = STATUS_LABELS[t.status ?? "sampled"] ?? STATUS_LABELS.sampled;
+                return (
+                  <div key={t.id} className="py-3 px-1 flex items-start gap-3">
+                    <div className="shrink-0 w-24 text-right">
+                      <p className="text-sm font-semibold text-gray-800 leading-tight">{t.sampleDate ? new Date(t.sampleDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</p>
+                      <p className="text-xs text-muted-foreground">{t.sampleDate ? new Date(t.sampleDate).getFullYear() : ""}</p>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {t.sampleReference && <span className="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">{t.sampleReference}</span>}
+                        <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: sl.bg, color: sl.color }}>{sl.text}</span>
+                      </div>
+                      {t.laboratory && <p className="text-sm text-gray-700">Lab: <span className="font-medium">{t.laboratory}</span></p>}
+                      <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
+                        {t.sampleDepthCm && <span>Depth: {t.sampleDepthCm} cm</span>}
+                        {t.sampledBy && <span>Sampled by: {t.sampledBy}</span>}
+                      </div>
+                      {t.notes && <p className="text-xs text-muted-foreground italic">{t.notes}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">NVZ regulations: retain soil test records for at least <strong>5 years</strong>.</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button size="sm" variant="outline" onClick={handlePrint} className="gap-1.5"><Printer className="w-3.5 h-3.5" />Print / Export</Button>}
+            <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [historyField, setHistoryField] = useState<{ id: number; name: string } | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [addTestOpen, setAddTestOpen] = useState(false);
   const [editTest, setEditTest] = useState<SoilTestRecord | null>(null);
@@ -287,6 +371,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
 
   return (
     <>
+      {historyField && <SoilFieldHistoryDialog field={historyField} tests={allTests} onClose={() => setHistoryField(null)} />}
       {/* Status filter tabs */}
       <div className="flex flex-wrap gap-2 mb-5">
         {STATUS_FILTER_TABS.map(tab => (
@@ -386,6 +471,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
                             <Clock className="w-4 h-4 mr-2 text-blue-500" />Restore to Sampled
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => test.fieldId != null && setHistoryField({ id: test.fieldId, name: fieldName })}>
+                          <History className="w-4 h-4 mr-2 text-amber-600" />Field Test History
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openEditTest(test)}>
                           <Pencil className="w-4 h-4 mr-2" />Edit Details

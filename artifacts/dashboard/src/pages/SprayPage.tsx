@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle, History } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -343,6 +343,80 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
   );
 }
 
+// ─── Field Spray History Dialog ────────────────────────────────────────────────
+function FieldSprayHistoryDialog({ field, applications, onClose }: { field: { id: number; name: string }; applications: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const fieldApps = applications.filter((a: any) => a.fieldId === field.id);
+  const sorted = [...fieldApps].sort((a: any, b: any) => new Date(b.applicationDate ?? 0).getTime() - new Date(a.applicationDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter((a: any) => a.applicationDate && new Date(a.applicationDate).getFullYear() === yearFilter);
+  const fmtDate = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  function handlePrint() {
+    const rows = filtered.map((r: any) => `<tr><td>${fmtDate(r.applicationDate)}</td><td>${r.productName || "—"}</td><td>${r.targetCrop || "—"}</td><td>${r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td><td>${r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td><td>${r.operatorName || "—"}</td><td>${r.reasonForApplication || "—"}</td><td>${r.batchNumber || "—"}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Spray History — ${field.name}</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:5px 7px;text-align:left;font-size:8.5pt}td{padding:4px 7px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Spray Application History — ${field.name}</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")} · ${filtered.length} application${filtered.length !== 1 ? "s" : ""}${yearFilter !== "all" ? ` (${yearFilter})` : ""}</p><table><thead><tr><th>Date</th><th>Product</th><th>Crop</th><th>Rate</th><th>Area</th><th>Operator</th><th>Reason</th><th>Batch No.</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">Red Tractor requirement: retain spray records for a minimum of 3 years.</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Spray History — {field.name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} application{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 1rem", color: "#9ca3af", gap: 8 }}>
+              <Droplets size={32} color="#d1d5db" />
+              <p style={{ fontSize: "0.875rem" }}>No spray applications{yearFilter !== "all" ? ` in ${yearFilter}` : ""} for {field.name}</p>
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Product", "Crop", "Rate", "Area (ha)", "Operator", "Reason", "Batch"].map(h => (
+                    <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r: any, i: number) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280" }}>{fmtDate(r.applicationDate)}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#1e40af" }}>{r.productName || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#065f46" }}>{r.targetCrop || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.areaSprayedHa || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.operatorName || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reasonForApplication || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151" }}>{r.batchNumber || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">Red Tractor: retain spray records for a minimum of <strong>3 years</strong>.</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5"><Printer size={14} className="mr-1" />Print / Export</Button>}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast, initialSearch, cropYear, setCropYear }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const activeMembers: any[] = (membersData?.members ?? []).filter((m: any) => m.isActive);
@@ -375,6 +449,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [historyField, setHistoryField] = useState<{ id: number; name: string } | null>(null);
   const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "", targetCrop: "", growthStage: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
@@ -619,6 +694,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
   return (
     <>
+      {historyField && <FieldSprayHistoryDialog field={historyField} applications={applications} onClose={() => setHistoryField(null)} />}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
@@ -667,6 +743,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     </td>
                     <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                        {r.fieldId != null && <button onClick={() => setHistoryField({ id: r.fieldId, name: r.fieldName || "Field" })} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Field spray history"><History size={13} /></button>}
                         <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>

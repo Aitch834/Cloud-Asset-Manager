@@ -14,7 +14,7 @@ import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
   AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
   Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck, BadgeCheck, Info, ClipboardList,
-  ChevronsUpDown, X,
+  ChevronsUpDown, X, History,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -767,6 +767,92 @@ function MedicineAnalyticsPanel({ records }: { records: MedicineRecord[] }) {
   );
 }
 
+// ─── Medicine History Dialog ───────────────────────────────────────────────────
+function MedHistoryDialog({ records, herds, onClose }: { records: any[]; herds: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const sorted = [...records].sort((a, b) => new Date(b.administeredDate ?? 0).getTime() - new Date(a.administeredDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter(r => r.administeredDate && new Date(r.administeredDate).getFullYear() === yearFilter);
+
+  function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"; }
+
+  function handlePrint() {
+    const rows = filtered.map(r => {
+      const herd = herds.find((h: any) => h.id === r.herdId);
+      const wdEnd = r.withdrawalEndDate ? new Date(r.withdrawalEndDate).toLocaleDateString("en-GB") : "";
+      return `<tr><td>${fmtDate(r.administeredDate)}</td><td>${r.medicineName}</td><td>${herd?.name ?? (r.treatmentScope === "individual" ? `Animal #${r.animalId}` : r.treatmentScope ?? "—")}</td><td>${r.dosage || "—"}</td><td>${r.administeredBy || "—"}</td><td>${r.vetName || "—"}</td><td>${r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays}d (clears ${wdEnd})` : "—"}</td><td>${r.reason || ""}</td></tr>`;
+    }).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Medicine Treatment History</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:5px 6px;text-align:left;font-size:8.5pt}td{padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Medicine Treatment History</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")}${yearFilter !== "all" ? ` · Year: ${yearFilter}` : ""} · ${filtered.length} record${filtered.length !== 1 ? "s" : ""}</p><table><thead><tr><th>Date</th><th>Medicine</th><th>Herd / Animal</th><th>Dose</th><th>Administered By</th><th>Vet</th><th>Withdrawal</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">APHA requirement: retain medicine records for 5 years (cattle/sheep) or 3 years (pigs/poultry).</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Full Treatment History — All Years</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2">
+              <HeartPulse className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No records{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Medicine", "Herd / Animal", "Dose", "Administered By", "Vet", "Withdrawal", "Reason"].map(h => (
+                    <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r: any, i: number) => {
+                  const herd = herds.find((h: any) => h.id === r.herdId);
+                  const wdDays = r.withdrawalPeriodDays;
+                  const wdEnd = r.withdrawalEndDate ? new Date(r.withdrawalEndDate) : null;
+                  const wdPast = wdEnd && wdEnd < new Date();
+                  return (
+                    <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280", fontSize: "0.8125rem" }}>{fmtDate(r.administeredDate)}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#111827" }}>{r.medicineName}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{herd ? <span style={{ fontWeight: 500 }}>{herd.name}</span> : r.treatmentScope === "individual" ? <span style={{ color: "#6b7280" }}>Animal #{r.animalId}</span> : <span style={{ color: "#9ca3af" }}>—</span>}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>{r.dosage || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.administeredBy || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.vetName || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>
+                        {wdDays ? <span style={{ fontSize: "0.75rem", padding: "2px 6px", borderRadius: 99, background: wdPast ? "#f0fdf4" : "#fef2f2", color: wdPast ? "#15803d" : "#dc2626", fontWeight: 600, whiteSpace: "nowrap" }}>{wdDays}d{wdEnd ? ` — clears ${wdEnd.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}` : ""}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reason || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">APHA: retain medicine records for <strong>5 years</strong> (cattle/sheep) or <strong>3 years</strong> (pigs/poultry).</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5"><Printer className="w-3.5 h-3.5" />Print / Export</Button>}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main content ──────────────────────────────────────────────────────────────
 function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -774,6 +860,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MedicineRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<MedicineRecord | null>(null);
@@ -1055,6 +1142,9 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
             </div>
             <CropYearSelector value={cropYear} onChange={setCropYear} />
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="gap-2">
+                <History className="w-4 h-4" /> Full History
+              </Button>
               <Button variant="outline" size="sm" onClick={() => printMedicineRegister(filtered, herds, animals, farm, filterLabel)} className="gap-2">
                 <Printer className="w-4 h-4" /> Print Register
               </Button>
@@ -1085,6 +1175,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           )}
         </>
       )}
+
+      {historyOpen && <MedHistoryDialog records={allRecords} herds={herds} onClose={() => setHistoryOpen(false)} />}
 
       {/* ── View dialog ──────────────────────────────────── */}
       {viewRecord && (

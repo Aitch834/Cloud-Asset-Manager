@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import {
-  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2, ClipboardList, ArrowRight,
+  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2, ClipboardList, ArrowRight, History,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -441,6 +441,92 @@ function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: Ac
   );
 }
 
+// ─── Accident History Dialog ───────────────────────────────────────────────────
+function AccidentHistoryDialog({ records, onClose }: { records: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const sorted = [...records].sort((a, b) => new Date(b.incidentDate ?? 0).getTime() - new Date(a.incidentDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter(r => r.incidentDate && new Date(r.incidentDate).getFullYear() === yearFilter);
+  const fmtDate = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  function handlePrint() {
+    const rows = filtered.map(r => `<tr><td>${fmtDate(r.incidentDate)}${r.incidentTime ? ` ${r.incidentTime}` : ""}</td><td>${r.personName} (${r.personType})</td><td>${r.incidentLocation}</td><td>${r.natureOfIncident}</td><td>${r.natureOfInjury || "—"}</td><td>${r.riddorReportable ? (r.riddorReference ? `Yes — ${r.riddorReference}` : "Yes — PENDING") : "No"}</td><td>${r.status ?? "reported"}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Accident Book History</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:5px 7px;text-align:left;font-size:8.5pt}td{padding:4px 7px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Accident Book — Full History</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")} · ${filtered.length} record${filtered.length !== 1 ? "s" : ""}${yearFilter !== "all" ? ` (${yearFilter})` : ""}</p><table><thead><tr><th>Date / Time</th><th>Person</th><th>Location</th><th>Incident</th><th>Injury</th><th>RIDDOR</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">RIDDOR requirement: retain accident records for at least 3 years (fatal/specified: indefinitely).</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Accident Book — Full History</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2">
+              <BookOpen className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No accident records{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((r: any) => {
+                const isRiddorPending = r.riddorReportable && !r.riddorReference;
+                const isRiddorReported = r.riddorReportable && r.riddorReference;
+                const statusColors: Record<string, { bg: string; color: string }> = {
+                  reported: { bg: "#fffbeb", color: "#92400e" },
+                  under_investigation: { bg: "#eff6ff", color: "#1e40af" },
+                  corrective_action_taken: { bg: "#f0fdf4", color: "#15803d" },
+                  closed: { bg: "#f0fdf4", color: "#166534" },
+                };
+                const sc = statusColors[r.status ?? "reported"] ?? statusColors.reported;
+                return (
+                  <div key={r.id} style={{ padding: "12px 4px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ width: 88, textAlign: "right", flexShrink: 0 }}>
+                        <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "#111827", lineHeight: 1.2 }}>{r.incidentDate ? new Date(r.incidentDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</p>
+                        <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{r.incidentDate ? new Date(r.incidentDate).getFullYear() : ""}</p>
+                        {r.incidentTime && <p style={{ fontSize: "0.7rem", color: "#6b7280" }}>{r.incidentTime}</p>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 3 }}>
+                          <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{r.personName}</span>
+                          <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>({r.personType}{r.jobTitle ? ` — ${r.jobTitle}` : ""})</span>
+                          <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: sc.bg, color: sc.color }}>{(r.status ?? "reported").replace(/_/g, " ")}</span>
+                          {isRiddorPending && <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "#fef2f2", color: "#dc2626" }}>RIDDOR — Pending</span>}
+                          {isRiddorReported && <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "#f0fdf4", color: "#15803d" }}>RIDDOR — {r.riddorReference}</span>}
+                        </div>
+                        <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginBottom: 2 }}><strong>Location:</strong> {r.incidentLocation}</p>
+                        <p style={{ fontSize: "0.8125rem", color: "#374151" }}>{r.natureOfIncident.length > 120 ? r.natureOfIncident.slice(0, 120) + "…" : r.natureOfIncident}</p>
+                        {r.natureOfInjury && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 2 }}>Injury: {r.natureOfInjury}</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <DialogFooter style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+          <p style={{ fontSize: "0.7rem", color: "#6b7280", flex: 1 }}>RIDDOR: retain records for at least <strong>3 years</strong> (fatal/specified incidents: indefinitely).</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            {filtered.length > 0 && <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5"><Printer size={14} className="mr-1" />Print / Export</Button>}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AccidentBookPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
@@ -466,6 +552,7 @@ export default function AccidentBookPage() {
   const [filter, setFilter] = useState<"all" | "riddor-pending" | "riddor-reported" | "unsigned">("all");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [allYears, setAllYears] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
   const [investigateRecord, setInvestigateRecord] = useState<AccidentRecord | null>(null);
   const [correctiveActionRecord, setCorrectiveActionRecord] = useState<AccidentRecord | null>(null);
@@ -572,6 +659,8 @@ export default function AccidentBookPage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}><History size={14} className="mr-2" /> Full History</Button>
+            {historyOpen && <AccidentHistoryDialog records={records} onClose={() => setHistoryOpen(false)} />}
             <Button variant="outline" size="sm" onClick={handlePrint} disabled={!farmId}><Printer size={14} className="mr-2" /> Print Register</Button>
             <Button size="sm" onClick={openAdd} disabled={!farmId}><Plus size={14} className="mr-1" /> Add Entry</Button>
           </div>

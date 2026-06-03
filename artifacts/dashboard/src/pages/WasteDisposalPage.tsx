@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
-import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle, ClipboardList } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle, ClipboardList, History } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 interface WasteRecord {
@@ -104,6 +104,82 @@ const fmtFull = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 };
 
+// ─── Waste History Dialog ──────────────────────────────────────────────────────
+function WasteHistoryDialog({ records, onClose }: { records: any[]; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const sorted = [...records].sort((a, b) => new Date(b.disposalDate ?? 0).getTime() - new Date(a.disposalDate ?? 0).getTime());
+  const filtered = yearFilter === "all" ? sorted : sorted.filter(r => r.disposalDate && new Date(r.disposalDate).getFullYear() === yearFilter);
+  function fmtDate(d: string | null | undefined) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"; }
+
+  function handlePrint() {
+    const rows = filtered.map(r => `<tr><td>${fmtDate(r.disposalDate)}</td><td>${r.wasteType || "—"}</td><td>${r.ewcCode || "—"}</td><td>${r.quantity ? `${r.quantity} ${r.quantityUnit || ""}`.trim() : "—"}</td><td>${r.disposalMethod || "—"}</td><td>${r.carrierName || "—"}</td><td>${r.wasteTransferNote || "—"}</td><td>${r.notes || ""}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Waste Disposal History</title><style>body{font-family:Arial,sans-serif;font-size:10pt;margin:20mm}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#166534;color:#fff;padding:5px 7px;text-align:left;font-size:8.5pt}td{padding:4px 7px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}tr:nth-child(even) td{background:#f9fafb}.footer{margin-top:18px;font-size:8pt;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:8px}@media print{body{margin:10mm}}</style></head><body><h1 style="font-size:14pt">Waste Disposal History</h1><p style="font-size:9pt;color:#555">Printed: ${new Date().toLocaleDateString("en-GB")} · ${filtered.length} record${filtered.length !== 1 ? "s" : ""}${yearFilter !== "all" ? ` (${yearFilter})` : ""}</p><table><thead><tr><th>Date</th><th>Waste Type</th><th>EWC Code</th><th>Quantity</th><th>Method</th><th>Carrier</th><th>WTN</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table><p class="footer">Duty of Care: retain waste records for at least 2 years (3 years for hazardous waste).</p></body></html>`); w.document.close(); w.focus(); w.print(); }
+  }
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4 text-green-700" />Full Waste Disposal History — All Years</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button key={y} onClick={() => setYearFilter(y)} style={{ padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb", background: yearFilter === y ? "#f0fdf4" : "#fff", color: yearFilter === y ? "#15803d" : "#6b7280" }}>
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-2">
+              <Recycle className="w-9 h-9 text-gray-300" />
+              <p className="text-sm">No waste records{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Waste Type", "EWC Code", "Quantity", "Method", "Carrier", "WTN", "Notes"].map(h => (
+                    <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r: any, i: number) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280" }}>{fmtDate(r.disposalDate)}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>
+                      {r.wasteType || "—"}
+                      {r.ewcCode?.includes("*") && <span style={{ marginLeft: 4, fontSize: "0.65rem", background: "#fee2e2", color: "#991b1b", padding: "1px 5px", borderRadius: 4 }}>Hazardous</span>}
+                    </td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151" }}>{r.ewcCode || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>{r.quantity ? `${r.quantity} ${r.quantityUnit || ""}`.trim() : "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.disposalMethod || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.carrierName || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem" }}>{r.wasteTransferNote ? <span style={{ fontSize: "0.75rem", background: "#f0fdf4", color: "#15803d", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{r.wasteTransferNote}</span> : <span style={{ color: "#ef4444", fontSize: "0.75rem" }}>Missing</span>}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#9ca3af", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">Duty of Care: retain for at least <strong>2 years</strong> (3 years for hazardous waste).</p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5"><Printer size={14} className="mr-1" />Print / Export</Button>}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function WasteDisposalPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -117,6 +193,7 @@ export default function WasteDisposalPage() {
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [raiseTaskFor, setRaiseTaskFor] = useState<WasteRecord | null>(null);
   const [reportFrom, setReportFrom] = useState(() => {
     const d = new Date(); d.setFullYear(d.getFullYear() - 1);
@@ -414,6 +491,8 @@ export default function WasteDisposalPage() {
             <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
           </div>
           <CropYearSelector value={cropYear} onChange={setCropYear} />
+          <Button variant="outline" onClick={() => setHistoryOpen(true)}><History size={14} className="mr-1" />Full History</Button>
+          {historyOpen && <WasteHistoryDialog records={records} onClose={() => setHistoryOpen(false)} />}
           <Button variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>
           <Button onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
