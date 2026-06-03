@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Package, Printer, CalendarDays } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package, Printer } from "lucide-react";
 import { openPrintWindow } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -81,258 +81,14 @@ function useCrud(farmId: number, endpoint: string, key: string) {
   return { data, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit };
 }
 
-// ── Booking helpers ───────────────────────────────────────────────────────────
-type DivBooking = { id: number; activityId: number; bookingRef: string; guestName: string; guestEmail?: string | null; guestPhone?: string | null; unitName?: string | null; bookingType: string; startDate: string; endDate?: string | null; startTime?: string | null; endTime?: string | null; partySize?: number | null; status: string; amountNet?: string | null; depositPaid?: string | null; notes?: string | null; };
-
-const BOOKING_STATUS_OPTS = ["enquiry", "confirmed", "cancelled", "completed", "no_show"];
-const BOOKING_TYPE_OPTS = ["overnight", "day_event", "slot", "drop_in"];
-const STATUS_DOT: Record<string, string> = { confirmed: "bg-green-500", enquiry: "bg-amber-400", cancelled: "bg-gray-400", completed: "bg-blue-400", no_show: "bg-red-400" };
-const STATUS_BADGE: Record<string, string> = { confirmed: "bg-green-100 text-green-800", enquiry: "bg-amber-100 text-amber-800", cancelled: "bg-gray-100 text-gray-600", completed: "bg-blue-100 text-blue-800", no_show: "bg-red-100 text-red-700" };
-
-function getDefaultBookingType(activityType: string): string {
-  if (/holiday|accommodation|glamping|storage/i.test(activityType)) return "overnight";
-  if (/event|wedding|shooting/i.test(activityType)) return "day_event";
-  if (/equine|leisure/i.test(activityType)) return "slot";
-  if (/shop/i.test(activityType)) return "drop_in";
-  return "day_event";
-}
-
-function BookingCalendar({ year, month, bookings, selectedDate, onSelectDate, onPrev, onNext }: { year: number; month: number; bookings: DivBooking[]; selectedDate: string | null; onSelectDate: (d: string) => void; onPrev: () => void; onNext: () => void; }) {
-  const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-  const firstDow = (new Date(year, month - 1, 1).getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const cells = Array.from({ length: firstDow + daysInMonth }, (_, i) => i >= firstDow ? i - firstDow + 1 : null);
-  const bookingsByDate: Record<string, DivBooking[]> = {};
-  for (const b of bookings) {
-    const d = b.startDate?.slice(0, 10);
-    if (d) { if (!bookingsByDate[d]) bookingsByDate[d] = []; bookingsByDate[d].push(b); }
-  }
-  const monthLabel = new Date(year, month - 1, 1).toLocaleString("en-GB", { month: "long", year: "numeric" });
-  const todayStr = new Date().toISOString().slice(0, 10);
-  return (
-    <div className="border rounded-lg p-3 select-none">
-      <div className="flex items-center justify-between mb-3">
-        <button type="button" onClick={onPrev} className="p-1 hover:bg-gray-100 rounded"><ChevronLeft className="w-4 h-4" /></button>
-        <span className="font-medium text-sm">{monthLabel}</span>
-        <button type="button" onClick={onNext} className="p-1 hover:bg-gray-100 rounded"><ChevronRight className="w-4 h-4" /></button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 mb-1">
-        {DAYS.map(d => <div key={d} className="text-center text-xs text-muted-foreground font-medium py-0.5">{d}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((day, i) => {
-          if (!day) return <div key={i} />;
-          const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const dayBookings = bookingsByDate[dateStr] || [];
-          const isSelected = selectedDate === dateStr;
-          const isToday = dateStr === todayStr;
-          return (
-            <button key={i} type="button" onClick={() => onSelectDate(dateStr)} className={`relative rounded p-1 text-xs text-center transition-colors min-h-[2rem] flex flex-col items-center justify-start ${isSelected ? "bg-green-800 text-white" : isToday ? "bg-green-50 font-semibold" : "hover:bg-gray-50"}`}>
-              <span>{day}</span>
-              {dayBookings.length > 0 && (
-                <div className="flex gap-0.5 flex-wrap justify-center mt-0.5">
-                  {dayBookings.slice(0, 3).map((b, bi) => <span key={bi} className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : STATUS_DOT[b.status] || "bg-gray-400"}`} />)}
-                  {dayBookings.length > 3 && <span className={`text-[9px] leading-none ${isSelected ? "text-white" : "text-muted-foreground"}`}>+{dayBookings.length - 3}</span>}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function BookingsSection({ farmId, activities }: { farmId: number; activities: Record<string, unknown>[]; }) {
-  const qc = useQueryClient();
-  const now = new Date();
-  const [calYear, setCalYear] = useState(now.getFullYear());
-  const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [editBooking, setEditBooking] = useState<DivBooking | null>(null);
-  const [bookingForm, setBookingForm] = useState<Record<string, unknown>>({});
-  const [pendingDelId, setPendingDelId] = useState<number | null>(null);
-
-  const { data: bookingsData = { bookings: [] }, isLoading: bLoading } = useQuery({
-    queryKey: ["div-bookings", farmId, calYear, calMonth],
-    queryFn: () => fetch(api(`farms/${farmId}/diversification-bookings?year=${calYear}&month=${calMonth}`), { credentials: "include" }).then(r => r.json()),
-  });
-  const bookings: DivBooking[] = (bookingsData.bookings || []).map((row: Record<string, unknown>) => (row.booking as DivBooking) || (row as unknown as DivBooking));
-
-  const saveBooking = useMutation({
-    mutationFn: (b: Record<string, unknown>) => fetch(editBooking ? api(`farms/${farmId}/diversification-bookings/${editBooking.id}`) : api(`farms/${farmId}/diversification-bookings`), { method: editBooking ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["div-bookings", farmId] }); setBookingOpen(false); setEditBooking(null); setBookingForm({}); },
-  });
-  const delBooking = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/diversification-bookings/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["div-bookings", farmId] }); setPendingDelId(null); },
-  });
-
-  const selectedBookings = selectedDate ? bookings.filter(b => b.startDate?.slice(0, 10) === selectedDate) : [];
-
-  function openNewBooking() {
-    setEditBooking(null);
-    const defaultAct = activities[0];
-    const defaultType = defaultAct ? getDefaultBookingType(String(defaultAct.activityType || "")) : "day_event";
-    setBookingForm({ activityId: String(defaultAct?.id || ""), bookingType: defaultType, status: "confirmed", startDate: selectedDate || new Date().toISOString().slice(0, 10) });
-    setBookingOpen(true);
-  }
-  function openEditBooking(b: DivBooking) {
-    setEditBooking(b);
-    setBookingForm(Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v ?? ""])));
-    setBookingOpen(true);
-  }
-  function prevMonth() { if (calMonth === 1) { setCalMonth(12); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); setSelectedDate(null); }
-  function nextMonth() { if (calMonth === 12) { setCalMonth(1); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); setSelectedDate(null); }
-
-  const bookingType = String(bookingForm.bookingType || "day_event");
-  const isOvernight = bookingType === "overnight";
-  const hasTimes = bookingType !== "drop_in";
-  const hasUnit = ["overnight", "day_event", "slot"].includes(bookingType);
-
-  return (
-    <div className="space-y-4 mt-6 pt-6 border-t">
-      <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-sm flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-green-700" />Bookings</h4>
-        <Button size="sm" onClick={openNewBooking}><Plus className="w-4 h-4 mr-1" />New Booking</Button>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <BookingCalendar year={calYear} month={calMonth} bookings={bookings} selectedDate={selectedDate} onSelectDate={setSelectedDate} onPrev={prevMonth} onNext={nextMonth} />
-        <div className="space-y-2 min-h-[12rem]">
-          {selectedDate ? (
-            <>
-              <p className="text-xs text-muted-foreground font-medium">{new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
-              {bLoading ? <Loader2 className="animate-spin w-5 h-5" /> : selectedBookings.length === 0 ? <Empty msg="No bookings on this date." /> : selectedBookings.map(b => (
-                <div key={b.id} className="border rounded-lg p-3 space-y-1 text-sm bg-white">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[b.status] || "bg-gray-400"}`} />
-                      <span className="font-medium truncate">{b.guestName}</span>
-                      <span className="text-muted-foreground text-xs font-mono">{b.bookingRef}</span>
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openEditBooking(b)}><Pencil className="w-3 h-3" /></Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPendingDelId(b.id)}><Trash2 className="w-3 h-3 text-red-500" /></Button>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                    <span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[b.status] || "bg-gray-100 text-gray-700"}`}>{b.status?.replace(/_/g, " ")}</span>
-                    <span>{b.bookingType?.replace(/_/g, " ")}</span>
-                    {b.unitName && <span>Unit: {b.unitName}</span>}
-                    {b.partySize && <span>{b.partySize} guests</span>}
-                    {b.amountNet && <span>£{Number(b.amountNet).toFixed(2)}</span>}
-                    {b.startTime && <span>{b.startTime}{b.endTime ? `–${b.endTime}` : ""}</span>}
-                  </div>
-                  {b.notes && <p className="text-xs text-muted-foreground italic">{b.notes}</p>}
-                </div>
-              ))}
-            </>
-          ) : (
-            <div className="border rounded-lg p-4 text-center flex items-center justify-center h-full">
-              {bLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <p className="text-sm text-muted-foreground">Select a date on the calendar to view or add bookings</p>}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <ConfirmDialog open={pendingDelId !== null} title="Delete Booking" message="Are you sure you want to delete this booking? This cannot be undone." onConfirm={() => { if (pendingDelId) delBooking.mutate(pendingDelId); }} onCancel={() => setPendingDelId(null)} confirmLabel="Delete" confirmVariant="destructive" />
-
-      <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
-        <DialogContent style={{ maxWidth: "44rem" }}>
-          <DialogHeader><DialogTitle>{editBooking ? "Edit Booking" : "New Booking"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><Label>Activity *</Label>
-              <Select value={String(bookingForm.activityId ?? "")} onValueChange={v => setBookingForm(f => ({ ...f, activityId: v, bookingType: getDefaultBookingType(String(activities.find(a => String(a.id) === v)?.activityType || "")) }))}>
-                <SelectTrigger><SelectValue placeholder="Select activity" /></SelectTrigger>
-                <SelectContent>{activities.map(a => <SelectItem key={String(a.id)} value={String(a.id)}>{String(a.activityName)}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Booking Type *</Label>
-              <Select value={bookingType} onValueChange={v => setBookingForm(f => ({ ...f, bookingType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{BOOKING_TYPE_OPTS.map(o => <SelectItem key={o} value={o}>{o.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Start Date *</Label><Input type="date" value={String(bookingForm.startDate ?? "")} onChange={e => setBookingForm(f => ({ ...f, startDate: e.target.value }))} /></div>
-            {isOvernight ? <div><Label>End Date</Label><Input type="date" value={String(bookingForm.endDate ?? "")} onChange={e => setBookingForm(f => ({ ...f, endDate: e.target.value }))} /></div> : <div />}
-            {hasTimes && <>
-              <div><Label>Start Time</Label><Input type="time" value={String(bookingForm.startTime ?? "")} onChange={e => setBookingForm(f => ({ ...f, startTime: e.target.value }))} /></div>
-              <div><Label>End Time</Label><Input type="time" value={String(bookingForm.endTime ?? "")} onChange={e => setBookingForm(f => ({ ...f, endTime: e.target.value }))} /></div>
-            </>}
-            <div className="col-span-2"><Label>Guest Name *</Label><Input value={String(bookingForm.guestName ?? "")} onChange={e => setBookingForm(f => ({ ...f, guestName: e.target.value }))} /></div>
-            <div><Label>Email</Label><Input type="email" value={String(bookingForm.guestEmail ?? "")} onChange={e => setBookingForm(f => ({ ...f, guestEmail: e.target.value }))} /></div>
-            <div><Label>Phone</Label><Input value={String(bookingForm.guestPhone ?? "")} onChange={e => setBookingForm(f => ({ ...f, guestPhone: e.target.value }))} /></div>
-            {hasUnit && <div><Label>Unit / Room Name</Label><Input placeholder="e.g. Barn Cottage, Pitch 3" value={String(bookingForm.unitName ?? "")} onChange={e => setBookingForm(f => ({ ...f, unitName: e.target.value }))} /></div>}
-            <div><Label>Party Size</Label><Input type="number" min="1" value={String(bookingForm.partySize ?? "")} onChange={e => setBookingForm(f => ({ ...f, partySize: e.target.value }))} /></div>
-            <div><Label>Amount (£ net)</Label><Input type="number" step="0.01" value={String(bookingForm.amountNet ?? "")} onChange={e => setBookingForm(f => ({ ...f, amountNet: e.target.value }))} /></div>
-            <div><Label>Deposit Paid (£)</Label><Input type="number" step="0.01" value={String(bookingForm.depositPaid ?? "")} onChange={e => setBookingForm(f => ({ ...f, depositPaid: e.target.value }))} /></div>
-            <div><Label>Status *</Label>
-              <Select value={String(bookingForm.status ?? "confirmed")} onValueChange={v => setBookingForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{BOOKING_STATUS_OPTS.map(o => <SelectItem key={o} value={o}>{o.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(bookingForm.notes ?? "")} onChange={e => setBookingForm(f => ({ ...f, notes: e.target.value }))} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBookingOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveBooking.mutate(bookingForm)} disabled={saveBooking.isPending}>Save Booking</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 function ActivitiesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
-  const [activeType, setActiveType] = useState<string | null>(null);
-  const { data: acts = [], isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "diversification-activities", "div-activities");
+  const { data: acts, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "diversification-activities", "div-activities");
   const TYPES = ["Farm Shop / Direct Sales", "Holiday Accommodation / Glamping", "Equine / Livery", "Renewable Energy", "Shooting & Game", "Leisure & Recreation", "Food Processing", "Dairy / Artisan Processing", "Events / Weddings", "Storage / Industrial Let", "Other"];
-  const registeredTypes = useMemo(() => {
-    const seen = new Set<string>(); const types: string[] = [];
-    for (const a of acts as Record<string, unknown>[]) { const t = String(a.activityType || ""); if (t && !seen.has(t)) { seen.add(t); types.push(t); } }
-    return types.sort((a, b) => TYPES.indexOf(a) - TYPES.indexOf(b));
-  }, [acts]);
-  const currentType = activeType && registeredTypes.includes(activeType) ? activeType : null;
-  const filteredActs = currentType ? (acts as Record<string, unknown>[]).filter(a => a.activityType === currentType) : (acts as Record<string, unknown>[]);
-
   return (
     <div className="space-y-4">
-      {registeredTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1 border-b pb-3">
-          <button type="button" onClick={() => setActiveType(null)} className={`px-3 py-1 rounded text-xs font-medium transition-colors ${!currentType ? "bg-green-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>All Activities</button>
-          {registeredTypes.map(t => (
-            <button key={t} type="button" onClick={() => setActiveType(t)} className={`px-3 py-1 rounded text-xs font-medium transition-colors ${currentType === t ? "bg-green-800 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{t}</button>
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-sm">{currentType ? currentType : "All Diversification Activities"}</h3>
-          <Button size="sm" onClick={() => openAdd({ status: "active", ...(currentType ? { activityType: currentType } : {}) })}><Plus className="w-4 h-4 mr-1" />Add Activity</Button>
-        </div>
-        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-          <DataTable
-            cols={[
-              { key: "activityName", label: "Activity" },
-              ...(!currentType ? [{ key: "activityType", label: "Type" }] : []),
-              { key: "startDate", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.startDate) },
-              { key: "planningPermissionRef", label: "Planning Ref" },
-              { key: "status", label: "Status" },
-              { key: "annualTurnover", label: "Annual Turnover (£)" },
-            ]}
-            rows={filteredActs}
-            onView={setViewRecord}
-            onEdit={r => openEdit(r)}
-            onDelete={r => del.mutate(r.id as number)}
-          />
-        )}
-      </div>
-
-      {currentType && filteredActs.length > 0 && <BookingsSection farmId={farmId} activities={filteredActs} />}
+      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Diversification Activities</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Activity</Button></div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "activityName", label: "Activity" }, { key: "activityType", label: "Type" }, { key: "startDate", label: "Start Date", fmt: r => fmtDate(r.startDate) }, { key: "planningPermissionRef", label: "Planning Ref" }, { key: "status", label: "Status" }, { key: "annualTurnover", label: "Annual Turnover (£)" }]} rows={acts as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -359,7 +115,7 @@ function ActivitiesTab({ farmId }: { farmId: number }) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Diversification Activity</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Diversification Activity</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Label>Activity Name *</Label><Input value={String(form.activityName ?? "")} onChange={e => setForm(f => ({ ...f, activityName: e.target.value }))} /></div>
             <div><Label>Activity Type *</Label>

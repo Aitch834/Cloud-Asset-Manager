@@ -212,7 +212,6 @@ import {
   carbonReductionActionsTable,
   sustainabilityReportsTable,
   diversificationActivitiesTable,
-  diversificationBookingsTable,
   farmShopProductsTable,
   farmShopSuppliersTable,
   farmShopPurchasesTable,
@@ -14417,7 +14416,6 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     bvdNextTestRows, johnesNextTestRows, salmNextSamplingRows,
     ipmReviewRows, lerapExpiryRows,
     nvzRiskReviewRows, nvzActiveRestrictionsRows,
-    divBookingRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14924,12 +14922,6 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(nvzRiskAssessmentsTable)
       .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.applicationRestrictionsIdentified))),
 
-    // ── Diversification Bookings: upcoming confirmed ──────────────────────────
-    db.select({ id: diversificationBookingsTable.id, guestName: diversificationBookingsTable.guestName, unitName: diversificationBookingsTable.unitName, startDate: diversificationBookingsTable.startDate, bookingType: diversificationBookingsTable.bookingType, bookingRef: diversificationBookingsTable.bookingRef, activityName: diversificationActivitiesTable.activityName })
-      .from(diversificationBookingsTable)
-      .leftJoin(diversificationActivitiesTable, eq(diversificationBookingsTable.activityId, diversificationActivitiesTable.id))
-      .where(and(eq(diversificationBookingsTable.farmId, farmId), eq(diversificationBookingsTable.status, "confirmed"), gte(diversificationBookingsTable.startDate, now.toISOString().split("T")[0]), lt(diversificationBookingsTable.startDate, rangeEnd.toISOString().split("T")[0]))),
-
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -15144,11 +15136,6 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of diversInsuranceRows) {
     if (!r.insuranceRenewalDate) continue;
     tasks.push({ id: `diversins-${r.id}`, type: "diversification_insurance_renewal", title: `Diversification Insurance Renewal — ${r.activityName}`, description: `Insurance for '${r.activityName}' (${r.activityType}) is due for renewal. Arrange cover to remain compliant and update in Diversification.`, dueDate: toISO(r.insuranceRenewalDate)!, module: "Diversification", href: `/diversification?tab=activities&open=${r.id}`, colour: "blue" });
-  }
-  for (const r of divBookingRows) {
-    if (!r.startDate) continue;
-    const typeLabel = (r.bookingType as string || "booking").replace(/_/g, " ");
-    tasks.push({ id: `divbook-${r.id}`, type: "diversification_booking", title: `${r.activityName || "Diversification"} Booking — ${r.guestName}`, description: `Confirmed ${typeLabel}${r.unitName ? ` (${r.unitName})` : ""} for ${r.guestName}. Ref: ${r.bookingRef}.`, dueDate: toISO(r.startDate)!, module: "Diversification", href: `/diversification?tab=activities`, colour: "blue" });
   }
   for (const r of renewableServiceRows) {
     if (!r.nextServiceDate) continue;
@@ -19783,57 +19770,6 @@ router.delete("/farms/:farmId/diversification-income/:id", requireAuth, requireT
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(diversificationIncomeRecordsTable).where(and(eq(diversificationIncomeRecordsTable.id, id), eq(diversificationIncomeRecordsTable.farmId, farmId)));
-  res.json({ success: true });
-});
-
-// ── Diversification Bookings ──────────────────────────────────────────────────
-router.get("/farms/:farmId/diversification-bookings", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const activityIdRaw = req.query.activityId ? parseInt(String(req.query.activityId)) : null;
-  const monthRaw = req.query.month ? parseInt(String(req.query.month)) : null;
-  const yearRaw = req.query.year ? parseInt(String(req.query.year)) : null;
-  const fromD = (monthRaw && yearRaw) ? `${yearRaw}-${String(monthRaw).padStart(2, "0")}-01` : null;
-  const toD = (monthRaw && yearRaw) ? new Date(yearRaw, monthRaw, 1).toISOString().split("T")[0] : null;
-  const rows = await db.select({
-    booking: diversificationBookingsTable,
-    activityName: diversificationActivitiesTable.activityName,
-    activityType: diversificationActivitiesTable.activityType,
-  }).from(diversificationBookingsTable)
-    .leftJoin(diversificationActivitiesTable, eq(diversificationBookingsTable.activityId, diversificationActivitiesTable.id))
-    .where(and(
-      eq(diversificationBookingsTable.farmId, farmId),
-      activityIdRaw ? eq(diversificationBookingsTable.activityId, activityIdRaw) : undefined,
-      fromD ? gte(diversificationBookingsTable.startDate, fromD) : undefined,
-      toD ? sql`${diversificationBookingsTable.startDate} < ${toD}` : undefined,
-    ))
-    .orderBy(asc(diversificationBookingsTable.startDate));
-  res.json({ bookings: rows });
-});
-
-router.post("/farms/:farmId/diversification-bookings", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const body = sanitiseBody(req.body as Record<string, unknown>);
-  const { activityId, bookingRef: suppliedRef, ...rest } = body as Record<string, unknown>;
-  const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(diversificationBookingsTable).where(eq(diversificationBookingsTable.farmId, farmId));
-  const seq = (Number(cnt) || 0) + 1;
-  const bookingRef = suppliedRef || `BOOK-${new Date().getFullYear()}-${String(seq).padStart(3, "0")}`;
-  const [row] = await db.insert(diversificationBookingsTable).values({ ...(rest as any), farmId, activityId: parseInt(activityId as string), bookingRef: bookingRef as string }).returning();
-  res.json({ booking: row });
-});
-
-router.put("/farms/:farmId/diversification-bookings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const body = sanitiseBody(req.body as Record<string, unknown>);
-  const { activityId, ...rest } = body as Record<string, unknown>;
-  const [row] = await db.update(diversificationBookingsTable).set({ ...rest, ...(activityId !== undefined ? { activityId: parseInt(activityId as string) } : {}) }).where(and(eq(diversificationBookingsTable.id, id), eq(diversificationBookingsTable.farmId, farmId))).returning();
-  res.json({ booking: row });
-});
-
-router.delete("/farms/:farmId/diversification-bookings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  await db.delete(diversificationBookingsTable).where(and(eq(diversificationBookingsTable.id, id), eq(diversificationBookingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
