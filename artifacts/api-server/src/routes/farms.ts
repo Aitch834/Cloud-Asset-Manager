@@ -312,6 +312,7 @@ import {
   equipmentHireFuelIssuesTable,
   tbTestsTable,
   welfareOutcomeAssessmentsTable,
+  welfareWalkthroughObservationsTable,
   ppeIssueRecordsTable,
   ppeStockItemsTable,
   ppeRiskAssessmentsTable,
@@ -24943,11 +24944,36 @@ router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTe
   if (!farmId) return;
   const b = req.body as Record<string, unknown>;
   if (!b.assessmentDate || !b.assessorName || !b.species || !b.overallOutcome) { res.status(400).json({ error: "assessmentDate, assessorName, species and overallOutcome are required" }); return; }
+
+  // Auto-create a purchase order draft when an external assessor is used with a fee
+  let purchaseOrderId: number | null = null;
+  const isExternal = b.assessorType === "external";
+  const feeAmountPence = b.expectedFeeAmountPence != null ? Number(b.expectedFeeAmountPence) : null;
+  const assessorSupplierId = b.assessorSupplierId != null ? Number(b.assessorSupplierId) : null;
+  if (isExternal && feeAmountPence && feeAmountPence > 0 && assessorSupplierId) {
+    const poNumber = `WOA-${String(b.assessmentDate).slice(0, 7).replace("-", "")}-${Date.now().toString(36).toUpperCase()}`;
+    const [po] = await db.insert(purchaseOrdersTable).values({
+      farmId,
+      supplierId: assessorSupplierId,
+      poNumber,
+      orderDate: new Date(String(b.assessmentDate)),
+      status: "pending_invoice",
+      notes: `Welfare Outcome Assessment service fee. Assessor: ${String(b.assessorName)}. Assessment date: ${String(b.assessmentDate)}.`,
+      submittedByName: "Auto — WOA module",
+    }).returning({ id: purchaseOrdersTable.id });
+    purchaseOrderId = po?.id ?? null;
+  }
+
   const [record] = await db.insert(welfareOutcomeAssessmentsTable).values({
     farmId,
     assessmentDate: String(b.assessmentDate),
     assessorName: String(b.assessorName),
     assessorRole: b.assessorRole ? String(b.assessorRole) : null,
+    assessorType: b.assessorType ? String(b.assessorType) : "external",
+    assessorMemberId: b.assessorMemberId != null ? Number(b.assessorMemberId) : null,
+    assessorSupplierId,
+    expectedFeeAmountPence: feeAmountPence,
+    purchaseOrderId,
     species: String(b.species),
     herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null,
     sampleSize: b.sampleSize != null ? Number(b.sampleSize) : null,
@@ -24959,6 +24985,14 @@ router.post("/farms/:farmId/welfare-outcome-assessments", requireAuth, requireTe
     eyeDischargeScore: b.eyeDischargeScore ? String(b.eyeDischargeScore) : null,
     mortalityRate: b.mortalityRate ? String(b.mortalityRate) : null,
     calvingLambingScore: b.calvingLambingScore ? String(b.calvingLambingScore) : null,
+    dagScore: b.dagScore ? String(b.dagScore) : null,
+    tailBitingScore: b.tailBitingScore ? String(b.tailBitingScore) : null,
+    snoutRootingScore: b.snoutRootingScore ? String(b.snoutRootingScore) : null,
+    featherCoverageScore: b.featherCoverageScore ? String(b.featherCoverageScore) : null,
+    footpadDermatitisScore: b.footpadDermatitisScore ? String(b.footpadDermatitisScore) : null,
+    hockBurnScore: b.hockBurnScore ? String(b.hockBurnScore) : null,
+    culledBirdsRate: b.culledBirdsRate ? String(b.culledBirdsRate) : null,
+    stockingDensityCompliant: b.stockingDensityCompliant ? String(b.stockingDensityCompliant) : null,
     overallOutcome: String(b.overallOutcome),
     correctiveActions: b.correctiveActions ? String(b.correctiveActions) : null,
     targetDate: b.targetDate ? String(b.targetDate) : null,
@@ -24977,7 +25011,7 @@ router.put("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, requir
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["assessmentDate","assessorName","assessorRole","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","documentPath","notes"];
+  const fields = ["assessmentDate","assessorName","assessorRole","assessorType","assessorMemberId","assessorSupplierId","expectedFeeAmountPence","purchaseOrderId","species","herdFlockRef","sampleSize","lamenessScore","bodyConditionScore","dungScore","skinLesionScore","nasalDischargeScore","eyeDischargeScore","mortalityRate","calvingLambingScore","dagScore","tailBitingScore","snoutRootingScore","featherCoverageScore","footpadDermatitisScore","hockBurnScore","culledBirdsRate","stockingDensityCompliant","overallOutcome","correctiveActions","targetDate","nextAssessmentDue","documentUrl","documentName","documentPath","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(welfareOutcomeAssessmentsTable).set(updates).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -24990,6 +25024,68 @@ router.delete("/farms/:farmId/welfare-outcome-assessments/:id", requireAuth, req
   const id = parseInt(req.params.id as string);
   await db.delete(welfareOutcomeAssessmentsTable).where(and(eq(welfareOutcomeAssessmentsTable.id, id), eq(welfareOutcomeAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// WOA: active supplier lookup (for external assessor dropdown — uses livestock-management module key)
+router.get("/farms/:farmId/woa-suppliers", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({
+    id: suppliersTable.id,
+    name: suppliersTable.name,
+    contactName: suppliersTable.contactName,
+    phone: suppliersTable.phone,
+    email: suppliersTable.email,
+    supplierType: suppliersTable.supplierType,
+  }).from(suppliersTable).where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true))).orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
+// WOA Walkthrough Observations
+router.get("/farms/:farmId/woa-walkthrough", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const woaId = req.query.woaId ? parseInt(req.query.woaId as string) : null;
+  const where = woaId
+    ? and(eq(welfareWalkthroughObservationsTable.farmId, farmId), eq(welfareWalkthroughObservationsTable.woaId, woaId))
+    : eq(welfareWalkthroughObservationsTable.farmId, farmId);
+  const records = await db.select().from(welfareWalkthroughObservationsTable).where(where).orderBy(desc(welfareWalkthroughObservationsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/woa-walkthrough", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  if (!b.assessmentDate || !b.observedBy || !b.species) { res.status(400).json({ error: "assessmentDate, observedBy and species are required" }); return; }
+  const numOrNull = (v: unknown) => v != null && v !== "" ? Number(v) : null;
+  const [record] = await db.insert(welfareWalkthroughObservationsTable).values({
+    farmId,
+    woaId: b.woaId != null ? Number(b.woaId) : null,
+    assessmentDate: String(b.assessmentDate),
+    species: String(b.species),
+    herdFlockRef: b.herdFlockRef ? String(b.herdFlockRef) : null,
+    observedBy: String(b.observedBy),
+    observerMemberId: b.observerMemberId != null ? Number(b.observerMemberId) : null,
+    sampleSize: numOrNull(b.sampleSize),
+    lamenessAffected: numOrNull(b.lamenessAffected), lamenessTotal: numOrNull(b.lamenessTotal),
+    bcsAffected: numOrNull(b.bcsAffected), bcsTotal: numOrNull(b.bcsTotal),
+    dungAffected: numOrNull(b.dungAffected), dungTotal: numOrNull(b.dungTotal),
+    skinLesionAffected: numOrNull(b.skinLesionAffected), skinLesionTotal: numOrNull(b.skinLesionTotal),
+    nasalDischargeAffected: numOrNull(b.nasalDischargeAffected), nasalDischargeTotal: numOrNull(b.nasalDischargeTotal),
+    eyeDischargeAffected: numOrNull(b.eyeDischargeAffected), eyeDischargeTotal: numOrNull(b.eyeDischargeTotal),
+    calvingLambingAffected: numOrNull(b.calvingLambingAffected), calvingLambingTotal: numOrNull(b.calvingLambingTotal),
+    dagAffected: numOrNull(b.dagAffected), dagTotal: numOrNull(b.dagTotal),
+    tailBitingAffected: numOrNull(b.tailBitingAffected), tailBitingTotal: numOrNull(b.tailBitingTotal),
+    snoutRootingAffected: numOrNull(b.snoutRootingAffected), snoutRootingTotal: numOrNull(b.snoutRootingTotal),
+    featherCoverageAffected: numOrNull(b.featherCoverageAffected), featherCoverageTotal: numOrNull(b.featherCoverageTotal),
+    footpadDermatitisAffected: numOrNull(b.footpadDermatitisAffected), footpadDermatitisTotal: numOrNull(b.footpadDermatitisTotal),
+    hockBurnAffected: numOrNull(b.hockBurnAffected), hockBurnTotal: numOrNull(b.hockBurnTotal),
+    culledBirdsAffected: numOrNull(b.culledBirdsAffected), culledBirdsTotal: numOrNull(b.culledBirdsTotal),
+    walkthroughNotes: b.walkthroughNotes ? String(b.walkthroughNotes) : null,
+    weatherConditions: b.weatherConditions ? String(b.weatherConditions) : null,
+  }).returning();
+  res.json({ record });
 });
 
 // ─── PPE Issue Records ────────────────────────────────────────────────────────

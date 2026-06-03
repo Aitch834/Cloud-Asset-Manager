@@ -6059,9 +6059,147 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
 
 // ─── Welfare Outcome Assessment ────────────────────────────────────────────────
 
-interface WelfareOutcomeRecord { id: number; farmId: number; assessmentDate: string; assessorName: string; assessorRole: string | null; species: string; herdFlockRef: string | null; sampleSize: number | null; lamenessScore: string | null; bodyConditionScore: string | null; dungScore: string | null; skinLesionScore: string | null; nasalDischargeScore: string | null; eyeDischargeScore: string | null; mortalityRate: string | null; calvingLambingScore: string | null; overallOutcome: string; correctiveActions: string | null; targetDate: string | null; nextAssessmentDue: string | null; documentUrl: string | null; documentName: string | null; documentPath: string | null; notes: string | null; }
+interface WelfareOutcomeRecord {
+  id: number; farmId: number; assessmentDate: string;
+  assessorName: string; assessorRole: string | null;
+  assessorType: string;
+  assessorMemberId: number | null; assessorSupplierId: number | null;
+  expectedFeeAmountPence: number | null; purchaseOrderId: number | null;
+  species: string; herdFlockRef: string | null; sampleSize: number | null;
+  lamenessScore: string | null; bodyConditionScore: string | null;
+  dungScore: string | null; skinLesionScore: string | null;
+  nasalDischargeScore: string | null; eyeDischargeScore: string | null;
+  mortalityRate: string | null; calvingLambingScore: string | null;
+  dagScore: string | null; tailBitingScore: string | null; snoutRootingScore: string | null;
+  featherCoverageScore: string | null; footpadDermatitisScore: string | null;
+  hockBurnScore: string | null; culledBirdsRate: string | null;
+  stockingDensityCompliant: string | null;
+  overallOutcome: string; correctiveActions: string | null;
+  targetDate: string | null; nextAssessmentDue: string | null;
+  documentUrl: string | null; documentName: string | null; documentPath: string | null;
+  notes: string | null;
+}
 
-const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = { assessmentDate: "", assessorName: "", assessorRole: null, species: "cattle", herdFlockRef: null, sampleSize: null, lamenessScore: null, bodyConditionScore: null, dungScore: null, skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null, mortalityRate: null, calvingLambingScore: null, overallOutcome: "acceptable", correctiveActions: null, targetDate: null, nextAssessmentDue: null, documentUrl: null, documentName: null, documentPath: null, notes: null };
+const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = {
+  assessmentDate: "", assessorName: "", assessorRole: null,
+  assessorType: "external", assessorMemberId: null, assessorSupplierId: null,
+  expectedFeeAmountPence: null, purchaseOrderId: null,
+  species: "cattle", herdFlockRef: null, sampleSize: null,
+  lamenessScore: null, bodyConditionScore: null, dungScore: null,
+  skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null,
+  mortalityRate: null, calvingLambingScore: null,
+  dagScore: null, tailBitingScore: null, snoutRootingScore: null,
+  featherCoverageScore: null, footpadDermatitisScore: null,
+  hockBurnScore: null, culledBirdsRate: null, stockingDensityCompliant: null,
+  overallOutcome: "acceptable", correctiveActions: null,
+  targetDate: null, nextAssessmentDue: null,
+  documentUrl: null, documentName: null, documentPath: null, notes: null,
+};
+
+interface WalkThroughForm {
+  observedBy: string; observerMemberId: number | null; assessmentDate: string; sampleSize: number | null;
+  lamenessAffected: number | null; lamenessTotal: number | null;
+  bcsAffected: number | null; bcsTotal: number | null;
+  dungAffected: number | null; dungTotal: number | null;
+  skinLesionAffected: number | null; skinLesionTotal: number | null;
+  nasalDischargeAffected: number | null; nasalDischargeTotal: number | null;
+  eyeDischargeAffected: number | null; eyeDischargeTotal: number | null;
+  calvingLambingAffected: number | null; calvingLambingTotal: number | null;
+  dagAffected: number | null; dagTotal: number | null;
+  tailBitingAffected: number | null; tailBitingTotal: number | null;
+  snoutRootingAffected: number | null; snoutRootingTotal: number | null;
+  featherCoverageAffected: number | null; featherCoverageTotal: number | null;
+  footpadDermatitisAffected: number | null; footpadDermatitisTotal: number | null;
+  hockBurnAffected: number | null; hockBurnTotal: number | null;
+  culledBirdsAffected: number | null; culledBirdsTotal: number | null;
+  walkthroughNotes: string; weatherConditions: string;
+}
+const EMPTY_WALKTHROUGH: WalkThroughForm = {
+  observedBy: "", observerMemberId: null, assessmentDate: "", sampleSize: null,
+  lamenessAffected: null, lamenessTotal: null, bcsAffected: null, bcsTotal: null,
+  dungAffected: null, dungTotal: null, skinLesionAffected: null, skinLesionTotal: null,
+  nasalDischargeAffected: null, nasalDischargeTotal: null, eyeDischargeAffected: null, eyeDischargeTotal: null,
+  calvingLambingAffected: null, calvingLambingTotal: null,
+  dagAffected: null, dagTotal: null, tailBitingAffected: null, tailBitingTotal: null,
+  snoutRootingAffected: null, snoutRootingTotal: null, featherCoverageAffected: null, featherCoverageTotal: null,
+  footpadDermatitisAffected: null, footpadDermatitisTotal: null, hockBurnAffected: null, hockBurnTotal: null,
+  culledBirdsAffected: null, culledBirdsTotal: null,
+  walkthroughNotes: "", weatherConditions: "",
+};
+
+type SpeciesMeasure = { key: keyof typeof EMPTY_WOA; label: string; placeholder: string; isSelect?: boolean; options?: { value: string; label: string }[] };
+function getSpeciesMeasures(species: string): SpeciesMeasure[] {
+  const common: SpeciesMeasure[] = [
+    { key: "lamenessScore", label: "Lameness (%)", placeholder: "% animals lame" },
+    { key: "bodyConditionScore", label: "Body Condition (%)", placeholder: "% thin animals" },
+    { key: "skinLesionScore", label: "Skin Lesions (%)", placeholder: "% with injuries" },
+    { key: "nasalDischargeScore", label: "Nasal Discharge (%)", placeholder: "% respiratory signs" },
+    { key: "eyeDischargeScore", label: "Eye Discharge (%)", placeholder: "% with eye issues" },
+  ];
+  if (species === "cattle" || species === "beef-cattle") return [
+    ...common,
+    { key: "dungScore", label: "Dung Score (%)", placeholder: "% dirty hindquarters" },
+  ];
+  if (species === "sheep") return [
+    ...common,
+    { key: "dagScore", label: "Dag / Fleece Score (%)", placeholder: "% with dirty fleece or dag" },
+  ];
+  if (species === "pigs") return [
+    { key: "lamenessScore", label: "Lameness (%)", placeholder: "% animals lame" },
+    { key: "bodyConditionScore", label: "Body Condition (%)", placeholder: "% thin sows (BCS <2)" },
+    { key: "tailBitingScore", label: "Tail Biting / Wounds (%)", placeholder: "% with tail wounds" },
+    { key: "snoutRootingScore", label: "Snout Damage (%)", placeholder: "% with snout lesions" },
+    { key: "skinLesionScore", label: "Fight Wounds / Skin Lesions (%)", placeholder: "% with skin injuries" },
+  ];
+  if (species === "poultry") return [
+    { key: "featherCoverageScore", label: "Feather Coverage (%)", placeholder: "% with poor feathering (score 3–4)" },
+    { key: "footpadDermatitisScore", label: "Footpad Dermatitis (%)", placeholder: "% with FPD score ≥2" },
+    { key: "hockBurnScore", label: "Hock Burn (%)", placeholder: "% with hock burn score ≥2" },
+    { key: "culledBirdsRate", label: "Culled / Rejected Birds (%)", placeholder: "% culled or rejected at processing" },
+    { key: "stockingDensityCompliant", label: "Stocking Density", placeholder: "", isSelect: true, options: [
+      { value: "yes", label: "Yes — within legal maximum" },
+      { value: "no", label: "No — exceeds legal maximum" },
+      { value: "not_checked", label: "Not checked this assessment" },
+    ]},
+  ];
+  return common;
+}
+
+type WalkCriterion = { label: string; affKey: keyof WalkThroughForm; totKey: keyof WalkThroughForm; resultKey: keyof typeof EMPTY_WOA };
+function getWalkthroughCriteria(species: string): WalkCriterion[] {
+  const base: WalkCriterion[] = [
+    { label: "Lame animals", affKey: "lamenessAffected", totKey: "lamenessTotal", resultKey: "lamenessScore" },
+    { label: "Thin / poor BCS", affKey: "bcsAffected", totKey: "bcsTotal", resultKey: "bodyConditionScore" },
+    { label: "Skin lesions / injuries", affKey: "skinLesionAffected", totKey: "skinLesionTotal", resultKey: "skinLesionScore" },
+    { label: "Nasal discharge", affKey: "nasalDischargeAffected", totKey: "nasalDischargeTotal", resultKey: "nasalDischargeScore" },
+    { label: "Eye discharge", affKey: "eyeDischargeAffected", totKey: "eyeDischargeTotal", resultKey: "eyeDischargeScore" },
+  ];
+  if (species === "cattle" || species === "beef-cattle") return [...base,
+    { label: "Dirty hindquarters", affKey: "dungAffected", totKey: "dungTotal", resultKey: "dungScore" },
+  ];
+  if (species === "sheep") return [...base,
+    { label: "Dag / dirty fleece", affKey: "dagAffected", totKey: "dagTotal", resultKey: "dagScore" },
+  ];
+  if (species === "pigs") return [
+    { label: "Lame animals", affKey: "lamenessAffected", totKey: "lamenessTotal", resultKey: "lamenessScore" },
+    { label: "Thin / poor BCS (<2)", affKey: "bcsAffected", totKey: "bcsTotal", resultKey: "bodyConditionScore" },
+    { label: "Tail biting / wounds", affKey: "tailBitingAffected", totKey: "tailBitingTotal", resultKey: "tailBitingScore" },
+    { label: "Snout damage", affKey: "snoutRootingAffected", totKey: "snoutRootingTotal", resultKey: "snoutRootingScore" },
+    { label: "Skin lesions / fight wounds", affKey: "skinLesionAffected", totKey: "skinLesionTotal", resultKey: "skinLesionScore" },
+  ];
+  if (species === "poultry") return [
+    { label: "Poor feather coverage", affKey: "featherCoverageAffected", totKey: "featherCoverageTotal", resultKey: "featherCoverageScore" },
+    { label: "Footpad dermatitis (≥2)", affKey: "footpadDermatitisAffected", totKey: "footpadDermatitisTotal", resultKey: "footpadDermatitisScore" },
+    { label: "Hock burn (≥2)", affKey: "hockBurnAffected", totKey: "hockBurnTotal", resultKey: "hockBurnScore" },
+    { label: "Culled / rejected birds", affKey: "culledBirdsAffected", totKey: "culledBirdsTotal", resultKey: "culledBirdsRate" },
+  ];
+  return base;
+}
+
+function calcPct(aff: number | null, tot: number | null): string | null {
+  if (aff == null || tot == null || tot === 0) return null;
+  return ((aff / tot) * 100).toFixed(1);
+}
 
 export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -6071,6 +6209,14 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
   const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
   const herds = herdsData?.records ?? [];
+
+  const { data: membersData } = useFarmMembers(farmId);
+  const members = (membersData?.members ?? []).filter(m => m.isActive);
+
+  const { data: suppliersData } = useQuery<{ records: { id: number; name: string; contactName: string | null; phone: string | null; supplierType: string }[] }>({
+    queryKey: ["woa-suppliers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/woa-suppliers`).then(r => r.json()),
+  });
+  const suppliers = suppliersData?.records ?? [];
 
   const { uploadFile: uploadWoaDoc, isUploading: isUploadingWoaDoc } = useUpload();
   const [pendingWoaDoc, setPendingWoaDoc] = useState<{ path: string; name: string } | null>(null);
@@ -6084,6 +6230,11 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const [selectedHerdId, setSelectedHerdId] = useState<number | null>(null);
   const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  // Walkthrough tally dialog (inline, pre-fills form fields when applied)
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [wt, setWt] = useState<WalkThroughForm>({ ...EMPTY_WALKTHROUGH });
+  const setW = (k: string, v: unknown) => setWt(w => ({ ...w, [k]: v }));
+
   // Auto-calc: fetch mortality rate + calving/lambing score when a herd is selected
   const { data: autoCalc } = useQuery<{ mortalityRate: string | null; calvingLambingScore: string | null; herdSize: number; deathCount: number }>({
     queryKey: ["woa-auto-calc", farmId, selectedHerdId, form.species],
@@ -6092,10 +6243,8 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
-  // Filter herds by species — herd register `type` is free-text (e.g. "Cattle", "Sheep")
   function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string): boolean {
-    const s = woaSpecies.toLowerCase();
-    const t = herdType.toLowerCase();
+    const s = woaSpecies.toLowerCase(); const t = herdType.toLowerCase();
     if (s === "cattle" || s === "beef-cattle") return t.includes("cattle") || t === "cattle";
     if (s === "sheep") return t.includes("sheep") || t.includes("flock");
     if (s === "pigs") return t.includes("pig") || t.includes("swine");
@@ -6104,26 +6253,68 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
     return t.includes(s);
   }
   const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
-  // If species changes and currently selected herd is now invalid, clear it
   const currentHerdStillValid = !form.herdFlockRef || filteredHerds.some(h => h.name === form.herdFlockRef);
 
   const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); } });
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setDeleteId(null); } });
+  const walkthroughMut = useMutation({
+    mutationFn: (b: WalkThroughForm & { woaId: number | null; species: string; herdFlockRef: string | null }) =>
+      fetch(`/api/farms/${farmId}/woa-walkthrough`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); },
+  });
 
   function openEdit(r: WelfareOutcomeRecord) {
     setEditing(r); setPendingWoaDoc(null);
-    setForm({ assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null, species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize, lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null, dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null, nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null, mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null, overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null, targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, notes: r.notes ?? null });
-    if (r.herdFlockRef) { const h = herds.find(h => h.name === r.herdFlockRef); setSelectedHerdId(h?.id ?? null); } else { setSelectedHerdId(null); }
+    setForm({
+      assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null,
+      assessorType: r.assessorType ?? "external", assessorMemberId: r.assessorMemberId ?? null,
+      assessorSupplierId: r.assessorSupplierId ?? null, expectedFeeAmountPence: r.expectedFeeAmountPence ?? null,
+      purchaseOrderId: r.purchaseOrderId ?? null,
+      species: r.species, herdFlockRef: r.herdFlockRef ?? null, sampleSize: r.sampleSize,
+      lamenessScore: r.lamenessScore ?? null, bodyConditionScore: r.bodyConditionScore ?? null,
+      dungScore: r.dungScore ?? null, skinLesionScore: r.skinLesionScore ?? null,
+      nasalDischargeScore: r.nasalDischargeScore ?? null, eyeDischargeScore: r.eyeDischargeScore ?? null,
+      mortalityRate: r.mortalityRate ?? null, calvingLambingScore: r.calvingLambingScore ?? null,
+      dagScore: r.dagScore ?? null, tailBitingScore: r.tailBitingScore ?? null, snoutRootingScore: r.snoutRootingScore ?? null,
+      featherCoverageScore: r.featherCoverageScore ?? null, footpadDermatitisScore: r.footpadDermatitisScore ?? null,
+      hockBurnScore: r.hockBurnScore ?? null, culledBirdsRate: r.culledBirdsRate ?? null,
+      stockingDensityCompliant: r.stockingDensityCompliant ?? null,
+      overallOutcome: r.overallOutcome, correctiveActions: r.correctiveActions ?? null,
+      targetDate: r.targetDate ?? null, nextAssessmentDue: r.nextAssessmentDue ?? null,
+      documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null,
+      notes: r.notes ?? null,
+    });
+    if (r.herdFlockRef) { const h = herds.find(hx => hx.name === r.herdFlockRef); setSelectedHerdId(h?.id ?? null); } else { setSelectedHerdId(null); }
     setShowForm(true);
   }
 
+  function applyWalkthrough() {
+    const criteria = getWalkthroughCriteria(form.species);
+    const updates: Partial<typeof EMPTY_WOA> = {};
+    for (const c of criteria) {
+      const pct = calcPct(wt[c.affKey] as number | null, wt[c.totKey] as number | null);
+      if (pct !== null) { (updates as Record<string, unknown>)[c.resultKey] = pct; }
+    }
+    setForm(f => ({ ...f, ...updates }));
+    walkthroughMut.mutate({ ...wt, woaId: editing?.id ?? null, species: form.species, herdFlockRef: form.herdFlockRef });
+    setShowWalkthrough(false);
+    setWt({ ...EMPTY_WALKTHROUGH });
+  }
+
   function printReport() {
-    const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.bodyConditionScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
-    printProReport({ title: "Welfare Outcome Assessment Register", subtitle: `${records.length} assessments on record`, tableHtml: `<table><thead><tr><th>Date</th><th>Species</th><th>Assessor</th><th>Herd/Flock</th><th>Sample</th><th>Lameness</th><th>BCS</th><th>Outcome</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
+    const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorType === "internal" ? "Internal" : "External"}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
+    printProReport({ title: "Welfare Outcome Assessment Register", subtitle: `${records.length} assessments on record`, tableHtml: `<table><thead><tr><th>Date</th><th>Species</th><th>Type</th><th>Assessor</th><th>Herd/Flock</th><th>Sample</th><th>Lameness</th><th>Outcome</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
   }
 
   const OUTCOME_COL: Record<string, string> = { good: "bg-green-50 text-green-700", acceptable: "bg-blue-50 text-blue-700", "needs-improvement": "bg-amber-50 text-amber-700", poor: "bg-red-50 text-red-700" };
+
+  // Derived: primary score label for list view (species-sensitive)
+  function primaryScore(r: WelfareOutcomeRecord): string {
+    if (r.species === "poultry") return r.featherCoverageScore ? `Feat: ${r.featherCoverageScore}%` : "—";
+    if (r.species === "pigs") return r.tailBitingScore ? `Tail: ${r.tailBitingScore}%` : (r.lamenessScore ? `Lame: ${r.lamenessScore}%` : "—");
+    return r.lamenessScore ? `${r.lamenessScore}%` : "—";
+  }
 
   return (
     <>
@@ -6139,7 +6330,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
       </div>
 
       <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
-        <strong>Red Tractor WOA:</strong> Assessments should be completed at least twice per year for beef & dairy cattle. Record outcome measures (lameness, BCS, dung, skin lesions) and any corrective actions taken.
+        <strong>Red Tractor WOA:</strong> Assessments should be completed at least twice per year for beef &amp; dairy cattle, and annually for other species. Record outcome measures and corrective actions to satisfy assurance requirements.
       </div>
 
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
@@ -6151,8 +6342,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Species</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Assessor</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Herd/Flock</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sample</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Lameness</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Primary Score</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Outcome</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Next Due</th>
                 <th className="px-4 py-3" />
@@ -6162,10 +6352,12 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   <tr key={r.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">{formatDate(r.assessmentDate)}</td>
                     <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
-                    <td className="px-4 py-3 text-xs">{r.assessorName}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <div>{r.assessorName}</div>
+                      <span className={`inline-flex text-[10px] font-medium rounded px-1 py-0.5 mt-0.5 ${r.assessorType === "internal" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"}`}>{r.assessorType === "internal" ? "Farm Staff" : "External"}</span>
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600">{r.herdFlockRef ?? "—"}</td>
-                    <td className="px-4 py-3 text-right text-xs">{r.sampleSize ?? "—"}</td>
-                    <td className="px-4 py-3 text-xs">{r.lamenessScore ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs font-mono">{primaryScore(r)}</td>
                     <td className="px-4 py-3"><span className={`inline-flex text-xs font-semibold rounded-full px-2 py-0.5 ${OUTCOME_COL[r.overallOutcome] ?? "bg-gray-100 text-gray-700"}`}>{r.overallOutcome.replace(/-/g," ").toUpperCase()}</span></td>
                     <td className="px-4 py-3 text-xs">{formatDate(r.nextAssessmentDue)}</td>
                     <td className="px-4 py-3"><div className="flex gap-1">
@@ -6182,22 +6374,30 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
       {viewItem && (
         <Dialog open onOpenChange={() => setViewItem(null)}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>WOA — {formatDate(viewItem.assessmentDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.assessorName}</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>WOA — {formatDate(viewItem.assessmentDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.assessorName} · {viewItem.assessorType === "internal" ? "Farm Staff" : "External Assessor"}</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{formatDate(viewItem.assessmentDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium capitalize">{viewItem.species}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor</p><p className="font-medium">{viewItem.assessorName}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor Role</p><p className="font-medium">{viewItem.assessorRole ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor Role / Type</p><p className="font-medium">{viewItem.assessorRole ?? (viewItem.assessorType === "internal" ? "Farm Staff" : "External")}</p></div>
+              {viewItem.purchaseOrderId && <div className="col-span-2 p-2 bg-sky-50 border border-sky-200 rounded text-xs text-sky-800"><strong>Expected invoice logged</strong> — a purchase order was created in Stock &amp; Supplies when this assessment was saved.</div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock</p><p className="font-medium">{viewItem.herdFlockRef ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sample Size</p><p className="font-medium">{viewItem.sampleSize ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness Score</p><p className="font-medium">{viewItem.lamenessScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Body Condition Score</p><p className="font-medium">{viewItem.bodyConditionScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dung Score</p><p className="font-medium">{viewItem.dungScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Skin Lesion Score</p><p className="font-medium">{viewItem.skinLesionScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Nasal Discharge</p><p className="font-medium">{viewItem.nasalDischargeScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Eye Discharge</p><p className="font-medium">{viewItem.eyeDischargeScore ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality Rate</p><p className="font-medium">{viewItem.mortalityRate ? `${viewItem.mortalityRate}%` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calving/Lambing Score</p><p className="font-medium">{viewItem.calvingLambingScore ?? "—"}</p></div>
+              {viewItem.lamenessScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness</p><p className="font-medium">{viewItem.lamenessScore}%</p></div>}
+              {viewItem.bodyConditionScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Body Condition</p><p className="font-medium">{viewItem.bodyConditionScore}%</p></div>}
+              {viewItem.dungScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dung Score</p><p className="font-medium">{viewItem.dungScore}%</p></div>}
+              {viewItem.dagScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dag / Fleece</p><p className="font-medium">{viewItem.dagScore}%</p></div>}
+              {viewItem.tailBitingScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tail Biting</p><p className="font-medium">{viewItem.tailBitingScore}%</p></div>}
+              {viewItem.snoutRootingScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Snout Damage</p><p className="font-medium">{viewItem.snoutRootingScore}%</p></div>}
+              {viewItem.featherCoverageScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Feather Coverage</p><p className="font-medium">{viewItem.featherCoverageScore}%</p></div>}
+              {viewItem.footpadDermatitisScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Footpad Dermatitis</p><p className="font-medium">{viewItem.footpadDermatitisScore}%</p></div>}
+              {viewItem.hockBurnScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hock Burn</p><p className="font-medium">{viewItem.hockBurnScore}%</p></div>}
+              {viewItem.skinLesionScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Skin Lesions</p><p className="font-medium">{viewItem.skinLesionScore}%</p></div>}
+              {viewItem.nasalDischargeScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Nasal Discharge</p><p className="font-medium">{viewItem.nasalDischargeScore}%</p></div>}
+              {viewItem.eyeDischargeScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Eye Discharge</p><p className="font-medium">{viewItem.eyeDischargeScore}%</p></div>}
+              {viewItem.mortalityRate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality Rate</p><p className="font-medium">{viewItem.mortalityRate}%</p></div>}
+              {viewItem.calvingLambingScore && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calving/Lambing</p><p className="font-medium">{viewItem.calvingLambingScore}%</p></div>}
+              {viewItem.stockingDensityCompliant && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stocking Density</p><p className="font-medium capitalize">{viewItem.stockingDensityCompliant.replace(/_/g," ")}</p></div>}
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Outcome</p><p className="font-semibold">{viewItem.overallOutcome.replace(/-/g," ").toUpperCase()}</p></div>
               {viewItem.correctiveActions && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Actions</p><p className="whitespace-pre-line">{viewItem.correctiveActions}</p></div>}
               {viewItem.targetDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Date</p><p className="font-medium">{formatDate(viewItem.targetDate)}</p></div>}
@@ -6212,115 +6412,287 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
+      {/* ── Walkthrough Tally Dialog ─────────────────────────────────────────── */}
+      {showWalkthrough && (
+        <Dialog open onOpenChange={o => { if (!o) setShowWalkthrough(false); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Record Walkthrough Observations</DialogTitle>
+              <DialogDescription>Enter raw animal counts per welfare criterion. Percentages are calculated automatically and will pre-fill the assessment when you apply.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Observer Name *</Label>
+                  <Select value={wt.observerMemberId != null ? String(wt.observerMemberId) : "__free__"} onValueChange={v => {
+                    if (v === "__free__") { setW("observerMemberId", null); } else {
+                      const m = members.find(mx => String(mx.id) === v);
+                      if (m) { setW("observerMemberId", m.id); setW("observedBy", memberFullName(m)); }
+                    }
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__free__">— Enter name manually —</SelectItem>
+                      {members.map(m => <SelectItem key={m.id} value={String(m.id)}>{memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {wt.observerMemberId == null && <Input className="mt-1" value={wt.observedBy} onChange={e => setW("observedBy", e.target.value)} placeholder="Observer name" />}
+                </div>
+                <div><Label>Walk Date</Label><Input type="date" value={wt.assessmentDate} onChange={e => setW("assessmentDate", e.target.value)} /></div>
+                <div><Label>Animals Observed (Total)</Label><Input type="number" min={1} value={wt.sampleSize ?? ""} onChange={e => setW("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="Total observed in walkthrough" /></div>
+                <div><Label>Weather / Conditions</Label><Input value={wt.weatherConditions} onChange={e => setW("weatherConditions", e.target.value)} placeholder="e.g. Dry, housed, outdoor" /></div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50"><tr>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Criterion</th>
+                    <th className="text-center px-3 py-2 font-medium text-muted-foreground">Affected</th>
+                    <th className="text-center px-3 py-2 font-medium text-muted-foreground">Total observed</th>
+                    <th className="text-center px-3 py-2 font-medium text-muted-foreground">%</th>
+                  </tr></thead>
+                  <tbody className="divide-y">
+                    {getWalkthroughCriteria(form.species).map(c => {
+                      const aff = wt[c.affKey] as number | null;
+                      const tot = wt[c.totKey] as number | null;
+                      const pct = calcPct(aff, tot);
+                      return (
+                        <tr key={c.label} className="hover:bg-muted/20">
+                          <td className="px-3 py-2 font-medium text-gray-700">{c.label}</td>
+                          <td className="px-3 py-2 w-32"><Input type="number" min={0} className="h-8 text-center" value={aff ?? ""} onChange={e => setW(c.affKey, e.target.value ? Number(e.target.value) : null)} /></td>
+                          <td className="px-3 py-2 w-32"><Input type="number" min={0} className="h-8 text-center" value={tot ?? ""} onChange={e => setW(c.totKey, e.target.value ? Number(e.target.value) : null)} /></td>
+                          <td className="px-3 py-2 text-center font-mono text-sm">{pct !== null ? <span className={`font-semibold ${parseFloat(pct) > 10 ? "text-amber-700" : "text-green-700"}`}>{pct}%</span> : <span className="text-muted-foreground">—</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div><Label>Walkthrough Notes</Label><Textarea value={wt.walkthroughNotes} onChange={e => setW("walkthroughNotes", e.target.value)} rows={2} placeholder="Any specific observations, environmental factors, or notes about individual animals" /></div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <strong>Apply to assessment:</strong> Calculated percentages will be copied to the welfare measures fields. You can still edit them manually before saving.
+              </div>
+            </div>
+            <DialogFooter className="mt-4 gap-2">
+              <Button variant="ghost" onClick={() => setShowWalkthrough(false)}>Cancel</Button>
+              <Button onClick={applyWalkthrough} disabled={!wt.observedBy}><CheckCircle2 className="h-4 w-4 mr-1" />Apply to Assessment</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit Welfare Assessment" : "Record Welfare Outcome Assessment"}</DialogTitle><DialogDescription>Complete welfare outcome measures as required by Red Tractor and cross compliance.</DialogDescription></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setF("assessmentDate", e.target.value)} /></div>
-              <div><Label>Assessor Name *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Vet / farm manager" /></div>
-              <div><Label>Assessor Role</Label><Input value={form.assessorRole ?? ""} onChange={e => setF("assessorRole", e.target.value || null)} placeholder="e.g. Farm vet, assurance assessor" /></div>
-              <div><Label>Species *</Label>
-                <Select value={form.species} onValueChange={v => {
-                  setF("species", v);
-                  // Clear herd selection if it no longer applies to the new species
-                  const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(v, h.type)).some(h => h.name === form.herdFlockRef);
-                  if (!herdStillValid) { setF("herdFlockRef", null); setSelectedHerdId(null); }
-                }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cattle">Cattle (Dairy)</SelectItem>
-                    <SelectItem value="beef-cattle">Cattle (Beef)</SelectItem>
-                    <SelectItem value="sheep">Sheep</SelectItem>
-                    <SelectItem value="pigs">Pigs</SelectItem>
-                    <SelectItem value="poultry">Poultry</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-5 mt-2">
+
+              {/* ── Section: Assessment Info ─────────────────────────────────── */}
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setF("assessmentDate", e.target.value)} /></div>
+                <div><Label>Species *</Label>
+                  <Select value={form.species} onValueChange={v => {
+                    setF("species", v);
+                    const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(v, h.type)).some(h => h.name === form.herdFlockRef);
+                    if (!herdStillValid) { setF("herdFlockRef", null); setSelectedHerdId(null); }
+                  }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cattle">Cattle (Dairy)</SelectItem>
+                      <SelectItem value="beef-cattle">Cattle (Beef)</SelectItem>
+                      <SelectItem value="sheep">Sheep</SelectItem>
+                      <SelectItem value="pigs">Pigs</SelectItem>
+                      <SelectItem value="poultry">Poultry</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Herd / Flock</Label>
+                  <Select value={currentHerdStillValid ? (form.herdFlockRef ?? "__none__") : "__none__"} onValueChange={v => {
+                    if (v === "__none__") { setF("herdFlockRef", null); setSelectedHerdId(null); }
+                    else { const h = filteredHerds.find(h => h.name === v); setF("herdFlockRef", v); setSelectedHerdId(h?.id ?? null); }
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select herd / flock" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Not specified —</SelectItem>
+                      {(filteredHerds.length > 0 ? filteredHerds : herds).map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {filteredHerds.length === 0 && herds.length > 0 && <p className="text-xs text-muted-foreground mt-0.5">No {form.species} herds — showing all.</p>}
+                </div>
+                <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="No. animals observed" /></div>
               </div>
-              <div><Label>Herd / Flock</Label>
-                <Select value={currentHerdStillValid ? (form.herdFlockRef ?? "__none__") : "__none__"} onValueChange={v => {
-                  if (v === "__none__") { setF("herdFlockRef", null); setSelectedHerdId(null); }
-                  else {
-                    const h = filteredHerds.find(h => h.name === v);
-                    setF("herdFlockRef", v);
-                    setSelectedHerdId(h?.id ?? null);
-                  }
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select herd / flock" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Not specified —</SelectItem>
-                    {filteredHerds.length > 0
-                      ? filteredHerds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)
-                      : herds.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {filteredHerds.length === 0 && herds.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-0.5">No {form.species} herds registered — showing all. Add a herd in the Herds Register to filter by species.</p>
+
+              {/* ── Section: Assessor ───────────────────────────────────────── */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <h4 className="font-medium text-sm text-gray-800">Assessor</h4>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Assessor Type</Label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setF("assessorType", "internal")}
+                      className={`flex-1 py-2 px-3 text-sm rounded-md border font-medium transition-colors ${form.assessorType === "internal" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-700 border-gray-300 hover:border-emerald-400"}`}>
+                      Farm Staff
+                    </button>
+                    <button type="button" onClick={() => setF("assessorType", "external")}
+                      className={`flex-1 py-2 px-3 text-sm rounded-md border font-medium transition-colors ${form.assessorType === "external" ? "bg-sky-600 text-white border-sky-600" : "bg-white text-gray-700 border-gray-300 hover:border-sky-400"}`}>
+                      External Assessor
+                    </button>
+                  </div>
+                </div>
+
+                {form.assessorType === "internal" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Staff Member *</Label>
+                      <Select value={form.assessorMemberId != null ? String(form.assessorMemberId) : "__none__"} onValueChange={v => {
+                        if (v === "__none__") { setF("assessorMemberId", null); setF("assessorName", ""); setF("assessorRole", null); }
+                        else {
+                          const m = members.find(mx => String(mx.id) === v);
+                          if (m) { setF("assessorMemberId", m.id); setF("assessorName", memberFullName(m)); setF("assessorRole", m.jobTitle ?? "Farm Staff"); }
+                        }
+                      }}>
+                        <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select —</SelectItem>
+                          {members.map(m => <SelectItem key={m.id} value={String(m.id)}>{memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {members.length === 0 && <p className="text-xs text-muted-foreground mt-0.5">No staff registered — <a href="/staff" className="underline text-primary">add staff</a> or enter name below.</p>}
+                    </div>
+                    <div><Label>Role / Job Title</Label><Input value={form.assessorRole ?? ""} onChange={e => setF("assessorRole", e.target.value || null)} placeholder="Auto-filled from staff register" /></div>
+                    {form.assessorMemberId == null && <div className="col-span-2"><Label>Name (if not in register) *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Full name" /></div>}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Supplier / Trade Contact *</Label>
+                      <Select value={form.assessorSupplierId != null ? String(form.assessorSupplierId) : "__none__"} onValueChange={v => {
+                        if (v === "__none__") { setF("assessorSupplierId", null); setF("assessorName", ""); }
+                        else {
+                          const s = suppliers.find(sx => String(sx.id) === v);
+                          if (s) { setF("assessorSupplierId", s.id); setF("assessorName", s.contactName ?? s.name); }
+                        }
+                      }}>
+                        <SelectTrigger><SelectValue placeholder="Select from suppliers" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select —</SelectItem>
+                          {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.contactName ? ` (${s.contactName})` : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {suppliers.length === 0 && <p className="text-xs text-muted-foreground mt-0.5">No suppliers registered. Add in Stock &amp; Supplies, or enter name below.</p>}
+                    </div>
+                    <div><Label>Assessor Role / Title</Label><Input value={form.assessorRole ?? ""} onChange={e => setF("assessorRole", e.target.value || null)} placeholder="e.g. Farm Vet, Welfare Consultant" /></div>
+                    {form.assessorSupplierId == null && <div><Label>Name (if not in register) *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Assessor full name" /></div>}
+                    <div>
+                      <Label>Expected Fee (£)</Label>
+                      <Input type="number" min={0} step={0.01} value={form.expectedFeeAmountPence != null ? (form.expectedFeeAmountPence / 100).toFixed(2) : ""}
+                        onChange={e => setF("expectedFeeAmountPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)}
+                        placeholder="0.00 — leave blank if no fee" />
+                    </div>
+                    {form.assessorSupplierId != null && form.expectedFeeAmountPence != null && form.expectedFeeAmountPence > 0 && (
+                      <div className="col-span-2 flex items-start gap-2 p-3 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-800">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-sky-500" />
+                        <span>An expected invoice (purchase order) will be automatically logged in <strong>Stock &amp; Supplies → Purchase Orders</strong> when you save this assessment.</span>
+                      </div>
+                    )}
+                    {editing?.purchaseOrderId && (
+                      <div className="col-span-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
+                        ✓ Purchase order already created for this assessment (PO #{editing.purchaseOrderId}).
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-              <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="No. animals observed" /></div>
-              <div><Label>Lameness Score (%)</Label><Input value={form.lamenessScore ?? ""} onChange={e => setF("lamenessScore", e.target.value || null)} placeholder="% animals lame" /></div>
-              <div><Label>Body Condition Score</Label><Input value={form.bodyConditionScore ?? ""} onChange={e => setF("bodyConditionScore", e.target.value || null)} placeholder="% thin (BCS &lt;2)" /></div>
-              <div><Label>Dung Score</Label><Input value={form.dungScore ?? ""} onChange={e => setF("dungScore", e.target.value || null)} placeholder="% dirty hindquarters" /></div>
-              <div><Label>Skin Lesion Score (%)</Label><Input value={form.skinLesionScore ?? ""} onChange={e => setF("skinLesionScore", e.target.value || null)} placeholder="% with skin injuries" /></div>
-              <div><Label>Nasal Discharge (%)</Label><Input value={form.nasalDischargeScore ?? ""} onChange={e => setF("nasalDischargeScore", e.target.value || null)} placeholder="% with respiratory signs" /></div>
-              <div><Label>Eye Discharge (%)</Label><Input value={form.eyeDischargeScore ?? ""} onChange={e => setF("eyeDischargeScore", e.target.value || null)} placeholder="% with eye discharge" /></div>
-              <div>
+
+              {/* ── Section: Welfare Measures ───────────────────────────────── */}
+              <div className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>Mortality Rate (%)</Label>
-                  {autoCalc?.mortalityRate && (
-                    <button type="button" className="text-xs text-primary underline" onClick={() => setF("mortalityRate", autoCalc.mortalityRate)}>
-                      Use calculated: {autoCalc.mortalityRate}% ({autoCalc.deathCount} deaths / {autoCalc.herdSize} animals)
-                    </button>
+                  <h4 className="font-medium text-sm text-gray-800">Welfare Measures — <span className="capitalize text-muted-foreground font-normal">{form.species}</span></h4>
+                  {form.assessorType === "internal" && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => {
+                      setWt({ ...EMPTY_WALKTHROUGH, observedBy: form.assessorName, assessmentDate: form.assessmentDate, sampleSize: form.sampleSize });
+                      setShowWalkthrough(true);
+                    }}>
+                      <ClipboardList className="h-3.5 w-3.5 mr-1" />Enter Raw Counts
+                    </Button>
                   )}
                 </div>
-                <Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} placeholder={autoCalc?.mortalityRate ? `Calculated: ${autoCalc.mortalityRate}% — click above to use` : "Rolling 12-month %"} />
-                {autoCalc?.mortalityRate
-                  ? <p className="text-xs text-green-700 mt-0.5">✓ Calculated from your Mortality Register ({autoCalc.deathCount} deaths in 12 months, {autoCalc.herdSize} active animals). You can override this figure.</p>
-                  : <p className="text-xs text-muted-foreground mt-0.5">{selectedHerdId ? "No mortality records found for this herd in the last 12 months — enter manually." : "Select a herd above to auto-calculate from your Mortality Register, or enter manually."}</p>
-                }
-              </div>
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Calving / Lambing Score</Label>
-                  {autoCalc?.calvingLambingScore && (
-                    <button type="button" className="text-xs text-primary underline" onClick={() => setF("calvingLambingScore", autoCalc.calvingLambingScore)}>
-                      Use calculated: {autoCalc.calvingLambingScore}%
-                    </button>
+                <div className="grid grid-cols-2 gap-3">
+                  {getSpeciesMeasures(form.species).map(m => (
+                    <div key={m.key}>
+                      <Label>{m.label}</Label>
+                      {m.isSelect ? (
+                        <Select value={(form[m.key] as string | null) ?? ""} onValueChange={v => setF(m.key, v || null)}>
+                          <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                          <SelectContent>{m.options?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : (
+                        <Input value={(form[m.key] as string | null) ?? ""} onChange={e => setF(m.key, e.target.value || null)} placeholder={m.placeholder} />
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Mortality — auto-calc for cattle/sheep */}
+                  {(form.species !== "poultry") && (
+                    <div className="col-span-2 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label>Mortality Rate (%, 12-month)</Label>
+                          {autoCalc?.mortalityRate && <button type="button" className="text-xs text-primary underline" onClick={() => setF("mortalityRate", autoCalc.mortalityRate)}>Use {autoCalc.mortalityRate}% (calculated)</button>}
+                        </div>
+                        <Input value={form.mortalityRate ?? ""} onChange={e => setF("mortalityRate", e.target.value || null)} placeholder={autoCalc?.mortalityRate ? `Calculated: ${autoCalc.mortalityRate}%` : "Rolling 12-month mortality %"} />
+                        {autoCalc?.mortalityRate
+                          ? <p className="text-xs text-green-700 mt-0.5">✓ From Mortality Register: {autoCalc.deathCount} deaths / {autoCalc.herdSize} animals.</p>
+                          : <p className="text-xs text-muted-foreground mt-0.5">{selectedHerdId ? "No mortality records found — enter manually." : "Select a herd to auto-calculate."}</p>}
+                      </div>
+
+                      {/* Calving/Lambing — cattle + sheep only */}
+                      {(form.species === "cattle" || form.species === "beef-cattle" || form.species === "sheep") && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <Label>{form.species === "sheep" ? "Lambing Score" : "Calving Score"} (% assisted)</Label>
+                            {autoCalc?.calvingLambingScore && <button type="button" className="text-xs text-primary underline" onClick={() => setF("calvingLambingScore", autoCalc.calvingLambingScore)}>Use {autoCalc.calvingLambingScore}%</button>}
+                          </div>
+                          <Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} placeholder="% assisted births" />
+                          {autoCalc?.calvingLambingScore
+                            ? <p className="text-xs text-green-700 mt-0.5">✓ From {form.species === "sheep" ? "Lambing" : "Calving"} records.</p>
+                            : <p className="text-xs text-muted-foreground mt-0.5">{selectedHerdId ? "No records found — enter manually." : "Select a herd to auto-calculate."}</p>}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                <Input value={form.calvingLambingScore ?? ""} onChange={e => setF("calvingLambingScore", e.target.value || null)} placeholder={autoCalc?.calvingLambingScore ? `Calculated: ${autoCalc.calvingLambingScore}% — click above to use` : "% assisted births"} />
-                {autoCalc?.calvingLambingScore
-                  ? <p className="text-xs text-green-700 mt-0.5">✓ Calculated from your {form.species === "sheep" ? "Lambing" : "Calving"} records. You can override this figure.</p>
-                  : <p className="text-xs text-muted-foreground mt-0.5">{(form.species === "cattle" || form.species === "beef-cattle" || form.species === "sheep") ? (selectedHerdId ? "No calving/lambing records found for this herd in the last 12 months — enter manually." : "Select a herd above to auto-calculate from your Calving / Lambing records, or enter manually.") : "% of births requiring assistance — enter manually for this species."}</p>
-                }
               </div>
-              <div className="col-span-2"><Label>Overall Outcome *</Label>
-                <Select value={form.overallOutcome} onValueChange={v => setF("overallOutcome", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="good">Good — All measures within target</SelectItem>
-                    <SelectItem value="acceptable">Acceptable — Minor areas for attention</SelectItem>
-                    <SelectItem value="needs-improvement">Needs Improvement — Action plan required</SelectItem>
-                    <SelectItem value="poor">Poor — Urgent action required</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && (
-                <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-amber-800">
-                  <strong>⚠ Action required</strong> — Complete the Corrective Actions and Target Date fields below. A task will appear on the Week Ahead planner for all farm staff so this can be tracked and signed off before the target date.
+
+              {/* ── Section: Outcome ────────────────────────────────────────── */}
+              <div className="space-y-3">
+                <div><Label>Overall Outcome *</Label>
+                  <Select value={form.overallOutcome} onValueChange={v => setF("overallOutcome", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="good">Good — All measures within target</SelectItem>
+                      <SelectItem value="acceptable">Acceptable — Minor areas for attention</SelectItem>
+                      <SelectItem value="needs-improvement">Needs Improvement — Action plan required</SelectItem>
+                      <SelectItem value="poor">Poor — Urgent action required</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-              <div className="col-span-2">
-                <Label>Corrective Actions</Label>
-                <Textarea value={form.correctiveActions ?? ""} onChange={e => setF("correctiveActions", e.target.value || null)} rows={3} placeholder="Describe the specific actions that must be taken to address the welfare concerns identified — who, what, and by when" />
-                {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && !form.correctiveActions && (
-                  <p className="text-xs text-red-600 mt-0.5">Required when outcome is Needs Improvement or Poor</p>
+                {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-amber-800">
+                    <strong>⚠ Action required</strong> — A task will appear on the Week Ahead planner for all farm staff so this can be tracked and signed off before the target date.
+                  </div>
                 )}
+                <div>
+                  <Label>Corrective Actions</Label>
+                  <Textarea value={form.correctiveActions ?? ""} onChange={e => setF("correctiveActions", e.target.value || null)} rows={3} placeholder="Describe the specific actions that must be taken — who, what, and by when" />
+                  {(form.overallOutcome === "needs-improvement" || form.overallOutcome === "poor") && !form.correctiveActions && <p className="text-xs text-red-600 mt-0.5">Required when outcome is Needs Improvement or Poor</p>}
+                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Target Completion Date</Label><Input type="date" value={form.targetDate ?? ""} onChange={e => setF("targetDate", e.target.value || null)} /></div>
+                <div><Label>Next Assessment Due</Label><Input type="date" value={form.nextAssessmentDue ?? ""} onChange={e => setF("nextAssessmentDue", e.target.value || null)} /></div>
               </div>
-              <div><Label>Target Completion Date</Label><Input type="date" value={form.targetDate ?? ""} onChange={e => setF("targetDate", e.target.value || null)} /></div>
-              <div><Label>Next Assessment Due</Label><Input type="date" value={form.nextAssessmentDue ?? ""} onChange={e => setF("nextAssessmentDue", e.target.value || null)} /></div>
-              <div className="col-span-2">
+              <div>
                 <Label>Assessment Document</Label>
                 <input type="file" ref={woaDocRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
@@ -6344,7 +6716,8 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   </Button>
                 )}
               </div>
-              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
+              </div>
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>

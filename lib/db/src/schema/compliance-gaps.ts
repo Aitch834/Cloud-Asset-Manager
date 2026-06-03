@@ -13,7 +13,7 @@ import {
   timestamp, numeric, date,
 } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { suppliersTable, stockItemsTable } from "./stock-suppliers";
+import { suppliersTable, stockItemsTable, purchaseOrdersTable } from "./stock-suppliers";
 import { livestockMovementsTable } from "./livestock";
 
 // ─── TB Test Register ────────────────────────────────────────────────────────
@@ -64,22 +64,39 @@ export const welfareOutcomeAssessmentsTable = pgTable("welfare_outcome_assessmen
   assessmentDate: date("assessment_date").notNull(),
   assessorName: text("assessor_name").notNull(),
   assessorRole: text("assessor_role"),                 // "farmer", "vet", "assurance_inspector", "farm_advisor"
-  species: text("species").notNull(),                  // "cattle", "sheep"
+  species: text("species").notNull(),                  // "cattle", "beef-cattle", "sheep", "pigs", "poultry"
   herdFlockRef: text("herd_flock_ref"),
   sampleSize: integer("sample_size"),
 
-  // ── Scored indicators (% of animals affected, or 0–5 scale) ────────────────
+  // ── Assessor type ─────────────────────────────────────────────────────────
+  assessorType: text("assessor_type").notNull().default("external"), // "internal" | "external"
+  assessorMemberId: integer("assessor_member_id"),     // soft FK → farmMembersTable (internal staff)
+  assessorSupplierId: integer("assessor_supplier_id").references(() => suppliersTable.id), // external assessor
+  expectedFeeAmountPence: integer("expected_fee_amount_pence"), // assessor fee (triggers PO on save)
+  purchaseOrderId: integer("purchase_order_id"),       // soft FK → purchaseOrdersTable (auto-created when external)
+
+  // ── Scored indicators — shared across species ─────────────────────────────
   lamenessScore: text("lameness_score"),               // % lame or 0-5 category
-  bodyConditionScore: text("body_condition_score"),    // % thin (BCS <2 cattle, <2 sheep)
-  dungScore: text("dung_score"),                       // % with dirty hindquarters
-  skinLesionScore: text("skin_lesion_score"),          // % with skin injuries
+  bodyConditionScore: text("body_condition_score"),    // % thin (BCS <2.5 cattle, <2 sheep)
+  dungScore: text("dung_score"),                       // % with dirty hindquarters (cattle)
+  skinLesionScore: text("skin_lesion_score"),          // % with skin injuries / fight wounds
   nasalDischargeScore: text("nasal_discharge_score"),  // % with respiratory signs
   eyeDischargeScore: text("eye_discharge_score"),
   mortalityRate: text("mortality_rate"),               // rolling 12m mortality %
   calvingLambingScore: text("calving_lambing_score"),  // assisted births %
 
+  // ── Species-specific indicators ───────────────────────────────────────────
+  dagScore: text("dag_score"),                         // sheep: % with dag / dirty fleece
+  tailBitingScore: text("tail_biting_score"),          // pigs: % with tail wounds
+  snoutRootingScore: text("snout_rooting_score"),      // pigs: % with snout lesions
+  featherCoverageScore: text("feather_coverage_score"),        // poultry: % with poor feathering
+  footpadDermatitisScore: text("footpad_dermatitis_score"),    // poultry: % FPD score ≥2
+  hockBurnScore: text("hock_burn_score"),              // poultry: % hock burn score ≥2
+  culledBirdsRate: text("culled_birds_rate"),          // poultry: % culled / rejected at slaughter
+  stockingDensityCompliant: text("stocking_density_compliant"), // poultry: "yes"|"no"|"not_checked"
+
   // ── Overall outcome ────────────────────────────────────────────────────────
-  overallOutcome: text("overall_outcome").notNull(),   // "pass", "advisory", "fail"
+  overallOutcome: text("overall_outcome").notNull(),   // "good","acceptable","needs-improvement","poor"
   correctiveActions: text("corrective_actions"),
   targetDate: date("target_date"),
   nextAssessmentDue: date("next_assessment_due"),
@@ -93,6 +110,65 @@ export const welfareOutcomeAssessmentsTable = pgTable("welfare_outcome_assessmen
 
 export type WelfareOutcomeAssessment = typeof welfareOutcomeAssessmentsTable.$inferSelect;
 export type NewWelfareOutcomeAssessment = typeof welfareOutcomeAssessmentsTable.$inferInsert;
+
+// ─── Welfare Walkthrough Observations ────────────────────────────────────────
+// Raw animal-by-animal tally observations recorded during internal staff walkthrough.
+// Tally pairs (affected count + total observed) per criterion → percentages auto-derived.
+// Applies to a parent WOA (woaId) once reviewed by the assessor.
+
+export const welfareWalkthroughObservationsTable = pgTable("welfare_walkthrough_observations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  woaId: integer("woa_id").references(() => welfareOutcomeAssessmentsTable.id, { onDelete: "set null" }),
+
+  assessmentDate: date("assessment_date").notNull(),
+  species: text("species").notNull(),
+  herdFlockRef: text("herd_flock_ref"),
+  observedBy: text("observed_by").notNull(),          // staff member name (display)
+  observerMemberId: integer("observer_member_id"),    // soft FK → farmMembersTable
+  sampleSize: integer("sample_size"),
+
+  // ── Per-criterion tally pairs (affected / total observed) ─────────────────
+  lamenessAffected: integer("lameness_affected"),
+  lamenessTotal: integer("lameness_total"),
+  bcsAffected: integer("bcs_affected"),
+  bcsTotal: integer("bcs_total"),
+  dungAffected: integer("dung_affected"),
+  dungTotal: integer("dung_total"),
+  skinLesionAffected: integer("skin_lesion_affected"),
+  skinLesionTotal: integer("skin_lesion_total"),
+  nasalDischargeAffected: integer("nasal_discharge_affected"),
+  nasalDischargeTotal: integer("nasal_discharge_total"),
+  eyeDischargeAffected: integer("eye_discharge_affected"),
+  eyeDischargeTotal: integer("eye_discharge_total"),
+  calvingLambingAffected: integer("calving_lambing_affected"),
+  calvingLambingTotal: integer("calving_lambing_total"),
+
+  // ── Species-specific tally pairs ──────────────────────────────────────────
+  dagAffected: integer("dag_affected"),               // sheep
+  dagTotal: integer("dag_total"),
+  tailBitingAffected: integer("tail_biting_affected"), // pigs
+  tailBitingTotal: integer("tail_biting_total"),
+  snoutRootingAffected: integer("snout_rooting_affected"),
+  snoutRootingTotal: integer("snout_rooting_total"),
+  featherCoverageAffected: integer("feather_coverage_affected"), // poultry
+  featherCoverageTotal: integer("feather_coverage_total"),
+  footpadDermatitisAffected: integer("footpad_dermatitis_affected"),
+  footpadDermatitisTotal: integer("footpad_dermatitis_total"),
+  hockBurnAffected: integer("hock_burn_affected"),
+  hockBurnTotal: integer("hock_burn_total"),
+  culledBirdsAffected: integer("culled_birds_affected"),
+  culledBirdsTotal: integer("culled_birds_total"),
+
+  walkthroughNotes: text("walkthrough_notes"),
+  weatherConditions: text("weather_conditions"),
+  appliedToWoa: boolean("applied_to_woa").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type WelfareWalkthroughObservation = typeof welfareWalkthroughObservationsTable.$inferSelect;
+export type NewWelfareWalkthroughObservation = typeof welfareWalkthroughObservationsTable.$inferInsert;
 
 // ─── PPE Stock Register ───────────────────────────────────────────────────────
 // Inventory of PPE items held on the farm, with supplier and invoice traceability.
