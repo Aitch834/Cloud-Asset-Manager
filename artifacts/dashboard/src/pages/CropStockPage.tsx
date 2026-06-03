@@ -396,6 +396,216 @@ function MovementHistoryModal({ parcel, movements, onClose }: {
   );
 }
 
+// ─── Clean History Dialog ──────────────────────────────────────────────────────
+const CLEAN_TYPE_LABELS: Record<string, string> = {
+  full_clean_and_treat: "Full Clean + Treatment",
+  physical_clean: "Physical Clean",
+  insecticide_treatment: "Insecticide Treatment",
+  fumigation: "Fumigation",
+  inspection_only: "Inspection Only",
+};
+const CLEAN_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  full_clean_and_treat: { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0" },
+  physical_clean:       { bg: "#f9fafb", text: "#6b7280", border: "#e5e7eb" },
+  insecticide_treatment:{ bg: "#eff6ff", text: "#2563eb", border: "#bfdbfe" },
+  fumigation:           { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+  inspection_only:      { bg: "#f9fafb", text: "#6b7280", border: "#e5e7eb" },
+};
+
+function CleanHistoryDialog({ farmId, bin, onClose }: { farmId: number; bin: any; onClose: () => void }) {
+  const [yearFilter, setYearFilter] = useState<number | "all">("all");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["clean-history", farmId, bin.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/cleaning?locationId=${bin.id}`).then(r => r.json()),
+    staleTime: 30_000,
+  });
+
+  const records: any[] = data?.records ?? [];
+
+  const filtered = useMemo(() => {
+    if (yearFilter === "all") return records;
+    return records.filter(r => r.cleanedDate && new Date(r.cleanedDate).getFullYear() === yearFilter);
+  }, [records, yearFilter]);
+
+  function handlePrint() {
+    const rows = filtered.map(r => {
+      const date = r.cleanedDate ? new Date(r.cleanedDate).toLocaleDateString("en-GB") : "—";
+      const type = CLEAN_TYPE_LABELS[r.cleaningType] ?? r.cleaningType;
+      const product = r.productsUsed || "—";
+      const dilution = r.dilutionRate || "—";
+      const cleanedBy = r.cleanedBy || "—";
+      const notes = r.notes || "";
+      return `<tr>
+        <td>${date}</td>
+        <td>${type}</td>
+        <td>${product}</td>
+        <td>${dilution}</td>
+        <td>${cleanedBy}</td>
+        <td>${notes}</td>
+      </tr>`;
+    }).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+      <title>Grain Store Cleaning History — ${bin.binName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 11pt; margin: 20mm; color: #111; }
+        h1 { font-size: 15pt; margin-bottom: 4px; }
+        p.sub { font-size: 9pt; color: #555; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th { background: #166534; color: #fff; padding: 6px 8px; text-align: left; font-size: 9pt; }
+        td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; font-size: 9.5pt; vertical-align: top; }
+        tr:nth-child(even) td { background: #f9fafb; }
+        .footer { margin-top: 18px; font-size: 8pt; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+        @media print { body { margin: 10mm; } }
+      </style></head><body>
+      <h1>Grain Store Cleaning History</h1>
+      <p class="sub">Store: <strong>${bin.binName}</strong>${yearFilter !== "all" ? ` &nbsp;·&nbsp; Year: <strong>${yearFilter}</strong>` : ""} &nbsp;·&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")}</p>
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Cleaning Type</th><th>Product Used</th>
+          <th>Dilution / Rate</th><th>Cleaned By</th><th>Notes</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="footer">Red Tractor requirement: grain stores must be cleaned with an approved insecticide before each new fill. Records must be retained for a minimum of 3 years.</p>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); }
+  }
+
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>
+            <span className="flex items-center gap-2">
+              <History className="w-4 h-4 text-green-700" />
+              Cleaning History — {bin.binName}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Year filter */}
+        <div className="flex items-center gap-2 flex-wrap border-b pb-3">
+          {(["all", ...recentYears] as (number | "all")[]).map(y => (
+            <button
+              key={y}
+              onClick={() => setYearFilter(y)}
+              style={{
+                padding: "3px 12px", borderRadius: 99, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                border: yearFilter === y ? "1.5px solid #15803d" : "1.5px solid #e5e7eb",
+                background: yearFilter === y ? "#f0fdf4" : "#fff",
+                color: yearFilter === y ? "#15803d" : "#6b7280",
+              }}
+            >
+              {y === "all" ? "All years" : y}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+            {yearFilter !== "all" ? ` in ${yearFilter}` : " total"}
+          </span>
+        </div>
+
+        {/* Records */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading records…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-3">
+              <ShieldAlert className="w-9 h-9 text-gray-300" />
+              <p className="text-sm font-medium">No cleaning records found{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+              <p className="text-xs">Use the <strong>Log Clean</strong> button on the bin to add the first record.</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((r: any) => {
+                const date = r.cleanedDate ? new Date(r.cleanedDate) : null;
+                const typeColor = CLEAN_TYPE_COLORS[r.cleaningType] ?? CLEAN_TYPE_COLORS.inspection_only;
+                const knownProduct = r.productsUsed
+                  ? GRAIN_STORE_PRODUCTS.find(p => p.name.toLowerCase() === r.productsUsed.toLowerCase())
+                  : null;
+                return (
+                  <div key={r.id} className="py-3 px-1">
+                    <div className="flex items-start gap-3">
+                      {/* Date column */}
+                      <div className="shrink-0 w-24 text-right">
+                        {date ? (
+                          <>
+                            <p className="text-sm font-semibold text-gray-800 leading-tight">
+                              {date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{date.getFullYear()}</p>
+                          </>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </div>
+
+                      {/* Main content */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: typeColor.bg, color: typeColor.text, border: `1px solid ${typeColor.border}` }}>
+                            {CLEAN_TYPE_LABELS[r.cleaningType] ?? r.cleaningType}
+                          </span>
+                          {r.cleanedBy && (
+                            <span className="text-xs text-muted-foreground">by {r.cleanedBy}</span>
+                          )}
+                        </div>
+
+                        {r.productsUsed && (
+                          <div className="flex items-start gap-1.5">
+                            <FlaskConical className="w-3 h-3 mt-0.5 shrink-0 text-blue-400" />
+                            <div className="text-sm text-gray-700 leading-snug">
+                              <span className="font-medium">{r.productsUsed}</span>
+                              {knownProduct && (
+                                <span className="text-xs text-muted-foreground ml-1.5">({knownProduct.activeIngredient})</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {r.dilutionRate && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Droplets className="w-3 h-3 text-blue-300 shrink-0" />
+                            {r.dilutionRate}
+                          </div>
+                        )}
+
+                        {r.notes && (
+                          <p className="text-xs text-muted-foreground italic leading-snug">{r.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <DialogFooter className="border-t pt-3 flex-row items-center gap-2 sm:justify-between">
+          <p className="text-[11px] text-muted-foreground flex-1">
+            Red Tractor: retain cleaning records for a minimum of <strong>3 years</strong>.
+          </p>
+          <div className="flex gap-2">
+            {filtered.length > 0 && (
+              <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
+                <Printer className="w-3.5 h-3.5" />Print / Export
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Log Clean Dialog ──────────────────────────────────────────────────────────
 function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin: any; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast();
@@ -534,6 +744,7 @@ function BinCard({ bin, farmId, parcels, allMovements, onEdit, onDelete, onHarve
 }) {
   const [historyParcel, setHistoryParcel] = useState<any | null>(null);
   const [logCleanOpen, setLogCleanOpen] = useState(false);
+  const [cleanHistoryOpen, setCleanHistoryOpen] = useState(false);
 
   // Fetch cleaning status for this bin
   const { data: cleaningStatus } = useQuery({
@@ -602,13 +813,22 @@ function BinCard({ bin, farmId, parcels, allMovements, onEdit, onDelete, onHarve
             )}
           </div>
           {bin.id > 0 && (
-            <button
-              onClick={() => setLogCleanOpen(true)}
-              title="Log a cleaning record for this store"
-              style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: "0.75rem", color: "#2563eb", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}
-            >
-              <Droplets size={12} />Log Clean
-            </button>
+            <>
+              <button
+                onClick={() => setCleanHistoryOpen(true)}
+                title="View cleaning history for this store"
+                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: "0.75rem", color: "#15803d", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <History size={12} />Clean History
+              </button>
+              <button
+                onClick={() => setLogCleanOpen(true)}
+                title="Log a cleaning record for this store"
+                style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: "0.75rem", color: "#2563eb", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <Droplets size={12} />Log Clean
+              </button>
+            </>
           )}
           <button
             onClick={() => onHarvestIn(bin.id)}
@@ -694,12 +914,23 @@ function BinCard({ bin, farmId, parcels, allMovements, onEdit, onDelete, onHarve
         />
       )}
 
+      {cleanHistoryOpen && bin.id > 0 && (
+        <CleanHistoryDialog
+          farmId={farmId}
+          bin={bin}
+          onClose={() => setCleanHistoryOpen(false)}
+        />
+      )}
+
       {logCleanOpen && bin.id > 0 && (
         <LogCleanDialog
           farmId={farmId}
           bin={bin}
           onClose={() => setLogCleanOpen(false)}
-          onSaved={() => setLogCleanOpen(false)}
+          onSaved={() => {
+            setLogCleanOpen(false);
+            // refresh history cache so it's up to date if opened next
+          }}
         />
       )}
     </div>
