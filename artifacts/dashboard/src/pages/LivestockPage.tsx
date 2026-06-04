@@ -6258,7 +6258,9 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
     return t.includes(s);
   }
   const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
-  const currentHerdStillValid = !form.herdFlockRef || filteredHerds.some(h => h.name === form.herdFlockRef);
+  // When no herds match the species (fallback to all herds), any selection is valid.
+  const herdPool = filteredHerds.length > 0 ? filteredHerds : herds;
+  const currentHerdStillValid = !form.herdFlockRef || herdPool.some(h => h.name === form.herdFlockRef);
 
   const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); setFeeInputStr(""); } });
   const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); setFeeInputStr(""); } });
@@ -6517,15 +6519,15 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 <div><Label>Herd / Flock</Label>
                   <Select value={currentHerdStillValid ? (form.herdFlockRef ?? "__none__") : "__none__"} onValueChange={v => {
                     if (v === "__none__") { setF("herdFlockRef", null); setSelectedHerdId(null); }
-                    else { const h = filteredHerds.find(h => h.name === v); setF("herdFlockRef", v); setSelectedHerdId(h?.id ?? null); }
+                    else { const h = herdPool.find(h => h.name === v); setF("herdFlockRef", v); setSelectedHerdId(h?.id ?? null); }
                   }}>
                     <SelectTrigger><SelectValue placeholder="Select herd / flock" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">— Not specified —</SelectItem>
-                      {(filteredHerds.length > 0 ? filteredHerds : herds).map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
+                      {herdPool.map(h => <SelectItem key={h.id} value={h.name}>{h.name}{h.herdNumber ? ` (${h.herdNumber})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {filteredHerds.length === 0 && herds.length > 0 && <p className="text-xs text-muted-foreground mt-0.5">No {form.species} herds — showing all.</p>}
+                  {filteredHerds.length === 0 && herds.length > 0 && <p className="text-xs text-muted-foreground mt-0.5">No {form.species} herds matched — showing all.</p>}
                 </div>
                 <div><Label>Sample Size</Label><Input type="number" min={1} value={form.sampleSize ?? ""} onChange={e => setF("sampleSize", e.target.value ? Number(e.target.value) : null)} placeholder="No. animals observed" /></div>
               </div>
