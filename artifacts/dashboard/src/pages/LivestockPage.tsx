@@ -67,6 +67,7 @@ interface Herd {
   farmId: number;
   name: string;
   type: string;
+  productionType: string | null;
   breed: string | null;
   herdNumber: string | null;
   registrationDocumentUrl: string | null;
@@ -75,6 +76,44 @@ interface Herd {
   isActive: boolean;
   createdAt: string;
 }
+
+/** Production type options keyed by canonical species slug */
+const PRODUCTION_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  cattle: [
+    { value: "dairy", label: "Dairy" },
+    { value: "beef", label: "Beef" },
+    { value: "suckler", label: "Suckler / Beef" },
+    { value: "mixed", label: "Mixed (Beef & Dairy)" },
+  ],
+  sheep: [
+    { value: "meat", label: "Meat / Lamb" },
+    { value: "dairy", label: "Dairy" },
+    { value: "wool", label: "Wool" },
+    { value: "mixed", label: "Mixed" },
+  ],
+  pigs: [
+    { value: "farrow-to-finish", label: "Farrow-to-Finish" },
+    { value: "breeding", label: "Breeding / Sows" },
+    { value: "finishing", label: "Finishing / Growing" },
+    { value: "weaners", label: "Weaners" },
+  ],
+  goats: [
+    { value: "dairy", label: "Dairy" },
+    { value: "meat", label: "Meat / Fibre" },
+    { value: "mixed", label: "Mixed" },
+  ],
+  poultry: [
+    { value: "layers", label: "Layers (Eggs)" },
+    { value: "broilers", label: "Broilers (Meat)" },
+    { value: "breeders", label: "Breeders" },
+    { value: "mixed", label: "Mixed" },
+  ],
+  deer: [
+    { value: "venison", label: "Venison (Meat)" },
+    { value: "breeding", label: "Breeding" },
+    { value: "mixed", label: "Mixed" },
+  ],
+};
 
 interface VetHealthPlan {
   id: number;
@@ -277,7 +316,7 @@ const EMPTY_STRAW = {
   notes: "",
 };
 
-const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", registrationDocumentUrl: "", registrationDocumentName: "", notes: "", isOrganicHerd: false, organicCertBody: "", organicCertNumber: "", organicConversionStartDate: "" };
+const EMPTY_HERD = { name: "", type: "", productionType: "", breed: "", herdNumber: "", registrationDocumentUrl: "", registrationDocumentName: "", notes: "", isOrganicHerd: false, organicCertBody: "", organicCertNumber: "", organicConversionStartDate: "" };
 const EMPTY_PLAN = {
   planYear: new Date().getFullYear(),
   vetName: "",
@@ -323,7 +362,7 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
       ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>`
       : herds.map(h => `<tr>
           <td><strong>${h.name}</strong></td>
-          <td>${h.type ? herdSpeciesDisplayLabel(h.type) + (herdProductionSubtype(h.type) ? ` (${herdProductionSubtype(h.type)})` : "") : "—"}</td>
+          <td>${h.type ? herdSpeciesDisplayLabel(h.type) + (herdProductionSubtype(h.type, (h as any).productionType) ? ` (${herdProductionSubtype(h.type, (h as any).productionType)})` : "") : "—"}</td>
           <td>${h.breed || "—"}</td>
           <td style="font-family:monospace">${h.herdNumber || "—"}</td>
           <td>${h.isActive ? "Active" : "Inactive"}</td>
@@ -402,7 +441,7 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
                     <td className="border border-border/60 px-3 py-2 font-medium">{h.name}</td>
                     <td className="border border-border/60 px-3 py-2">
                       {h.type ? herdSpeciesDisplayLabel(h.type) : "—"}
-                      {h.type && herdProductionSubtype(h.type) ? <span className="ml-1 text-xs text-muted-foreground">({herdProductionSubtype(h.type)})</span> : null}
+                      {h.type && herdProductionSubtype(h.type, (h as any).productionType) ? <span className="ml-1 text-xs text-muted-foreground">({herdProductionSubtype(h.type, (h as any).productionType)})</span> : null}
                     </td>
                     <td className="border border-border/60 px-3 py-2">{h.breed || "—"}</td>
                     <td className="border border-border/60 px-3 py-2 font-mono">{h.herdNumber || "—"}</td>
@@ -706,7 +745,7 @@ export function HerdsSection({ farmId }: { farmId: number }) {
   function openEdit(h: Herd) {
     setEditingHerd(h);
     setFormData({
-      name: h.name ?? "", type: h.type ?? "", breed: h.breed ?? "", herdNumber: h.herdNumber ?? "",
+      name: h.name ?? "", type: h.type ?? "", productionType: h.productionType ?? "", breed: h.breed ?? "", herdNumber: h.herdNumber ?? "",
       registrationDocumentUrl: h.registrationDocumentUrl ?? "", registrationDocumentName: h.registrationDocumentName ?? "",
       notes: h.notes ?? "",
       isOrganicHerd: (h as any).isOrganicHerd ?? false,
@@ -765,11 +804,27 @@ export function HerdsSection({ farmId }: { farmId: number }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
-                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} required>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value, productionType: "" }))} required>
                     <option value="">Select species...</option>
                     {livestockSpecies.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
                   </select>
                 </div>
+                {PRODUCTION_TYPE_OPTIONS[canonicalHerdSpecies(formData.type)] && (
+                  <div>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Production Type</label>
+                    <select
+                      className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={(formData as any).productionType ?? ""}
+                      onChange={e => setFormData(f => ({ ...f, productionType: e.target.value }))}
+                    >
+                      <option value="">Not specified</option>
+                      {PRODUCTION_TYPE_OPTIONS[canonicalHerdSpecies(formData.type)].map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">Specifies what this herd is farmed for — used to filter herds correctly in Welfare Outcome Assessments and reports.</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Name <span className="text-red-500">*</span></label>
                   <Input
@@ -925,8 +980,8 @@ export function HerdsSection({ farmId }: { farmId: number }) {
                       {h.type ? (
                         <span className="inline-flex flex-col gap-0">
                           <span>{herdSpeciesDisplayLabel(h.type)}</span>
-                          {herdProductionSubtype(h.type) && (
-                            <span className="text-xs text-muted-foreground/60 leading-tight">{herdProductionSubtype(h.type)}</span>
+                          {herdProductionSubtype(h.type, h.productionType) && (
+                            <span className="text-xs text-muted-foreground/60 leading-tight">{herdProductionSubtype(h.type, h.productionType)}</span>
                           )}
                         </span>
                       ) : "—"}
@@ -972,7 +1027,7 @@ export function HerdsSection({ farmId }: { farmId: number }) {
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Name</p><p className="font-medium">{viewHerd.name}</p></div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-medium mb-1">Species</p>
-                  <p>{viewHerd.type ? herdSpeciesDisplayLabel(viewHerd.type) : "—"}{viewHerd.type && herdProductionSubtype(viewHerd.type) ? <span className="ml-1 text-xs text-gray-400">({herdProductionSubtype(viewHerd.type)})</span> : null}</p>
+                  <p>{viewHerd.type ? herdSpeciesDisplayLabel(viewHerd.type) : "—"}{viewHerd.type && herdProductionSubtype(viewHerd.type, viewHerd.productionType) ? <span className="ml-1 text-xs text-gray-400">({herdProductionSubtype(viewHerd.type, viewHerd.productionType)})</span> : null}</p>
                 </div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Breed</p><p>{viewHerd.breed || "—"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Herd Number</p><p className="font-mono text-xs">{viewHerd.herdNumber || "—"}</p></div>
@@ -4454,7 +4509,7 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
                   <SelectItem value="__none__">— No specific herd —</SelectItem>
                   {herds.map(h => (
                     <SelectItem key={h.id} value={String(h.id)}>
-                      {h.name}{h.type ? ` (${herdSpeciesDisplayLabel(h.type)}${herdProductionSubtype(h.type) ? ` · ${herdProductionSubtype(h.type)}` : ""})` : ""}
+                      {h.name}{h.type ? ` (${herdSpeciesDisplayLabel(h.type)}${herdProductionSubtype(h.type, (h as any).productionType) ? ` · ${herdProductionSubtype(h.type, (h as any).productionType)}` : ""})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -6263,7 +6318,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const { data, isLoading } = useQuery<{ records: WelfareOutcomeRecord[] }>({ queryKey: ["welfare-outcomes", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
 
-  const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
+  const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; productionType: string | null; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
   const herds = herdsData?.records ?? [];
 
   const { data: membersData } = useFarmMembers(farmId);
@@ -6304,20 +6359,48 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
-  function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string): boolean {
-    const s = woaSpecies.toLowerCase(); const t = herdType.toLowerCase();
-    // Herd types are stored as the lowercase of the species string selected at herd creation.
-    // The fallback list gives: "cattle", "sheep", "pigs", "goats", "deer", "horses", "poultry", "other".
-    // Admin-configured lookup overrides may produce values like "beef", "dairy", etc.
-    // Both WOA cattle species ("cattle" = dairy, "beef-cattle" = beef) should match any cattle herd.
-    if (s === "cattle" || s === "beef-cattle") return t.includes("cattle") || t.includes("beef") || t.includes("dairy");
-    if (s === "sheep") return t.includes("sheep") || t.includes("flock") || t.includes("lamb");
-    if (s === "pigs") return t.includes("pig") || t.includes("swine") || t.includes("pork");
-    if (s === "poultry") return t.includes("poultry") || t.includes("chicken") || t.includes("turkey") || t.includes("hen") || t.includes("broiler") || t.includes("layer");
-    if (s === "goats") return t.includes("goat");
-    return t.includes(s);
+  /**
+   * Returns true when a registered herd should appear in the WOA herd dropdown
+   * for the given WOA species selection.
+   *
+   * Uses the explicit `productionType` field when set for precise filtering
+   * (e.g. a Dairy WOA will NOT show a herd whose productionType is "beef").
+   * Falls back to inferring from the herd type string for legacy records.
+   * A herd with no production type specified always shows for any matching species.
+   */
+  function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string, productionType?: string | null): boolean {
+    const s = woaSpecies.toLowerCase();
+    const t = herdType.toLowerCase();
+
+    if (s === "cattle" || s === "beef-cattle") {
+      // First: check the canonical species matches cattle
+      const isCattleHerd = canonicalHerdSpecies(t) === "cattle";
+      if (!isCattleHerd) return false;
+
+      const p = (productionType ?? "").toLowerCase().trim();
+      if (p) {
+        // Explicit production type set — filter precisely
+        const pIsBeef = p === "beef" || p === "suckler";
+        const pIsDairy = p === "dairy";
+        const pIsMixed = p === "mixed" || p === "mixed (beef & dairy)";
+        if (s === "cattle")       return pIsDairy || pIsMixed || (!pIsBeef && !pIsDairy); // Dairy WOA
+        if (s === "beef-cattle")  return pIsBeef  || pIsMixed || (!pIsBeef && !pIsDairy); // Beef WOA
+      }
+      // No explicit production type — fall back to type-string inference for legacy data
+      const typeIsOnlyDairy = t.includes("dairy") && !t.includes("beef") && !t.includes("suckler");
+      const typeIsOnlyBeef  = (t.includes("beef") || t.includes("suckler")) && !t.includes("dairy");
+      if (typeIsOnlyDairy) return s === "cattle";       // explicitly dairy-only → Dairy WOA only
+      if (typeIsOnlyBeef)  return s === "beef-cattle";  // explicitly beef-only → Beef WOA only
+      return true; // generic cattle → matches both Dairy and Beef WOA
+    }
+
+    if (s === "sheep")   return canonicalHerdSpecies(t) === "sheep";
+    if (s === "pigs")    return canonicalHerdSpecies(t) === "pigs";
+    if (s === "poultry") return canonicalHerdSpecies(t) === "poultry";
+    if (s === "goats")   return canonicalHerdSpecies(t) === "goats";
+    return canonicalHerdSpecies(t) === s;
   }
-  const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
+  const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type, h.productionType));
   // When no herds match the species (fallback to all herds), any selection is valid.
   const herdPool = filteredHerds.length > 0 ? filteredHerds : herds;
   const currentHerdStillValid = !form.herdFlockRef || herdPool.some(h => h.name === form.herdFlockRef);
@@ -6564,7 +6647,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   <Select value={form.species || "__none__"} onValueChange={v => {
                     const species = v === "__none__" ? "" : v;
                     setF("species", species);
-                    const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(species, h.type)).some(h => h.name === form.herdFlockRef);
+                    const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(species, h.type, h.productionType)).some(h => h.name === form.herdFlockRef);
                     if (!herdStillValid) { setF("herdFlockRef", null); setSelectedHerdId(null); }
                   }}>
                     <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>

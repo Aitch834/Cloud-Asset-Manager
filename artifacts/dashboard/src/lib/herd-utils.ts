@@ -45,17 +45,31 @@ export function herdSpeciesDisplayLabel(raw: string): string {
 }
 
 /**
- * Returns a short production sub-type label when the stored value encodes more
- * than just species, or null when it is already a plain species name.
+ * Returns a short production sub-type label for display.
  *
- * Examples:
- *   "beef"    → "Beef"
- *   "dairy"   → "Dairy"
- *   "suckler" → "Suckler"
- *   "cattle"  → null
- *   "sheep"   → null
+ * Prefers the explicit `productionType` field (e.g. "dairy", "beef",
+ * "farrow-to-finish") when provided.  Falls back to inferring sub-type from
+ * the legacy `type` string when `productionType` is not set.
+ *
+ * Returns null when no meaningful sub-type can be determined (plain species).
+ *
+ * Examples (with explicit productionType):
+ *   productionType="dairy"           → "Dairy"
+ *   productionType="farrow-to-finish"→ "Farrow-To-Finish"
+ *
+ * Examples (inferring from type, no productionType):
+ *   raw="beef"   → "Beef"
+ *   raw="dairy"  → "Dairy"
+ *   raw="cattle" → null
+ *   raw="sheep"  → null
  */
-export function herdProductionSubtype(raw: string): string | null {
+export function herdProductionSubtype(raw: string, productionType?: string | null): string | null {
+  if (productionType) {
+    return productionType
+      .split("-")
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join("-");
+  }
   const t = (raw ?? "").toLowerCase().trim();
   const canonical = canonicalHerdSpecies(t);
   if (t === canonical) return null;

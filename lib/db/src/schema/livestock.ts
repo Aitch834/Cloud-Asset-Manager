@@ -13,6 +13,14 @@ export const herdFlockRegisterTable = pgTable("herd_flock_register", {
   registrationDocumentName: text("registration_document_name"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  // ─── Production type ─────────────────────────────────────────────────────
+  // Encodes what the herd is farmed FOR, distinct from species.
+  // e.g. cattle → "dairy" | "beef" | "suckler" | "mixed"
+  //      sheep  → "meat" | "dairy" | "wool" | "mixed"
+  //      pigs   → "farrow-to-finish" | "breeding" | "finishing" | "weaners"
+  //      goats  → "dairy" | "meat" | "mixed"
+  //      poultry→ "layers" | "broilers" | "breeders" | "mixed"
+  productionType: text("production_type"),
   // ─── Organic certification ────────────────────────────────────────────────
   isOrganicHerd: boolean("is_organic_herd").notNull().default(false),
   organicConversionId: integer("organic_conversion_id"),   // FK to organic_livestock_conversion.id

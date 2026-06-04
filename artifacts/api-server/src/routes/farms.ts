@@ -2798,10 +2798,10 @@ router.get("/farms/:farmId/herd-health-register", requireAuth, requireTenant, re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
 
-  const herds = await db.select({ id: herdFlockRegisterTable.id, name: herdFlockRegisterTable.name, type: herdFlockRegisterTable.type })
+  const herds = await db.select({ id: herdFlockRegisterTable.id, name: herdFlockRegisterTable.name, type: herdFlockRegisterTable.type, productionType: herdFlockRegisterTable.productionType })
     .from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), eq(herdFlockRegisterTable.isActive, true)));
 
-  const herdMap: Record<number, string> = Object.fromEntries(herds.map(h => [h.id, `${h.name} (${h.type})`]));
+  const herdMap: Record<number, string> = Object.fromEntries(herds.map(h => [h.id, `${h.name} (${h.productionType ?? h.type})`]));
 
   const [medicinesRaw, mortalities, bcsRecords, mastitisRecords, vetPlans, clinicalEvents] = await Promise.all([
     db.select({
