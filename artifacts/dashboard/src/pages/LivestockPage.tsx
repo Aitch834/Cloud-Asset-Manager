@@ -1030,7 +1030,7 @@ const CATEGORY_COLOURS: Record<string, string> = {
   staff_training: "bg-indigo-100 text-indigo-800 border-indigo-200",
   other: "bg-gray-100 text-gray-700 border-gray-200",
 };
-const EMPTY_ACTION = { description: "", category: "other", frequency: "annual", nextDueDate: "", assignedTo: "", notes: "" };
+const EMPTY_ACTION = { description: "", category: "other", categoryOther: "", frequency: "annual", nextDueDate: "", assignedTo: "", notes: "" };
 
 function calcNextDueFromFrequency(freq: string, fromDate?: Date): string {
   const base = fromDate ?? new Date();
@@ -1279,6 +1279,10 @@ function ActionPointsDialog({ farmId, plan, onClose }: { farmId: number; plan: V
   const [deletingActionId, setDeletingActionId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
 
+  const { data: membersData } = useFarmMembers(farmId);
+  const activeMembers = (membersData?.members ?? []).filter(m => m.isActive);
+  const staffNames = activeMembers.map(m => memberFullName(m));
+
   const actionsUrl = `/api/farms/${farmId}/vet-health-plans/${plan.id}/actions`;
 
   const { data: actionsData, isLoading } = useQuery({
@@ -1311,14 +1315,27 @@ function ActionPointsDialog({ farmId, plan, onClose }: { farmId: number; plan: V
 
   function openEditAction(a: VetHealthPlanAction) {
     setEditingAction(a);
-    setActionForm({ description: a.description, category: a.category, frequency: a.frequency, nextDueDate: a.nextDueDate?.slice(0, 10) ?? "", assignedTo: a.assignedTo ?? "", notes: a.notes ?? "" });
+    const isKnownCategory = a.category in ACTION_CATEGORIES;
+    setActionForm({
+      description: a.description,
+      category: isKnownCategory ? a.category : "other",
+      categoryOther: isKnownCategory ? "" : a.category,
+      frequency: a.frequency,
+      nextDueDate: a.nextDueDate?.slice(0, 10) ?? "",
+      assignedTo: a.assignedTo ?? "",
+      notes: a.notes ?? "",
+    });
     setShowAddForm(true);
   }
 
   function handleActionSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (editingAction) updateActionMut.mutate({ id: editingAction.id, body: actionForm });
-    else createActionMut.mutate(actionForm);
+    const finalCategory = actionForm.category === "other" && actionForm.categoryOther.trim()
+      ? actionForm.categoryOther.trim()
+      : actionForm.category;
+    const body = { ...actionForm, category: finalCategory };
+    if (editingAction) updateActionMut.mutate({ id: editingAction.id, body });
+    else createActionMut.mutate(body);
   }
 
   function setActionField(k: keyof typeof EMPTY_ACTION, v: string) { setActionForm(f => ({ ...f, [k]: v })); }
@@ -1414,16 +1431,22 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
                   <div>
                     <Label>Category</Label>
-                    <Select value={actionForm.category} onValueChange={v => setActionField("category", v)}>
+                    <Select value={actionForm.category} onValueChange={v => { setActionField("category", v); if (v !== "other") setActionField("categoryOther", ""); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(ACTION_CATEGORIES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {actionForm.category === "other" && (
+                      <Input className="mt-1" value={actionForm.categoryOther} onChange={e => setActionField("categoryOther", e.target.value)} placeholder="Specify category…" />
+                    )}
                   </div>
                   <div>
                     <Label>Frequency</Label>
-                    <Select value={actionForm.frequency} onValueChange={v => setActionField("frequency", v)}>
+                    <Select value={actionForm.frequency} onValueChange={v => {
+                      setActionField("frequency", v);
+                      if (!actionForm.nextDueDate) setActionField("nextDueDate", calcNextDueFromFrequency(v));
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(ACTION_FREQUENCIES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -1438,7 +1461,24 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                   <div>
                     <Label>Responsible Person</Label>
-                    <Input value={actionForm.assignedTo} onChange={e => setActionField("assignedTo", e.target.value)} placeholder="e.g. John, Farmhand" />
+                    <Select
+                      value={staffNames.includes(actionForm.assignedTo) ? actionForm.assignedTo : (actionForm.assignedTo ? "__other__" : "__none__")}
+                      onValueChange={v => {
+                        if (v === "__none__") setActionField("assignedTo", "");
+                        else if (v === "__other__") setActionField("assignedTo", "");
+                        else setActionField("assignedTo", v);
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Not assigned —</SelectItem>
+                        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        <SelectItem value="__other__">Other / type manually…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(!staffNames.includes(actionForm.assignedTo) && actionForm.assignedTo !== "") && (
+                      <Input className="mt-1" value={actionForm.assignedTo} onChange={e => setActionField("assignedTo", e.target.value)} placeholder="Enter name manually" />
+                    )}
                   </div>
                   <div>
                     <Label>Notes</Label>

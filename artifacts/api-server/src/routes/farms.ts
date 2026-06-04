@@ -14417,6 +14417,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     bvdNextTestRows, johnesNextTestRows, salmNextSamplingRows,
     ipmReviewRows, lerapExpiryRows,
     nvzRiskReviewRows, nvzActiveRestrictionsRows,
+    vhpActionDueRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -14923,6 +14924,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(nvzRiskAssessmentsTable)
       .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.applicationRestrictionsIdentified))),
 
+    // ── VHP Action Points: next due ───────────────────────────────────────────
+    db.select({ id: vetHealthPlanActionsTable.id, planId: vetHealthPlanActionsTable.planId, description: vetHealthPlanActionsTable.description, category: vetHealthPlanActionsTable.category, nextDueDate: vetHealthPlanActionsTable.nextDueDate, assignedTo: vetHealthPlanActionsTable.assignedTo })
+      .from(vetHealthPlanActionsTable)
+      .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.isActive, true), isNotNull(vetHealthPlanActionsTable.nextDueDate), gte(vetHealthPlanActionsTable.nextDueDate, overdueStart as any), lt(vetHealthPlanActionsTable.nextDueDate, rangeEnd as any))),
+
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -15002,6 +15008,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of vetHealthPlanRows) {
     if (!r.reviewDate) continue;
     tasks.push({ id: `vhp-${r.id}`, type: "vet_health_plan_review", title: `Vet Health Plan Review — ${r.planYear}`, description: `The ${r.planYear} vet health plan (${r.vetName}) is due for its annual review. Update in Livestock → Vet Health Plans.`, dueDate: toISO(r.reviewDate)!, module: "Livestock", href: `/livestock?tab=vet-plans&open=${r.id}`, colour: "green" });
+  }
+  for (const r of vhpActionDueRows) {
+    if (!r.nextDueDate) continue;
+    tasks.push({ id: `vhpact-${r.id}`, type: "vhp_action_due", title: `VHP Action Due — ${r.description.slice(0, 60)}${r.description.length > 60 ? "…" : ""}`, description: `Vet Health Plan action point is due${r.assignedTo ? ` (assigned to ${r.assignedTo})` : ""}. Review in Livestock → Vet Health Plans.`, dueDate: toISO(r.nextDueDate)!, module: "Livestock", href: `/livestock?tab=vet-plans&open=${r.planId}`, colour: "green" });
   }
   for (const r of insuranceRows) {
     if (!r.expiryDate) continue;
