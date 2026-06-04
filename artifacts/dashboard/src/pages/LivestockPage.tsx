@@ -6235,6 +6235,11 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const [wt, setWt] = useState<WalkThroughForm>({ ...EMPTY_WALKTHROUGH });
   const setW = (k: string, v: unknown) => setWt(w => ({ ...w, [k]: v }));
 
+  // Fee display — kept as a raw string so the input is never rewritten mid-type.
+  // form.expectedFeeAmountPence is updated in parallel (for the PO notice condition)
+  // but is NOT used as the input value to avoid the pence↔pounds conversion jitter.
+  const [feeInputStr, setFeeInputStr] = useState<string>("");
+
   // Auto-calc: fetch mortality rate + calving/lambing score when a herd is selected
   const { data: autoCalc } = useQuery<{ mortalityRate: string | null; calvingLambingScore: string | null; herdSize: number; deathCount: number }>({
     queryKey: ["woa-auto-calc", farmId, selectedHerdId, form.species],
@@ -6255,8 +6260,8 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const filteredHerds = herds.filter(h => woaSpeciesMatchesHerdType(form.species, h.type));
   const currentHerdStillValid = !form.herdFlockRef || filteredHerds.some(h => h.name === form.herdFlockRef);
 
-  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); } });
-  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); } });
+  const createMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setForm({ ...EMPTY_WOA }); setPendingWoaDoc(null); setFeeInputStr(""); } });
+  const updateMut = useMutation({ mutationFn: (b: typeof EMPTY_WOA & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setShowForm(false); setEditing(null); setPendingWoaDoc(null); setFeeInputStr(""); } });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); setDeleteId(null); } });
   const walkthroughMut = useMutation({
     mutationFn: (b: WalkThroughForm & { woaId: number | null; species: string; herdFlockRef: string | null }) =>
@@ -6266,6 +6271,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
   function openEdit(r: WelfareOutcomeRecord) {
     setEditing(r); setPendingWoaDoc(null);
+    setFeeInputStr(r.expectedFeeAmountPence != null ? (r.expectedFeeAmountPence / 100).toString() : "");
     setForm({
       assessmentDate: r.assessmentDate, assessorName: r.assessorName, assessorRole: r.assessorRole ?? null,
       assessorType: r.assessorType ?? "external", assessorMemberId: r.assessorMemberId ?? null,
@@ -6325,7 +6331,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
-          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_WOA }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Record Assessment</Button>
+          <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_WOA }); setFeeInputStr(""); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Record Assessment</Button>
         </div>
       </div>
 
@@ -6586,8 +6592,11 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                     {form.assessorSupplierId == null && <div><Label>Name (if not in register) *</Label><Input value={form.assessorName ?? ""} onChange={e => setF("assessorName", e.target.value)} placeholder="Assessor full name" /></div>}
                     <div>
                       <Label>Expected Fee (£)</Label>
-                      <Input type="number" min={0} step={0.01} value={form.expectedFeeAmountPence != null ? (form.expectedFeeAmountPence / 100).toFixed(2) : ""}
-                        onChange={e => setF("expectedFeeAmountPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)}
+                      <Input type="number" min={0} step={0.01} value={feeInputStr}
+                        onChange={e => {
+                          setFeeInputStr(e.target.value);
+                          setF("expectedFeeAmountPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null);
+                        }}
                         placeholder="0.00 — leave blank if no fee" />
                     </div>
                     {form.assessorSupplierId != null && form.expectedFeeAmountPence != null && form.expectedFeeAmountPence > 0 && (
