@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -214,7 +215,7 @@ function HerdCard({ herdData }: { herdData: any }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#92400e" }}>{herd.name}</span>
-          <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>{herd.type}{herd.breed ? ` · ${herd.breed}` : ""}</span>
+          <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>{herd.type ? herdSpeciesDisplayLabel(herd.type) + (herdProductionSubtype(herd.type) ? ` (${herdProductionSubtype(herd.type)})` : "") : "—"}{herd.breed ? ` · ${herd.breed}` : ""}</span>
           {herd.herdNumber && <span style={{ fontSize: "0.72rem", background: "#e5e7eb", color: "#374151", padding: "1px 6px", borderRadius: 4 }}>{herd.herdNumber}</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -395,7 +396,7 @@ ${f.sprays.map((s: any) => `<tr>
 <tbody>
 ${livestockHerds.map((h: any) => `<tr>
 <td>${h.herd.name}</td>
-<td>${h.herd.type}${h.herd.breed ? ` / ${h.herd.breed}` : ""}</td>
+<td>${h.herd.type ? herdSpeciesDisplayLabel(h.herd.type) + (herdProductionSubtype(h.herd.type) ? ` (${herdProductionSubtype(h.herd.type)})` : "") : "—"}${h.herd.breed ? ` / ${h.herd.breed}` : ""}</td>
 <td>${h.herd.herdNumber ?? "—"}</td>
 <td>${h.summary.movementIn}</td>
 <td>${h.summary.movementOut}</td>

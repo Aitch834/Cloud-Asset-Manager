@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from "react";
+import { canonicalHerdSpecies, herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { MortalitySection } from "./livestock/MortalitySection";
 import { useLookupStrings } from "@/hooks/use-lookup";
@@ -322,7 +323,7 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
       ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>`
       : herds.map(h => `<tr>
           <td><strong>${h.name}</strong></td>
-          <td style="text-transform:capitalize">${h.type || "—"}</td>
+          <td>${h.type ? herdSpeciesDisplayLabel(h.type) + (herdProductionSubtype(h.type) ? ` (${herdProductionSubtype(h.type)})` : "") : "—"}</td>
           <td>${h.breed || "—"}</td>
           <td style="font-family:monospace">${h.herdNumber || "—"}</td>
           <td>${h.isActive ? "Active" : "Inactive"}</td>
@@ -399,7 +400,10 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
                 ) : herds.map((h, i) => (
                   <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
                     <td className="border border-border/60 px-3 py-2 font-medium">{h.name}</td>
-                    <td className="border border-border/60 px-3 py-2 capitalize">{h.type || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">
+                      {h.type ? herdSpeciesDisplayLabel(h.type) : "—"}
+                      {h.type && herdProductionSubtype(h.type) ? <span className="ml-1 text-xs text-muted-foreground">({herdProductionSubtype(h.type)})</span> : null}
+                    </td>
                     <td className="border border-border/60 px-3 py-2">{h.breed || "—"}</td>
                     <td className="border border-border/60 px-3 py-2 font-mono">{h.herdNumber || "—"}</td>
                     <td className="border border-border/60 px-3 py-2">{h.isActive ? "Active" : "Inactive"}</td>
@@ -578,7 +582,7 @@ ${sections.length === 0 ? `<p style="color:#555;font-style:italic;text-align:cen
 
 // Species-aware configuration for the herd registration number field
 function getHerdNumberConfig(species: string): { label: string; placeholder: string; hint: string } {
-  const s = species.toLowerCase();
+  const s = canonicalHerdSpecies(species);
   if (s === "cattle") return {
     label: "BCMS Herd Number",
     placeholder: "e.g. 12/345/0001",
@@ -612,7 +616,7 @@ function getHerdNumberConfig(species: string): { label: string; placeholder: str
 }
 
 function getBreedPlaceholder(species: string): string {
-  const s = species.toLowerCase();
+  const s = canonicalHerdSpecies(species);
   if (s === "cattle") return "e.g. Holstein Friesian, Hereford × Angus, Limousin";
   if (s === "sheep") return "e.g. Suffolk, Texel, Mule, Welsh Mountain";
   if (s === "pigs" || s === "pig") return "e.g. Large White, Landrace, Duroc";
@@ -623,7 +627,7 @@ function getBreedPlaceholder(species: string): string {
 }
 
 function getHerdNamePlaceholder(species: string): string {
-  const s = species.toLowerCase();
+  const s = canonicalHerdSpecies(species);
   if (s === "cattle") return "e.g. Main Dairy Herd, Suckler Herd";
   if (s === "sheep") return "e.g. Main Ewe Flock, Lowland Flock";
   if (s === "pigs" || s === "pig") return "e.g. Breeding Herd, Finishing Unit";
@@ -917,7 +921,16 @@ export function HerdsSection({ farmId }: { farmId: number }) {
                   return (
                   <tr key={h.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
                     <td className="p-4 text-sm font-medium">{h.name}</td>
-                    <td className="p-4 text-sm capitalize text-foreground/70">{h.type || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">
+                      {h.type ? (
+                        <span className="inline-flex flex-col gap-0">
+                          <span>{herdSpeciesDisplayLabel(h.type)}</span>
+                          {herdProductionSubtype(h.type) && (
+                            <span className="text-xs text-muted-foreground/60 leading-tight">{herdProductionSubtype(h.type)}</span>
+                          )}
+                        </span>
+                      ) : "—"}
+                    </td>
                     <td className="p-4 text-sm text-foreground/70">{h.breed || "—"}</td>
                     <td className="p-4 text-sm text-foreground/70">
                       {cnt ? (
@@ -957,7 +970,10 @@ export function HerdsSection({ farmId }: { farmId: number }) {
             <div className="space-y-3 text-sm py-2">
               <div className="grid grid-cols-2 gap-3">
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Name</p><p className="font-medium">{viewHerd.name}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Type</p><p className="capitalize">{viewHerd.type || "—"}</p></div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-medium mb-1">Species</p>
+                  <p>{viewHerd.type ? herdSpeciesDisplayLabel(viewHerd.type) : "—"}{viewHerd.type && herdProductionSubtype(viewHerd.type) ? <span className="ml-1 text-xs text-gray-400">({herdProductionSubtype(viewHerd.type)})</span> : null}</p>
+                </div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Breed</p><p>{viewHerd.breed || "—"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Herd Number</p><p className="font-mono text-xs">{viewHerd.herdNumber || "—"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><p>{viewHerd.isActive ? "Active" : "Inactive"}</p></div>
@@ -4438,7 +4454,7 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
                   <SelectItem value="__none__">— No specific herd —</SelectItem>
                   {herds.map(h => (
                     <SelectItem key={h.id} value={String(h.id)}>
-                      {h.name}{h.type ? ` (${h.type})` : ""}
+                      {h.name}{h.type ? ` (${herdSpeciesDisplayLabel(h.type)}${herdProductionSubtype(h.type) ? ` · ${herdProductionSubtype(h.type)}` : ""})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

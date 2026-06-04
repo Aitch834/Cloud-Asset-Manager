@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -292,7 +293,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
                 <SelectTrigger><SelectValue placeholder="All herds / unspecified" /></SelectTrigger>
                 <SelectContent className="max-h-56">
                   <SelectItem value="__none__">All herds / unspecified</SelectItem>
-                  {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name} ({h.type})</SelectItem>)}
+                  {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name} ({herdSpeciesDisplayLabel(h.type)}{herdProductionSubtype(h.type) ? ` · ${herdProductionSubtype(h.type)}` : ""})</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
