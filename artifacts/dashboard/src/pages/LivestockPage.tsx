@@ -6084,7 +6084,7 @@ const EMPTY_WOA: Omit<WelfareOutcomeRecord, "id" | "farmId"> = {
   assessmentDate: "", assessorName: "", assessorRole: null,
   assessorType: "external", assessorMemberId: null, assessorSupplierId: null,
   expectedFeeAmountPence: null, purchaseOrderId: null,
-  species: "cattle", herdFlockRef: null, sampleSize: null,
+  species: "", herdFlockRef: null, sampleSize: null,
   lamenessScore: null, bodyConditionScore: null, dungScore: null,
   skinLesionScore: null, nasalDischargeScore: null, eyeDischargeScore: null,
   mortalityRate: null, calvingLambingScore: null,
@@ -6250,9 +6250,13 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
   function woaSpeciesMatchesHerdType(woaSpecies: string, herdType: string): boolean {
     const s = woaSpecies.toLowerCase(); const t = herdType.toLowerCase();
-    if (s === "cattle" || s === "beef-cattle") return t.includes("cattle") || t === "cattle";
-    if (s === "sheep") return t.includes("sheep") || t.includes("flock");
-    if (s === "pigs") return t.includes("pig") || t.includes("swine");
+    // Herd types are stored as the lowercase of the species string selected at herd creation.
+    // The fallback list gives: "cattle", "sheep", "pigs", "goats", "deer", "horses", "poultry", "other".
+    // Admin-configured lookup overrides may produce values like "beef", "dairy", etc.
+    // Both WOA cattle species ("cattle" = dairy, "beef-cattle" = beef) should match any cattle herd.
+    if (s === "cattle" || s === "beef-cattle") return t.includes("cattle") || t.includes("beef") || t.includes("dairy");
+    if (s === "sheep") return t.includes("sheep") || t.includes("flock") || t.includes("lamb");
+    if (s === "pigs") return t.includes("pig") || t.includes("swine") || t.includes("pork");
     if (s === "poultry") return t.includes("poultry") || t.includes("chicken") || t.includes("turkey") || t.includes("hen") || t.includes("broiler") || t.includes("layer");
     if (s === "goats") return t.includes("goat");
     return t.includes(s);
@@ -6501,13 +6505,15 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Assessment Date *</Label><Input type="date" value={form.assessmentDate ?? ""} onChange={e => setF("assessmentDate", e.target.value)} /></div>
                 <div><Label>Species *</Label>
-                  <Select value={form.species} onValueChange={v => {
-                    setF("species", v);
-                    const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(v, h.type)).some(h => h.name === form.herdFlockRef);
+                  <Select value={form.species || "__none__"} onValueChange={v => {
+                    const species = v === "__none__" ? "" : v;
+                    setF("species", species);
+                    const herdStillValid = !form.herdFlockRef || herds.filter(h => woaSpeciesMatchesHerdType(species, h.type)).some(h => h.name === form.herdFlockRef);
                     if (!herdStillValid) { setF("herdFlockRef", null); setSelectedHerdId(null); }
                   }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none__">— Select species —</SelectItem>
                       <SelectItem value="cattle">Cattle (Dairy)</SelectItem>
                       <SelectItem value="beef-cattle">Cattle (Beef)</SelectItem>
                       <SelectItem value="sheep">Sheep</SelectItem>
