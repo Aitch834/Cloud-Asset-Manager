@@ -16,6 +16,7 @@ import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
   CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap, BarChart2,
+  ArrowLeftRight, Info,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2770,7 +2771,7 @@ function WorkingTimeTab({ farmId, staffNames, staffMembers }: { farmId: number; 
 
 // ─── Main Labour Page ─────────────────────────────────────────────────────────
 
-type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr" | "analytics";
+type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr" | "analytics" | "crossref";
 
 const LABOUR_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
 
@@ -2863,6 +2864,189 @@ function LabourAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Staff Hours Cross-Reference Tab ─────────────────────────────────────────
+
+type FieldOpRecord = {
+  id: number; operationDate: string; operationType: string; fieldName: string;
+  operator: string | null; labourHours: string | null; isContractor: boolean;
+};
+
+function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
+  const todayMonday = useMemo(() => isoDate(getMondayOfWeek(new Date())), []);
+  const [weekStart, setWeekStart] = useState(todayMonday);
+  const [filterStaff, setFilterStaff] = useState("all");
+
+  const weekEnd = useMemo(() => isoDate(addDays(new Date(weekStart + "T00:00:00"), 6)), [weekStart]);
+  const prevWeek = () => setWeekStart(w => isoDate(addDays(new Date(w + "T00:00:00"), -7)));
+  const nextWeek = () => setWeekStart(w => isoDate(addDays(new Date(w + "T00:00:00"), 7)));
+
+  const tsQ = useQuery<{ entries: TimesheetEntry[] }>({
+    queryKey: ["labour-timesheets", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/timesheets`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const foQ = useQuery<FieldOpRecord[]>({
+    queryKey: ["field-operations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/field-operations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const weekDates = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => isoDate(addDays(new Date(weekStart + "T00:00:00"), i)));
+  }, [weekStart]);
+
+  const { rows, summaryTimesheet, summaryFieldOps, summaryMismatch } = useMemo(() => {
+    const allTs = (tsQ.data?.entries ?? []).filter(e => e.date >= weekStart && e.date <= weekEnd);
+    const allFo = (foQ.data ?? []).filter(
+      (r: FieldOpRecord) => r.operationDate >= weekStart && r.operationDate <= weekEnd && !r.isContractor && r.operator && r.labourHours && parseFloat(r.labourHours) > 0,
+    );
+
+    type RowKey = string;
+    const map: Record<RowKey, { date: string; staffName: string; tsHrs: number; foHrs: number; foOps: string[] }> = {};
+
+    const key = (date: string, name: string) => `${date}||${name}`;
+
+    for (const e of allTs) {
+      if (filterStaff !== "all" && e.staffName !== filterStaff) continue;
+      const k = key(e.date, e.staffName);
+      if (!map[k]) map[k] = { date: e.date, staffName: e.staffName, tsHrs: 0, foHrs: 0, foOps: [] };
+      map[k].tsHrs += parseFloat(e.hoursRegular || "0") + parseFloat(e.hoursOvertime || "0");
+    }
+
+    for (const r of allFo) {
+      const name = r.operator!;
+      if (filterStaff !== "all" && name !== filterStaff) continue;
+      const k = key(r.operationDate, name);
+      if (!map[k]) map[k] = { date: r.operationDate, staffName: name, tsHrs: 0, foHrs: 0, foOps: [] };
+      map[k].foHrs += parseFloat(r.labourHours || "0");
+      const opLabel = r.operationType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      if (!map[k].foOps.includes(opLabel)) map[k].foOps.push(opLabel);
+    }
+
+    const rows = Object.values(map).sort((a, b) => a.date === b.date ? a.staffName.localeCompare(b.staffName) : a.date.localeCompare(b.date));
+    const summaryTimesheet = rows.reduce((s, r) => s + r.tsHrs, 0);
+    const summaryFieldOps = rows.reduce((s, r) => s + r.foHrs, 0);
+    const summaryMismatch = rows.filter(r => Math.abs(r.foHrs - r.tsHrs) > 0.25).length;
+    return { rows, summaryTimesheet, summaryFieldOps, summaryMismatch };
+  }, [tsQ.data, foQ.data, weekStart, weekEnd, filterStaff]);
+
+  const loading = tsQ.isLoading || foQ.isLoading;
+
+  function statusBadge(row: { tsHrs: number; foHrs: number }) {
+    const diff = row.foHrs - row.tsHrs;
+    if (row.tsHrs === 0 && row.foHrs > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Field ops only</span>;
+    if (row.foHrs === 0 && row.tsHrs > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">No field ops</span>;
+    if (Math.abs(diff) <= 0.25) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Matched</span>;
+    if (diff < -0.25) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Under-logged</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">Over-logged</span>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Info callout */}
+      <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+        <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-500" />
+        <span>
+          This view compares <strong>timesheet hours</strong> (from the Timesheets tab) against <strong>labour hours logged in Field Operations</strong> for the same staff member and date.
+          Task types don't need to match — it's a totals comparison to help spot days where hours don't add up.
+          Contractor operations are excluded from the field ops side.
+        </span>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-1 border rounded-lg overflow-hidden">
+          <button onClick={prevWeek} className="px-2.5 py-1.5 hover:bg-gray-100 transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="px-3 py-1.5 text-sm font-medium text-gray-700 min-w-[180px] text-center">
+            {fmtDate(weekStart)} – {fmtDate(weekEnd)}
+          </span>
+          <button onClick={nextWeek} className="px-2.5 py-1.5 hover:bg-gray-100 transition-colors"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+        <Select value={filterStaff} onValueChange={setFilterStaff}>
+          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All staff" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All staff</SelectItem>
+            {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Timesheet Hours", value: summaryTimesheet.toFixed(1), sub: "hrs this week", color: "text-gray-800" },
+          { label: "Field Op Labour Hrs", value: summaryFieldOps.toFixed(1), sub: "hrs this week", color: "text-gray-800" },
+          { label: "Variance", value: (summaryFieldOps - summaryTimesheet).toFixed(1), sub: "field ops vs timesheet", color: Math.abs(summaryFieldOps - summaryTimesheet) > 0.5 ? "text-amber-600" : "text-green-600" },
+          { label: "Days with Mismatch", value: String(summaryMismatch), sub: "> 15 min difference", color: summaryMismatch > 0 ? "text-amber-600" : "text-green-600" },
+        ].map(s => (
+          <div key={s.label} className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-gray-500 uppercase font-medium tracking-wide mb-0.5">{s.label}</p>
+            <p className={`text-2xl font-bold ${s.color}`}>{loading ? "—" : s.value}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="py-12 text-center text-sm text-gray-400">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div className="py-12 text-center">
+            <ArrowLeftRight className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 font-medium">No data for this week</p>
+            <p className="text-xs text-gray-400 mt-1">Log timesheets and field operations to see comparisons here.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Staff Member</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600 text-xs uppercase tracking-wide">Timesheet Hrs</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600 text-xs uppercase tracking-wide">Field Op Hrs</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600 text-xs uppercase tracking-wide">Variance</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Field Operations</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((row, i) => {
+                  const diff = row.foHrs - row.tsHrs;
+                  const diffStr = diff === 0 ? "0.0" : (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1));
+                  const diffColor = Math.abs(diff) <= 0.25 ? "text-green-600" : diff < 0 ? "text-amber-600" : "text-purple-600";
+                  return (
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmtDate(row.date)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{row.staffName}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{row.tsHrs > 0 ? `${row.tsHrs.toFixed(1)} hrs` : <span className="text-gray-400">—</span>}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{row.foHrs > 0 ? `${row.foHrs.toFixed(1)} hrs` : <span className="text-gray-400">—</span>}</td>
+                      <td className={`px-4 py-3 text-right font-medium tabular-nums ${diffColor}`}>{diffStr} hrs</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{row.foOps.length > 0 ? row.foOps.join(", ") : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3">{statusBadge(row)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-gray-500 px-1">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-green-200 inline-block" /> Matched — within 15 min</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-200 inline-block" /> Under-logged — fewer field op hrs than timesheet</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-200 inline-block" /> Over-logged — more field op hrs than timesheet</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-200 inline-block" /> Field ops only — no matching timesheet entry</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-200 inline-block" /> No field ops — timesheet logged but no field op hours</span>
+      </div>
+    </div>
+  );
+}
+
 export default function LabourPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<LabourTab>("rota");
@@ -2924,6 +3108,7 @@ export default function LabourPage() {
         <TabBtn active={tab === "pay"} onClick={() => setTab("pay")} icon={PoundSterling} label="Pay Summary" />
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />
         <TabBtn active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart2} label="Analytics" />
+        <TabBtn active={tab === "crossref"} onClick={() => setTab("crossref")} icon={ArrowLeftRight} label="Staff Hours X-Ref" />
       </div>
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
@@ -2933,6 +3118,7 @@ export default function LabourPage() {
       {tab === "pay" && <PaySummaryTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "analytics" && <LabourAnalyticsTab farmId={farmId} />}
+      {tab === "crossref" && <StaffHoursCrossRefTab farmId={farmId} staffNames={staffNames} />}
     </AppLayout>
   );
 }
