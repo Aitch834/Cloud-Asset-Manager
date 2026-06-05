@@ -84,7 +84,7 @@ export default function SheepDairyPage() {
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
           {tab === "mastitis" && <MastitisTab farmId={farmId} />}
-          {tab === "kidding" && <KiddingTab farmId={farmId} />}
+          {tab === "kidding" && <SheepLambingTab farmId={farmId} />}
           {tab === "bcs" && <BcsTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
@@ -412,7 +412,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
 
 // ─── Lambing / Kidding Records ─────────────────────────────────────────────────
 
-interface KiddingRecord {
+interface SheepLambingRecord {
   id: number; lambingDate: string; eweLisTag?: string | null; birthOutcome: string;
   lambCount?: number | null; lambSex?: string | null; lambEidTag?: string | null;
   lambBirthWeightKg?: string | null; easeScore?: number | null;
@@ -430,23 +430,23 @@ function EaseScoreBadge({ v }: { v?: number | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls[v] || "bg-gray-100 text-gray-700"}`}>{v} — {lbl[v] || "Unknown"}</span>;
 }
 
-export function KiddingTab({ farmId }: { farmId: number }) {
+export function SheepLambingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<KiddingRecord | null>(null);
-  const [viewRec, setViewRec] = useState<KiddingRecord | null>(null);
-  const blank: Partial<KiddingRecord> = { lambingDate: today(), birthOutcome: "live-single", lambCount: 1, assistanceRequired: false, vetAttended: false, eidApplied: false };
-  const [form, setForm] = useState<Partial<KiddingRecord>>(blank);
-  const set = (k: keyof KiddingRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+  const [editing, setEditing] = useState<SheepLambingRecord | null>(null);
+  const [viewRec, setViewRec] = useState<SheepLambingRecord | null>(null);
+  const blank: Partial<SheepLambingRecord> = { lambingDate: today(), birthOutcome: "live-single", lambCount: 1, assistanceRequired: false, vetAttended: false, eidApplied: false };
+  const [form, setForm] = useState<Partial<SheepLambingRecord>>(blank);
+  const set = (k: keyof SheepLambingRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-kidding", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/kidding-records`)).then(r => r.json()) });
-  const records: KiddingRecord[] = data?.records ?? [];
+  const records: SheepLambingRecord[] = data?.records ?? [];
   const liveCount = records.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.lambCount || 1) : 0), 0);
   const pendingEid = records.filter(r => !r.eidApplied && r.birthOutcome?.includes("live")).length;
 
   const save = useMutation({
-    mutationFn: (body: Partial<KiddingRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/kidding-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: Partial<SheepLambingRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/kidding-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-kidding", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Record added" }); },
   });
   const del = useMutation({
