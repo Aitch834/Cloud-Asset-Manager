@@ -41,7 +41,7 @@ import {
   HerdsSection, AnimalsSection, VetHealthPlansSection,
   FallenStockContractorsSection, FeedSection, WaterSection,
   SiresSection, AIReproductionSection, VetPrescriptionsSection,
-  StrawInventorySection, LambingSection, TbTestsSection,
+  StrawInventorySection, TbTestsSection,
   WelfareOutcomeSection, SheepDippingSection,
 } from "@/pages/LivestockPage";
 
@@ -2782,7 +2782,6 @@ export default function OrganicLivestockPage() {
             <TabsTrigger value="straws">Straws</TabsTrigger>
             <TabsTrigger value="ai-repro">AI &amp; Repro</TabsTrigger>
             <TabsTrigger value="vet-rx">Vet Rx</TabsTrigger>
-            <TabsTrigger value="lambing">Lambing</TabsTrigger>
             <TabsTrigger value="tb-tests">TB Tests</TabsTrigger>
             <TabsTrigger value="welfare-outcomes">Welfare Outcomes</TabsTrigger>
             <TabsTrigger value="sheep-dipping">Sheep Dipping</TabsTrigger>
@@ -2835,9 +2834,6 @@ export default function OrganicLivestockPage() {
           </TabsContent>
           <TabsContent value="vet-rx" className="mt-4">
             <VetPrescriptionsSection farmId={farmId} />
-          </TabsContent>
-          <TabsContent value="lambing" className="mt-4">
-            <LambingSection farmId={farmId} />
           </TabsContent>
           <TabsContent value="tb-tests" className="mt-4">
             <TbTestsSection farmId={farmId} />

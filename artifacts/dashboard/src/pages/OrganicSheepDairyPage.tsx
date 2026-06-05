@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { MastitisTab, KiddingTab, BcsTab, BulkTankTab, MvTab } from "@/pages/SheepDairyPage";
+import { MastitisTab, BcsTab, BulkTankTab, MvTab } from "@/pages/SheepDairyPage";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -67,7 +67,7 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "lambing" | "bcs" | "tank" | "mv";
+type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv";
 
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
@@ -92,7 +92,6 @@ export default function OrganicSheepDairyPage() {
           <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>Feed &amp; Nutrition</TabButton>
           <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}>Vet Treatments</TabButton>
           <TabButton active={tab === "mastitis"} onClick={() => setTab("mastitis")}>Mastitis</TabButton>
-          <TabButton active={tab === "lambing"} onClick={() => setTab("lambing")}>Lambing Records</TabButton>
           <TabButton active={tab === "bcs"} onClick={() => setTab("bcs")}>Body Condition</TabButton>
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
@@ -103,7 +102,6 @@ export default function OrganicSheepDairyPage() {
           {tab === "feed" && <FeedNutritionTab farmId={farmId} />}
           {tab === "treatments" && <TreatmentRegisterTab farmId={farmId} />}
           {tab === "mastitis" && <MastitisTab farmId={farmId} />}
-          {tab === "lambing" && <KiddingTab farmId={farmId} />}
           {tab === "bcs" && <BcsTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
