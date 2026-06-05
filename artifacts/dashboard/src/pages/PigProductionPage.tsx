@@ -282,7 +282,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
             <div><Label>Document Date *</Label><Input type="date" value={String(form.documentDate ?? "")} onChange={e => setForm(f => ({ ...f, documentDate: e.target.value }))} /></div>
             <div><Label>Batch Reference</Label><Input value={String(form.batchReference ?? "")} onChange={e => setForm(f => ({ ...f, batchReference: e.target.value }))} /></div>
             <div><Label>Destination Abattoir</Label><Input value={String(form.destinationAbattoir ?? "")} onChange={e => setForm(f => ({ ...f, destinationAbattoir: e.target.value }))} /></div>
-            <div><Label>Number of Pigs *</Label><Input type="number" value={String(form.numberOfPigs ?? "")} onChange={e => setForm(f => ({ ...f, numberOfPigs: e.target.value }))} /></div>
+            <div><Label>Number of Pigs *</Label><Input type="number" min="1" step="1" value={String(form.numberOfPigs ?? "")} onChange={e => setForm(f => ({ ...f, numberOfPigs: e.target.value }))} /></div>
             <div><Label>Feed Withdrawal (hours)</Label><Input type="number" value={String(form.feedWithdrawalHours ?? "")} onChange={e => setForm(f => ({ ...f, feedWithdrawalHours: e.target.value }))} /></div>
             <div><Label>Lameness / Casualty Status</Label>
               <Select value={String(form.lambnessCasualtyStatus ?? "")} onValueChange={v => setForm(f => ({ ...f, lambnessCasualtyStatus: v }))}>
@@ -717,8 +717,8 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Check Date *</Label><Input type="date" value={String(form.checkDate ?? "")} onChange={e => setForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
             <div><Label>Checked By *</Label><Input value={String(form.checkedBy ?? "")} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} /></div>
-            <div><Label>Mortalities Found</Label><Input type="number" value={String(form.mortalitiesFound ?? "0")} onChange={e => setForm(f => ({ ...f, mortalitiesFound: e.target.value }))} /></div>
-            <div><Label>Injured Found</Label><Input type="number" value={String(form.injuredFound ?? "0")} onChange={e => setForm(f => ({ ...f, injuredFound: e.target.value }))} /></div>
+            <div><Label>Mortalities Found</Label><Input type="number" min="0" step="1" value={String(form.mortalitiesFound ?? "0")} onChange={e => setForm(f => ({ ...f, mortalitiesFound: e.target.value }))} /></div>
+            <div><Label>Injured Found</Label><Input type="number" min="0" step="1" value={String(form.injuredFound ?? "0")} onChange={e => setForm(f => ({ ...f, injuredFound: e.target.value }))} /></div>
             <div><Label>Overall Welfare</Label>
               <Select value={String(form.overallWelfare ?? "")} onValueChange={v => setForm(f => ({ ...f, overallWelfare: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>

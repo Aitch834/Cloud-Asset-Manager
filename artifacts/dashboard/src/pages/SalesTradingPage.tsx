@@ -939,7 +939,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Breed</Label><Input value={formDW.breed} onChange={e => setFormDW((f: any) => ({ ...f, breed: e.target.value }))} placeholder="e.g. Limousin x" /></div>
-              <div><Label>Head Count *</Label><Input type="number" value={formDW.headCount} onChange={e => setFormDW((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
+              <div><Label>Head Count *</Label><Input type="number" min="1" step="1" value={formDW.headCount} onChange={e => setFormDW((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
               <div><Label>Total Deadweight (kg)</Label><Input type="number" step="0.1" value={formDW.totalDeadweightKg} onChange={e => setFormDW((f: any) => ({ ...f, totalDeadweightKg: e.target.value }))} /></div>
               <div><Label>Avg Deadweight (kg)</Label><Input type="number" step="0.1" value={formDW.averageDeadweightKg} onChange={e => setFormDW((f: any) => ({ ...f, averageDeadweightKg: e.target.value }))} /></div>
               <div>
@@ -1031,7 +1031,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Lot Number</Label><Input value={formMart.lotNumber} onChange={e => setFormMart((f: any) => ({ ...f, lotNumber: e.target.value }))} /></div>
-              <div><Label>Head Count *</Label><Input type="number" value={formMart.headCount} onChange={e => setFormMart((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
+              <div><Label>Head Count *</Label><Input type="number" min="1" step="1" value={formMart.headCount} onChange={e => setFormMart((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
               <div><Label>Avg Liveweight (kg)</Label><Input type="number" step="0.1" value={formMart.averageLiveweightKg} onChange={e => setFormMart((f: any) => ({ ...f, averageLiveweightKg: e.target.value }))} /></div>
               <div>
                 <Label>Price Type</Label>
@@ -1715,8 +1715,8 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
               <div><Label>Settlement Ref</Label><Input value={formBatch.settlementRef} onChange={e => setFormBatch((f: any) => ({ ...f, settlementRef: e.target.value }))} /></div>
               <div><Label>Placement Date</Label><Input type="date" value={formBatch.placementDate} onChange={e => setFormBatch((f: any) => ({ ...f, placementDate: e.target.value }))} /></div>
               <div><Label>Catch Date</Label><Input type="date" value={formBatch.catchDate} onChange={e => setFormBatch((f: any) => ({ ...f, catchDate: e.target.value }))} /></div>
-              <div><Label>Birds Placed</Label><Input type="number" value={formBatch.birdsPlaced} onChange={e => setFormBatch((f: any) => ({ ...f, birdsPlaced: e.target.value }))} /></div>
-              <div><Label>Birds Delivered</Label><Input type="number" value={formBatch.birdsDelivered} onChange={e => setFormBatch((f: any) => ({ ...f, birdsDelivered: e.target.value }))} /></div>
+              <div><Label>Birds Placed</Label><Input type="number" min="1" step="1" value={formBatch.birdsPlaced} onChange={e => setFormBatch((f: any) => ({ ...f, birdsPlaced: e.target.value }))} /></div>
+              <div><Label>Birds Delivered</Label><Input type="number" min="0" step="1" value={formBatch.birdsDelivered} onChange={e => setFormBatch((f: any) => ({ ...f, birdsDelivered: e.target.value }))} /></div>
               <div><Label>Mortality %</Label><Input type="number" step="0.01" value={formBatch.mortalityPct} onChange={e => setFormBatch((f: any) => ({ ...f, mortalityPct: e.target.value }))} /></div>
               <div><Label>Avg Liveweight (kg)</Label><Input type="number" step="0.001" value={formBatch.averageLiveweightKg} onChange={e => setFormBatch((f: any) => ({ ...f, averageLiveweightKg: e.target.value }))} /></div>
               <div><Label>Total Liveweight (kg)</Label><Input type="number" step="0.01" value={formBatch.totalLiveweightKg} onChange={e => setFormBatch((f: any) => ({ ...f, totalLiveweightKg: e.target.value }))} /></div>
@@ -2023,7 +2023,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
                   postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
-              <div><Label>Head Count *</Label><Input type="number" value={form.headCount} onChange={e => setForm((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
+              <div><Label>Head Count *</Label><Input type="number" min="1" step="1" value={form.headCount} onChange={e => setForm((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
               <div><Label>Herd Mark</Label><Input value={form.herdMark} onChange={e => setForm((f: any) => ({ ...f, herdMark: e.target.value }))} /></div>
               <div><Label>Total Deadweight (kg)</Label><Input type="number" step="0.1" value={form.totalDeadweightKg} onChange={e => setForm((f: any) => ({ ...f, totalDeadweightKg: e.target.value }))} /></div>
               <div><Label>Avg Deadweight (kg)</Label><Input type="number" step="0.1" value={form.averageDeadweightKg} onChange={e => setForm((f: any) => ({ ...f, averageDeadweightKg: e.target.value }))} /></div>
@@ -3309,7 +3309,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
             <div style={{ gridColumn: "1/-1" }}><Label>Buyer Name *</Label><Input value={lsForm.buyerName} onChange={e => fl("buyerName")(e.target.value)} /></div>
             <div><Label>Market</Label><Input value={lsForm.marketName} onChange={e => fl("marketName")(e.target.value)} /></div>
             <div><Label>Haulier</Label><Input value={lsForm.haulierName} onChange={e => fl("haulierName")(e.target.value)} /></div>
-            <div><Label>No. of Head</Label><Input type="number" value={lsForm.numHead} onChange={e => fl("numHead")(e.target.value)} /></div>
+            <div><Label>No. of Head</Label><Input type="number" min="0" step="1" value={lsForm.numHead} onChange={e => fl("numHead")(e.target.value)} /></div>
             <div><Label>Avg Weight (kg)</Label><Input type="number" step="0.1" value={lsForm.averageWeightKg} onChange={e => fl("averageWeightKg")(e.target.value)} /></div>
             <div><Label>Total Weight (kg)</Label><Input type="number" step="0.1" value={lsForm.totalWeightKg} onChange={e => fl("totalWeightKg")(e.target.value)} /></div>
             <div><Label>Price/kg (£)</Label><Input type="number" step="0.001" value={lsForm.pricePerKg} onChange={e => fl("pricePerKg")(e.target.value)} /></div>

@@ -1669,7 +1669,7 @@ export default function CompliancePage() {
               </div>
               <div>
                 <Label>No. animals affected</Label>
-                <Input type="number" value={diseaseForm.animalCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, animalCount: e.target.value }))} placeholder="Approximate if unknown" />
+                <Input type="number" min="0" step="1" value={diseaseForm.animalCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, animalCount: e.target.value }))} placeholder="Approximate if unknown" />
               </div>
               <div><Label>Reported by</Label><Input value={diseaseForm.reportedBy ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, reportedBy: e.target.value }))} /></div>
             </div>

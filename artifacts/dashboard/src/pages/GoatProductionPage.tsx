@@ -19,6 +19,46 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+
+const UK_GOAT_ABATTOIRS = [
+  "ABP Ellesmere (Shropshire)",
+  "ABP Shrewsbury (Shropshire)",
+  "ABP Thetford (Norfolk)",
+  "ABP Ferrybridge (West Yorkshire)",
+  "Dunbia Llanybydder (Ceredigion)",
+  "Dunbia Carmarthen (Carmarthenshire)",
+  "Welsh Country Foods — Llanidloes (Powys)",
+  "Celtic Pride — Llanybydder (Ceredigion)",
+  "Dawn Meats UK",
+  "Scotbeef — Bridge of Allan (Stirlingshire)",
+  "XL Veal & Lamb — Banbury (Oxfordshire)",
+  "Kepak — Bodmin (Cornwall)",
+  "Glendale Meat Company — Hexham (Northumberland)",
+  "Woodheads — Bradford (West Yorkshire)",
+  "Dovecote Park — Pontefract (West Yorkshire)",
+  "WJ Howe & Co (Lancashire)",
+  "Other (not listed)",
+] as const;
+
+const GOAT_FINISH_GRADES = [
+  "E — Excellent",
+  "U — Very good",
+  "R — Good",
+  "O — Fair",
+  "P — Poor",
+  "1 — Very lean",
+  "2 — Lean",
+  "3L — Moderate low",
+  "3H — Moderate high",
+  "4L — Fat low",
+  "4H — Fat high",
+  "5L — Very fat low",
+  "5H — Very fat high",
+  "E2", "U2", "U3L", "U3H",
+  "R2", "R3L", "R3H",
+  "O3H", "O4L", "O4H",
+  "P4H",
+] as const;
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
 const gbp = (v: unknown) => (v == null || v === "" ? "—" : `£${parseFloat(String(v)).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`);
@@ -452,13 +492,13 @@ function WeighTab({ farmId }: { farmId: number }) {
               </Select>
             </Field>
             <Field label="Weighed By"><Input value={form.weighedBy ?? ""} onChange={e => sf("weighedBy", e.target.value)} /></Field>
-            <Field label="Number Weighed *"><Input type="number" value={form.numberWeighed ?? ""} onChange={e => sf("numberWeighed", e.target.value)} /></Field>
+            <Field label="Number Weighed *"><Input type="number" min="1" step="1" value={form.numberWeighed ?? ""} onChange={e => sf("numberWeighed", e.target.value)} /></Field>
             <Field label="Avg Weight (kg)"><Input type="number" step="0.1" value={form.averageWeightKg ?? ""} onChange={e => sf("averageWeightKg", e.target.value)} /></Field>
             <Field label="Lowest (kg)"><Input type="number" step="0.1" value={form.lowestWeightKg ?? ""} onChange={e => sf("lowestWeightKg", e.target.value)} /></Field>
             <Field label="Highest (kg)"><Input type="number" step="0.1" value={form.highestWeightKg ?? ""} onChange={e => sf("highestWeightKg", e.target.value)} /></Field>
             <Field label="Target Weight (kg)"><Input type="number" step="0.1" value={form.targetWeightKg ?? ""} onChange={e => sf("targetWeightKg", e.target.value)} /></Field>
             <Field label="DLWG (g/day)"><Input type="number" step="1" value={form.dlwgGPerDay ?? ""} onChange={e => sf("dlwgGPerDay", e.target.value)} /></Field>
-            <Field label="Days Since Last Weigh"><Input type="number" value={form.daysSincePreviousWeigh ?? ""} onChange={e => sf("daysSincePreviousWeigh", e.target.value)} /></Field>
+            <Field label="Days Since Last Weigh"><Input type="number" min="0" step="1" value={form.daysSincePreviousWeigh ?? ""} onChange={e => sf("daysSincePreviousWeigh", e.target.value)} /></Field>
             <Field label="BCS (1–5)"><Input type="number" step="0.5" min="1" max="5" value={form.bodyConditionScore ?? ""} onChange={e => sf("bodyConditionScore", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
@@ -573,7 +613,7 @@ function CullTab({ farmId }: { farmId: number }) {
                 <SelectContent>{["Kids","Young does","Cull does","Cull bucks","Store goats","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="Number *"><Input type="number" value={form.numberCulled ?? ""} onChange={e => sf("numberCulled", e.target.value)} /></Field>
+            <Field label="Number *"><Input type="number" min="1" step="1" value={form.numberCulled ?? ""} onChange={e => sf("numberCulled", e.target.value)} /></Field>
             <Field label="Reason *">
               <Select value={form.reasonForCulling ?? ""} onValueChange={v => sf("reasonForCulling", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -581,17 +621,40 @@ function CullTab({ farmId }: { farmId: number }) {
               </Select>
             </Field>
             <Field label="Destination *">
-              <Select value={form.destination ?? ""} onValueChange={v => sf("destination", v)}>
+              <Select value={form.destination ?? ""} onValueChange={v => setForm(f => ({ ...f, destination: v, destinationCph: "", abattoirName: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>{["Abattoir (direct)","Market / mart","Private sale","On-farm slaughter","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="Destination CPH"><Input value={form.destinationCph ?? ""} onChange={e => sf("destinationCph", e.target.value)} /></Field>
-            <Field label="Abattoir Name"><Input value={form.abattoirName ?? ""} onChange={e => sf("abattoirName", e.target.value)} /></Field>
+            {form.destination === "Private sale"
+              ? <Field label="Destination CPH"><Input value={form.destinationCph ?? ""} onChange={e => sf("destinationCph", e.target.value)} placeholder="e.g. 12/345/6789" /></Field>
+              : <div />}
+            {form.destination === "Abattoir (direct)" && (
+              <div className="col-span-2">
+                <Field label="Abattoir Name">
+                  <Select value={form.abattoirName ?? ""} onValueChange={v => sf("abattoirName", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select abattoir..." /></SelectTrigger>
+                    <SelectContent>{UK_GOAT_ABATTOIRS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            )}
+            {form.destination === "On-farm slaughter" && (
+              <div className="col-span-2">
+                <Field label="Slaughterman / Business Name">
+                  <Input value={form.abattoirName ?? ""} onChange={e => sf("abattoirName", e.target.value)} placeholder="Name of person or business carrying out slaughter" />
+                </Field>
+              </div>
+            )}
             <Field label="Avg Live Weight (kg)"><Input type="number" step="0.1" value={form.averageLiveWeightKg ?? ""} onChange={e => sf("averageLiveWeightKg", e.target.value)} /></Field>
             <Field label="Avg Deadweight (kg)"><Input type="number" step="0.1" value={form.averageDeadweightKg ?? ""} onChange={e => sf("averageDeadweightKg", e.target.value)} /></Field>
             <Field label="Killout % (DW/LW)"><Input type="number" step="0.1" value={form.deadweightKilloutPercent ?? ""} onChange={e => sf("deadweightKilloutPercent", e.target.value)} /></Field>
-            <Field label="Finish Grade"><Input value={form.finishGrade ?? ""} onChange={e => sf("finishGrade", e.target.value)} placeholder="e.g. 3L, 2H" /></Field>
+            <Field label="Finish Grade">
+              <Select value={form.finishGrade ?? ""} onValueChange={v => sf("finishGrade", v)}>
+                <SelectTrigger><SelectValue placeholder="Select grade..." /></SelectTrigger>
+                <SelectContent>{GOAT_FINISH_GRADES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Price / Head (£)"><Input type="number" step="0.01" value={form.pricePerHeadGbp ?? ""} onChange={e => sf("pricePerHeadGbp", e.target.value)} /></Field>
             <Field label="Total Value (£)"><Input type="number" step="0.01" value={form.totalValueGbp ?? ""} onChange={e => sf("totalValueGbp", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>

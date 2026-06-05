@@ -205,7 +205,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
                 <SelectContent>{["Home bred","Purchased at auction/market","Private sale","AI centre","ET donor flock","Hired/loaned","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="Ewes Exposed"><Input type="number" value={form.ewesExposed ?? ""} onChange={e => sf("ewesExposed", e.target.value)} /></Field>
+            <Field label="Ewes Exposed"><Input type="number" min="1" step="1" value={form.ewesExposed ?? ""} onChange={e => sf("ewesExposed", e.target.value)} /></Field>
             <Field label="Tupping Method">
               <Select value={form.tuppingMethod ?? ""} onValueChange={v => sf("tuppingMethod", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -321,14 +321,14 @@ function ScanningTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Scan Date *"><Input type="date" value={form.scanDate ?? ""} onChange={e => sf("scanDate", e.target.value)} /></Field>
             <Field label="Scanner Name"><Input value={form.scannerName ?? ""} onChange={e => sf("scannerName", e.target.value)} /></Field>
-            <Field label="Ewes Scanned"><Input type="number" value={form.ewesScanned ?? ""} onChange={e => sf("ewesScanned", e.target.value)} /></Field>
-            <Field label="Ewes In Lamb"><Input type="number" value={form.ewesInLamb ?? ""} onChange={e => sf("ewesInLamb", e.target.value)} /></Field>
-            <Field label="Ewes Bare"><Input type="number" value={form.ewesBare ?? ""} onChange={e => sf("ewesBare", e.target.value)} /></Field>
+            <Field label="Ewes Scanned"><Input type="number" min="1" step="1" value={form.ewesScanned ?? ""} onChange={e => sf("ewesScanned", e.target.value)} /></Field>
+            <Field label="Ewes In Lamb"><Input type="number" min="0" step="1" value={form.ewesInLamb ?? ""} onChange={e => sf("ewesInLamb", e.target.value)} /></Field>
+            <Field label="Ewes Bare"><Input type="number" min="0" step="1" value={form.ewesBare ?? ""} onChange={e => sf("ewesBare", e.target.value)} /></Field>
             <Field label="Scanning %"><Input type="number" step="0.1" value={form.scanningPercentage ?? ""} onChange={e => sf("scanningPercentage", e.target.value)} /></Field>
-            <Field label="Singles"><Input type="number" value={form.singlesCount ?? ""} onChange={e => sf("singlesCount", e.target.value)} /></Field>
-            <Field label="Twins"><Input type="number" value={form.twinsCount ?? ""} onChange={e => sf("twinsCount", e.target.value)} /></Field>
-            <Field label="Triplets"><Input type="number" value={form.triplesCount ?? ""} onChange={e => sf("triplesCount", e.target.value)} /></Field>
-            <Field label="Expected Lambs Total"><Input type="number" value={form.expectedLambsTotal ?? ""} onChange={e => sf("expectedLambsTotal", e.target.value)} /></Field>
+            <Field label="Singles"><Input type="number" min="0" step="1" value={form.singlesCount ?? ""} onChange={e => sf("singlesCount", e.target.value)} /></Field>
+            <Field label="Twins"><Input type="number" min="0" step="1" value={form.twinsCount ?? ""} onChange={e => sf("twinsCount", e.target.value)} /></Field>
+            <Field label="Triplets"><Input type="number" min="0" step="1" value={form.triplesCount ?? ""} onChange={e => sf("triplesCount", e.target.value)} /></Field>
+            <Field label="Expected Lambs Total"><Input type="number" min="0" step="1" value={form.expectedLambsTotal ?? ""} onChange={e => sf("expectedLambsTotal", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
           <DialogFooter>
@@ -445,7 +445,7 @@ function WeighTab({ farmId }: { farmId: number }) {
                 <SelectContent>{["Lambs (spring)","Lambs (autumn)","Store lambs","Hoggets","Ewes","Ram lambs"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label="Number Weighed"><Input type="number" value={form.numberOfAnimalsWeighed ?? ""} onChange={e => sf("numberOfAnimalsWeighed", e.target.value)} /></Field>
+            <Field label="Number Weighed"><Input type="number" min="1" step="1" value={form.numberOfAnimalsWeighed ?? ""} onChange={e => sf("numberOfAnimalsWeighed", e.target.value)} /></Field>
             <Field label="Avg Weight (kg)"><Input type="number" step="0.1" value={form.averageWeightKg ?? ""} onChange={e => sf("averageWeightKg", e.target.value)} /></Field>
             <Field label="Total Weight (kg)"><Input type="number" step="0.1" value={form.totalWeightKg ?? ""} onChange={e => sf("totalWeightKg", e.target.value)} /></Field>
             <Field label="Target Weight (kg)"><Input type="number" step="0.1" value={form.targetWeightKg ?? ""} onChange={e => sf("targetWeightKg", e.target.value)} /></Field>
@@ -545,7 +545,7 @@ function ShearingTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Shearing Date *"><Input type="date" value={form.shearingDate ?? ""} onChange={e => sf("shearingDate", e.target.value)} /></Field>
             <Field label="Shearer Name"><Input value={form.shearerName ?? ""} onChange={e => sf("shearerName", e.target.value)} /></Field>
-            <Field label="Head Sheared"><Input type="number" value={form.numberOfSheepSheared ?? ""} onChange={e => sf("numberOfSheepSheared", e.target.value)} /></Field>
+            <Field label="Head Sheared"><Input type="number" min="1" step="1" value={form.numberOfSheepSheared ?? ""} onChange={e => sf("numberOfSheepSheared", e.target.value)} /></Field>
             <Field label="Wool Weight (kg)"><Input type="number" step="0.1" value={form.woolWeightKg ?? ""} onChange={e => sf("woolWeightKg", e.target.value)} /></Field>
             <Field label="Wool Grade">
               <Select value={form.woolGrade ?? ""} onValueChange={v => sf("woolGrade", v)}>
@@ -644,7 +644,7 @@ function HealthTab({ farmId }: { farmId: number }) {
               </Field>
               <Field label="Vaccination Date *"><Input type="date" value={form.vaccinationDate ?? ""} onChange={e => sf("vaccinationDate", e.target.value)} /></Field>
               <Field label="Booster Due Date"><Input type="date" value={form.boosterDueDate ?? ""} onChange={e => sf("boosterDueDate", e.target.value)} /></Field>
-              <Field label="Animals Vaccinated"><Input type="number" value={form.numberOfAnimalsVaccinated ?? ""} onChange={e => sf("numberOfAnimalsVaccinated", e.target.value)} /></Field>
+              <Field label="Animals Vaccinated"><Input type="number" min="1" step="1" value={form.numberOfAnimalsVaccinated ?? ""} onChange={e => sf("numberOfAnimalsVaccinated", e.target.value)} /></Field>
               <Field label="Dose (ml)"><Input type="number" step="0.1" value={form.doseMl ?? ""} onChange={e => sf("doseMl", e.target.value)} /></Field>
               <Field label="Admin Route">
                 <Select value={form.administrationRoute ?? ""} onValueChange={v => sf("administrationRoute", v)}>
@@ -655,7 +655,7 @@ function HealthTab({ farmId }: { farmId: number }) {
               <Field label="Batch Number"><Input value={form.batchNumber ?? ""} onChange={e => sf("batchNumber", e.target.value)} /></Field>
               <Field label="Expiry Date"><Input type="date" value={form.expiryDate ?? ""} onChange={e => sf("expiryDate", e.target.value)} /></Field>
               <Field label="Administered By"><Input value={form.administeredBy ?? ""} onChange={e => sf("administeredBy", e.target.value)} /></Field>
-              <Field label="Withdrawal Period (days)"><Input type="number" value={form.withdrawalPeriodDays ?? ""} onChange={e => sf("withdrawalPeriodDays", e.target.value)} /></Field>
+              <Field label="Withdrawal Period (days)"><Input type="number" min="0" step="1" value={form.withdrawalPeriodDays ?? ""} onChange={e => sf("withdrawalPeriodDays", e.target.value)} /></Field>
               <div className="col-span-2 flex items-center gap-2"><Checkbox checked={form.vetPrescribed === "true"} onCheckedChange={v => sf("vetPrescribed", v ? "true" : "false")} id="vp" /><Label htmlFor="vp">Vet prescribed</Label></div>
               <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
             </div>
@@ -720,7 +720,7 @@ function HealthTab({ farmId }: { farmId: number }) {
                   <SelectContent>{["Footrot","Foot abscess","Flystrike (myiasis)","OPA (ovine pulmonary adenocarcinoma)","Maedi Visna","Caseous lymphadenitis","Scrapie","Clostridial disease","Toxoplasmosis","Enzootic abortion (EAE)","Mastitis","Pneumonia","Orf","Lamb dysentery","Pulpy kidney","Black disease","Redwater (babesiosis)","Listeriosis","Louping ill","Border disease","Twin lamb disease","Hypocalcaemia","Hypomagnesaemia","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
-              <Field label="Animals Affected"><Input type="number" value={form.numberOfAnimalsAffected ?? ""} onChange={e => sf("numberOfAnimalsAffected", e.target.value)} /></Field>
+              <Field label="Animals Affected"><Input type="number" min="1" step="1" value={form.numberOfAnimalsAffected ?? ""} onChange={e => sf("numberOfAnimalsAffected", e.target.value)} /></Field>
               <Field label="Severity">
                 <Select value={form.severity ?? ""} onValueChange={v => sf("severity", v)}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>

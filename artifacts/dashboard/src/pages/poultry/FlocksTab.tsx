@@ -284,7 +284,7 @@ export function FlocksTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>Placement Date *</Label><Input type="date" value={String(form.placementDate ?? "")} onChange={e => setForm(f => ({ ...f, placementDate: e.target.value }))} /></div>
-            <div><Label>Placement Count *</Label><Input type="number" value={String(form.placementCount ?? "")} onChange={e => setForm(f => ({ ...f, placementCount: e.target.value }))} /></div>
+            <div><Label>Placement Count *</Label><Input type="number" min="1" step="1" value={String(form.placementCount ?? "")} onChange={e => setForm(f => ({ ...f, placementCount: e.target.value }))} /></div>
             <div><Label>Breed / Strain</Label><Input value={String(form.breed ?? "")} onChange={e => setForm(f => ({ ...f, breed: e.target.value }))} /></div>
             <div className="col-span-2">
               <Label>Hatchery / Chick Supplier</Label>
