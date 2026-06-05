@@ -878,8 +878,7 @@ function GoatAnalyticsTab({ farmId }: { farmId: number }) {
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function GoatProductionPage() {
-  const { selectedFarm } = useAppStore();
-  const farmId = selectedFarm?.id;
+  const { farmId } = useAppStore();
   const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics">("herds");
 
   if (!farmId) {
