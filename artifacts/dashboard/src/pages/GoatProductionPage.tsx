@@ -94,7 +94,14 @@ function HerdsTab({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">Registered Goat Herds <span className="font-normal text-muted-foreground">({(herds as Record<string, unknown>[]).length})</span></h3>
       </div>
-      {isLoading ? <Loader2 className="animate-spin" /> : (
+      {isLoading ? <Loader2 className="animate-spin" /> : (herds as Record<string, unknown>[]).length === 0 ? (
+        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-8 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">No goat herds registered yet.</p>
+          <a href="/livestock?tab=herds" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-2">
+            Go to Livestock → Herds &amp; Animals to add your first herd
+          </a>
+        </div>
+      ) : (
         <DataTable
           cols={[
             { key: "flockName", label: "Name" },
