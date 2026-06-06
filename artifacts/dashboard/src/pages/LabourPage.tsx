@@ -16,7 +16,7 @@ import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
   CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap, BarChart2,
-  ArrowLeftRight, Info,
+  ArrowLeftRight, Info, MessageSquare, CheckCircle, Trash2 as Trash2Icon,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -2871,6 +2871,11 @@ type FieldOpRecord = {
   operator: string | null; labourHours: string | null; isContractor: boolean;
 };
 
+type CrossRefAnnotation = {
+  id: number; farmId: number; staffName: string; date: string;
+  note: string; resolvedBy: string | null; resolvedAt: string | null; createdAt: string;
+};
+
 function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
   const todayMonday = useMemo(() => isoDate(getMondayOfWeek(new Date())), []);
   const [weekStart, setWeekStart] = useState(todayMonday);
@@ -2879,6 +2884,12 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
   const weekEnd = useMemo(() => isoDate(addDays(new Date(weekStart + "T00:00:00"), 6)), [weekStart]);
   const prevWeek = () => setWeekStart(w => isoDate(addDays(new Date(w + "T00:00:00"), -7)));
   const nextWeek = () => setWeekStart(w => isoDate(addDays(new Date(w + "T00:00:00"), 7)));
+
+  // Annotation dialog state
+  const [annotating, setAnnotating] = useState<{ staffName: string; date: string; existing: CrossRefAnnotation | null } | null>(null);
+  const [annotForm, setAnnotForm] = useState({ note: "", resolvedBy: "", markResolved: false });
+  const qc = useQueryClient();
+  const { toast } = useToast();
 
   const tsQ = useQuery<{ entries: TimesheetEntry[] }>({
     queryKey: ["labour-timesheets", farmId],
@@ -2892,9 +2903,49 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
     enabled: !!farmId,
   });
 
-  const weekDates = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => isoDate(addDays(new Date(weekStart + "T00:00:00"), i)));
-  }, [weekStart]);
+  const annotQ = useQuery<{ annotations: CrossRefAnnotation[] }>({
+    queryKey: ["labour-crossref-annotations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/labour/crossref-annotations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const saveAnnot = useMutation({
+    mutationFn: async (body: object) => {
+      if (annotating?.existing) {
+        return fetch(`/api/farms/${farmId}/labour/crossref-annotations/${annotating.existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+      }
+      return fetch(`/api/farms/${farmId}/labour/crossref-annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation saved" }); setAnnotating(null); },
+  });
+
+  const delAnnot = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/crossref-annotations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation removed" }); setAnnotating(null); },
+  });
+
+  const annotMap = useMemo(() => {
+    const m: Record<string, CrossRefAnnotation> = {};
+    (annotQ.data?.annotations ?? []).forEach(a => { m[`${a.date}||${a.staffName}`] = a; });
+    return m;
+  }, [annotQ.data]);
+
+  function openAnnot(staffName: string, date: string) {
+    const existing = annotMap[`${date}||${staffName}`] ?? null;
+    setAnnotating({ staffName, date, existing });
+    setAnnotForm({ note: existing?.note ?? "", resolvedBy: existing?.resolvedBy ?? "", markResolved: !!existing?.resolvedAt });
+  }
+
+  function saveAnnotation() {
+    const body = {
+      staffName: annotating!.staffName,
+      date: annotating!.date,
+      note: annotForm.note,
+      resolvedBy: annotForm.markResolved && annotForm.resolvedBy ? annotForm.resolvedBy : null,
+      resolvedAt: annotForm.markResolved ? new Date().toISOString() : null,
+    };
+    saveAnnot.mutate(body);
+  }
 
   const { rows, summaryTimesheet, summaryFieldOps, summaryMismatch } = useMemo(() => {
     const allTs = (tsQ.data?.entries ?? []).filter(e => e.date >= weekStart && e.date <= weekEnd);
@@ -2933,7 +2984,9 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
 
   const loading = tsQ.isLoading || foQ.isLoading;
 
-  function statusBadge(row: { tsHrs: number; foHrs: number }) {
+  function statusBadge(row: { tsHrs: number; foHrs: number }, annotation: CrossRefAnnotation | undefined) {
+    if (annotation?.resolvedAt) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Resolved</span>;
+    if (annotation) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700"><MessageSquare className="w-3 h-3" /> Explained</span>;
     const diff = row.foHrs - row.tsHrs;
     if (row.tsHrs === 0 && row.foHrs > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Field ops only</span>;
     if (row.foHrs === 0 && row.tsHrs > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">No field ops</span>;
@@ -3010,6 +3063,7 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
                   <th className="px-4 py-3 text-right font-semibold text-gray-600 text-xs uppercase tracking-wide">Variance</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Field Operations</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -3017,15 +3071,28 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
                   const diff = row.foHrs - row.tsHrs;
                   const diffStr = diff === 0 ? "0.0" : (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1));
                   const diffColor = Math.abs(diff) <= 0.25 ? "text-green-600" : diff < 0 ? "text-amber-600" : "text-purple-600";
+                  const annotation = annotMap[`${row.date}||${row.staffName}`];
                   return (
-                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <tr key={i} className={`hover:bg-gray-50 transition-colors ${annotation ? "bg-gray-50/40" : ""}`}>
                       <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmtDate(row.date)}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{row.staffName}</td>
                       <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{row.tsHrs > 0 ? `${row.tsHrs.toFixed(1)} hrs` : <span className="text-gray-400">—</span>}</td>
                       <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{row.foHrs > 0 ? `${row.foHrs.toFixed(1)} hrs` : <span className="text-gray-400">—</span>}</td>
                       <td className={`px-4 py-3 text-right font-medium tabular-nums ${diffColor}`}>{diffStr} hrs</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{row.foOps.length > 0 ? row.foOps.join(", ") : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3">{statusBadge(row)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {row.foOps.length > 0 ? row.foOps.join(", ") : <span className="text-gray-300">—</span>}
+                        {annotation && <p className="mt-1 text-teal-600 italic truncate max-w-[200px]" title={annotation.note}>"{annotation.note}"</p>}
+                      </td>
+                      <td className="px-4 py-3">{statusBadge(row, annotation)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => openAnnot(row.staffName, row.date)}
+                          title={annotation ? "Edit annotation" : "Add annotation / explanation"}
+                          className={`p-1.5 rounded hover:bg-gray-200 transition-colors ${annotation ? "text-teal-600" : "text-gray-300 hover:text-gray-500"}`}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -3042,7 +3109,77 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-200 inline-block" /> Over-logged — more field op hrs than timesheet</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-200 inline-block" /> Field ops only — no matching timesheet entry</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-200 inline-block" /> No field ops — timesheet logged but no field op hours</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-200 inline-block" /> Explained — annotation added</span>
       </div>
+
+      {/* Annotation Dialog */}
+      <Dialog open={!!annotating} onOpenChange={open => { if (!open) setAnnotating(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-teal-600" />
+              {annotating?.existing ? "Edit Annotation" : "Add Annotation"}
+            </DialogTitle>
+          </DialogHeader>
+          {annotating && (
+            <div className="space-y-4 py-1">
+              <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                <span className="font-medium">{annotating.staffName}</span>
+                <span className="text-gray-400 mx-1.5">·</span>
+                <span className="text-gray-600">{fmtDate(annotating.date)}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Explanation / Note</Label>
+                <textarea
+                  className="w-full border rounded-md px-3 py-2 text-sm min-h-[90px] resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g. John spent 2.5 hrs helping with livestock weighing — not a field op, so no hours logged there."
+                  value={annotForm.note}
+                  onChange={e => setAnnotForm(f => ({ ...f, note: e.target.value }))}
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAnnotForm(f => ({ ...f, markResolved: !f.markResolved }))}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${annotForm.markResolved ? "bg-green-600" : "bg-gray-200"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${annotForm.markResolved ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+                <Label className="mb-0 cursor-pointer" onClick={() => setAnnotForm(f => ({ ...f, markResolved: !f.markResolved }))}>
+                  Mark as resolved
+                </Label>
+              </div>
+              {annotForm.markResolved && (
+                <div className="space-y-1.5">
+                  <Label>Resolved by</Label>
+                  <Input
+                    placeholder="Farm manager name"
+                    value={annotForm.resolvedBy}
+                    onChange={e => setAnnotForm(f => ({ ...f, resolvedBy: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2 flex-wrap">
+            {annotating?.existing && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200 hover:bg-red-50 mr-auto"
+                onClick={() => delAnnot.mutate(annotating.existing!.id)}
+                disabled={delAnnot.isPending}
+              >
+                <Trash2Icon className="w-3.5 h-3.5 mr-1" /> Remove
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setAnnotating(null)}>Cancel</Button>
+            <Button size="sm" onClick={saveAnnotation} disabled={!annotForm.note.trim() || saveAnnot.isPending}>
+              {saveAnnot.isPending ? "Saving…" : "Save Annotation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

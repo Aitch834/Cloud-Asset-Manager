@@ -435,6 +435,10 @@ export default function FieldOperationsPage() {
       toast({ title: "Please fill in all required fields", variant: "destructive" });
       return;
     }
+    if (!form.isContractor && !form.labourHours) {
+      toast({ title: "Labour hours required", description: "Please enter the labour hours for this operation.", variant: "destructive" });
+      return;
+    }
     const payload = {
       ...form,
       fieldId: form.fieldId === "__select__" ? "" : form.fieldId,
@@ -1111,7 +1115,7 @@ export default function FieldOperationsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="flex items-center gap-1"><Clock className="w-3 h-3" /> Labour Hours</Label>
+                      <Label className="flex items-center gap-1"><Clock className="w-3 h-3" /> Labour Hours <span className="text-red-500 ml-0.5">*</span></Label>
                       <Input
                         type="number"
                         step="0.5"
@@ -1119,6 +1123,7 @@ export default function FieldOperationsPage() {
                         placeholder="0.0"
                         value={form.labourHours}
                         onChange={(e) => setForm((f) => ({ ...f, labourHours: e.target.value }))}
+                        className={!form.labourHours ? "border-amber-300 focus:border-amber-400" : ""}
                       />
                     </div>
                     <div className="space-y-1.5">

@@ -363,6 +363,7 @@ import {
   labourLeaveEntitlementTable,
   labourHourlyRatesTable,
   labourActualAttendanceTable,
+  labourCrossRefAnnotationsTable,
   bvdTestingRecordsTable,
   johnesMonitoringRecordsTable,
   casualtySlaughterRecordsTable,
@@ -26776,6 +26777,50 @@ router.delete("/farms/:farmId/labour/actual-attendance/:id", requireAuth, requir
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   await db.delete(labourActualAttendanceTable).where(and(eq(labourActualAttendanceTable.id, id), eq(labourActualAttendanceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Labour Cross-Ref Annotations ────────────────────────────────────────────
+router.get("/farms/:farmId/labour/crossref-annotations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(labourCrossRefAnnotationsTable).where(eq(labourCrossRefAnnotationsTable.farmId, farmId)).orderBy(desc(labourCrossRefAnnotationsTable.date));
+  res.json({ annotations: rows });
+});
+
+router.post("/farms/:farmId/labour/crossref-annotations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = req.body;
+  const [row] = await (db.insert(labourCrossRefAnnotationsTable) as any).values({
+    farmId,
+    staffName: String(b.staffName ?? ""),
+    date: String(b.date ?? ""),
+    note: String(b.note ?? ""),
+    resolvedBy: b.resolvedBy ? String(b.resolvedBy) : null,
+    resolvedAt: b.resolvedAt ? new Date(b.resolvedAt) : null,
+  }).returning();
+  res.json(row);
+});
+
+router.put("/farms/:farmId/labour/crossref-annotations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const b = req.body;
+  const [row] = await db.update(labourCrossRefAnnotationsTable).set({
+    note: String(b.note ?? ""),
+    resolvedBy: b.resolvedBy ? String(b.resolvedBy) : null,
+    resolvedAt: b.resolvedAt ? new Date(b.resolvedAt) : null,
+  }).where(and(eq(labourCrossRefAnnotationsTable.id, id), eq(labourCrossRefAnnotationsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/labour/crossref-annotations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(labourCrossRefAnnotationsTable).where(and(eq(labourCrossRefAnnotationsTable.id, id), eq(labourCrossRefAnnotationsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

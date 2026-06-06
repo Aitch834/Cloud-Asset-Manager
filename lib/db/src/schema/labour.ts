@@ -82,3 +82,14 @@ export const labourActualAttendanceTable = pgTable("labour_actual_attendance", {
   loggedBy: text("logged_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const labourCrossRefAnnotationsTable = pgTable("labour_crossref_annotations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  staffName: text("staff_name").notNull(),
+  date: date("date").notNull(),
+  note: text("note").notNull(),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
