@@ -76,6 +76,7 @@ const CATEGORIES: Category[] = [
       { title: "Recording livestock movements — on-farm, off-farm and BCMS submission", summary: "Log every cattle, sheep, goat, or deer movement with date, animals, and destination. One-click BCMS submission for cattle (CTS Web Services) and LIS for sheep, goats, and deer." },
       { title: "Medicine records — withdrawal period calculation and AMTRA compliance", summary: "Log veterinary medicines with product name, batch number, route, dose, prescribing vet, and withdrawal period. Clearance date auto-calculated. AMTRA SQP compliance fields included." },
       { title: "Vet Health Plans — recording action completion and manager sign-off", summary: "Annual vet-signed health plans with review date tracking. Action completion is recorded against individual plan items with sign-off by a named farm manager." },
+      { title: "Welfare Outcome Assessments — assessor type, species measures and walkthrough tally", summary: "Select Staff Member or External Assessor. Measures adapt to the selected species (cattle, sheep, pig, poultry). For internal assessors, use the Walkthrough Tally to count animals per category during the walk — tallies feed the outcome scores. For external assessors, the expected fee auto-generates a purchase order on save. Records save offline and sync automatically." },
     ],
   },
   {

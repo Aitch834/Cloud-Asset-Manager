@@ -191,6 +191,7 @@ const TITLES: [string, string][] = [
   ["Labour Management — Printable Blank Leave Request Form (FT-LR-01) and Paper Submission Workflow", "Staff & Training"],
   ["Labour Management — Actual Attendance Recording, Discrepancy Flags and Bradford Factor Sickness Analysis", "Staff & Training"],
   ["Labour Management — Department Grouping and Colour-Coded Section Headers Across All Six Tabs", "Staff & Training"],
+  ["Labour Cross-Reference — Comparing Timesheet Hours Against Field Operations Records", "Staff & Training"],
   ["Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)", "Sales & Trading"],
   ["Livestock Mart / Auction Sales — Linking Sale Records to Off-Farm Movement Records (LIS Audit Trail)", "Sales & Trading"],
   ["TB Test to Movement Record Linkage — APHA Pre-Movement Testing Evidence and Cross-Compliance", "Livestock & Feed Management"],
@@ -2581,15 +2582,23 @@ const CONTENT: [string, string][] = [
 
   // 129 — Welfare Outcome Assessments — Scoring, Reporting & Mobile Recording
   [
-    "How to record welfare outcome assessments (WOAs) for cattle and livestock in BDE Farm Trac, including mobility and body condition scoring.",
+    "How to record welfare outcome assessments (WOAs) in BDE Farm Trac, including assessor type selection, species-adaptive measures, walkthrough tally, and external assessor purchase orders.",
     `<h2>Welfare Outcome Assessments — Scoring, Reporting & Mobile Recording</h2>
-<p>Welfare Outcome Assessments (WOAs) — sometimes called outcome-based measures — assess the welfare of animals at a specific point in time rather than just checking that processes and inputs are in place. Red Tractor Dairy, Red Tractor Beef &amp; Lamb, and RSPCA Assured all require regular welfare outcome assessments. BDE Farm Trac provides structured forms for each assessment type.</p>
-<h3>Mobility scoring</h3>
-<p>Navigate to <strong>Livestock → Welfare Assessments → Mobility</strong> and click <strong>New Assessment</strong>. Select the herd or group, the assessment date, and score each animal or group on the AHDB mobility scoring scale (0–3): 0 (Perfect), 1 (Imperfect), 2 (Impaired), 3 (Lame). The assessment calculates the herd mobility score as a percentage of lame animals (scoring 3) and the percentage with any impairment (scoring 2 or 3).</p>
-<h3>Body condition scoring (BCS)</h3>
-<p>BCS assessments on the 1–5 scale are recorded for cattle at key production stages — calving, drying off, mid-lactation, and housing. Cows scoring below 2.0 at calving or below 2.5 at drying off are flagged as requiring a management review. BCS trend analysis across assessments shows whether body condition is being maintained in the herd.</p>
+<p>Welfare Outcome Assessments (WOAs) — sometimes called outcome-based measures — assess the welfare of animals at a specific point in time. Red Tractor Dairy, Red Tractor Beef &amp; Lamb, Red Tractor Pigs, and RSPCA Assured all require regular welfare outcome assessments. BDE Farm Trac provides structured, species-adaptive forms for each assessment type.</p>
+<h3>Creating a new assessment</h3>
+<p>Navigate to <strong>Livestock → Welfare Outcome Assessments</strong> and click <strong>New Assessment</strong>. Select the assessment type and species — the herd picker filters your herd register to show only herds of the matching species. Assessment measures then adapt automatically: cattle, sheep, pig, and poultry assessments each display only the welfare indicators relevant to that species.</p>
+<h3>Choosing the assessor type</h3>
+<p>Select whether the assessment is being carried out by a <strong>Staff Member</strong> or an <strong>External Assessor</strong>:</p>
+<ul>
+<li><strong>Staff Member</strong> — select the person from your staff register; their name auto-populates. An in-app Walkthrough Observations tally dialog is available to count animals per observation category as you walk the herd — tally values feed the calculated outcome scores automatically.</li>
+<li><strong>External Assessor</strong> — select the assessor from your Supplier register (a vet practice, consultant, or contracted assessor service). Record the expected assessment fee. On save, BDE Farm Trac automatically generates a linked purchase order (PO-YYYY-NNNN) so the cost appears immediately in your procurement trail under Trade Contacts &amp; Stock → Purchase Orders — no manual PO needed.</li>
+</ul>
+<h3>Recording the outcome</h3>
+<p>Enter scores for each welfare indicator. The overall outcome calculates automatically and is classified as <strong>Good</strong>, <strong>Satisfactory</strong>, or <strong>Action Required</strong>. Record any corrective actions taken and set a follow-up date if required.</p>
+<h3>Viewing and printing</h3>
+<p>All WOA records use a view-before-edit panel so you review the record before making changes. A <strong>Print Report</strong> button generates a formatted A4 assessment report suitable for presenting to your Red Tractor assessor during an audit visit.</p>
 <h3>Mobile recording</h3>
-<p>Welfare assessments can be recorded from the mobile app during the assessment walk — mobility scores, BCS assessments, and cleanliness observations can all be entered in the field without returning to an office. Pull to refresh after syncing to confirm all assessment records are uploaded.</p>`,
+<p>Tap <strong>Record → Welfare Outcome</strong> in the mobile app to log an assessment in the field. The form saves offline if you have no signal and syncs to the dashboard automatically when connectivity is restored.</p>`,
   ],
 
   // 130 — Fallen Stock Records — Contractor, Veterinary Details & Invoice Tracking
@@ -3333,7 +3342,28 @@ const CONTENT: [string, string][] = [
 <p>Navigate to <strong>Settings → Departments</strong> and assign a colour to each department. Six distinct colours are available. The chosen colour appears as the section header in all Labour Management tabs. Assign colours that reflect your farm's existing team identity or follow a logical colour scheme (e.g. green for Livestock, amber for Arable, blue for Administration).</p>`,
   ],
 
-  // 169 — Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)
+  // 169 — Labour Cross-Reference — Comparing Timesheet Hours Against Field Operations Records
+  [
+    "How to use the Labour Cross-Reference tab in BDE Farm Trac to compare timesheet hours against field operations hours and annotate discrepancies.",
+    `<h2>Labour Cross-Reference — Comparing Timesheet Hours Against Field Operations Records</h2>
+<p>Red Tractor requires farms to cross-check labour records against operational records and to demonstrate that discrepancies have been investigated and documented. The Labour Cross-Reference tab in Labour Management provides this comparison automatically for every staff member across any calendar month.</p>
+<h3>Where to find it</h3>
+<p>Navigate to <strong>Staff &amp; Training → Labour Management</strong> and click the <strong>Cross-Reference</strong> tab. Use the month and year selectors at the top of the page to choose the period you want to review.</p>
+<h3>What the table shows</h3>
+<p>Each row in the cross-reference table represents one staff member active in the selected period. Columns show:</p>
+<ul>
+<li><strong>Timesheet Hours</strong> — the total hours logged in that person's approved timesheets for the period.</li>
+<li><strong>Field Operations Hours</strong> — the total hours attributed to that person in Field Operations records (spray applications, cultivations, planting, harvesting) for the same period.</li>
+<li><strong>Variance</strong> — the arithmetic difference (Timesheet minus Field Operations hours).</li>
+<li><strong>Status badge</strong> — colour-coded: <span style="color:#16a34a">Matching</span> (green, difference within tolerance), <span style="color:#d97706">Over-Reported</span> (amber, timesheet hours significantly exceed field operations), or <span style="color:#dc2626">Under-Reported</span> (red, field operations hours significantly exceed timesheets).</li>
+</ul>
+<h3>Adding an annotation</h3>
+<p>For any row showing a discrepancy, click the annotation icon on the right of the row to open the Annotation dialog. Add a free-text note explaining the discrepancy — for example, "Contractor hours not yet entered in Field Ops" or "Overtime on maintenance tasks not in Field Ops scope." Then mark the discrepancy as <strong>Explained</strong> (you have a recorded reason) or <strong>Resolved</strong> (underlying records have been corrected). Save the annotation. The row then displays a coloured badge (<strong>Explained</strong> or <strong>Resolved</strong>) alongside a preview of your note, so any reviewer can immediately see that the gap has been considered.</p>
+<h3>Why this matters</h3>
+<p>Red Tractor assessors look for evidence that farms actively monitor the consistency of their labour records. An unexplained gap between timesheet hours and field operations records is a potential compliance finding. The Labour Cross-Reference tab, together with its annotation audit trail, provides a single place to demonstrate that any discrepancy has been identified, investigated, and either explained or corrected — without requiring additional spreadsheets or manual reconciliation reports.</p>`,
+  ],
+
+  // 170 — Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)
   [
     "How to link deadweight livestock kill sheets to off-farm movement records in BDE Farm Trac to create the complete BCMS audit trail.",
     `<h2>Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)</h2>
