@@ -5,8 +5,9 @@ import { Redirect, useSearch } from "wouter";
 import {
   ClipboardList, CheckCircle2, Clock, XCircle, Loader2, Trash2, ChevronDown,
   UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight, Search,
-  BarChart3, Printer, ChevronRight, Building2, Users, ChevronUp,
+  BarChart3, Printer, ChevronRight, Building2, Users, ChevronUp, Plus,
 } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -588,6 +589,7 @@ export default function TaskBoardPage() {
   })();
 
   const [view, setView] = useState<"board" | "reports">("board");
+  const [showNewTask, setShowNewTask] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -675,27 +677,36 @@ export default function TaskBoardPage() {
     <AppLayout title="Task Board">
       <div className="max-w-3xl space-y-6">
 
-        {/* View toggle */}
-        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+        {/* View toggle + New Task button */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+            <button
+              onClick={() => setView("board")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
+                view === "board" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
+              )}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              Board
+            </button>
+            <button
+              onClick={() => setView("reports")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
+                view === "reports" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
+              )}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Reports
+            </button>
+          </div>
           <button
-            onClick={() => setView("board")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
-              view === "board" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
-            )}
+            onClick={() => setShowNewTask(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            <ClipboardList className="w-3.5 h-3.5" />
-            Board
-          </button>
-          <button
-            onClick={() => setView("reports")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all",
-              view === "reports" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground"
-            )}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Reports
+            <Plus className="w-3.5 h-3.5" />
+            New Task
           </button>
         </div>
 
@@ -873,6 +884,13 @@ export default function TaskBoardPage() {
         </>}
 
       </div>
+
+      <RaiseTaskDialog
+        farmId={farmId}
+        open={showNewTask}
+        onClose={() => setShowNewTask(false)}
+        allowEditTitle
+      />
     </AppLayout>
   );
 }

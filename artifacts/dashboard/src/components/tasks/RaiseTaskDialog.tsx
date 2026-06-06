@@ -59,6 +59,7 @@ interface RaiseTaskDialogProps {
   defaultDueDate?: string;
   taskType?: string;
   module?: string;
+  allowEditTitle?: boolean;
   onAssigned?: () => void;
 }
 
@@ -66,6 +67,7 @@ export function RaiseTaskDialog({
   farmId, open, onClose,
   defaultTitle = "", defaultDescription = "", defaultNote = "",
   defaultDueDate = "", taskType = "custom", module = "General",
+  allowEditTitle = false,
   onAssigned,
 }: RaiseTaskDialogProps) {
   const { toast } = useToast();
@@ -74,6 +76,7 @@ export function RaiseTaskDialog({
   const [assignedToMemberId, setAssignedToMemberId] = useState("");
   const [dueDate, setDueDate] = useState(defaultDueDate || new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState(defaultNote);
+  const [editableTitle, setEditableTitle] = useState(defaultTitle);
 
   const membersQ = useQuery<{ members: FarmMember[] }>({
     queryKey: ["farm-members", farmId],
@@ -103,14 +106,17 @@ export function RaiseTaskDialog({
     setAssignedToMemberId("");
     setDueDate(defaultDueDate || new Date().toISOString().slice(0, 10));
     setNote(defaultNote);
+    setEditableTitle(defaultTitle);
     onClose();
   }
 
   function handleSubmit() {
+    const title = allowEditTitle ? editableTitle.trim() : defaultTitle;
+    if (!title) { toast({ title: "Please enter a task title", variant: "destructive" }); return; }
     if (!assignedToMemberId) { toast({ title: "Please select a staff member", variant: "destructive" }); return; }
     createMut.mutate({
       assignedToMemberId: parseInt(assignedToMemberId),
-      title: defaultTitle,
+      title,
       description: defaultDescription || null,
       dueDate: dueDate || null,
       assignmentNote: note || null,
@@ -125,15 +131,27 @@ export function RaiseTaskDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
-            Raise Task
+            {allowEditTitle ? "New Task" : "Raise Task"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-1">
+          {allowEditTitle ? (
+            <div className="space-y-1">
+              <Label>Task title <span className="text-destructive">*</span></Label>
+              <Input
+                placeholder="e.g. Fix broken gate in north field"
+                value={editableTitle}
+                onChange={e => setEditableTitle(e.target.value)}
+                autoFocus
+              />
+            </div>
+          ) : (
           <div className="bg-muted/50 border rounded-lg px-3 py-2.5">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Task</p>
             <p className="text-sm font-medium text-foreground">{defaultTitle || "—"}</p>
             {defaultDescription && <p className="text-xs text-muted-foreground mt-0.5">{defaultDescription}</p>}
           </div>
+          )}
           <div className="space-y-1">
             <Label>Assign to <span className="text-destructive">*</span></Label>
             <Select value={assignedToMemberId} onValueChange={setAssignedToMemberId}>
