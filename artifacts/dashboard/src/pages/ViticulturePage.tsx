@@ -258,7 +258,7 @@ export function OverviewTab({ farmId }: { farmId: number }) {
         <StatCard label="Active Blocks" value={activeBlocks.length} sub="in production" />
         <StatCard label="Total Vineyard Area" value={`${totalHa.toFixed(2)} ha`} sub="across all blocks" color="green" />
         <StatCard label="Total Vines" value={totalVines.toLocaleString()} sub="registered plants" />
-        <StatCard label="HMRC Registered" value={`${registeredHa.toFixed(2)} ha`} sub="on vine register" color="purple" />
+        <StatCard label="FSA Registered" value={`${registeredHa.toFixed(2)} ha`} sub="on vine register" color="purple" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg border p-4 space-y-3">
@@ -870,7 +870,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
                   <p className="text-xs text-amber-700 mt-1">Status will be set to Suspended. You can reactivate this planting later.</p>
                 )}
                 {retireForm.deactivationType === "grubbed_up" && (
-                  <p className="text-xs text-red-700 mt-1">Status will be set to Removed. HMRC vine register may need updating.</p>
+                  <p className="text-xs text-red-700 mt-1">Status will be set to Removed. FSA vine register may need updating.</p>
                 )}
                 {retireForm.deactivationType === "replanting" && (
                   <p className="text-xs text-blue-700 mt-1">Status will be set to Removed. Use the Replant button to add a new planting on this site afterwards.</p>
@@ -3382,7 +3382,7 @@ export default function ViticulturePage() {
               <Grape className="w-5 h-5 text-purple-600" />
               Viticulture
             </h1>
-            <p className="text-sm text-muted-foreground">Growing compliance — HMRC vine register, blocks, phenology, operations, harvest and disease scouting</p>
+            <p className="text-sm text-muted-foreground">Growing compliance — FSA vine register, blocks, phenology, operations, harvest and disease scouting</p>
           </div>
           <Button variant="outline" size="sm" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => setRaiseOpen(true)}>
             <ClipboardList className="w-4 h-4 mr-1" />

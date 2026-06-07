@@ -401,7 +401,7 @@ export const LOOKUP_DEFINITIONS: Record<string, LookupDefinition> = {
   vineyard_grape_varieties: {
     label: "Vineyard Grape Varieties (UK)",
     description: "Wine grape varieties grown in UK vineyards",
-    authority: "HMRC Vine Register / WineGB",
+    authority: "FSA Vine Register / WineGB",
     authorityUrl: "https://www.winegb.co.uk",
     reviewFrequency: "Annual",
     items: [
