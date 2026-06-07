@@ -24,7 +24,23 @@ const SECTORS = [
   { key: "sectorEquine", label: "Equine" },
   { key: "sectorHorticulture", label: "Horticulture" },
   { key: "sectorViticulture", label: "Viticulture" },
+  { key: "sectorFreshProduce", label: "Fresh Produce" },
 ] as const;
+
+const MODULE_KEY_TO_SECTOR: Record<string, string> = {
+  "viticulture": "sectorViticulture",
+  "organic-viticulture": "sectorViticulture",
+  "beef-production": "sectorBeef",
+  "sheep-production": "sectorSheep",
+  "sheep-dairy": "sectorSheep",
+  "organic-sheep-dairy": "sectorSheep",
+  "dairy-management": "sectorDairy",
+  "goat-production": "sectorGoats",
+  "goat-dairy": "sectorGoats",
+  "organic-goat-dairy": "sectorGoats",
+  "field-crop-management": "sectorArable",
+  "organic-arable": "sectorArable",
+};
 
 interface Module {
   id: number;
@@ -100,12 +116,28 @@ export default function OnboardingPage() {
 
   const toggleModule = (id: number, isCore: boolean) => {
     if (isCore) return;
+    const adding = !selectedModuleIds.has(id);
     setSelectedModuleIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    if (adding && createdFarmId && createdTenantSlug) {
+      const mod = modules.find((m) => m.id === id);
+      if (mod) {
+        const sectorKey = MODULE_KEY_TO_SECTOR[mod.moduleKey];
+        if (sectorKey && !farmSectors[sectorKey]) {
+          const updated = { ...farmSectors, [sectorKey]: true };
+          setFarmSectors(updated);
+          fetch(`${import.meta.env.BASE_URL}api/farms/${createdFarmId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "x-tenant-slug": createdTenantSlug },
+            body: JSON.stringify({ name: farmName, ...updated }),
+          }).catch(() => {});
+        }
+      }
+    }
   };
 
   const monthlyTotal = modules
