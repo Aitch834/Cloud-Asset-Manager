@@ -288,7 +288,7 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
               onChange={e => { setUsername(e.target.value); setDirty(true); }}
               className="mt-1 font-mono"
             />
-            <p className="text-xs text-muted-foreground mt-1">Your CTS Web Services username — format <span className="font-mono">nnn-nnn-nnn</span>. <strong>Different</strong> from your CTS Online web login. Contact BCMS (0345 050 1234) if you don't have one.</p>
+            <p className="text-xs text-muted-foreground mt-1">Your CTS Web Services username — format <span className="font-mono">nnn-nnn-nnn</span>. <strong>Different</strong> from your LIS portal login. Contact the APHA livestock helpline (0300 020 0301) if you don't have one.</p>
           </div>
           <div>
             <Label>CTWS Password</Label>
@@ -352,8 +352,8 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
         <div style={{ background: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 10, padding: "0.875rem 1rem" }}>
           <p style={{ fontSize: "0.78rem", color: "#3730a3", fontWeight: 600, marginBottom: 4 }}>How to get your CTWS credentials</p>
           <ol style={{ fontSize: "0.78rem", color: "#4338ca", paddingLeft: "1.25rem", lineHeight: 1.8, margin: 0 }}>
-            <li>Call BCMS on <strong>0345 050 1234</strong> (Mon–Fri 8:30–17:00) and ask for your CTS Web Services username and password.</li>
-            <li>Your CTWS username is in the format <span className="font-mono">nnn-nnn-nnn</span> — it is <strong>not</strong> the same as your CTS Online web login.</li>
+            <li>Call the APHA livestock helpline on <strong>0300 020 0301</strong> (Mon–Fri 8:30–17:00) and ask for your CTS Web Services (CTWS) username and password.</li>
+            <li>Your CTWS username is in the format <span className="font-mono">nnn-nnn-nnn</span> — it is <strong>not</strong> the same as your LIS portal login at <a href="https://portal.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline">portal.livestockinformation.org.uk</a>.</li>
             <li>Once saved, click "Test Connection" to verify your credentials against the BCMS test server.</li>
           </ol>
         </div>
@@ -429,7 +429,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
       <CardContent className="p-6 md:p-8 space-y-5">
         <SectionHeader
           title="LIS / Livestock Information Service"
-          description="Connect your Livestock Information Service (LIS) account to enable one-click sheep, goat and deer movement submission directly from the Movements register. LIS is the England government platform for sheep/goat/deer movement reporting, replacing the old paper AML forms."
+          description="Connect your Livestock Information Service (LIS) account to enable one-click sheep, goat, pig and deer movement submission directly from the Movements register. LIS is the England government platform replacing eAML2 for sheep, goat, pig and deer movement reporting."
         />
 
         {/* Platform status banner */}
@@ -520,7 +520,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             <li>Register or sign in at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline">cla.livestockinformation.org.uk</a> using your email address.</li>
             <li>Enter your LIS username (email) and password above and click <strong>Save Credentials</strong>.</li>
             <li>Click <strong>Test Connection</strong> to verify — in sandbox mode this simulates a successful connection.</li>
-            <li>Once connected, a blue <strong>Test Submit (LIS)</strong> button will appear on each sheep, goat and deer movement row in the Movements register.</li>
+            <li>Once connected, a blue <strong>Test Submit (LIS)</strong> button will appear on each sheep, goat, pig and deer movement row in the Movements register.</li>
             <li>For live submissions: BDE must register on the <a href="https://livestockinformation.org.uk/developer-hub/" target="_blank" rel="noopener noreferrer" className="underline">LIS Developer Hub</a> and set the <span className="font-mono">LIS_SUBSCRIPTION_KEY</span> environment variable. Submissions then go directly to LIS automatically.</li>
           </ol>
         </div>
@@ -1370,7 +1370,7 @@ export default function FarmSettings() {
             )}
             {formData.country === "wales" && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                <strong>Wales:</strong> Sheep and goat movements are reported via <strong>EIDCymru</strong> (eidcymru.org). Cattle movements use <strong>BCMS Online</strong> as in England. Pig movements use <strong>eAML2.org.uk</strong>.
+                <strong>Wales:</strong> Sheep and goat movements are reported via <strong>EIDCymru</strong> (eidcymru.org). Cattle movements are reported via <strong>LIS</strong> (portal.livestockinformation.org.uk). Pig movements use <strong>eAML2.org.uk</strong>.
               </div>
             )}
             {formData.country === "northern_ireland" && (
@@ -1389,7 +1389,7 @@ export default function FarmSettings() {
                   value={formData.eaml2Email}
                   onChange={e => updateField("eaml2Email", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Email registered with your livestock movement portal (eAML2 / BCMS / ScotEID / EIDCymru)</p>
+                <p className="text-xs text-muted-foreground mt-1">Email registered with your livestock movement portal (LIS / EIDCymru / ScotEID / NIFAIS)</p>
               </div>
 
               <div>
@@ -1400,7 +1400,7 @@ export default function FarmSettings() {
                   value={formData.flockMark}
                   onChange={e => updateField("flockMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">APHA-issued flock number (UK + 6 digits) for sheep and goats. Appears on ear tags and eAML2 / EIDCymru / ScotEID movement documents. Pigs use the Herd Mark below.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued flock number (UK + 6 digits) for sheep and goats. Appears on ear tags and LIS / EIDCymru / ScotEID movement documents. Pigs use the Herd Mark below.</p>
               </div>
 
               <div>
@@ -1422,7 +1422,7 @@ export default function FarmSettings() {
                   value={formData.pigHerdMark}
                   onChange={e => updateField("pigHerdMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for pigs. Appears on pig ear tags and slap marks, and required for eAML2 pig movement documents. Registered separately from your cattle herd mark.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for pigs. Appears on pig ear tags and slap marks, and required for LIS (formerly eAML2) pig movement documents. Registered separately from your cattle herd mark.</p>
               </div>
 
               <div>
@@ -1467,8 +1467,8 @@ export default function FarmSettings() {
               <strong>How movement reporting works with BDE Farm Trac:</strong> Record all livestock movements in the Movements section. Use the "Export CSV" button to download a structured report as a reference when submitting to your relevant portal. Paste the movement reference number back into each record once submitted.
               {" "}<strong>Cattle</strong> must be reported within 3 days.{" "}
               {formData.country === "scotland" && <>All species in Scotland are reported to <strong>ScotEID</strong>.</>}
-              {formData.country === "wales" && <>In Wales, sheep and goats use <strong>EIDCymru</strong>; cattle use <strong>BCMS Online</strong>.</>}
-              {(formData.country === "england" || !formData.country) && <>In England, sheep, goats and pigs use <strong>eAML2.org.uk</strong>; cattle use <strong>BCMS Online</strong>.</>}
+              {formData.country === "wales" && <>In Wales, sheep and goats use <strong>EIDCymru</strong>; cattle use <strong>LIS</strong>; pigs use <strong>eAML2</strong>.</>}
+              {(formData.country === "england" || !formData.country) && <>In England, sheep, goats and pigs use <strong>LIS</strong> (replacing eAML2); cattle use <strong>LIS / CTWS</strong>.</>}
               {formData.country === "northern_ireland" && <>In Northern Ireland, use <strong>NIFAIS</strong> for cattle and <strong>APHIS</strong> for sheep and pigs.</>}
             </div>
           </CardContent>
