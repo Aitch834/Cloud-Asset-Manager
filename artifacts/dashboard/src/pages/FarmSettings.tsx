@@ -1390,25 +1390,25 @@ export default function FarmSettings() {
               </div>
 
               <div>
-                <Label htmlFor="settings-flock-mark">Flock Mark (Sheep, Goats &amp; Pigs)</Label>
+                <Label htmlFor="settings-flock-mark">Flock Mark (Sheep &amp; Goats)</Label>
                 <Input
                   id="settings-flock-mark"
                   placeholder="e.g. UK123456"
                   value={formData.flockMark}
                   onChange={e => updateField("flockMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">APHA-issued 8-character flock mark (UK + 6 digits). Required for all sheep, goat and pig movement documents.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued flock number (UK + 6 digits) for sheep and goats. Appears on ear tags and eAML2 / EIDCymru / ScotEID movement documents. Pigs use the Herd Mark below.</p>
               </div>
 
               <div>
-                <Label htmlFor="settings-herd-mark">Herd Mark (Cattle)</Label>
+                <Label htmlFor="settings-herd-mark">Herd Mark (Cattle &amp; Pigs)</Label>
                 <Input
                   id="settings-herd-mark"
                   placeholder="e.g. UK654321"
                   value={formData.herdMark}
                   onChange={e => updateField("herdMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">BCMS / ScotEID herd mark for cattle. Printed on cattle passports and required for movement notifications.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for cattle and pigs. Printed on cattle passports and pig ear tags / slap marks, and required for eAML2 pig movement documents and BCMS cattle notifications.</p>
               </div>
 
               <div>
