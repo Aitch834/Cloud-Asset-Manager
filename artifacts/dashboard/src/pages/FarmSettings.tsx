@@ -84,6 +84,7 @@ interface FarmFormData {
   eaml2Email: string;
   flockMark: string;
   herdMark: string;
+  pigHerdMark: string;
   bcmsHoldingNumber: string;
   scotEidNumber: string;
   eidCymruNumber: string;
@@ -149,6 +150,7 @@ function farmToFormData(farm: Farm & {
     eaml2Email: (farm as any).eaml2Email || "",
     flockMark: (farm as any).flockMark || "",
     herdMark: (farm as any).herdMark || "",
+    pigHerdMark: (farm as any).pigHerdMark || "",
     bcmsHoldingNumber: (farm as any).bcmsHoldingNumber || "",
     scotEidNumber: (farm as any).scotEidNumber || "",
     eidCymruNumber: (farm as any).eidCymruNumber || "",
@@ -963,6 +965,7 @@ export default function FarmSettings() {
       eaml2Email: formData.eaml2Email.trim() || undefined,
       flockMark: formData.flockMark.trim() || undefined,
       herdMark: formData.herdMark.trim() || undefined,
+      pigHerdMark: formData.pigHerdMark.trim() || undefined,
       bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
       scotEidNumber: formData.scotEidNumber.trim() || undefined,
       eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
@@ -1401,14 +1404,25 @@ export default function FarmSettings() {
               </div>
 
               <div>
-                <Label htmlFor="settings-herd-mark">Herd Mark (Cattle &amp; Pigs)</Label>
+                <Label htmlFor="settings-herd-mark">Herd Mark (Cattle)</Label>
                 <Input
                   id="settings-herd-mark"
                   placeholder="e.g. UK654321"
                   value={formData.herdMark}
                   onChange={e => updateField("herdMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for cattle and pigs. Printed on cattle passports and pig ear tags / slap marks, and required for eAML2 pig movement documents and BCMS cattle notifications.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for cattle. Printed on cattle passports and required for BCMS movement notifications. Issued separately from the pig herd mark below.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-pig-herd-mark">Herd Mark (Pigs)</Label>
+                <Input
+                  id="settings-pig-herd-mark"
+                  placeholder="e.g. UK789012"
+                  value={formData.pigHerdMark}
+                  onChange={e => updateField("pigHerdMark", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued herd mark for pigs. Appears on pig ear tags and slap marks, and required for eAML2 pig movement documents. Registered separately from your cattle herd mark.</p>
               </div>
 
               <div>

@@ -493,7 +493,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     sectorEggs, sectorGoats, sectorEquine, sectorHorticulture, sectorViticulture, sectorFreshProduce,
     redTractorId, sbiNumber, farmManager, holdingType, assuranceBody,
     isNvzDesignated, country,
-    eaml2Email, flockMark, herdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
+    eaml2Email, flockMark, herdMark, pigHerdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
     appaRef, appaRegistrationDate, fsaWineProductionRef,
   } = req.body;
 
@@ -536,6 +536,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     eaml2Email: eaml2Email ?? null,
     flockMark: flockMark ?? null,
     herdMark: herdMark ?? null,
+    pigHerdMark: pigHerdMark ?? null,
     bcmsHoldingNumber: bcmsHoldingNumber ?? null,
     scotEidNumber: scotEidNumber ?? null,
     eidCymruNumber: eidCymruNumber ?? null,

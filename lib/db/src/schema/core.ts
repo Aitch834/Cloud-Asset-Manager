@@ -56,6 +56,7 @@ export const farmsTable = pgTable("farms", {
   eaml2Email: text("eaml2_email"),
   flockMark: text("flock_mark"),
   herdMark: text("herd_mark"),
+  pigHerdMark: text("pig_herd_mark"),
   bcmsHoldingNumber: text("bcms_holding_number"),
   country: text("country").notNull().default("england"),
   scotEidNumber: text("scot_eid_number"),
