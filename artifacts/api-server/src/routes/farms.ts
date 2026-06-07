@@ -494,6 +494,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     redTractorId, sbiNumber, farmManager, holdingType, assuranceBody,
     isNvzDesignated, country,
     eaml2Email, flockMark, herdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
+    appaRef, appaRegistrationDate, fsaWineProductionRef,
   } = req.body;
 
   if (!name) { res.status(400).json({ error: "Farm name is required" }); return; }
@@ -537,6 +538,9 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     bcmsHoldingNumber: bcmsHoldingNumber ?? null,
     scotEidNumber: scotEidNumber ?? null,
     eidCymruNumber: eidCymruNumber ?? null,
+    appaRef: appaRef ?? null,
+    appaRegistrationDate: appaRegistrationDate ?? null,
+    fsaWineProductionRef: fsaWineProductionRef ?? null,
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();
@@ -25097,6 +25101,73 @@ router.post("/farms/:farmId/woa-walkthrough", requireAuth, requireTenant, requir
     weatherConditions: b.weatherConditions ? String(b.weatherConditions) : null,
   }).returning();
   res.json({ record });
+});
+
+router.put("/farms/:farmId/woa-walkthrough/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const numOrNull = (v: unknown) => v != null && v !== "" ? Number(v) : null;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (b.assessmentDate !== undefined) updates.assessmentDate = String(b.assessmentDate);
+  if (b.species !== undefined) updates.species = String(b.species);
+  if (b.herdFlockRef !== undefined) updates.herdFlockRef = b.herdFlockRef ? String(b.herdFlockRef) : null;
+  if (b.observedBy !== undefined) updates.observedBy = String(b.observedBy);
+  if (b.observerMemberId !== undefined) updates.observerMemberId = b.observerMemberId != null ? Number(b.observerMemberId) : null;
+  if (b.sampleSize !== undefined) updates.sampleSize = numOrNull(b.sampleSize);
+  if (b.woaId !== undefined) updates.woaId = b.woaId != null ? Number(b.woaId) : null;
+  const tallyFields = ["lamenessAffected","lamenessTotal","bcsAffected","bcsTotal","dungAffected","dungTotal","skinLesionAffected","skinLesionTotal","nasalDischargeAffected","nasalDischargeTotal","eyeDischargeAffected","eyeDischargeTotal","calvingLambingAffected","calvingLambingTotal","dagAffected","dagTotal","tailBitingAffected","tailBitingTotal","snoutRootingAffected","snoutRootingTotal","featherCoverageAffected","featherCoverageTotal","footpadDermatitisAffected","footpadDermatitisTotal","hockBurnAffected","hockBurnTotal","culledBirdsAffected","culledBirdsTotal"];
+  for (const f of tallyFields) { if (b[f] !== undefined) updates[f] = numOrNull(b[f]); }
+  if (b.walkthroughNotes !== undefined) updates.walkthroughNotes = b.walkthroughNotes ? String(b.walkthroughNotes) : null;
+  if (b.weatherConditions !== undefined) updates.weatherConditions = b.weatherConditions ? String(b.weatherConditions) : null;
+  const [record] = await db.update(welfareWalkthroughObservationsTable).set(updates).where(and(eq(welfareWalkthroughObservationsTable.id, id), eq(welfareWalkthroughObservationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/woa-walkthrough/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(welfareWalkthroughObservationsTable).where(and(eq(welfareWalkthroughObservationsTable.id, id), eq(welfareWalkthroughObservationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Apply a saved walkthrough to its linked WOA: write calculated % scores back to the WOA row.
+router.post("/farms/:farmId/woa-walkthrough/:id/apply", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const [wt] = await db.select().from(welfareWalkthroughObservationsTable).where(and(eq(welfareWalkthroughObservationsTable.id, id), eq(welfareWalkthroughObservationsTable.farmId, farmId)));
+  if (!wt) { res.status(404).json({ error: "Walkthrough not found" }); return; }
+  if (!wt.woaId) { res.status(400).json({ error: "Walkthrough is not linked to a WOA — link it first by setting woaId" }); return; }
+
+  const pct = (aff: number | null, tot: number | null) =>
+    aff != null && tot != null && tot > 0 ? ((aff / tot) * 100).toFixed(1) : null;
+
+  const woaUpdates: Record<string, unknown> = { updatedAt: new Date() };
+  const setPct = (field: string, a: number | null, t: number | null) => { const v = pct(a, t); if (v !== null) woaUpdates[field] = v; };
+  setPct("lamenessScore", wt.lamenessAffected, wt.lamenessTotal);
+  setPct("bodyConditionScore", wt.bcsAffected, wt.bcsTotal);
+  setPct("dungScore", wt.dungAffected, wt.dungTotal);
+  setPct("skinLesionScore", wt.skinLesionAffected, wt.skinLesionTotal);
+  setPct("nasalDischargeScore", wt.nasalDischargeAffected, wt.nasalDischargeTotal);
+  setPct("eyeDischargeScore", wt.eyeDischargeAffected, wt.eyeDischargeTotal);
+  setPct("calvingLambingScore", wt.calvingLambingAffected, wt.calvingLambingTotal);
+  setPct("dagScore", wt.dagAffected, wt.dagTotal);
+  setPct("tailBitingScore", wt.tailBitingAffected, wt.tailBitingTotal);
+  setPct("snoutRootingScore", wt.snoutRootingAffected, wt.snoutRootingTotal);
+  setPct("featherCoverageScore", wt.featherCoverageAffected, wt.featherCoverageTotal);
+  setPct("footpadDermatitisScore", wt.footpadDermatitisAffected, wt.footpadDermatitisTotal);
+  setPct("hockBurnScore", wt.hockBurnAffected, wt.hockBurnTotal);
+  setPct("culledBirdsRate", wt.culledBirdsAffected, wt.culledBirdsTotal);
+  if (wt.sampleSize) woaUpdates.sampleSize = wt.sampleSize;
+
+  await db.update(welfareOutcomeAssessmentsTable).set(woaUpdates).where(and(eq(welfareOutcomeAssessmentsTable.id, wt.woaId), eq(welfareOutcomeAssessmentsTable.farmId, farmId)));
+  await db.update(welfareWalkthroughObservationsTable).set({ appliedToWoa: true, updatedAt: new Date() }).where(eq(welfareWalkthroughObservationsTable.id, id));
+
+  res.json({ success: true, woaId: wt.woaId, appliedScores: woaUpdates });
 });
 
 // ─── PPE Issue Records ────────────────────────────────────────────────────────

@@ -66,13 +66,13 @@ export const vineyardBlockBoundariesTable = pgTable("vineyard_block_boundaries",
   capturedBy: text("captured_by"),
 });
 
-// ─── HMRC Vine Register ───────────────────────────────────────────────────────
+// ─── FSA Vine Register ────────────────────────────────────────────────────────
 export const vineRegisterTable = pgTable("vine_register", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   blockId: integer("block_id").references(() => vineyardBlocksTable.id),
   plantingId: integer("planting_id").references(() => vineyardBlockPlantingsTable.id),
-  hmrcVineRegisterRef: text("hmrc_vine_register_ref"),
+  fsaVineRegisterRef: text("fsa_vine_register_ref"),
   registeredVariety: text("registered_variety").notNull(),
   registeredAreaHa: numeric("registered_area_ha", { precision: 8, scale: 4 }).notNull(),
   dateRegistered: date("date_registered"),
@@ -169,22 +169,34 @@ export const wineryLicencesTable = pgTable("winery_licences", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ─── Winery Excise & Duty Returns (HMRC Excise Notice 163) ────────────────────
+// ─── Winery Excise & Duty Returns (HMRC Alcoholic Products Technical Guide) ───
 export const wineryExciseReturnsTable = pgTable("winery_excise_returns", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  hmrcExciseRef: text("hmrc_excise_ref"),
+  // Reference assigned by HMRC to this specific return submission
+  hmrcReturnRef: text("hmrc_return_ref"),
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),
+  // Stock reconciliation
+  openingStockL: numeric("opening_stock_l", { precision: 10, scale: 2 }),
+  closingStockL: numeric("closing_stock_l", { precision: 10, scale: 2 }),
+  // Production & movements
   totalLitresProduced: numeric("total_litres_produced", { precision: 10, scale: 2 }),
-  totalLitresSold: numeric("total_litres_sold", { precision: 10, scale: 2 }),
+  // Duty is charged on removal from approved premises, not on sale
+  totalLitresRemovedUK: numeric("total_litres_removed_uk", { precision: 10, scale: 2 }),
+  totalLitresExported: numeric("total_litres_exported", { precision: 10, scale: 2 }),
+  totalLitresDomesticConsumption: numeric("total_litres_domestic_consumption", { precision: 10, scale: 2 }),
   totalLitresTastings: numeric("total_litres_tastings", { precision: 10, scale: 2 }),
+  // Strength — determines duty band under the 2023 alcohol duty reform
+  nominalAbvPct: numeric("nominal_abv_pct", { precision: 5, scale: 2 }),
   dutyRatePer100L: numeric("duty_rate_per_100_l", { precision: 8, scale: 2 }),
   totalDutyPayable: numeric("total_duty_payable", { precision: 10, scale: 2 }),
   submittedDate: date("submitted_date"),
   paidDate: date("paid_date"),
   status: text("status").notNull().default("draft"),
   smallProducerRelief: boolean("small_producer_relief").default(false),
+  // Annual production in litres — used to verify SPR eligibility (threshold: 450,000 L = 4,500 hl)
+  annualProductionL: numeric("annual_production_l", { precision: 12, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

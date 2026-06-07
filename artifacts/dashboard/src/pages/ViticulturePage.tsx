@@ -338,7 +338,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
   };
 
   const csvCols = [
-    { key: "hmrcVineRegisterRef", label: "HMRC Ref" },
+    { key: "fsaVineRegisterRef", label: "FSA Ref" },
     { key: "registeredVariety", label: "Variety" },
     { key: "registeredAreaHa", label: "Area (ha)" },
     { key: "giClassification", label: "GI Classification" },
@@ -367,7 +367,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
       </div>
       <DataTable
         cols={[
-          { key: "hmrcVineRegisterRef", label: "HMRC Ref" },
+          { key: "fsaVineRegisterRef", label: "FSA Ref" },
           { key: "registeredVariety", label: "Variety" },
           { key: "registeredAreaHa", label: "Area (ha)", render: r => fmtNum(r.registeredAreaHa, 4) },
           { key: "giClassification", label: "GI / PDO" },
@@ -387,7 +387,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
           <DialogHeader><DialogTitle>Vine Register Entry</DialogTitle></DialogHeader>
           {viewing && (
             <div className="grid grid-cols-2 gap-3">
-              <ViewField label="HMRC Ref" value={fmt(viewing.hmrcVineRegisterRef)} />
+              <ViewField label="FSA Ref" value={fmt(viewing.fsaVineRegisterRef)} />
               <ViewField label="Registered Variety" value={fmt(viewing.registeredVariety)} />
               <ViewField label="Registered Area (ha)" value={fmtNum(viewing.registeredAreaHa, 4)} />
               <ViewField label="GI Classification" value={fmt(viewing.giClassification)} />
@@ -421,7 +421,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
           farmId={farmId}
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
-          defaultTitle={`Vine Register — ${fmt(raiseTaskFor.registeredVariety)} (${fmt(raiseTaskFor.hmrcVineRegisterRef)})`}
+          defaultTitle={`Vine Register — ${fmt(raiseTaskFor.registeredVariety)} (${fmt(raiseTaskFor.fsaVineRegisterRef)})`}
           defaultDescription={`Area: ${fmtNum(raiseTaskFor.registeredAreaHa, 4)} ha · GI: ${fmt(raiseTaskFor.giClassification)} · Status: ${raiseTaskFor.isRemovedFromRegister ? "Removed" : "Active"}`}
           module="Viticulture"
         />
@@ -433,7 +433,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vine Register Entry</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>HMRC Vine Register Ref</Label><Input value={String(form.hmrcVineRegisterRef ?? "")} onChange={e => sf("hmrcVineRegisterRef", e.target.value)} placeholder="e.g. VR-12345" /></div>
+              <div><Label>FSA Vine Register Ref</Label><Input value={String(form.fsaVineRegisterRef ?? "")} onChange={e => sf("fsaVineRegisterRef", e.target.value)} placeholder="e.g. WPR-12345" /></div>
               <div>
                 <Label>Registered Variety *</Label>
                 <Select value={String(form.registeredVariety ?? "")} onValueChange={v => sf("registeredVariety", v)}>
@@ -2224,7 +2224,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
             { key: "period", label: "Period", render: r => `${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}` },
             { key: "status", label: "Status", render: r => <span className={`text-xs rounded-full px-2 py-0.5 ${EXCISE_STATUS_COLORS[String(r.status)] ?? ""}`}>{fmt(r.status)}</span> },
             { key: "totalLitresProduced", label: "Produced (L)", render: r => fmtNum(r.totalLitresProduced) },
-            { key: "totalLitresSold", label: "Sold (L)", render: r => fmtNum(r.totalLitresSold) },
+            { key: "totalLitresRemovedUK", label: "Removed UK (L)", render: r => fmtNum(r.totalLitresRemovedUK) },
             { key: "totalLitresTastings", label: "Tastings (L)", render: r => fmtNum(r.totalLitresTastings) },
             { key: "totalDutyPayable", label: "Duty (£)", render: r => r.totalDutyPayable ? `£${fmtNum(r.totalDutyPayable, 2)}` : "—" },
             { key: "paidDate", label: "Paid", render: r => fmtDate(r.paidDate) },
@@ -2238,12 +2238,18 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader><DialogTitle>Excise Return — {fmtDate(view.periodStart)} to {fmtDate(view.periodEnd)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <ViewField label="HMRC Excise Ref" value={fmt(view.hmrcExciseRef)} />
+              <ViewField label="HMRC Return Ref" value={fmt(view.hmrcReturnRef)} />
               <ViewField label="Status" value={<span className={`text-xs rounded-full px-2 py-0.5 ${EXCISE_STATUS_COLORS[String(view.status)] ?? ""}`}>{fmt(view.status)}</span>} />
               <ViewField label="Period Start" value={fmtDate(view.periodStart)} />
               <ViewField label="Period End" value={fmtDate(view.periodEnd)} />
               <ViewField label="Total Produced (L)" value={fmtNum(view.totalLitresProduced)} />
-              <ViewField label="Total Sold (L)" value={fmtNum(view.totalLitresSold)} />
+              <ViewField label="Removed — UK Market (L)" value={fmtNum(view.totalLitresRemovedUK)} />
+              <ViewField label="Exported (L)" value={fmtNum(view.totalLitresExported)} />
+              <ViewField label="Domestic Consumption (L)" value={fmtNum(view.totalLitresDomesticConsumption)} />
+              <ViewField label="Opening Stock (L)" value={fmtNum(view.openingStockL)} />
+              <ViewField label="Closing Stock (L)" value={fmtNum(view.closingStockL)} />
+              <ViewField label="Nominal ABV (%)" value={fmt(view.nominalAbvPct)} />
+              <ViewField label="Annual Production (L)" value={fmtNum(view.annualProductionL)} />
               <ViewField label="Tastings / Samples (L)" value={fmtNum(view.totalLitresTastings)} />
               <ViewField label="Duty Rate (£ / 100 L)" value={view.dutyRatePer100L ? `£${fmtNum(view.dutyRatePer100L, 2)}` : "—"} />
               <ViewField label="Total Duty Payable" value={view.totalDutyPayable ? `£${fmtNum(view.totalDutyPayable, 2)}` : "—"} />
@@ -2265,7 +2271,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Excise Return</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>HMRC Excise Ref</Label><Input value={String(form.hmrcExciseRef ?? "")} onChange={e => sf("hmrcExciseRef", e.target.value)} placeholder="e.g. WP123456" /></div>
+            <div><Label>HMRC Return Ref</Label><Input value={String(form.hmrcReturnRef ?? "")} onChange={e => sf("hmrcReturnRef", e.target.value)} placeholder="Ref assigned by HMRC on submission" /></div>
             <div><Label>Status</Label>
               <Select value={String(form.status ?? "draft")} onValueChange={v => sf("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -2279,7 +2285,13 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
             <div><Label>Period Start *</Label><Input type="date" value={String(form.periodStart ?? "")} onChange={e => sf("periodStart", e.target.value)} /></div>
             <div><Label>Period End *</Label><Input type="date" value={String(form.periodEnd ?? "")} onChange={e => sf("periodEnd", e.target.value)} /></div>
             <div><Label>Total Produced (L)</Label><Input type="number" value={String(form.totalLitresProduced ?? "")} onChange={e => sf("totalLitresProduced", e.target.value)} /></div>
-            <div><Label>Total Sold (L)</Label><Input type="number" value={String(form.totalLitresSold ?? "")} onChange={e => sf("totalLitresSold", e.target.value)} /></div>
+            <div><Label>Opening Stock (L)</Label><Input type="number" value={String(form.openingStockL ?? "")} onChange={e => sf("openingStockL", e.target.value)} /></div>
+            <div><Label>Closing Stock (L)</Label><Input type="number" value={String(form.closingStockL ?? "")} onChange={e => sf("closingStockL", e.target.value)} /></div>
+            <div><Label>Removed — UK Market (L)</Label><Input type="number" value={String(form.totalLitresRemovedUK ?? "")} onChange={e => sf("totalLitresRemovedUK", e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Duty is charged on removal from approved premises, not on sale</p></div>
+            <div><Label>Exported (L)</Label><Input type="number" value={String(form.totalLitresExported ?? "")} onChange={e => sf("totalLitresExported", e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Duty-free removals for export</p></div>
+            <div><Label>Domestic Consumption (L)</Label><Input type="number" value={String(form.totalLitresDomesticConsumption ?? "")} onChange={e => sf("totalLitresDomesticConsumption", e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Grower's domestic allowance used (duty-free)</p></div>
+            <div><Label>Nominal ABV (%)</Label><Input type="number" step="0.01" value={String(form.nominalAbvPct ?? "")} onChange={e => sf("nominalAbvPct", e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Determines duty band (still wine: 8.5–15% ABV)</p></div>
+            <div><Label>Annual Production (L)</Label><Input type="number" value={String(form.annualProductionL ?? "")} onChange={e => sf("annualProductionL", e.target.value)} /><p className="text-xs text-muted-foreground mt-1">Total annual output — SPR threshold is 450,000 L (4,500 hl)</p></div>
             <div><Label>Tastings / Samples (L)</Label><Input type="number" value={String(form.totalLitresTastings ?? "")} onChange={e => sf("totalLitresTastings", e.target.value)} placeholder="All tasting volumes are dutiable" /></div>
             <div><Label>Duty Rate (£ / 100 L)</Label><Input type="number" step="0.01" value={String(form.dutyRatePer100L ?? "")} onChange={e => sf("dutyRatePer100L", e.target.value)} /></div>
             <div><Label>Total Duty Payable (£)</Label><Input type="number" step="0.01" value={String(form.totalDutyPayable ?? "")} onChange={e => sf("totalDutyPayable", e.target.value)} /></div>

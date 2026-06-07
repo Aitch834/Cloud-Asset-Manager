@@ -6411,7 +6411,25 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const walkthroughMut = useMutation({
     mutationFn: (b: WalkThroughForm & { woaId: number | null; species: string; herdFlockRef: string | null }) =>
       fetch(`/api/farms/${farmId}/woa-walkthrough`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); qc.invalidateQueries({ queryKey: ["woa-walkthroughs", farmId] }); },
+  });
+
+  const activeWoaId = viewItem?.id ?? editing?.id ?? null;
+  const { data: linkedWalkthroughsData } = useQuery<{ records: Array<{ id: number; assessmentDate: string; observedBy: string; sampleSize: number | null; walkthroughNotes: string | null; weatherConditions: string | null; appliedToWoa: boolean; createdAt: string }> }>({
+    queryKey: ["woa-walkthroughs", farmId, activeWoaId],
+    queryFn: () => fetch(`/api/farms/${farmId}/woa-walkthrough?woaId=${activeWoaId}`).then(r => r.json()),
+    enabled: activeWoaId !== null,
+  });
+  const linkedWalkthroughs = linkedWalkthroughsData?.records ?? [];
+
+  const applyWalkthroughMut = useMutation({
+    mutationFn: (wtId: number) => fetch(`/api/farms/${farmId}/woa-walkthrough/${wtId}/apply`, { method: "POST" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["welfare-outcomes", farmId] }); qc.invalidateQueries({ queryKey: ["woa-walkthroughs", farmId] }); },
+  });
+
+  const deleteWalkthroughMut = useMutation({
+    mutationFn: (wtId: number) => fetch(`/api/farms/${farmId}/woa-walkthrough/${wtId}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["woa-walkthroughs", farmId] }); },
   });
 
   function openEdit(r: WelfareOutcomeRecord) {
@@ -6555,6 +6573,34 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               {viewItem.nextAssessmentDue && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Assessment Due</p><p className="font-medium">{formatDate(viewItem.nextAssessmentDue)}</p></div>}
               {viewItem.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{viewItem.notes}</p></div>}
             </div>
+
+            {linkedWalkthroughs.length > 0 && (
+              <div className="mt-4 border rounded-lg overflow-hidden">
+                <div className="bg-muted/40 px-3 py-2 flex items-center gap-2">
+                  <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Saved Walkthroughs ({linkedWalkthroughs.length})</span>
+                </div>
+                <div className="divide-y text-sm">
+                  {linkedWalkthroughs.map(wk => (
+                    <div key={wk.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-medium">{formatDate(wk.assessmentDate)}</span>
+                        <span className="text-muted-foreground ml-2 text-xs">by {wk.observedBy}</span>
+                        {wk.sampleSize != null && <span className="text-muted-foreground ml-1 text-xs">· {wk.sampleSize} animals</span>}
+                        {wk.appliedToWoa && <span className="ml-2 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1 py-0.5">Applied</span>}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={applyWalkthroughMut.isPending} onClick={() => applyWalkthroughMut.mutate(wk.id)}>
+                          {applyWalkthroughMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}Re-apply
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive" onClick={() => deleteWalkthroughMut.mutate(wk.id)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
               <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
@@ -6820,6 +6866,36 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                   )}
                 </div>
               </div>
+
+              {/* ── Past Walkthroughs (edit mode only, internal assessor) ─────── */}
+              {editing && linkedWalkthroughs.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/40 px-3 py-2 flex items-center gap-2">
+                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Saved Walkthroughs ({linkedWalkthroughs.length})</span>
+                    <span className="text-xs text-muted-foreground ml-1">— click Re-apply to push tally counts to the scores below</span>
+                  </div>
+                  <div className="divide-y text-sm">
+                    {linkedWalkthroughs.map(wk => (
+                      <div key={wk.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                        <div>
+                          <span className="font-medium">{formatDate(wk.assessmentDate)}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">by {wk.observedBy}</span>
+                          {wk.sampleSize != null && <span className="text-muted-foreground ml-1 text-xs">· {wk.sampleSize} animals</span>}
+                          {wk.weatherConditions && <span className="text-muted-foreground ml-1 text-xs">· {wk.weatherConditions}</span>}
+                          {wk.appliedToWoa && <span className="ml-2 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1 py-0.5">Applied</span>}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={applyWalkthroughMut.isPending} onClick={() => applyWalkthroughMut.mutate(wk.id)}>
+                            {applyWalkthroughMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}Re-apply
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive" onClick={() => deleteWalkthroughMut.mutate(wk.id)}><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* ── Section: Outcome ────────────────────────────────────────── */}
               <div className="space-y-3">

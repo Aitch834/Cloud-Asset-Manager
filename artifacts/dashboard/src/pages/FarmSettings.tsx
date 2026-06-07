@@ -96,6 +96,9 @@ interface FarmFormData {
   paymentTermsDays: string;
   invoiceFooterText: string;
   invoiceLogoPath: string;
+  appaRef: string;
+  appaRegistrationDate: string;
+  fsaWineProductionRef: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -158,6 +161,9 @@ function farmToFormData(farm: Farm & {
     paymentTermsDays: (farm as any).paymentTermsDays?.toString() || "30",
     invoiceFooterText: (farm as any).invoiceFooterText || "",
     invoiceLogoPath: (farm as any).invoiceLogoPath || "",
+    appaRef: (farm as any).appaRef || "",
+    appaRegistrationDate: (farm as any).appaRegistrationDate || "",
+    fsaWineProductionRef: (farm as any).fsaWineProductionRef || "",
   };
 }
 
@@ -960,6 +966,9 @@ export default function FarmSettings() {
       bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
       scotEidNumber: formData.scotEidNumber.trim() || undefined,
       eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
+      appaRef: formData.appaRef.trim() || undefined,
+      appaRegistrationDate: formData.appaRegistrationDate.trim() || undefined,
+      fsaWineProductionRef: formData.fsaWineProductionRef.trim() || undefined,
       companyNumber: formData.companyNumber.trim() || undefined,
       vatNumber: formData.vatNumber.trim() || undefined,
       bankName: formData.bankName.trim() || undefined,
@@ -1456,6 +1465,60 @@ export default function FarmSettings() {
 
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
+
+        {/* ── Viticulture Registrations — only shown when Viticulture sector is active ── */}
+        {formData.sectors.sectorViticulture && (
+          <Card>
+            <CardContent className="p-6 md:p-8 space-y-5">
+              <SectionHeader
+                title="Viticulture Registrations"
+                description="Registration references for UK viticulture regulatory bodies. These are stored at farm level and referenced across the Viticulture module."
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <Label htmlFor="settings-fsa-wine-ref">FSA Wine Production Registration Ref</Label>
+                  <Input
+                    id="settings-fsa-wine-ref"
+                    placeholder="e.g. WPR-12345"
+                    value={formData.fsaWineProductionRef}
+                    onChange={e => updateField("fsaWineProductionRef", e.target.value)}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Issued by the <strong>Food Standards Agency</strong> (FSA) when you register a vineyard or winery at food.gov.uk. This is your holding-level wine production registration — separate from the per-block FSA Vine Register entries in the Viticulture module.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-appa-ref">HMRC APPA Reference</Label>
+                  <Input
+                    id="settings-appa-ref"
+                    placeholder="e.g. APPA-123456"
+                    value={formData.appaRef}
+                    onChange={e => updateField("appaRef", e.target.value)}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your <strong>Alcoholic Products Producer Approval</strong> reference, issued by HMRC via Government Gateway. Required if you produce wine for sale. Quoted on all alcohol duty returns filed through HMRC's online service.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-appa-date">APPA Registration Date</Label>
+                  <Input
+                    id="settings-appa-date"
+                    type="date"
+                    value={formData.appaRegistrationDate}
+                    onChange={e => updateField("appaRegistrationDate", e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Date your APPA was granted by HMRC</p>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+                <strong>How these registrations work:</strong> The <strong>FSA Wine Production Registration</strong> records your vineyard or winery with the Food Standards Agency (the UK vine planting register and wine standards authority post-Brexit). The <strong>HMRC APPA</strong> is your excise approval to produce and sell wine — required before you remove any wine from your premises on which duty is payable. Apply for your APPA via Government Gateway; contact HMRC Excise on <strong>0300 200 3700</strong>.
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Invoicing & Documents ── */}
         <InvoicingCard
