@@ -298,7 +298,7 @@ export function OverviewTab({ farmId }: { farmId: number }) {
         <p className="font-semibold text-sm mb-2">UK Vineyard Compliance Checklist</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
           {[
-            { label: "HMRC Vine Register up to date", ok: register.data.length > 0 },
+            { label: "FSA Vine Register up to date", ok: register.data.length > 0 },
             { label: "All active blocks on vine register", ok: register.data.filter(r => !r.isRemovedFromRegister).length >= activeBlocks.length },
             { label: "Disease scouting undertaken this season", ok: scouting.data.length > 0 },
             { label: "Vintage harvest records complete", ok: harvest.data.length > 0 },
@@ -357,8 +357,8 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-semibold">HMRC Vine Register</p>
-          <p className="text-xs text-muted-foreground">Mandatory for all UK vineyards over 0.01 ha. Keep this up to date and report any changes to HMRC.</p>
+          <p className="font-semibold">FSA Vine Register</p>
+          <p className="text-xs text-muted-foreground">Mandatory for all UK vineyards over 0.01 ha. Keep this up to date and report any changes to the Food Standards Agency.</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vine-register.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
