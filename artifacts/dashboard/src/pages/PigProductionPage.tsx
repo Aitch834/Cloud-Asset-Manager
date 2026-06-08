@@ -419,7 +419,7 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="p-3 rounded-lg border border-green-100 bg-green-50 flex items-start gap-2">
         <UtensilsCrossed className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-green-800">Record feed quantity per <strong>flock/batch</strong> and <strong>location</strong> each day. Locations are drawn from your central Farm Locations list — add any sheds or outdoor areas there to keep all records consistent.</p>
+        <p className="text-xs text-green-800">Record feed quantity per <strong>herd / group</strong> and <strong>location</strong> each day. Locations are drawn from your central Farm Locations list — add any sheds or outdoor areas there to keep all records consistent.</p>
       </div>
       {activeLocations.length === 0 && (
         <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-2">
@@ -432,7 +432,7 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
         <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
-        <Empty msg="No feeding records yet. Add your pig sheds to Farm Locations, then record daily feed consumption per flock and location." />
+        <Empty msg="No feeding records yet. Add your pig sheds to Farm Locations, then record daily feed consumption per herd / group and location." />
       ) : (
         <div className="space-y-2">
           {sorted.map((r, i) => (
@@ -440,7 +440,7 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-medium text-sm">{!!r.flockName ? fmt(r.flockName) : "Unknown flock"}</span>
+                    <span className="font-medium text-sm">{!!r.flockName ? fmt(r.flockName) : "Unknown group"}</span>
                     {!!r.locationName && (
                       <Badge className="text-xs" style={{ background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>
                         <MapPin className="w-3 h-3 inline mr-0.5" />{fmt(r.locationName)}
@@ -469,11 +469,11 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{editing ? "Edit Feeding Record" : "Add Feeding Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date *</Label><Input type="date" value={form.consumptionDate ?? ""} onChange={e => setForm(f => ({ ...f, consumptionDate: e.target.value }))} /></div>
-            <div><Label>Flock / Batch *</Label>
+            <div><Label>Herd / Group *</Label>
               <Select value={form.appliedToFlockId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, appliedToFlockId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select herd / group" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">— Select flock —</SelectItem>
+                  <SelectItem value="__none__">— Select herd / group —</SelectItem>
                   {flocks.map((fl: Record<string, unknown>) => (
                     <SelectItem key={String(fl.id)} value={String(fl.id)}>
                       {fmt(fl.flockName)}{fl.productionType ? ` (${fl.productionType})` : ""}
@@ -1777,7 +1777,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
                     <span><span className="font-medium text-foreground/70">Animals:</span> {fmt(r.numberOfAnimals)}</span>
                     <span><span className="font-medium text-foreground/70">Route:</span> {fmt(r.administrationRoute)}</span>
                     <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityUsed)}{r.unitOfMeasure ? ` ${String(r.unitOfMeasure)}` : ""}</span>
-                    {!!r.flockId && <span><span className="font-medium text-foreground/70">Flock:</span> {flockMap.get(String(r.flockId)) ?? fmt(r.flockId)}</span>}
+                    {!!r.flockId && <span><span className="font-medium text-foreground/70">Group:</span> {flockMap.get(String(r.flockId)) ?? fmt(r.flockId)}</span>}
                     {!!r.batchOrPenRef && <span><span className="font-medium text-foreground/70">Batch/Pen:</span> {fmt(r.batchOrPenRef)}</span>}
                     {!!r.diagnosisReason && <span className="col-span-2"><span className="font-medium text-foreground/70">Reason:</span> {fmt(r.diagnosisReason)}</span>}
                     {!!r.prescribingVetName && <span><span className="font-medium text-foreground/70">Vet:</span> {fmt(r.prescribingVetName)}</span>}
@@ -1805,7 +1805,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Date</p><p className="font-medium">{fmtDate(viewRecord.treatmentDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Animals</p><p className="font-medium">{String(viewRecord.numberOfAnimals ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production Group / Flock</p><p className="font-medium">{flockMap.get(String(viewRecord.flockId)) ?? String(viewRecord.flockId ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production Group / Herd</p><p className="font-medium">{flockMap.get(String(viewRecord.flockId)) ?? String(viewRecord.flockId ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Batch / Pen Reference</p><p className="font-medium">{String(viewRecord.batchOrPenRef ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Medicine Product Name</p><p className="font-medium">{String(viewRecord.medicineProductName ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{String(viewRecord.activeIngredient ?? "—")}</p></div>
@@ -1843,9 +1843,9 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
               <div><Label className="text-xs mb-1 block">Treatment Date *</Label><Input type="date" value={String(form.treatmentDate ?? "")} onChange={e => setForm(f => ({ ...f, treatmentDate: e.target.value }))} /></div>
               <div><Label className="text-xs mb-1 block">Number of Animals Treated *</Label><Input type="number" min="1" value={String(form.numberOfAnimals ?? "")} onChange={e => setForm(f => ({ ...f, numberOfAnimals: e.target.value }))} placeholder="e.g. 12" /></div>
               <div>
-                <Label className="text-xs mb-1 block">Production Group / Flock</Label>
+                <Label className="text-xs mb-1 block">Production Group / Herd</Label>
                 <Select value={String(form.flockId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, flockId: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select herd / group" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Not specified —</SelectItem>
                     {(flocks as Record<string, unknown>[]).map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockName)}</SelectItem>)}
@@ -1924,7 +1924,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
             <div className="space-y-3 text-sm">
               {!!viewRecord.withdrawalEndDate && <WithdrawalBadge endDate={viewRecord.withdrawalEndDate as string} />}
               <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                {([["treatmentDate", "Treatment Date", fmtDate], ["numberOfAnimals", "Animals Treated"], ["administrationRoute", "Route"], ["quantityUsed", "Quantity Used"], ["unitOfMeasure", "Unit"], ["flockId", "Flock", (v: unknown) => flockMap.get(String(v)) ?? fmt(v)], ["batchOrPenRef", "Batch/Pen Ref"], ["medicineProductName", "Product Name"], ["activeIngredient", "Active Ingredient"], ["manufacturer", "Manufacturer"], ["productBatchNumber", "Product Batch No."], ["expiryDate", "Product Expiry", fmtDate], ["diagnosisReason", "Reason / Diagnosis"], ["prescribingVetName", "Prescribing Vet"], ["prescribingVetPractice", "Vet Practice"], ["prescriptionObtained", "Prescription Obtained", (v: unknown) => v ? "Yes" : "No"], ["administeredBy", "Administered By"], ["withdrawalPeriodMeatDays", "Withdrawal (days)"], ["withdrawalEndDate", "Withdrawal End", fmtDate], ["notes", "Notes"]] as [string, string, ((v: unknown) => string)?][]).map(([key, label, fmtFn]) => {
+                {([["treatmentDate", "Treatment Date", fmtDate], ["numberOfAnimals", "Animals Treated"], ["administrationRoute", "Route"], ["quantityUsed", "Quantity Used"], ["unitOfMeasure", "Unit"], ["flockId", "Group", (v: unknown) => flockMap.get(String(v)) ?? fmt(v)], ["batchOrPenRef", "Batch/Pen Ref"], ["medicineProductName", "Product Name"], ["activeIngredient", "Active Ingredient"], ["manufacturer", "Manufacturer"], ["productBatchNumber", "Product Batch No."], ["expiryDate", "Product Expiry", fmtDate], ["diagnosisReason", "Reason / Diagnosis"], ["prescribingVetName", "Prescribing Vet"], ["prescribingVetPractice", "Vet Practice"], ["prescriptionObtained", "Prescription Obtained", (v: unknown) => v ? "Yes" : "No"], ["administeredBy", "Administered By"], ["withdrawalPeriodMeatDays", "Withdrawal (days)"], ["withdrawalEndDate", "Withdrawal End", fmtDate], ["notes", "Notes"]] as [string, string, ((v: unknown) => string)?][]).map(([key, label, fmtFn]) => {
                   const val = viewRecord[key];
                   if (val == null || val === "") return null;
                   return (
@@ -2008,7 +2008,7 @@ function OverviewTab({ farmId, onGoto }: { farmId: number; onGoto: (tab: string)
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Herd Setup</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <ComplianceCard title="Flocks / Groups" icon={<PiggyBank className="w-4 h-4" />} item={summary.flocks} tab="flocks" onGoto={onGoto} />
+              <ComplianceCard title="Herds / Groups" icon={<PiggyBank className="w-4 h-4" />} item={summary.flocks} tab="flocks" onGoto={onGoto} />
               <ComplianceCard title="Movements" icon={<Truck className="w-4 h-4" />} item={summary.movements} tab="movements" onGoto={onGoto} />
             </div>
           </div>
@@ -2251,7 +2251,7 @@ async function generatePigAuditPDF(farmId: number) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type R = Record<string, any>;
-  if ((flocks as R[]).length) addSection("Pig Flocks / Groups", ["Name", "Type", "Breed", "Location", "Current Count", "Herd No.", "CPH"], (flocks as R[]).map(r => [fv(r.flockName), fv(r.productionType), fv(r.breed), fv(r.location), fv(r.currentCount), fv(r.herdNumber), fv(r.cphNumber)]));
+  if ((flocks as R[]).length) addSection("Pig Herds / Groups", ["Name", "Type", "Breed", "Location", "Current Count", "Herd No.", "CPH"], (flocks as R[]).map(r => [fv(r.flockName), fv(r.productionType), fv(r.breed), fv(r.location), fv(r.currentCount), fv(r.herdNumber), fv(r.cphNumber)]));
   if ((stockmanship as R[]).length) addSection("Daily Stockmanship Checks", ["Date", "Group", "Behaviour", "Bedding", "Tail Biting", "Overall Welfare", "Action Taken"], (stockmanship as R[]).map(r => [fd(r.checkDate), fv(r.groupName), fv(r.behaviour), fv(r.beddingCondition), r.tailBitingObserved ? "Yes" : "No", fv(r.overallWelfare), fv(r.actionTaken)]));
   if ((medicine as R[]).length) addSection("Medicine Treatments", ["Date", "Group", "Product", "Diagnosis", "Route", "Qty", "Withdrawal Clear", "Vet"], (medicine as R[]).map(r => [fd(r.treatmentDate), fv(r.batchOrPenRef), fv(r.medicineProductName), fv(r.diagnosisReason), fv(r.administrationRoute), `${fv(r.quantityUsed)} ${fv(r.unitOfMeasure)}`, fd(r.withdrawalEndDate), fv(r.prescribingVetName)]));
   if ((movements as R[]).length) addSection("Pig Movements (EAML2)", ["Date", "Type", "From", "To", "Head", "EAML2 Ref", "Haulier"], (movements as R[]).map(r => [fd(r.movementDate), fv(r.movementType), `${fv(r.fromLocation)} (${fv(r.fromCph)})`, `${fv(r.toLocation)} (${fv(r.toCph)})`, fv(r.numberOfAnimals), fv(r.eaml2Reference), fv(r.transporterName)]));
@@ -2416,7 +2416,7 @@ export default function PigProductionPage() {
         <div className="flex items-center justify-between gap-3">
           <TabBar>
             <TabButton active={tab === "overview"} onClick={() => setTab("overview")}><LayoutDashboard className="w-3.5 h-3.5 mr-1" />Overview</TabButton>
-            <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><PiggyBank className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
+            <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><PiggyBank className="w-3.5 h-3.5 mr-1" />Herds / Groups</TabButton>
             <TabButton active={tab === "movements"} onClick={() => setTab("movements")}><Truck className="w-3.5 h-3.5 mr-1" />Movements</TabButton>
             <TabButton active={tab === "medicine"} onClick={() => setTab("medicine")}><Pill className="w-3.5 h-3.5 mr-1" />Medicine Register</TabButton>
             <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Documents</TabButton>

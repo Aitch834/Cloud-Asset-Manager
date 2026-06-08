@@ -797,7 +797,7 @@ const sections: Section[] = [
           "Daily mortality log — cumulative count, cause analysis, year filter, and year-by-year trend table",
           "Breed / strain mortality breakdown — compare peak mortality % and total losses across Ross 308, Cobb 500, slower-growing breeds and others",
           "Hatchery / supplier mortality breakdown — compare chick quality across suppliers by mortality rate and total losses per crop",
-          "Feed & water consumption per flock / house",
+          "Feed & water consumption per herd / pen or house",
           "Egg production records — lay rate, grading and packing",
           "Medicine & vaccine records with batch numbers",
           "Biosecurity checklist with down-time between placements",
