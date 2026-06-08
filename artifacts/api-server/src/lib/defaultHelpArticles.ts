@@ -269,6 +269,12 @@ const TITLES: [string, string][] = [
   ["Organic Venison — Land Register: Grazing Compartment Conversion Status Tracking", "Organic Venison"],
   ["Organic Venison — Feed and Supplement Log: Organic Approval Status and Certifier Reference", "Organic Venison"],
   ["Organic Venison — Derogations: Case Register, Justification, Decision and Approval Conditions", "Organic Venison"],
+  ["Year Filters on Livestock Recording Tabs — All Production Modules", "Livestock"],
+  ["Document Attachment on Livestock Record Rows — Compact DocAttach Across All Production Tabs", "Livestock"],
+  ["Johne's Disease Monitoring — Year Filter, Print Report and Record Attachments", "Livestock"],
+  ["Campylobacter Monitoring — Year Filter, Print Report and Record Attachments", "Poultry Production"],
+  ["Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows", "Organic Livestock"],
+  ["Organic Dairy Feed & Nutrition Tab — Year Filter and Document Attachment on Rows", "Organic Dairy"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -4882,6 +4888,126 @@ const CONTENT: [string, string][] = [
 <p>Record the relevant regulatory article, e.g. <em>UK Organic Reg Art. 24</em> or <em>Commission Reg (EC) 889/2008 Annex V</em>. This demonstrates you applied correctly and that the certifier's approval has a sound legal basis.</p>
 <h3>Inspection review</h3>
 <p>Your certifying body inspector will review the derogations register at your annual inspection. All derogation cases — whether approved, refused, or withdrawn — should be retained for audit purposes.</p>`,
+  ],
+  [
+    "All recording tabs across Sheep, Goat, Beef, Venison, Pig, Dairy, and Poultry production modules include a year filter dropdown that defaults to the current year, so recent records are always shown first.",
+    `<h2>Year Filters on Livestock Recording Tabs</h2>
+<p>Every recording tab across all specialist livestock production modules includes a <strong>year filter</strong> dropdown. When you open any recording tab the filter defaults to the current year, so your most recent records are always shown without any manual filtering.</p>
+<h3>Modules and tabs covered</h3>
+<ul>
+<li><strong>Sheep Production</strong> — Tupping Records, Pregnancy Scanning, Weigh-in &amp; DLWG, Shearing Records, Disease Monitoring</li>
+<li><strong>Goat Production</strong> — Mating Records, Pregnancy Scanning, Weigh-in &amp; DLWG, Cull &amp; Market, Vaccination Programmes, Disease Monitoring</li>
+<li><strong>Beef Production</strong> — Weigh-in &amp; DLWG, Finishing Records, Body Condition Scoring, Deadweight Settlement</li>
+<li><strong>Venison Production</strong> — Cull Records, Carcass Sales, Herd Population Surveys, Health Records</li>
+<li><strong>Pig Production</strong> — Stockmanship Checks, Tail Biting Assessments, Feed Records, Movements, Kill Records, Mortality, Salmonella Monitoring</li>
+<li><strong>Poultry Production</strong> — Chick Purchases, Thinning Records, Campylobacter Monitoring</li>
+<li><strong>Dairy (standard)</strong> — Body Condition Scoring, Mobility Scoring, Bulk Tank, Johne's Disease Monitoring</li>
+<li><strong>Organic Livestock</strong> — Outdoor Access Log</li>
+<li><strong>Organic Dairy</strong> — Feed &amp; Nutrition</li>
+</ul>
+<h3>How to use the year filter</h3>
+<p>At the top right of each recording tab you will see a year dropdown (e.g. <em>2025</em>). Click it to select any year for which records exist. The table below updates instantly — no page reload is required.</p>
+<h3>Why this matters for audits</h3>
+<p>Red Tractor and organic certification schemes require records to be retained for a minimum of three years. The year filter lets you switch between years instantly during an assessor visit, presenting evidence from any past season without scrolling through all historical data. It also makes it straightforward to print a year-specific report for inclusion in an audit pack.</p>`,
+  ],
+  [
+    "Every record row across all livestock production recording tabs has a compact attach/view button for uploading PDFs, photos, and Word documents directly against that specific record.",
+    `<h2>Document Attachment on Livestock Record Rows</h2>
+<p>Every row in every recording tab across all specialist livestock production modules has a compact <strong>document attachment button</strong> (a paperclip or attach icon). Clicking it opens a dialog where you can upload one or more files and link them permanently to that specific record.</p>
+<h3>Supported file types</h3>
+<ul>
+<li>PDF documents (vet certificates, settlement sheets, lab reports, scan certificates, contractor invoices)</li>
+<li>Images — JPG, PNG, WebP (photographic evidence, fleece weight tags, ear tag photos)</li>
+<li>Word documents — DOC, DOCX (health plans, written contracts, biosecurity declarations)</li>
+</ul>
+<h3>Modules and tabs covered</h3>
+<p>Document attachment is available on record rows across <strong>all recording tabs</strong> in: Sheep Production, Goat Production, Beef Production, Venison Production, Pig Production, Poultry Production (including Thinning Records and Campylobacter Monitoring rows), Dairy (standard) production tabs, Organic Livestock Outdoor Access Log, and Organic Dairy Feed &amp; Nutrition.</p>
+<h3>RecordAttachments panel in view dialogs</h3>
+<p>On certain record types a full <strong>RecordAttachments panel</strong> is shown inside the view dialog, displaying all documents linked to that record alongside the structured data fields. This applies to:</p>
+<ul>
+<li>Pig Stockmanship Checks</li>
+<li>Pig Tail Biting Assessments</li>
+<li>Dairy Johne's Disease Monitoring records</li>
+<li>Poultry Chick Purchase records</li>
+<li>Poultry Campylobacter Monitoring records</li>
+</ul>
+<h3>Audit trail</h3>
+<p>All attachments are stored in secure cloud storage and linked permanently to the record. They are accessible from the dashboard at any time, including during an assessor visit. Each attachment shows the file name, upload date, and uploader name.</p>`,
+  ],
+  [
+    "Johne's Disease Monitoring records now include a year filter, a formatted print report for assessor presentation, and a RecordAttachments panel in the view dialog for lab certificates and correspondence.",
+    `<h2>Johne's Disease Monitoring — Year Filter, Print Report and Record Attachments</h2>
+<p>The Johne's Disease Monitoring Register (Livestock &amp; Feed Management → Johne's Disease) records each quarterly or annual paratuberculosis monitoring round for cattle and dairy herds.</p>
+<h3>Year filter</h3>
+<p>A year dropdown at the top of the Johne's Disease tab defaults to the current year. Select any past year to review historical monitoring records instantly — useful when demonstrating compliance history to a Red Tractor Beef &amp; Lamb or Dairy assessor.</p>
+<h3>Print report</h3>
+<p>A <strong>Print Report</strong> button generates a formatted A4 landscape compliance report covering all Johne's Disease monitoring records for the selected year. The report includes:</p>
+<ul>
+<li>Farm name, CPH number, and report date</li>
+<li>Each monitoring round: test method (blood ELISA, milk ELISA, faecal PCR), laboratory, result category (Negative / Low Risk / Low Positive / High Positive), herd risk level, actions applied, and next test due date</li>
+</ul>
+<p>This report is suitable for inclusion in a Red Tractor audit pack or for sharing with your vet or CHECS/AHDB adviser.</p>
+<h3>RecordAttachments in the view dialog</h3>
+<p>Opening any Johne's Disease monitoring record shows a full <strong>RecordAttachments panel</strong> alongside the record data. Use it to attach and store:</p>
+<ul>
+<li>Laboratory result certificates</li>
+<li>CHECS monitoring programme letters</li>
+<li>AHDB correspondence</li>
+<li>Vet recommendations or health plan sections relating to Johne's control</li>
+</ul>
+<p>Red Tractor Dairy and Beef &amp; Lamb standards require Johne's monitoring records to be retained for a minimum of three years.</p>`,
+  ],
+  [
+    "Campylobacter Monitoring records now include a year filter, a formatted A4 print report for Red Tractor Poultry assessors, and a RecordAttachments panel in the view dialog for NCP lab reports and correspondence.",
+    `<h2>Campylobacter Monitoring — Year Filter, Print Report and Record Attachments</h2>
+<p>The Campylobacter Monitoring tab (Poultry Production → Campylobacter Monitoring) records every flock's Campylobacter National Control Programme (NCP) test result as required by Red Tractor Poultry standards for all broiler flocks entering the food chain.</p>
+<h3>Year filter</h3>
+<p>A year dropdown at the top of the Campylobacter Monitoring tab defaults to the current year. Select any past year to review historical NCP records — useful when an assessor requests evidence from a previous production year.</p>
+<h3>Print report</h3>
+<p>A <strong>Print Report</strong> button generates a formatted A4 landscape compliance report covering all Campylobacter Monitoring records for the selected year. The report includes:</p>
+<ul>
+<li>Farm name, CPH number, flock details, and report date</li>
+<li>Each NCP test: flock, slaughter date, slaughter house, test type (neck skin pooled swab, boot swab, or caecal content), FSA submission reference, result (Negative / Low Positive / Positive), and biosecurity interventions applied following a positive finding</li>
+</ul>
+<p>This report is designed for direct inclusion in a Red Tractor Poultry audit pack.</p>
+<h3>Document attachment on rows</h3>
+<p>Every Campylobacter Monitoring record row has a compact attach/view button. Attach NCP lab reports, FSA correspondence, or biosecurity action plans directly against the specific monitoring record.</p>
+<h3>RecordAttachments panel in the view dialog</h3>
+<p>Opening any Campylobacter Monitoring record shows a full <strong>RecordAttachments panel</strong> in the view dialog alongside the structured record data. This gives a complete evidence file for each individual NCP test result, with all documents accessible in one place during an audit.</p>`,
+  ],
+  [
+    "The Outdoor Access Log in Organic Livestock now has a year filter and compact document attachment on every row for uploading grazing evidence, paddock maps, and certifier inspection notes.",
+    `<h2>Organic Livestock Outdoor Access Log — Year Filter and Document Attachment</h2>
+<p>The Outdoor Access Log (Organic Livestock → Outdoor Access) records every grazing event, outdoor space allocation, and stocking density observation required by UK Organic Regulations for organic livestock.</p>
+<h3>Year filter</h3>
+<p>A year dropdown at the top of the Outdoor Access Log defaults to the current year — matching the current organic certification period for quick review. Select a previous year to retrieve historic records for your certifier's annual inspection or to respond to a compliance query.</p>
+<h3>Document attachment on rows</h3>
+<p>Every Outdoor Access Log record row has a compact attach/view button. Click it to upload documents and link them permanently to that specific grazing event record. Useful file types include:</p>
+<ul>
+<li>Paddock maps and field boundary plans</li>
+<li>Grazing evidence photos</li>
+<li>Certifier inspection notes referencing outdoor access</li>
+<li>Third-party stocking density assessments</li>
+</ul>
+<h3>Compliance context</h3>
+<p>UK Organic Regulations require that organic livestock have continuous access to outdoor pasture whenever conditions allow, with stocking density not exceeding the limits set for each species. The Outdoor Access Log provides the dated evidence trail that your certifying body inspector (Soil Association, OF&amp;G, or equivalent) will review at your annual organic inspection.</p>`,
+  ],
+  [
+    "The Feed & Nutrition tab in Organic Dairy now has a year filter and compact document attachment on every row for uploading delivery notes, organic approval certificates, and certifier correspondence.",
+    `<h2>Organic Dairy Feed &amp; Nutrition Tab — Year Filter and Document Attachment</h2>
+<p>The Feed &amp; Nutrition tab (Organic Dairy → Feed &amp; Nutrition) surfaces organic feed delivery records from Feed Management for the organic dairy herd, with derogation tracking and certifier approval reference recording.</p>
+<h3>Year filter</h3>
+<p>A year dropdown at the top of the Feed &amp; Nutrition tab defaults to the current year. Select a previous year to review the complete organic feed record for any past certification period — for example when preparing for your annual organic inspection or responding to a certifier audit query.</p>
+<h3>Document attachment on rows</h3>
+<p>Every Feed &amp; Nutrition record row has a compact attach/view button. Use it to upload and permanently link:</p>
+<ul>
+<li>Feed delivery notes from the supplier</li>
+<li>Organic product certification documents (supplier organic certificates)</li>
+<li>Certifier approval letters for non-organic ingredients used under derogation</li>
+<li>Availability search evidence (OFIS / UKOAS searches) supporting a derogation application</li>
+</ul>
+<h3>Relationship to Organic Livestock Feed Derogations</h3>
+<p>Where a feed delivery is not fully organic-approved, the Feed &amp; Nutrition tab shows a <strong>Link to Approved Derogation Case</strong> picker. Selecting an approved derogation case from the Organic Livestock module auto-fills the certifier approval reference — the document attached to the derogation case and the document attached to the feed record together form a complete, inspector-ready evidence chain without any re-keying.</p>`,
   ],
 ];
 
