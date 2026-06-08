@@ -17424,7 +17424,7 @@ router.delete("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTena
 // ============================================================
 router.get("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const herds = await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)).orderBy(herdFlockRegisterTable.name);
+  const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), sql`lower(${herdFlockRegisterTable.type}) in ('pig', 'pigs', 'swine')`)).orderBy(herdFlockRegisterTable.name);
   res.json(herds.map(h => ({ id: h.id, flockName: h.name, productionType: h.type, breed: h.breed, herdNumber: h.herdNumber, notes: h.notes, farmId: h.farmId, createdAt: h.createdAt })));
 });
 router.post("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -25826,7 +25826,7 @@ router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTe
 router.get("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const herds = await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)).orderBy(herdFlockRegisterTable.name);
+  const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), sql`lower(${herdFlockRegisterTable.type}) in ('sheep', 'ewe', 'ewes', 'ram', 'rams', 'lamb', 'lambs', 'ovine')`)).orderBy(herdFlockRegisterTable.name);
   res.json(herds.map(h => ({ id: h.id, flockName: h.name, breed: h.breed, flockPurpose: h.type, herdFlockNumber: h.herdNumber, notes: h.notes, status: h.isActive ? "active" : "archived", farmId: h.farmId, createdAt: h.createdAt })));
 });
 router.post("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -28446,7 +28446,7 @@ router.delete("/farms/:farmId/organic-goat-dairy/treatments/:recordId", requireA
 router.get("/farms/:farmId/goat-herds", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), eq(herdFlockRegisterTable.type, "goat"))).orderBy(herdFlockRegisterTable.name);
+  const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), sql`lower(${herdFlockRegisterTable.type}) in ('goat', 'goats')`)).orderBy(herdFlockRegisterTable.name);
   res.json(herds.map(h => ({ id: h.id, flockName: h.name, breed: h.breed, flockPurpose: h.type, herdFlockNumber: h.herdNumber, notes: h.notes, status: h.isActive ? "active" : "archived", farmId: h.farmId, createdAt: h.createdAt })));
 });
 

@@ -4388,7 +4388,7 @@ function JohnesTab({ farmId }: { farmId: number }) {
 
   const { data: herds = [] } = useQuery({
     queryKey: ["herds", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()).then(d => (d.records ?? []).filter((h: any) => { const t = String(h.type ?? "").toLowerCase(); return ["cattle", "beef", "dairy", "suckler", "bovine"].some(k => t.includes(k)); })),
     enabled: !!farmId,
   });
 
