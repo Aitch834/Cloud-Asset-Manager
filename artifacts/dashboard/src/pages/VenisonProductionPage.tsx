@@ -1,7 +1,9 @@
 // @ts-nocheck
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Crosshair, ShoppingCart, Users, HeartPulse, ShieldCheck, BarChart3, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Crosshair, ShoppingCart, Users, HeartPulse, ShieldCheck, BarChart3, AlertTriangle, Printer } from "lucide-react";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DocAttach } from "@/components/DocAttach";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -171,34 +173,61 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const totalCarcassKg = records.reduce((s: number, r: any) => s + (Number(r.carcassWeightKg) || 0), 0);
-  const foodSafetyIssues = records.filter((r: any) => String(r.foodSafetyInspectionResult || "").toLowerCase().includes("fail") || String(r.foodSafetyInspectionResult || "").toLowerCase().includes("condemn")).length;
-  const notifiable = records.filter((r: any) => r.notifiableDiseaseSupect).length;
+  const years = useMemo(() => {
+    const s = new Set<string>(records.map((r: any) => String(r.cullDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [yearFilter, setYearFilter] = useState("all");
+  const filtered = useMemo(() => yearFilter === "all" ? records : records.filter((r: any) => String(r.cullDate || "").startsWith(yearFilter)), [records, yearFilter]);
+
+  const totalCarcassKg = filtered.reduce((s: number, r: any) => s + (Number(r.carcassWeightKg) || 0), 0);
+  const foodSafetyIssues = filtered.filter((r: any) => String(r.foodSafetyInspectionResult || "").toLowerCase().includes("fail") || String(r.foodSafetyInspectionResult || "").toLowerCase().includes("condemn")).length;
+  const notifiable = filtered.filter((r: any) => r.notifiableDiseaseSupect).length;
+
+  const printCullRecords = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Cull Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}h2{margin-bottom:8px}</style></head><body><h2>Stalking & Cull Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Stalker</th><th>Species</th><th>Sex</th><th>Age Class</th><th>Carcass Wt (kg)</th><th>Kill-out %</th><th>Food Safety</th><th>Notifiable</th></tr></thead><tbody>${filtered.map((r: any) => `<tr><td>${fmtDate(r.cullDate)}</td><td>${fmt(r.stalkerName)}</td><td>${fmt(r.species)}</td><td>${fmt(r.sex)}</td><td>${fmt(r.ageClass)}</td><td>${fmt(r.carcassWeightKg)}</td><td>${r.killoutPercent ? r.killoutPercent + "%" : "—"}</td><td>${fmt(r.foodSafetyInspectionResult)}</td><td>${r.notifiableDiseaseSupect ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Cull Records" value={records.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
+        <KpiCard label="Cull Records" value={filtered.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
         <KpiCard label="Total Carcass Wt (kg)" value={totalCarcassKg > 0 ? `${totalCarcassKg.toFixed(1)} kg` : "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
         <KpiCard label="Food Safety Issues" value={foodSafetyIssues || "None"} bg={foodSafetyIssues > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={foodSafetyIssues > 0 ? "text-red-800" : "text-gray-700"} sub={foodSafetyIssues > 0 ? "text-red-600" : "text-gray-500"} />
         <KpiCard label="Notifiable Suspect" value={notifiable || "None"} bg={notifiable > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={notifiable > 0 ? "text-red-800" : "text-gray-700"} sub={notifiable > 0 ? "text-red-600" : "text-gray-500"} />
       </div>
-      <SectionHeader title="Stalking & Cull Records" onAdd={() => open("add")} addLabel="Add Cull Record" />
-      {records.length === 0 ? (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-lg font-semibold">Stalking & Cull Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printCullRecords}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => open("add")}><Plus className="w-4 h-4 mr-1" />Add Cull Record</Button>
+        </div>
+      </div>
+      {filtered.length === 0 ? (
         <EmptyState icon={Crosshair} message="No cull records yet. Add your first stalking or cull record above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Date", "Stalker", "Species", "Sex / Age", "Carcass Wt (kg)", "Kill-out %", "Food Safety", "Notifiable", ""].map(h => (
+                {["Date", "Stalker", "Species", "Sex / Age", "Carcass Wt (kg)", "Kill-out %", "Food Safety", "Notifiable", "", ""].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any) => (
+              {filtered.map((r: any) => (
                 <tr key={r.id} className="border-b hover:bg-muted/20 transition-colors">
                   <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.cullDate)}</td>
                   <td className="py-2 px-3">{fmt(r.stalkerName)}</td>
@@ -219,6 +248,9 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
                     </Badge>
                   </td>
                   <td className="py-2 px-3">{r.notifiableDiseaseSupect ? <span className="text-red-600 font-bold">⚠ Yes</span> : "No"}</td>
+                  <td className="py-2 px-3">
+                    <DocAttach farmId={farmId} endpoint="venison-cull-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["venison-cull", String(farmId)]} compact />
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("view", r)}><Eye className="w-3.5 h-3.5" /></Button>
@@ -255,6 +287,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
               <FieldView label="Food Safety Inspection" value={fmt(dlg.row.foodSafetyInspectionResult)} />
               <FieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
               {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-cull" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -375,32 +408,59 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const totalValue = records.reduce((s: number, r: any) => s + (Number(r.totalValueGbp) || 0), 0);
-  const totalCarcasses = records.reduce((s: number, r: any) => s + (Number(r.numberCarcasses) || 0), 0);
+  const salesYears = useMemo(() => {
+    const s = new Set<string>(records.map((r: any) => String(r.saleDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [salesYearFilter, setSalesYearFilter] = useState("all");
+  const filteredSales = useMemo(() => salesYearFilter === "all" ? records : records.filter((r: any) => String(r.saleDate || "").startsWith(salesYearFilter)), [records, salesYearFilter]);
+
+  const totalValue = filteredSales.reduce((s: number, r: any) => s + (Number(r.totalValueGbp) || 0), 0);
+  const totalCarcasses = filteredSales.reduce((s: number, r: any) => s + (Number(r.numberCarcasses) || 0), 0);
+
+  const printSalesRecords = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Carcass Sales</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Carcass Sales${salesYearFilter !== "all" ? ` — ${salesYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Facility</th><th>Species</th><th>Carcasses</th><th>Grade</th><th>Destination / Buyer</th><th>Weight (kg)</th><th>Value</th></tr></thead><tbody>${filteredSales.map((r: any) => `<tr><td>${fmtDate(r.saleDate)}</td><td>${fmt(r.facilityType)}</td><td>${fmt(r.species)}</td><td>${fmt(r.numberCarcasses)}</td><td>${fmt(r.gradeOrQuality)}</td><td>${fmt(r.destinationType)}${r.buyerName ? ` — ${r.buyerName}` : ""}</td><td>${fmt(r.totalWeightKg)}</td><td>${r.totalValueGbp ? fmtGbp(r.totalValueGbp) : "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <KpiCard label="Sale Records" value={records.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
+        <KpiCard label="Sale Records" value={filteredSales.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
         <KpiCard label="Total Carcasses Sold" value={totalCarcasses || "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
         <KpiCard label="Total Sales Value" value={totalValue > 0 ? fmtGbp(totalValue) : "—"} bg="bg-blue-50 border-blue-100" text="text-blue-800" sub="text-blue-700" />
       </div>
-      <SectionHeader title="Carcass Processing & Venison Sales" onAdd={() => open("add")} addLabel="Add Sale Record" />
-      {records.length === 0 ? (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-lg font-semibold">Carcass Processing & Venison Sales</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={salesYearFilter} onValueChange={setSalesYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {salesYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printSalesRecords}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => open("add")}><Plus className="w-4 h-4 mr-1" />Add Sale Record</Button>
+        </div>
+      </div>
+      {filteredSales.length === 0 ? (
         <EmptyState icon={ShoppingCart} message="No sale records yet. Record your first venison sale or carcass processing event above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Date", "Facility", "Species", "Carcasses", "Grade", "Destination / Buyer", "Weight (kg)", "Value", ""].map(h => (
+                {["Date", "Facility", "Species", "Carcasses", "Grade", "Destination / Buyer", "Weight (kg)", "Value", "", ""].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any) => (
+              {filteredSales.map((r: any) => (
                 <tr key={r.id} className="border-b hover:bg-muted/20 transition-colors">
                   <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.saleDate)}</td>
                   <td className="py-2 px-3 text-xs max-w-[140px] truncate">{fmt(r.facilityType)}</td>
@@ -410,6 +470,9 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
                   <td className="py-2 px-3">{fmt(r.destinationType)}{r.buyerName ? ` — ${r.buyerName}` : ""}</td>
                   <td className="py-2 px-3">{fmt(r.totalWeightKg)}</td>
                   <td className="py-2 px-3 font-medium">{r.totalValueGbp ? fmtGbp(r.totalValueGbp) : "—"}</td>
+                  <td className="py-2 px-3">
+                    <DocAttach farmId={farmId} endpoint="venison-carcass-sales" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["venison-sales", String(farmId)]} compact />
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("view", r)}><Eye className="w-3.5 h-3.5" /></Button>
@@ -443,6 +506,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
               <FieldView label="Invoice Reference" value={fmt(dlg.row.invoiceReference)} />
               <FieldView label="Wild Game Declaration No." value={fmt(dlg.row.wildGameDeclarationNumber)} />
               {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-carcass-sales" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -536,24 +600,51 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const monYears = useMemo(() => {
+    const s = new Set<string>(records.map((r: any) => String(r.surveyDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [monYearFilter, setMonYearFilter] = useState("all");
+  const filteredMon = useMemo(() => monYearFilter === "all" ? records : records.filter((r: any) => String(r.surveyDate || "").startsWith(monYearFilter)), [records, monYearFilter]);
+
+  const printMonitoring = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Herd Monitoring</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Herd Monitoring Surveys${monYearFilter !== "all" ? ` — ${monYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Method</th><th>Species</th><th>Males</th><th>Females</th><th>Young</th><th>Total</th><th>M:F Ratio</th><th>Recruitment %</th></tr></thead><tbody>${filteredMon.map((r: any) => `<tr><td>${fmtDate(r.surveyDate)}</td><td>${fmt(r.surveyMethod)}</td><td>${fmt(r.species)}</td><td>${fmt(r.maleCount)}</td><td>${fmt(r.femaleCount)}</td><td>${fmt(r.youngCount)}</td><td>${fmt(r.totalCount)}</td><td>${fmt(r.maleFemaleRatio)}</td><td>${r.recruitmentRatePercent ? r.recruitmentRatePercent + "%" : "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
   return (
     <div className="space-y-4">
-      <SectionHeader title="Herd Population Surveys" onAdd={() => open("add")} addLabel="Add Survey" />
-      {records.length === 0 ? (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-lg font-semibold">Herd Population Surveys</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={monYearFilter} onValueChange={setMonYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {monYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printMonitoring}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => open("add")}><Plus className="w-4 h-4 mr-1" />Add Survey</Button>
+        </div>
+      </div>
+      {filteredMon.length === 0 ? (
         <EmptyState icon={Users} message="No monitoring surveys yet. Record your first population count or herd survey above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Survey Date", "Method", "Species", "Males", "Females", "Young", "Total", "M:F Ratio", "Recruitment %", ""].map(h => (
+                {["Survey Date", "Method", "Species", "Males", "Females", "Young", "Total", "M:F Ratio", "Recruitment %", "", ""].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any) => (
+              {filteredMon.map((r: any) => (
                 <tr key={r.id} className="border-b hover:bg-muted/20 transition-colors">
                   <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.surveyDate)}</td>
                   <td className="py-2 px-3 text-xs">{fmt(r.surveyMethod)}</td>
@@ -564,6 +655,9 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="py-2 px-3 text-center font-medium">{fmt(r.totalCount)}</td>
                   <td className="py-2 px-3">{fmt(r.maleFemaleRatio)}</td>
                   <td className="py-2 px-3">{r.recruitmentRatePercent ? `${r.recruitmentRatePercent}%` : "—"}</td>
+                  <td className="py-2 px-3">
+                    <DocAttach farmId={farmId} endpoint="venison-herd-monitoring" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["venison-monitoring", String(farmId)]} compact />
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("view", r)}><Eye className="w-3.5 h-3.5" /></Button>
@@ -594,6 +688,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
               <FieldView label="Observed By" value={fmt(dlg.row.observedBy)} />
               <FieldView label="Weather Conditions" value={fmt(dlg.row.weatherConditions)} />
               {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-herd-monitoring" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -677,24 +772,51 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const hrYears = useMemo(() => {
+    const s = new Set<string>(records.map((r: any) => String(r.eventDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [hrYearFilter, setHrYearFilter] = useState("all");
+  const filteredHr = useMemo(() => hrYearFilter === "all" ? records : records.filter((r: any) => String(r.eventDate || "").startsWith(hrYearFilter)), [records, hrYearFilter]);
+
+  const printHealthRecords = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Health Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Health Records${hrYearFilter !== "all" ? ` — ${hrYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Event Type</th><th>Product / Description</th><th>No. Treated</th><th>Withdrawal (days)</th><th>bTB Result</th><th>APHA Ref</th></tr></thead><tbody>${filteredHr.map((r: any) => `<tr><td>${fmtDate(r.eventDate)}</td><td>${fmt(r.healthEventType)}</td><td>${fmt(r.productOrDescription)}</td><td>${fmt(r.numberTreated)}</td><td>${r.withdrawalPeriodDays ? r.withdrawalPeriodDays + "d" : "—"}</td><td>${fmt(r.btbTestResult)}</td><td>${fmt(r.aphaReference)}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
   return (
     <div className="space-y-4">
-      <SectionHeader title="Health Records" onAdd={() => open("add")} addLabel="Add Health Record" />
-      {records.length === 0 ? (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-lg font-semibold">Health Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={hrYearFilter} onValueChange={setHrYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {hrYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printHealthRecords}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => open("add")}><Plus className="w-4 h-4 mr-1" />Add Health Record</Button>
+        </div>
+      </div>
+      {filteredHr.length === 0 ? (
         <EmptyState icon={HeartPulse} message="No health records yet. Add vaccination, bTB test, or vet visit records above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Date", "Event Type", "Product / Description", "No. Treated", "Withdrawal", "bTB Result", "APHA Ref", ""].map(h => (
+                {["Date", "Event Type", "Product / Description", "No. Treated", "Withdrawal", "bTB Result", "APHA Ref", "", ""].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any) => (
+              {filteredHr.map((r: any) => (
                 <tr key={r.id} className="border-b hover:bg-muted/20 transition-colors">
                   <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.eventDate)}</td>
                   <td className="py-2 px-3">{fmt(r.healthEventType)}</td>
@@ -713,6 +835,9 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
                     ) : "—"}
                   </td>
                   <td className="py-2 px-3 text-xs">{fmt(r.aphaReference)}</td>
+                  <td className="py-2 px-3">
+                    <DocAttach farmId={farmId} endpoint="venison-health-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["venison-health", String(farmId)]} compact />
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("view", r)}><Eye className="w-3.5 h-3.5" /></Button>
@@ -743,6 +868,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
               <FieldView label="Vet Prescribed" value={dlg.row.vetPrescribed ? "Yes (POM-V)" : "No"} />
               <FieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
               {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-health-records" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">

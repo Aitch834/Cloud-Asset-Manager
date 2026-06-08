@@ -12,10 +12,11 @@ interface DocAttachProps {
   recordId: number;
   documentPath: string | null | undefined;
   documentName: string | null | undefined;
-  queryKey: string | string[];
+  queryKey: string | (string | number)[];
+  compact?: boolean;
 }
 
-export function DocAttach({ farmId, endpoint, recordId, documentPath, documentName, queryKey }: DocAttachProps) {
+export function DocAttach({ farmId, endpoint, recordId, documentPath, documentName, queryKey, compact }: DocAttachProps) {
   const qc = useQueryClient();
   const { uploadFile } = useUpload();
   const { toast } = useToast();
@@ -64,7 +65,7 @@ export function DocAttach({ farmId, endpoint, recordId, documentPath, documentNa
           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
         >
           <FileText className="w-3 h-3" />
-          {documentName ?? "View"}
+          {compact ? null : (documentName ?? "View")}
         </a>
         <button
           onClick={remove}
@@ -93,7 +94,7 @@ export function DocAttach({ farmId, endpoint, recordId, documentPath, documentNa
         title="Attach document"
       >
         {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-        {uploading ? "Uploading…" : "Attach"}
+        {compact ? null : (uploading ? "Uploading…" : "Attach")}
       </button>
     </>
   );

@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer, BarChart3 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -114,6 +115,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-tupping", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-tupping-records/${editing.id}`) : api(`farms/${farmId}/sheep-tupping-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -124,22 +126,16 @@ function TuppingTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({ progesteroneUsed: "false" }); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.tuppingStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.tuppingStartDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
+
   function printTuppingRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.tuppingStartDate)}</td>
-      <td>${fmtDate(r.tuppingEndDate)}</td>
-      <td>${fmt(r.ramBreed)}</td>
-      <td>${fmt(r.ramTagNumber)}</td>
-      <td>${fmt(r.ewesExposed)}</td>
-      <td>${fmtDate(r.expectedLambingStart)}</td>
-      <td>${r.progesteroneUsed ? "Yes" : "No"}</td>
-      <td>${fmt(r.notes)}</td>
+    const tableRows = filtered.map(r => `<tr>
+      <td>${fmtDate(r.tuppingStartDate)}</td><td>${fmtDate(r.tuppingEndDate)}</td><td>${fmt(r.ramBreed)}</td><td>${fmt(r.ramTagNumber)}</td><td>${fmt(r.ewesExposed)}</td><td>${fmtDate(r.expectedLambingStart)}</td><td>${r.progesteroneUsed ? "Yes" : "No"}</td><td>${fmt(r.notes)}</td>
     </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Tupping Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style>
-</head><body>
-<h1>Tupping Records</h1>
-<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+    const html = `<!DOCTYPE html><html><head><title>Tupping Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body>
+<h1>Tupping Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1>
+<h2>Red Tractor Sheep Assurance · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
 <table><thead><tr><th>Start Date</th><th>End Date</th><th>Ram Breed</th><th>Ram Tag</th><th>Ewes Exposed</th><th>Expected Lambing</th><th>Progesterone</th><th>Notes</th></tr></thead>
 <tbody>${tableRows}</tbody></table>
 <p class="footer">Red Tractor Sheep Assurance requires tupping records to be maintained and available at audit. Retain records for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
@@ -149,10 +145,16 @@ function TuppingTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Tupping Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Tupping Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printTuppingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printTuppingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -165,8 +167,9 @@ function TuppingTab({ farmId }: { farmId: number }) {
             { key: "ramTagNumber", label: "Ram Tag" },
             { key: "ewesExposed", label: "Ewes Exposed" },
             { key: "expectedLambingStart", label: "Expected Lambing", render: r => fmtDate(r.expectedLambingStart) },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-tupping-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
@@ -176,12 +179,15 @@ function TuppingTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Tupping Record Details</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Start Date", fmtDate(viewing.tuppingStartDate)], ["End Date", fmtDate(viewing.tuppingEndDate)], ["Ram Breed", fmt(viewing.ramBreed)], ["Ram Tag", fmt(viewing.ramTagNumber)], ["Ram Source", fmt(viewing.ramSource)], ["Ewes Exposed", fmt(viewing.ewesExposed)], ["Tupping Method", fmt(viewing.tuppingMethod)], ["Harness Colour", fmt(viewing.harnessColour)], ["Progesterone Used", viewing.progesteroneUsed ? "Yes" : "No"], ["Expected Lambing Start", fmtDate(viewing.expectedLambingStart)], ["Expected Lambing End", fmtDate(viewing.expectedLambingEnd)]].map(([label, value]) => (
-              <div key={String(label)}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{String(value)}</span></div>
-            ))}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Start Date", fmtDate(viewing.tuppingStartDate)], ["End Date", fmtDate(viewing.tuppingEndDate)], ["Ram Breed", fmt(viewing.ramBreed)], ["Ram Tag", fmt(viewing.ramTagNumber)], ["Ram Source", fmt(viewing.ramSource)], ["Ewes Exposed", fmt(viewing.ewesExposed)], ["Tupping Method", fmt(viewing.tuppingMethod)], ["Harness Colour", fmt(viewing.harnessColour)], ["Progesterone Used", viewing.progesteroneUsed ? "Yes" : "No"], ["Expected Lambing Start", fmtDate(viewing.expectedLambingStart)], ["Expected Lambing End", fmtDate(viewing.expectedLambingEnd)]].map(([label, value]) => (
+                <div key={String(label)}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{String(value)}</span></div>
+              ))}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="sheep-tupping-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -243,6 +249,7 @@ function ScanningTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-scanning", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-scanning-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-scanning-records/${editing.id}`) : api(`farms/${farmId}/sheep-scanning-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -250,39 +257,30 @@ function ScanningTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-scanning-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-scanning", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.scanDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.scanDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printScanningRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.scanDate)}</td>
-      <td>${fmt(r.scannerName)}</td>
-      <td>${fmt(r.ewesScanned)}</td>
-      <td>${fmt(r.ewesInLamb)}</td>
-      <td>${fmt(r.ewesBare)}</td>
-      <td>${fmt(r.singlesCount)}</td>
-      <td>${fmt(r.twinsCount)}</td>
-      <td>${fmt(r.triplesCount)}</td>
-      <td>${fmt(r.quadsCount)}</td>
-      <td>${fmt(r.scanningPercentage)}%</td>
-      <td>${fmt(r.expectedLambsTotal)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Scanning Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Scanning Records</h1>
-<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Scan Date</th><th>Scanner</th><th>Scanned</th><th>In Lamb</th><th>Bare</th><th>Singles</th><th>Twins</th><th>Triplets</th><th>Quads</th><th>Scanning %</th><th>Expected Lambs</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Red Tractor Sheep Assurance: scanning records must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.scanDate)}</td><td>${fmt(r.scannerName)}</td><td>${fmt(r.ewesScanned)}</td><td>${fmt(r.ewesInLamb)}</td><td>${fmt(r.ewesBare)}</td><td>${fmt(r.singlesCount)}</td><td>${fmt(r.twinsCount)}</td><td>${fmt(r.triplesCount)}</td><td>${fmt(r.quadsCount)}</td><td>${fmt(r.scanningPercentage)}%</td><td>${fmt(r.expectedLambsTotal)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Scanning Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body>
+<h1>Scanning Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Red Tractor Sheep Assurance · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Scan Date</th><th>Scanner</th><th>Scanned</th><th>In Lamb</th><th>Bare</th><th>Singles</th><th>Twins</th><th>Triplets</th><th>Quads</th><th>Scanning %</th><th>Expected Lambs</th></tr></thead><tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: scanning records must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`;
     openPrintWindow(html);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Scanning Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Scanning Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printScanningRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printScanningRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -293,11 +291,11 @@ function ScanningTab({ farmId }: { farmId: number }) {
             { key: "scannerName", label: "Scanner" },
             { key: "ewesScanned", label: "Scanned" },
             { key: "ewesInLamb", label: "In Lamb" },
-            { key: "ewesBare", label: "Bare" },
             { key: "scanningPercentage", label: "Scanning %" },
             { key: "expectedLambsTotal", label: "Expected Lambs" },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-scanning-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -307,10 +305,13 @@ function ScanningTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Scanning Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Scan Date", fmtDate(viewing.scanDate)], ["Scanner", fmt(viewing.scannerName)], ["Ewes Scanned", fmt(viewing.ewesScanned)], ["Ewes In Lamb", fmt(viewing.ewesInLamb)], ["Ewes Bare", fmt(viewing.ewesBare)], ["Singles", fmt(viewing.singlesCount)], ["Twins", fmt(viewing.twinsCount)], ["Triplets", fmt(viewing.triplesCount)], ["Quads", fmt(viewing.quadsCount)], ["Scanning %", fmt(viewing.scanningPercentage)], ["Expected Lambs", fmt(viewing.expectedLambsTotal)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Scan Date", fmtDate(viewing.scanDate)], ["Scanner", fmt(viewing.scannerName)], ["Ewes Scanned", fmt(viewing.ewesScanned)], ["Ewes In Lamb", fmt(viewing.ewesInLamb)], ["Ewes Bare", fmt(viewing.ewesBare)], ["Singles", fmt(viewing.singlesCount)], ["Twins", fmt(viewing.twinsCount)], ["Triplets", fmt(viewing.triplesCount)], ["Quads", fmt(viewing.quadsCount)], ["Scanning %", fmt(viewing.scanningPercentage)], ["Expected Lambs", fmt(viewing.expectedLambsTotal)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="sheep-scanning-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -349,6 +350,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-weigh-records/${editing.id}`) : api(`farms/${farmId}/sheep-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -356,37 +358,30 @@ function WeighTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.weighDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.weighDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printWeighRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.weighDate)}</td>
-      <td>${fmt(r.weighBatchRef)}</td>
-      <td>${fmt(r.animalCategory)}</td>
-      <td>${fmt(r.numberOfAnimalsWeighed)}</td>
-      <td>${fmtNum(r.averageWeightKg)}</td>
-      <td>${fmtNum(r.totalWeightKg)}</td>
-      <td>${fmtNum(r.targetWeightKg)}</td>
-      <td>${fmtNum(r.dlwgGPerDay, 0)}</td>
-      <td>${fmt(r.bodyConditionScore)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Sheep Weigh-in & Performance Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Sheep Weigh-in &amp; Performance Records</h1>
-<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Date</th><th>Batch Ref</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Total Wt (kg)</th><th>Target (kg)</th><th>DLWG (g/day)</th><th>BCS</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Red Tractor Sheep Assurance: weight records and body condition scores must be maintained to demonstrate welfare monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.weighDate)}</td><td>${fmt(r.weighBatchRef)}</td><td>${fmt(r.animalCategory)}</td><td>${fmt(r.numberOfAnimalsWeighed)}</td><td>${fmtNum(r.averageWeightKg)}</td><td>${fmtNum(r.totalWeightKg)}</td><td>${fmtNum(r.targetWeightKg)}</td><td>${fmtNum(r.dlwgGPerDay, 0)}</td><td>${fmt(r.bodyConditionScore)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Sheep Weigh-in Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body>
+<h1>Sheep Weigh-in &amp; Performance Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Red Tractor Sheep Assurance · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Batch Ref</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Total Wt (kg)</th><th>Target (kg)</th><th>DLWG (g/day)</th><th>BCS</th></tr></thead><tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: weight records must be maintained to demonstrate welfare monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`;
     openPrintWindow(html);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Weigh-in & Performance Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Weigh-in & Performance Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printWeighRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printWeighRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
         </div>
       </div>
@@ -400,8 +395,9 @@ function WeighTab({ farmId }: { farmId: number }) {
             { key: "averageWeightKg", label: "Avg Wt (kg)", render: r => fmtNum(r.averageWeightKg) },
             { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay) },
             { key: "bodyConditionScore", label: "BCS" },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-weigh-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -411,10 +407,13 @@ function WeighTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Date", fmtDate(viewing.weighDate)], ["Batch Ref", fmt(viewing.weighBatchRef)], ["Category", fmt(viewing.animalCategory)], ["Animals Weighed", fmt(viewing.numberOfAnimalsWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Total Weight (kg)", fmtNum(viewing.totalWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Date", fmtDate(viewing.weighDate)], ["Batch Ref", fmt(viewing.weighBatchRef)], ["Category", fmt(viewing.animalCategory)], ["Animals Weighed", fmt(viewing.numberOfAnimalsWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Total Weight (kg)", fmtNum(viewing.totalWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="sheep-weigh-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
@@ -471,6 +470,7 @@ function ShearingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-shearing", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-shearing-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-shearing-records/${editing.id}`) : api(`farms/${farmId}/sheep-shearing-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -478,38 +478,30 @@ function ShearingTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-shearing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-shearing", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.shearingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.shearingDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printShearingRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.shearingDate)}</td>
-      <td>${fmt(r.shearerName)}</td>
-      <td>${r.isContractor ? "Contractor" : "Own staff"}</td>
-      <td>${fmt(r.numberOfSheepSheared)}</td>
-      <td>${fmtNum(r.woolWeightKg)}</td>
-      <td>${fmt(r.woolGrade)}</td>
-      <td>${fmt(r.britishWoolBoardRef)}</td>
-      <td>${gbp(r.woolSaleValue)}</td>
-      <td>${r.ectoparasiteTreatmentApplied ? "Yes" : "No"}</td>
-      <td>${fmt(r.treatmentProductName)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Shearing Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Shearing Records</h1>
-<h2>Red Tractor Sheep Assurance · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Date</th><th>Shearer</th><th>Contractor?</th><th>Head Sheared</th><th>Wool (kg)</th><th>Grade</th><th>BWB Ref</th><th>Sale Value</th><th>Ectoparasite Tx</th><th>Treatment Product</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Red Tractor Sheep Assurance: shearing records including wool movement and any ectoparasite treatment applied must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.shearingDate)}</td><td>${fmt(r.shearerName)}</td><td>${r.isContractor ? "Contractor" : "Own staff"}</td><td>${fmt(r.numberOfSheepSheared)}</td><td>${fmtNum(r.woolWeightKg)}</td><td>${fmt(r.woolGrade)}</td><td>${fmt(r.britishWoolBoardRef)}</td><td>${gbp(r.woolSaleValue)}</td><td>${r.ectoparasiteTreatmentApplied ? "Yes" : "No"}</td><td>${fmt(r.treatmentProductName)}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Shearing Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body>
+<h1>Shearing Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Red Tractor Sheep Assurance · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
+<table><thead><tr><th>Date</th><th>Shearer</th><th>Contractor?</th><th>Head Sheared</th><th>Wool (kg)</th><th>Grade</th><th>BWB Ref</th><th>Sale Value</th><th>Ectoparasite Tx</th><th>Treatment Product</th></tr></thead><tbody>${tableRows}</tbody></table>
+<p class="footer">Red Tractor Sheep Assurance: shearing records including any ectoparasite treatment applied must be maintained and available at audit. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`;
     openPrintWindow(html);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Shearing Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Shearing Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printShearingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printShearingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({ isContractor: "false", ectoparasiteTreatmentApplied: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -522,8 +514,9 @@ function ShearingTab({ farmId }: { farmId: number }) {
             { key: "woolWeightKg", label: "Wool (kg)", render: r => fmtNum(r.woolWeightKg) },
             { key: "woolGrade", label: "Grade" },
             { key: "woolSaleValue", label: "Sale Value", render: r => gbp(r.woolSaleValue) },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-shearing-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -532,10 +525,13 @@ function ShearingTab({ farmId }: { farmId: number }) {
 
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Shearing Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Date", fmtDate(viewing.shearingDate)], ["Shearer", fmt(viewing.shearerName)], ["Contractor", viewing.isContractor ? "Yes" : "No"], ["Head Sheared", fmt(viewing.numberOfSheepSheared)], ["Wool Weight (kg)", fmtNum(viewing.woolWeightKg)], ["Wool Grade", fmt(viewing.woolGrade)], ["British Wool Board Ref", fmt(viewing.britishWoolBoardRef)], ["Sale Value", gbp(viewing.woolSaleValue)], ["Ectoparasite Treatment", viewing.ectoparasiteTreatmentApplied ? "Yes" : "No"], ["Treatment Product", fmt(viewing.treatmentProductName)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Date", fmtDate(viewing.shearingDate)], ["Shearer", fmt(viewing.shearerName)], ["Contractor", viewing.isContractor ? "Yes" : "No"], ["Head Sheared", fmt(viewing.numberOfSheepSheared)], ["Wool Weight (kg)", fmtNum(viewing.woolWeightKg)], ["Wool Grade", fmt(viewing.woolGrade)], ["British Wool Board Ref", fmt(viewing.britishWoolBoardRef)], ["Sale Value", gbp(viewing.woolSaleValue)], ["Ectoparasite Treatment", viewing.ectoparasiteTreatmentApplied ? "Yes" : "No"], ["Treatment Product", fmt(viewing.treatmentProductName)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="sheep-shearing-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -581,6 +577,8 @@ function HealthTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [vaccYearFilter, setVaccYearFilter] = useState<string>("all");
+  const [diseaseYearFilter, setDiseaseYearFilter] = useState<string>("all");
   const { data: vaccRows = [], isLoading: vLoading } = useQuery({ queryKey: ["sheep-vacc", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-vaccination-programmes`), { credentials: "include" }).then(r => r.json()) });
   const { data: diseaseRows = [], isLoading: dLoading } = useQuery({ queryKey: ["sheep-disease", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-disease-monitoring`), { credentials: "include" }).then(r => r.json()) });
   const saveVacc = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-vaccination-programmes/${editing.id}`) : api(`farms/${farmId}/sheep-vaccination-programmes`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-vacc", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
@@ -588,6 +586,20 @@ function HealthTab({ farmId }: { farmId: number }) {
   const delVacc = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-vaccination-programmes/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-vacc", farmId] }) });
   const delDisease = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-disease", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const vaccYears = useMemo(() => Array.from(new Set((vaccRows as Record<string, unknown>[]).map(r => String(r.vaccinationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [vaccRows]);
+  const filteredVacc = useMemo(() => vaccYearFilter === "all" ? vaccRows as Record<string, unknown>[] : (vaccRows as Record<string, unknown>[]).filter(r => String(r.vaccinationDate ?? "").startsWith(vaccYearFilter)), [vaccRows, vaccYearFilter]);
+  const diseaseYears = useMemo(() => Array.from(new Set((diseaseRows as Record<string, unknown>[]).map(r => String(r.observationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [diseaseRows]);
+  const filteredDisease = useMemo(() => diseaseYearFilter === "all" ? diseaseRows as Record<string, unknown>[] : (diseaseRows as Record<string, unknown>[]).filter(r => String(r.observationDate ?? "").startsWith(diseaseYearFilter)), [diseaseRows, diseaseYearFilter]);
+
+  function printVaccRecords() {
+    const tableRows = filteredVacc.map(r => `<tr><td>${fmtDate(r.vaccinationDate)}</td><td>${fmt(r.programmeName)}</td><td>${fmt(r.vaccineProduct)}</td><td>${fmt(r.diseaseTargeted)}</td><td>${fmt(r.numberOfAnimalsVaccinated)}</td><td>${fmt(r.administeredBy)}</td><td>${fmtDate(r.boosterDueDate)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Vaccination Programmes</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Vaccination Programmes${vaccYearFilter !== "all" ? ` — ${vaccYearFilter}` : ""}</h1><h2>Red Tractor Sheep · ${filteredVacc.length} record${filteredVacc.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Programme</th><th>Vaccine</th><th>Disease</th><th>Animals</th><th>Administered By</th><th>Booster Due</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Red Tractor Sheep: vaccination records must be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
+  }
+
+  function printDiseaseRecords() {
+    const tableRows = filteredDisease.map(r => `<tr><td>${fmtDate(r.observationDate)}</td><td>${fmt(r.condition)}</td><td>${fmt(r.numberOfAnimalsAffected)}</td><td>${fmt(r.severity)}</td><td>${fmt(r.actionTaken)}</td><td>${fmt(r.outcome)}</td><td>${r.reportableDisease ? "Yes" : "No"}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Disease Monitoring</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Disease Monitoring Records${diseaseYearFilter !== "all" ? ` — ${diseaseYearFilter}` : ""}</h1><h2>Red Tractor Sheep · ${filteredDisease.length} record${filteredDisease.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Condition</th><th>Animals</th><th>Severity</th><th>Action</th><th>Outcome</th><th>Reportable</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Red Tractor Sheep: disease monitoring records must be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
+  }
 
   return (
     <div className="space-y-4">
@@ -597,9 +609,18 @@ function HealthTab({ farmId }: { farmId: number }) {
       </div>
 
       {subTab === "vaccinations" && <>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-sm">Vaccination Programmes</h3>
-          <Button size="sm" onClick={() => { setEditing(null); setForm({ vetPrescribed: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Vaccination Programmes</h3>
+            <Select value={vaccYearFilter} onValueChange={setVaccYearFilter}>
+              <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All years</SelectItem>{vaccYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            {filteredVacc.length > 0 && <Button size="sm" variant="outline" onClick={printVaccRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+            <Button size="sm" onClick={() => { setEditing(null); setForm({ vetPrescribed: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+          </div>
         </div>
         {vLoading ? <Loader2 className="animate-spin" /> : (
           <DataTable
@@ -610,8 +631,9 @@ function HealthTab({ farmId }: { farmId: number }) {
               { key: "diseaseTargeted", label: "Disease" },
               { key: "numberOfAnimalsVaccinated", label: "Animals" },
               { key: "boosterDueDate", label: "Booster Due", render: r => fmtDate(r.boosterDueDate) },
+              { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-vaccination-programmes" recordId={r.id as number} farmId={farmId} compact /> : null },
             ]}
-            rows={vaccRows}
+            rows={filteredVacc}
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delVacc.mutate(r.id as number)}
@@ -619,10 +641,13 @@ function HealthTab({ farmId }: { farmId: number }) {
         )}
         <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Vaccination Programme</DialogTitle></DialogHeader>
-            {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-              {[["Date", fmtDate(viewing.vaccinationDate)], ["Programme", fmt(viewing.programmeName)], ["Vaccine", fmt(viewing.vaccineProduct)], ["Disease Targeted", fmt(viewing.diseaseTargeted)], ["Route", fmt(viewing.administrationRoute)], ["Dose (ml)", fmt(viewing.doseMl)], ["Animals Vaccinated", fmt(viewing.numberOfAnimalsVaccinated)], ["Batch No.", fmt(viewing.batchNumber)], ["Expiry", fmtDate(viewing.expiryDate)], ["Booster Due", fmtDate(viewing.boosterDueDate)], ["Administered By", fmt(viewing.administeredBy)], ["Vet Prescribed", viewing.vetPrescribed ? "Yes" : "No"], ["Withdrawal Period", fmt(viewing.withdrawalPeriodDays) + " days"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-            </div>}
+            {viewing && <>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[["Date", fmtDate(viewing.vaccinationDate)], ["Programme", fmt(viewing.programmeName)], ["Vaccine", fmt(viewing.vaccineProduct)], ["Disease Targeted", fmt(viewing.diseaseTargeted)], ["Route", fmt(viewing.administrationRoute)], ["Dose (ml)", fmt(viewing.doseMl)], ["Animals Vaccinated", fmt(viewing.numberOfAnimalsVaccinated)], ["Batch No.", fmt(viewing.batchNumber)], ["Expiry", fmtDate(viewing.expiryDate)], ["Booster Due", fmtDate(viewing.boosterDueDate)], ["Administered By", fmt(viewing.administeredBy)], ["Vet Prescribed", viewing.vetPrescribed ? "Yes" : "No"], ["Withdrawal Period", fmt(viewing.withdrawalPeriodDays) + " days"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+                {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+              </div>
+              {viewing.id && <RecordAttachments recordType="sheep-vaccination-programmes" recordId={viewing.id as number} farmId={farmId} />}
+            </>}
             <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
@@ -665,9 +690,18 @@ function HealthTab({ farmId }: { farmId: number }) {
       </>}
 
       {subTab === "disease" && <>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-sm">Disease & Condition Monitoring</h3>
-          <Button size="sm" onClick={() => { setEditing(null); setForm({ vetConsulted: "false", reportableDisease: "false", ahrbiNotified: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Disease & Condition Monitoring</h3>
+            <Select value={diseaseYearFilter} onValueChange={setDiseaseYearFilter}>
+              <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All years</SelectItem>{diseaseYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            {filteredDisease.length > 0 && <Button size="sm" variant="outline" onClick={printDiseaseRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+            <Button size="sm" onClick={() => { setEditing(null); setForm({ vetConsulted: "false", reportableDisease: "false", ahrbiNotified: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+          </div>
         </div>
         {dLoading ? <Loader2 className="animate-spin" /> : (
           <DataTable
@@ -678,8 +712,9 @@ function HealthTab({ farmId }: { farmId: number }) {
               { key: "severity", label: "Severity", render: r => { const s = String(r.severity ?? ""); return <Badge variant={s === "severe" ? "destructive" : s === "moderate" ? "outline" : "secondary"}>{s || "—"}</Badge>; } },
               { key: "outcome", label: "Outcome" },
               { key: "reportableDisease", label: "Reportable", render: r => r.reportableDisease ? <Badge variant="destructive">Yes</Badge> : <Badge variant="secondary">No</Badge> },
+              { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-disease-monitoring" recordId={r.id as number} farmId={farmId} compact /> : null },
             ]}
-            rows={diseaseRows}
+            rows={filteredDisease}
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delDisease.mutate(r.id as number)}
@@ -687,10 +722,13 @@ function HealthTab({ farmId }: { farmId: number }) {
         )}
         <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Disease Monitoring Record</DialogTitle></DialogHeader>
-            {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-              {[["Date", fmtDate(viewing.observationDate)], ["Condition", fmt(viewing.condition)], ["Animals Affected", fmt(viewing.numberOfAnimalsAffected)], ["Severity", fmt(viewing.severity)], ["Action Taken", fmt(viewing.actionTaken)], ["Vet Consulted", viewing.vetConsulted ? "Yes" : "No"], ["Vet Name", fmt(viewing.vetName)], ["Treatment Product", fmt(viewing.treatmentProduct)], ["Outcome", fmt(viewing.outcome)], ["Reportable Disease", viewing.reportableDisease ? "Yes" : "No"], ["AHRBI Notified", viewing.ahrbiNotified ? "Yes" : "No"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-            </div>}
+            {viewing && <>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[["Date", fmtDate(viewing.observationDate)], ["Condition", fmt(viewing.condition)], ["Animals Affected", fmt(viewing.numberOfAnimalsAffected)], ["Severity", fmt(viewing.severity)], ["Action Taken", fmt(viewing.actionTaken)], ["Vet Consulted", viewing.vetConsulted ? "Yes" : "No"], ["Vet Name", fmt(viewing.vetName)], ["Treatment Product", fmt(viewing.treatmentProduct)], ["Outcome", fmt(viewing.outcome)], ["Reportable Disease", viewing.reportableDisease ? "Yes" : "No"], ["AHRBI Notified", viewing.ahrbiNotified ? "Yes" : "No"]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+                {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+              </div>
+              {viewing.id && <RecordAttachments recordType="sheep-disease-monitoring" recordId={viewing.id as number} farmId={farmId} />}
+            </>}
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
               {viewing?.reportableDisease && (
@@ -766,18 +804,28 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-rt", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-rt-checklists`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-rt-checklists/${editing.id}`) : api(`farms/${farmId}/sheep-rt-checklists`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-rt", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-rt-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-rt", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const boolFields = ["flockRegisterUpToDate","medicineRecordsComplete","movementRecordsComplete","feedRecordsComplete","mbmFreeStatus","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent","welfareOutcomesRecorded"];
   const boolLabels: Record<string, string> = { flockRegisterUpToDate: "Flock register up to date", medicineRecordsComplete: "Medicine records complete", movementRecordsComplete: "Movement records complete", feedRecordsComplete: "Feed records complete", mbmFreeStatus: "MBM-free status confirmed", assuranceMembershipCurrent: "Assurance membership current", vetHealthPlanOnFile: "Vet health plan on file", staffTrainingCurrent: "Staff training current", welfareOutcomesRecorded: "Welfare outcomes recorded" };
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.checkDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.checkDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Red Tractor Sheep Checklists</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Red Tractor Sheep Checklists</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ overallStatus: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />New Check</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
@@ -786,12 +834,27 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
             { key: "checkDate", label: "Date", render: r => fmtDate(r.checkDate) },
             { key: "checkedBy", label: "Checked By" },
             { key: "overallStatus", label: "Status", render: r => { const s = String(r.overallStatus ?? ""); return <Badge variant={s === "pass" ? "default" : s === "fail" ? "destructive" : "secondary"}>{s}</Badge>; } },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-rt-checklists" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
+          onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
         />
       )}
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>RT Sheep Checklist</DialogTitle></DialogHeader>
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Date", fmtDate(viewing.checkDate)], ["Checked By", fmt(viewing.checkedBy)], ["Status", fmt(viewing.overallStatus)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {boolFields.map(k => <div key={k}><span className="text-muted-foreground">{boolLabels[k]}:</span> <span className="font-medium">{viewing[k] ? "Yes" : "No"}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="sheep-rt-checklists" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "New"} RT Sheep Checklist</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">

@@ -3,7 +3,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -627,6 +627,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Findings</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.findings ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Recommendations</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.recommendations ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="pig-vet-assessments" recordId={viewRecord.id as number} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -672,9 +673,25 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
 
-  const { data: checks = [], isLoading } = useQuery({ queryKey: ["pig-stockmanship", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-stockmanship-checks`), { credentials: "include" }).then(r => r.json()) });
+  const { data: allChecks = [], isLoading } = useQuery({ queryKey: ["pig-stockmanship", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-stockmanship-checks`), { credentials: "include" }).then(r => r.json()) });
+
+  const stockYears = useMemo(() => {
+    const s = new Set<string>((allChecks as Record<string,unknown>[]).map(r => String(r.checkDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [allChecks]);
+  const [stockYearFilter, setStockYearFilter] = useState("all");
+  const checks = useMemo(() => stockYearFilter === "all" ? allChecks : (allChecks as Record<string,unknown>[]).filter(r => String(r.checkDate || "").startsWith(stockYearFilter)), [allChecks, stockYearFilter]);
+
+  const printStock = () => {
+    const rows = (checks as Record<string,unknown>[]);
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Stockmanship Checks</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Daily Stockmanship Checks${stockYearFilter !== "all" ? ` — ${stockYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Checked By</th><th>Mortalities</th><th>Injured</th><th>Welfare Status</th><th>Actions Required</th></tr></thead><tbody>${rows.map(r => `<tr><td>${fmtDate(r.checkDate)}</td><td>${r.checkedBy || "—"}</td><td>${r.mortalitiesFound ?? 0}</td><td>${r.injuredFound ?? 0}</td><td>${r.overallWelfare || "—"}</td><td>${r.actionsRequired || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -695,9 +712,16 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Daily Stockmanship Checks</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Check</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={stockYearFilter} onValueChange={setStockYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{stockYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printStock}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Check</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -705,11 +729,29 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
             { key: "checkDate", label: "Date", fmt: r => fmtDate(r.checkDate) }, { key: "checkedBy", label: "Checked By" },
             { key: "mortalitiesFound", label: "Mortalities" }, { key: "injuredFound", label: "Injured" },
             { key: "overallWelfare", label: "Welfare Status" }, { key: "actionsRequired", label: "Actions Required" },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-stockmanship-checks" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-stockmanship", String(farmId)]} compact /> },
           ]}
-          rows={checks}
+          rows={checks as Record<string, unknown>[]}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          onView={setViewRecord}
         />
+      )}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "38rem" }}>
+            <DialogHeader><DialogTitle>Stockmanship Check — {fmtDate(viewRecord.checkDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Checked By</p><p className="font-medium">{String(viewRecord.checkedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Welfare</p><p className="font-medium">{String(viewRecord.overallWelfare ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortalities Found</p><p className="font-medium">{String(viewRecord.mortalitiesFound ?? 0)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Injured Found</p><p className="font-medium">{String(viewRecord.injuredFound ?? 0)}</p></div>
+              {!!viewRecord.actionsRequired && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Actions Required</p><p className="font-medium">{String(viewRecord.actionsRequired)}</p></div>}
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="pig-stockmanship-checks" recordId={viewRecord.id as number} /></div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button><Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
@@ -752,8 +794,25 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-tail-biting", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-tail-biting-risks`), { credentials: "include" }).then(r => r.json()) });
+  const { data: allRecords = [], isLoading } = useQuery({ queryKey: ["pig-tail-biting", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-tail-biting-risks`), { credentials: "include" }).then(r => r.json()) });
+
+  const tbYears = useMemo(() => {
+    const s = new Set<string>((allRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [allRecords]);
+  const [tbYearFilter, setTbYearFilter] = useState("all");
+  const records = useMemo(() => tbYearFilter === "all" ? allRecords : (allRecords as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(tbYearFilter)), [allRecords, tbYearFilter]);
+
+  const printTb = () => {
+    const rows = records as Record<string,unknown>[];
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Tail Biting Risk Assessments</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Tail Biting Risk Assessments${tbYearFilter !== "all" ? ` — ${tbYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Assessed By</th><th>Risk Level</th><th>Biting Active?</th><th>Interventions</th><th>Review Date</th></tr></thead><tbody>${rows.map(r => `<tr><td>${fmtDate(r.assessmentDate)}</td><td>${r.assessedBy || "—"}</td><td>${r.riskLevel || "—"}</td><td>${r.currentBiting ? "Yes" : "No"}</td><td>${r.interventionsTaken || "—"}</td><td>${fmtDate(r.reviewDate)}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = editing ? api(`farms/${farmId}/pig-tail-biting-risks/${editing.id}`) : api(`farms/${farmId}/pig-tail-biting-risks`);
@@ -767,12 +826,19 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean]))); setOpen(true); }
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Tail Biting Risk Assessments</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Pigs Standard — a written risk assessment is required. Review when risk factors change or biting is observed.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />New Assessment</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={tbYearFilter} onValueChange={setTbYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{tbYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printTb}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />New Assessment</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -783,11 +849,30 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
             { key: "currentBiting", label: "Biting Active?", fmt: r => r.currentBiting ? "Yes" : "No" },
             { key: "interventionsTaken", label: "Interventions" },
             { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-tail-biting-risks" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-tail-biting", String(farmId)]} compact /> },
           ]}
-          rows={records}
+          rows={records as Record<string, unknown>[]}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          onView={setViewRecord}
         />
+      )}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>Tail Biting Risk Assessment — {fmtDate(viewRecord.assessmentDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{String(viewRecord.assessedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Risk Level</p><p className="font-medium">{String(viewRecord.riskLevel ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Biting Currently Active</p><p className="font-medium">{viewRecord.currentBiting ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Review Date</p><p className="font-medium">{fmtDate(viewRecord.reviewDate)}</p></div>
+              {!!viewRecord.interventionsTaken && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Interventions Taken</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.interventionsTaken)}</p></div>}
+              {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes)}</p></div>}
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="pig-tail-biting-risks" recordId={viewRecord.id as number} /></div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button><Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
@@ -1738,8 +1823,23 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
     setOpen(true);
   }
 
-  const sorted = [...(treatments as Record<string, unknown>[])].sort((a, b) => String(b.treatmentDate ?? "").localeCompare(String(a.treatmentDate ?? "")));
-  const activeWithdrawals = sorted.filter(r => r.withdrawalEndDate && new Date(r.withdrawalEndDate as string) > new Date());
+  const allSorted = [...(treatments as Record<string, unknown>[])].sort((a, b) => String(b.treatmentDate ?? "").localeCompare(String(a.treatmentDate ?? "")));
+
+  const medYears = useMemo(() => {
+    const s = new Set<string>(allSorted.map(r => String(r.treatmentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [allSorted]);
+  const [medYearFilter, setMedYearFilter] = useState("all");
+  const sorted = useMemo(() => medYearFilter === "all" ? allSorted : allSorted.filter(r => String(r.treatmentDate || "").startsWith(medYearFilter)), [allSorted, medYearFilter]);
+
+  const activeWithdrawals = allSorted.filter(r => r.withdrawalEndDate && new Date(r.withdrawalEndDate as string) > new Date());
+
+  const printMed = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Medicine Register</title><style>body{font-family:sans-serif;font-size:11px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:3px 6px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Pig Medicine Register${medYearFilter !== "all" ? ` — ${medYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Product</th><th>Animals</th><th>Route</th><th>Quantity</th><th>Vet</th><th>Withdrawal End</th><th>Reason</th></tr></thead><tbody>${sorted.map(r => `<tr><td>${fmtDate(r.treatmentDate)}</td><td>${r.medicineProductName || "—"}</td><td>${r.numberOfAnimals || "—"}</td><td>${r.administrationRoute || "—"}</td><td>${r.quantityUsed || "—"} ${r.unitOfMeasure || ""}</td><td>${r.prescribingVetName || "—"}</td><td>${fmtDate(r.withdrawalEndDate)}</td><td>${r.diagnosisReason || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   return (
     <div className="space-y-4">
@@ -1752,12 +1852,19 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Medicine Register — Batch / Group Level</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Records required under Veterinary Medicines Regulations 2013. Retain for minimum 5 years.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={medYearFilter} onValueChange={setMedYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{medYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printMed}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
@@ -1935,6 +2042,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
                   );
                 })}
               </div>
+              <div className="border-t pt-3"><RecordAttachments farmId={farmId} recordType="pig-medicine-treatments" recordId={viewRecord.id as number} /></div>
             </div>
             <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -2048,7 +2156,7 @@ function OverviewTab({ farmId, onGoto }: { farmId: number; onGoto: (tab: string)
 // ─── Kill Records Tab ──────────────────────────────────────────────────────────
 function KillRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const { data: records = [], isLoading } = useQuery<Record<string, unknown>[]>({
+  const { data: allKillRecords = [], isLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["pig-kill-records", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/pig-kill-records`), { credentials: "include" }).then(r => r.json()).then((d: unknown) => {
       if (Array.isArray(d)) return d as Record<string, unknown>[];
@@ -2061,6 +2169,20 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  const killYears = useMemo(() => {
+    const s = new Set<string>((allKillRecords as Record<string,unknown>[]).map(r => String(r.killDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [allKillRecords]);
+  const [killYearFilter, setKillYearFilter] = useState("all");
+  const records = useMemo(() => killYearFilter === "all" ? allKillRecords : allKillRecords.filter(r => String(r.killDate || "").startsWith(killYearFilter)), [allKillRecords, killYearFilter]);
+
+  const printKill = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Kill Records</title><style>body{font-family:sans-serif;font-size:11px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:3px 6px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Pig Kill Records${killYearFilter !== "all" ? ` — ${killYearFilter}` : ""}</h2><table><thead><tr><th>Kill Date</th><th>Processor</th><th>Head</th><th>Total DW (kg)</th><th>Avg DW (kg)</th><th>P2 (mm)</th><th>Grade</th><th>Net Payment</th><th>Kill Sheet Ref</th></tr></thead><tbody>${(records as Record<string,unknown>[]).map(r => `<tr><td>${fmtDate(r.killDate)}</td><td>${r.processor || "—"}</td><td>${r.headCount || "—"}</td><td>${r.totalDeadweightKg ? parseFloat(String(r.totalDeadweightKg)).toFixed(1) : "—"}</td><td>${r.averageDeadweightKg ? parseFloat(String(r.averageDeadweightKg)).toFixed(1) : "—"}</td><td>${r.averageP2BackfatMm ? parseFloat(String(r.averageP2BackfatMm)).toFixed(1) : "—"}</td><td>${r.gradeOut || "—"}</td><td>${r.netPaymentPence ? `£${(Number(r.netPaymentPence) / 100).toFixed(2)}` : "—"}</td><td>${r.killSheetRef || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-kill-records/${editing.id}`) : api(`farms/${farmId}/pig-kill-records`), {
@@ -2079,13 +2201,20 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           <div className="text-center"><p className="text-xs text-muted-foreground">Total Head</p><p className="text-lg font-bold">{totalHead.toLocaleString()}</p></div>
           <div className="text-center"><p className="text-xs text-muted-foreground">Total Deadweight</p><p className="text-lg font-bold">{totalDeadweight.toFixed(0)} kg</p></div>
           {avgP2 > 0 && <div className="text-center"><p className="text-xs text-muted-foreground">Avg P2 Backfat</p><p className="text-lg font-bold">{avgP2.toFixed(1)} mm</p></div>}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Kill Record</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={killYearFilter} onValueChange={setKillYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{killYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printKill}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Kill Record</Button>
+        </div>
       </div>
 
       {isLoading && <div className="flex justify-center py-8"><Loader2 className="animate-spin w-5 h-5" /></div>}
@@ -2113,7 +2242,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
                   <td className="py-2 pr-3 text-right">{r.netPaymentPence ? `£${(Number(r.netPaymentPence) / 100).toFixed(2)}` : "—"}</td>
                   <td className="py-2 pr-3">{fmt(r.killSheetRef)}</td>
                   <td className="py-2 pr-3" onClick={e => e.stopPropagation()}>
-                    <DocAttach farmId={farmId} endpoint="pig-kill-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-kill-records", String(farmId)]} />
+                    <DocAttach farmId={farmId} endpoint="pig-kill-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-kill-records", String(farmId)]} compact />
                   </td>
                   <td className="py-2 pl-2 flex gap-1" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -2184,6 +2313,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
                 <div key={String(l)}><p className="text-xs text-muted-foreground">{l}</p><p className="font-medium">{fmt(v)}</p></div>
               ))}
               {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{String(viewRecord.notes)}</p></div>}
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="pig-kill-records" recordId={viewRecord.id as number} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -33,7 +33,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2 } from "lucide-react";
+import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
@@ -1267,7 +1268,13 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     queryFn: () => fetch(`/api/farms/${farmId}/organic-dairy/feed`).then((r) => r.json()),
     enabled: !!farmId,
   });
-  const records = data?.records ?? [];
+  const allFeedRecords = data?.records ?? [];
+  const [yearFilterFeed, setYearFilterFeed] = useState("all");
+  const yearsFeed = useMemo(() => {
+    const s = new Set(allFeedRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [allFeedRecords]);
+  const records = yearFilterFeed === "all" ? allFeedRecords : allFeedRecords.filter(r => String(r.recordDate ?? "").startsWith(yearFilterFeed));
 
   const { data: suppData } = useQuery<{ suppliers: FarmSupplier[] }>({
     queryKey: ["suppliers-list", farmId],
@@ -1312,10 +1319,19 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Button variant="outline" size="sm" onClick={() => printFeedNutritionLog(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-          <Printer className="h-4 w-4" />Print Feed Log
-        </Button>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterFeed} onValueChange={setYearFilterFeed}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsFeed.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => printFeedNutritionLog(allFeedRecords, farmName)} disabled={allFeedRecords.length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Feed Log
+          </Button>
+        </div>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Feed Record
         </Button>
@@ -1330,13 +1346,14 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
             <TableHead>DM (kg)</TableHead>
             <TableHead>Organic %</TableHead>
             <TableHead>Approved</TableHead>
+            <TableHead>Doc</TableHead>
             <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {records.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No feed records yet</TableCell>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No feed records{yearFilterFeed !== "all" ? ` for ${yearFilterFeed}` : ""} yet</TableCell>
             </TableRow>
           )}
           {records.map((r) => (
@@ -1352,6 +1369,7 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
                   {r.isOrganicApproved ? "Yes" : "No"}
                 </Badge>
               </TableCell>
+              <TableCell><DocAttach farmId={farmId} endpoint="organic-dairy/feed" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["organic-dairy-feed", farmId]} compact /></TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>

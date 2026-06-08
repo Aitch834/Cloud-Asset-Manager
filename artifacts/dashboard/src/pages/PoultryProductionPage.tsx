@@ -509,9 +509,15 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
   const records = (raw ?? []) as Record<string, unknown>[];
   const [payStatusFilter, setPayStatusFilter] = useState("all");
   const [flockFilterCP, setFlockFilterCP] = useState("all");
+  const [yearFilterCP, setYearFilterCP] = useState("all");
+  const yearsCP = useMemo(() => {
+    const s = new Set(records.map(r => String(r.orderDate ?? r.deliveryDate ?? "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [records]);
   const filteredPurchases = records.filter(r =>
     (payStatusFilter === "all" || r.paymentStatus === payStatusFilter) &&
-    (flockFilterCP === "all" || String(r.flockId) === flockFilterCP)
+    (flockFilterCP === "all" || String(r.flockId) === flockFilterCP) &&
+    (yearFilterCP === "all" || String(r.orderDate ?? r.deliveryDate ?? "").startsWith(yearFilterCP))
   );
 
   function fmtGBP(pence: unknown): string {
@@ -536,6 +542,13 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
         <Button size="sm" onClick={() => openAdd({ paymentStatus: "unpaid", paymentTermsDays: "30" })}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Select value={yearFilterCP} onValueChange={setYearFilterCP}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {yearsCP.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={flockFilterCP} onValueChange={setFlockFilterCP}>
           <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
           <SelectContent>
@@ -587,6 +600,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Status</p><p className={`font-medium capitalize ${payStatusClass(viewRecord.paymentStatus)}`}>{String(viewRecord.paymentStatus ?? "—")}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewRecord.paymentDate)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              {viewRecord.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="poultry-chick-purchases" recordId={viewRecord.id as number} /></div>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -2104,7 +2118,15 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
   const tList = (records ?? []) as Record<string, unknown>[];
   const [flockFilterThin, setFlockFilterThin] = useState("all");
-  const filteredThinList = flockFilterThin === "all" ? tList : tList.filter(r => String(r.flockId) === flockFilterThin);
+  const [yearFilterThin, setYearFilterThin] = useState("all");
+  const yearsThin = useMemo(() => {
+    const s = new Set(tList.map(r => String(r.thinningDate ?? "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [tList]);
+  const filteredThinList = tList.filter(r =>
+    (flockFilterThin === "all" || String(r.flockId) === flockFilterThin) &&
+    (yearFilterThin === "all" || String(r.thinningDate ?? "").startsWith(yearFilterThin))
+  );
   const totalBirdsRemoved = filteredThinList.reduce((s, r) => s + Number(r.birdsRemoved ?? 0), 0);
   const totalDoas = filteredThinList.reduce((s, r) => s + Number(r.doasAtLoading ?? 0), 0);
   const withWeight = filteredThinList.filter(r => r.averageLiveWeightKg != null);
@@ -2132,6 +2154,13 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Select value={yearFilterThin} onValueChange={setYearFilterThin}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {yearsThin.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={flockFilterThin} onValueChange={setFlockFilterThin}>
           <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
           <SelectContent>
@@ -2160,6 +2189,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           { key: "averageLiveWeightKg", label: "Avg Live Wt (kg)" },
           { key: "destinationAbattoir", label: "Abattoir" },
           { key: "doasAtLoading", label: "DOAs at Loading" },
+          { key: "doc", label: "Doc", render: (r: Record<string, unknown>) => <DocAttach farmId={farmId} endpoint="poultry-thinning-records" recordId={r.id as number} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["poultry-thinning", farmId]} compact /> },
         ]}
         rows={filteredThinList}
         onDelete={r => del.mutate(r.id as number)}
@@ -3132,14 +3162,22 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewRec, setViewRec] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data: allRecordsRaw = [], isLoading } = useQuery({
     queryKey: ["campylobacter-monitoring", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/campylobacter-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const allCampyRecords: any[] = allRecordsRaw;
+  const [yearFilterCampy, setYearFilterCampy] = useState("all");
+  const yearsCampy = useMemo(() => {
+    const s = new Set(allCampyRecords.map((r: any) => String(r.sampleDate ?? "").slice(0, 4)).filter(Boolean) as string[]);
+    return Array.from(s).sort().reverse();
+  }, [allCampyRecords]);
+  const records: any[] = yearFilterCampy === "all" ? allCampyRecords : allCampyRecords.filter((r: any) => String(r.sampleDate ?? "").startsWith(yearFilterCampy));
 
   const { data: flocksData } = useQuery({
     queryKey: ["poultry-flocks", farmId],
@@ -3177,27 +3215,78 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
     return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colours[r] ?? "bg-gray-100 text-gray-700"}`}>{CAMPY_RESULTS.find(x => x.value === r)?.label ?? r}</span>;
   };
 
+  function printCampyReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const rows = records.map((r: any) => `<tr>
+      <td>${fmtDate(r.sampleDate)}</td>
+      <td>${houses.find((h: any) => h.id === r.houseId)?.houseName ?? "—"}${r.flockId ? ` / ${flocks.find((f: any) => f.id === r.flockId)?.flockNumber ?? ""}` : ""}</td>
+      <td>${CAMPY_SAMPLE_TYPES.find(t => t.value === r.sampleType)?.label ?? r.sampleType}</td>
+      <td>${CAMPY_RESULTS.find(x => x.value === r.result)?.label ?? r.result}</td>
+      <td>${CAMPY_CATEGORIES.find(c => c.value === r.resultCategory)?.label ?? "—"}</td>
+      <td>${FSA_BANDS.find(b => b.value === r.fsa_band)?.label ?? "—"}</td>
+      <td>${r.zapTriggered ? "ZAP Active" : "No"}</td>
+      <td>${r.labName ?? "—"}</td>
+      <td>${r.labReference ?? "—"}</td>
+      <td>${fmtDate(r.nextSampleDue)}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Campylobacter Monitoring Programme</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Campylobacter Monitoring Programme</h1><h2>Red Tractor Broiler/Turkey Scheme — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b>${yearFilterCampy !== "all" ? `<br>Year: ${yearFilterCampy}` : ""}<br>Printed: ${printedDate}</div>
+</div>
+<table>
+  <tr><th>Sample Date</th><th>House / Flock</th><th>Sample Type</th><th>Result</th><th>Category</th><th>FSA Band</th><th>ZAP</th><th>Lab</th><th>Lab Ref</th><th>Next Due</th></tr>
+  ${rows || "<tr><td colspan='10'>No records</td></tr>"}
+</table>
+<p class="note">Campylobacter monitoring records produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor requires documented Campylobacter monitoring with structured lab results. Retain for a minimum of 3 years. Printed: ${printedDate}</p>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
           <h3 className="font-semibold text-gray-900">Campylobacter Monitoring Programme</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor Chicken/Turkey scheme requires documented Campylobacter monitoring with structured lab results. FSA bands and Zoonoses Action Plan (ZAP) triggers are recorded here.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Sample</Button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterCampy} onValueChange={setYearFilterCampy}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsCampy.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={printCampyReport} disabled={records.length === 0}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Sample</Button>
+        </div>
       </div>
 
       {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-          <p className="font-medium text-gray-600">No Campylobacter records yet</p>
+          <p className="font-medium text-gray-600">No Campylobacter records{yearFilterCampy !== "all" ? ` for ${yearFilterCampy}` : ""} yet</p>
           <p className="text-sm text-gray-400 mt-1">Add boot swab or neck skin results for each flock departure.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
-              <tr>{["Sample Date","House / Flock","Sample Type","Result","Category","FSA Band","ZAP Triggered","Next Sample",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+              <tr>{["Sample Date","House / Flock","Sample Type","Result","Category","FSA Band","ZAP Triggered","Next Sample","Doc",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map((r: any) => (
@@ -3210,8 +3299,10 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2 text-xs">{FSA_BANDS.find(b => b.value === r.fsa_band)?.label ?? "—"}</td>
                   <td className="px-3 py-2">{r.zapTriggered ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">ZAP Active</span> : <span className="text-gray-400 text-xs">No</span>}</td>
                   <td className="px-3 py-2">{fmtDate(r.nextSampleDue)}</td>
+                  <td className="px-3 py-2"><DocAttach farmId={farmId} endpoint="campylobacter-monitoring" recordId={r.id as number} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["campylobacter-monitoring", farmId]} compact /></td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
@@ -3221,6 +3312,36 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Campylobacter Sample — {fmtDate(viewRec.sampleDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sample Date</p><p className="font-medium">{fmtDate(viewRec.sampleDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sample Type</p><p className="font-medium">{CAMPY_SAMPLE_TYPES.find(t => t.value === viewRec.sampleType)?.label ?? viewRec.sampleType}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">House</p><p className="font-medium">{houses.find((h: any) => h.id === viewRec.houseId)?.houseName ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock</p><p className="font-medium">{viewRec.flockId ? (flocks.find((f: any) => f.id === viewRec.flockId)?.flockNumber ?? `Flock #${viewRec.flockId}`) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Result</p><p className="font-medium">{resultBadge(viewRec.result)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Result Category</p><p className="font-medium">{CAMPY_CATEGORIES.find(c => c.value === viewRec.resultCategory)?.label ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FSA Band</p><p className="font-medium">{FSA_BANDS.find(b => b.value === viewRec.fsa_band)?.label ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">CFU Count</p><p className="font-medium">{viewRec.cfuCount ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ZAP Triggered</p><p className="font-medium">{viewRec.zapTriggered ? "Yes" : "No"}</p></div>
+              {viewRec.zapReference && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ZAP Reference</p><p className="font-medium">{viewRec.zapReference}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab</p><p className="font-medium">{viewRec.labName ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Reference</p><p className="font-medium">{viewRec.labReference ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Sample Due</p><p className="font-medium">{fmtDate(viewRec.nextSampleDue)}</p></div>
+              {viewRec.actionsTaken && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Actions Taken</p><p className="font-medium">{viewRec.actionsTaken}</p></div>}
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+              {viewRec.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="campylobacter-monitoring" recordId={viewRec.id as number} /></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRec); setViewRec(null); }}>Edit</Button>
+              <Button onClick={() => setViewRec(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1369,13 +1369,19 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [editing, setEditing] = useState<OutdoorAccessRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<OutdoorAccessRecord | null>(null);
   const [form, setForm] = useState<Partial<OutdoorAccessRecord>>({});
+  const [yearFilterOA, setYearFilterOA] = useState("all");
 
   const { data } = useQuery<{ records: OutdoorAccessRecord[] }>({
     queryKey: ["organic-livestock-outdoor-access", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic-livestock/outdoor-access`).then((r) => r.json()),
     enabled: !!farmId,
   });
-  const records = data?.records ?? [];
+  const allRecords = data?.records ?? [];
+  const yearsOA = useMemo(() => {
+    const s = new Set(allRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [allRecords]);
+  const records = yearFilterOA === "all" ? allRecords : allRecords.filter(r => String(r.recordDate ?? "").startsWith(yearFilterOA));
 
   const { data: herdsData } = useQuery<{ records: CoreHerd[] }>({
     queryKey: ["herds", farmId],
@@ -1413,10 +1419,19 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Button variant="outline" size="sm" onClick={() => printOutdoorAccessLog(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-          <Printer className="h-4 w-4" />Print Access Log
-        </Button>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterOA} onValueChange={setYearFilterOA}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsOA.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => printOutdoorAccessLog(allRecords, farmName)} disabled={allRecords.length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Access Log
+          </Button>
+        </div>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Record
         </Button>
@@ -1431,13 +1446,14 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
             <TableHead>Stocking Density</TableHead>
             <TableHead>Access hrs/day</TableHead>
             <TableHead>Compliance</TableHead>
+            <TableHead>Doc</TableHead>
             <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {records.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No outdoor access records yet</TableCell>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No outdoor access records{yearFilterOA !== "all" ? ` for ${yearFilterOA}` : ""} yet</TableCell>
             </TableRow>
           )}
           {records.map((r) => (
@@ -1449,6 +1465,7 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
               <TableCell>{r.stockingDensityPerHa ? `${r.stockingDensityPerHa}/ha` : "—"}</TableCell>
               <TableCell>{r.outdoorAccessHoursDay ?? "—"}</TableCell>
               <TableCell>{complianceBadge(r.complianceStatus)}</TableCell>
+              <TableCell><DocAttach farmId={farmId} endpoint="organic-livestock/outdoor-access" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["organic-livestock-outdoor-access", farmId]} compact /></TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>

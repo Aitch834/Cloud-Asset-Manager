@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useUser } from "@clerk/react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DocAttach } from "@/components/DocAttach";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList, Printer } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -2147,6 +2148,16 @@ export function BcsTab({ farmId }: { farmId: number }) {
 
   const allBcsRecords = data?.records ?? [];
 
+  const [yearFilterBcs, setYearFilterBcs] = useState("all");
+  const yearsBcs = useMemo(() => {
+    const s = new Set(allBcsRecords.map(r => r.assessmentDate?.slice(0, 4)).filter(Boolean) as string[]);
+    return Array.from(s).sort().reverse();
+  }, [allBcsRecords]);
+  const filteredBcsRecords = useMemo(
+    () => yearFilterBcs === "all" ? allBcsRecords : allBcsRecords.filter(r => r.assessmentDate?.startsWith(yearFilterBcs)),
+    [allBcsRecords, yearFilterBcs],
+  );
+
   const bcsTrendData = React.useMemo(() => {
     const monthMap: Record<string, { sum: number; count: number; inRange: number; outRange: number }> = {};
     for (const r of allBcsRecords) {
@@ -2222,11 +2233,16 @@ export function BcsTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-sm text-gray-500">Body Condition Scoring (BCS) — document at dry-off, calving, and mid-lactation. Target range: 2.5–3.5 on a 1–5 scale.</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+        <p className="text-sm text-gray-500">Body Condition Scoring (BCS) — document at dry-off, calving, and mid-lactation. Target range: 2.5–3.5 on a 1–5 scale.</p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterBcs} onValueChange={setYearFilterBcs}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsBcs.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={generateBcsReport} disabled={allBcsRecords.length === 0}>
             <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
           </Button>
@@ -2280,8 +2296,8 @@ export function BcsTab({ farmId }: { farmId: number }) {
       )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
-          {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No BCS records yet.</CardContent></Card>}
-          {data?.records?.map(r => (
+          {(!filteredBcsRecords.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No BCS records{yearFilterBcs !== "all" ? ` for ${yearFilterBcs}` : ""} yet.</CardContent></Card>}
+          {filteredBcsRecords.map(r => (
             <Card key={r.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -2423,6 +2439,16 @@ export function MobilityTab({ farmId }: { farmId: number }) {
 
   const allMobilityRecords = data?.records ?? [];
 
+  const [yearFilterMob, setYearFilterMob] = useState("all");
+  const yearsMob = useMemo(() => {
+    const s = new Set(allMobilityRecords.map(r => r.assessmentDate?.slice(0, 4)).filter(Boolean) as string[]);
+    return Array.from(s).sort().reverse();
+  }, [allMobilityRecords]);
+  const filteredMobilityRecords = useMemo(
+    () => yearFilterMob === "all" ? allMobilityRecords : allMobilityRecords.filter(r => r.assessmentDate?.startsWith(yearFilterMob)),
+    [allMobilityRecords, yearFilterMob],
+  );
+
   const mobilityTrend = React.useMemo(() => {
     return [...allMobilityRecords]
       .filter(r => r.assessmentDate && r.lamenessPrevalencePercent != null)
@@ -2495,11 +2521,16 @@ export function MobilityTab({ farmId }: { farmId: number }) {
   return (
     <div>
       <datalist id={staffListId}>{staffNames.map(n => <option key={n} value={n} />)}</datalist>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-sm text-gray-500">Quarterly mobility/lameness scoring — score cows 0–3 as they walk from the parlour. Red Tractor target: score 3 (lame) cows below 10% of herd. Next assessment date auto-calculates at 13 weeks.</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+        <p className="text-sm text-gray-500">Quarterly mobility/lameness scoring — score cows 0–3 as they walk from the parlour. Red Tractor target: score 3 (lame) cows below 10% of herd. Next assessment date auto-calculates at 13 weeks.</p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterMob} onValueChange={setYearFilterMob}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsMob.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={generateMobilityReport} disabled={allMobilityRecords.length === 0}>
             <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
           </Button>
@@ -2583,8 +2614,8 @@ export function MobilityTab({ farmId }: { farmId: number }) {
       {/* ── Record list ── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
-          {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No mobility assessments yet. Assessments should be carried out at least quarterly.</CardContent></Card>}
-          {data?.records?.map(r => {
+          {(!filteredMobilityRecords.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No mobility assessments{yearFilterMob !== "all" ? ` for ${yearFilterMob}` : ""} yet. Assessments should be carried out at least quarterly.</CardContent></Card>}
+          {filteredMobilityRecords.map(r => {
             const lam = r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : null;
             const s2pct = r.totalCowsScored > 0 ? (r.score2Count / r.totalCowsScored) * 100 : 0;
             return (
@@ -3184,7 +3215,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
 
       {/* ── Section 2: Tank Monitoring Records ─────────────────────────────── */}
       <div>
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
           <div>
             <h3 className="font-semibold text-sm text-gray-800">Tank Monitoring Records</h3>
             <p className="text-xs text-gray-500 mt-0.5">Daily temperature checks, cleaning, antibiotic residue tests, and maintenance logs.</p>
@@ -3219,6 +3250,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
                         {r.tankCleaned && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Cleaned</span>}
                         {r.cleaningProductUsed && <span className="text-xs text-gray-400">{r.cleaningProductUsed}</span>}
                         <AbrBadge result={r.antibioticResidueResult} />
+                        <DocAttach farmId={farmId} endpoint="dairy/bulk-tank-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["dairy-tank-records", farmId]} compact />
                       </div>
                       <div className="flex gap-1 ml-2 shrink-0">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMon(r)}><Eye className="h-3.5 w-3.5" /></Button>
@@ -4377,14 +4409,22 @@ function JohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewRec, setViewRec] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data: allRecordsRaw = [], isLoading } = useQuery({
     queryKey: ["johnes-monitoring", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/johnes-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const allJohnesRecords: any[] = allRecordsRaw;
+  const [yearFilterJohnes, setYearFilterJohnes] = useState("all");
+  const yearsJohnes = useMemo(() => {
+    const s = new Set(allJohnesRecords.map((r: any) => String(r.testDate ?? "").slice(0, 4)).filter(Boolean) as string[]);
+    return Array.from(s).sort().reverse();
+  }, [allJohnesRecords]);
+  const records: any[] = yearFilterJohnes === "all" ? allJohnesRecords : allJohnesRecords.filter((r: any) => String(r.testDate ?? "").startsWith(yearFilterJohnes));
 
   const { data: herds = [] } = useQuery({
     queryKey: ["herds", farmId],
@@ -4412,19 +4452,70 @@ function JohnesTab({ farmId }: { farmId: number }) {
   const riskLabel = (v: string | null) => JOHNES_RISK.find(r => r.value === v)?.label ?? v ?? "—";
   const typeLabel = (v: string) => JOHNES_TYPES.find(t => t.value === v)?.label ?? v;
 
+  function printJohnesReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const rows = records.map((r: any) => `<tr>
+      <td>${fmtDate(r.testDate)}</td>
+      <td>${typeLabel(r.testType)}</td>
+      <td>${r.herdId ? (herds.find((h: any) => h.id === r.herdId)?.name ?? `Herd #${r.herdId}`) : "—"}</td>
+      <td>${riskLabel(r.riskLevel)}</td>
+      <td>${r.animalsTestedCount ?? "—"}</td>
+      <td>${r.positiveAnimalsCount ?? 0}</td>
+      <td>${r.bulkMilkOd ?? "—"}</td>
+      <td>${r.labName || "—"}</td>
+      <td>${r.labRef || "—"}</td>
+      <td>${fmtDate(r.nextTestDue)}</td>
+      <td>${r.jmmEnrolled ? "Yes" : "No"}</td>
+    </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Johne's Disease Monitoring Register</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Johne's Disease Monitoring Register</h1><h2>Red Tractor Dairy Scheme — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b>${yearFilterJohnes !== "all" ? `<br>Year: ${yearFilterJohnes}` : ""}<br>Printed: ${printedDate}</div>
+</div>
+<table>
+  <tr><th>Test Date</th><th>Test Type</th><th>Herd</th><th>Risk Level</th><th>Tested</th><th>Positive</th><th>Bulk Milk OD</th><th>Lab</th><th>Lab Ref</th><th>Next Due</th><th>JMM</th></tr>
+  ${rows || "<tr><td colspan='11'>No records</td></tr>"}
+</table>
+<p class="note">Johne's monitoring records produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor Dairy requires a documented Johne's monitoring programme. Retain for a minimum of 3 years. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
           <h3 className="font-semibold text-gray-900">Johne's Disease Monitoring Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor Dairy requires a documented Johne's monitoring programme. Record each test with result and risk level classification.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={yearFilterJohnes} onValueChange={setYearFilterJohnes}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsJohnes.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={printJohnesReport} disabled={records.length === 0}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
+        </div>
       </div>
 
       {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <p className="font-medium text-gray-600">No Johne's monitoring records yet</p>
+          <p className="font-medium text-gray-600">No Johne's monitoring records{yearFilterJohnes !== "all" ? ` for ${yearFilterJohnes}` : ""} yet</p>
           <p className="text-sm text-gray-400 mt-1">Add your first test result to start tracking your herd's Johne's status.</p>
         </div>
       ) : (
@@ -4432,7 +4523,7 @@ function JohnesTab({ farmId }: { farmId: number }) {
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
               <tr>
-                {["Test Date","Test Type","Herd","Risk Level","Animals Tested","Positive","Bulk Milk OD","Next Test Due","Actions"].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}
+                {["Test Date","Test Type","Herd","Risk Level","Animals Tested","Positive","Bulk Milk OD","Next Test Due","Doc","Actions"].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -4448,8 +4539,10 @@ function JohnesTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">{r.positiveAnimalsCount ?? 0}</td>
                   <td className="px-3 py-2">{r.bulkMilkOd ?? "—"}</td>
                   <td className="px-3 py-2">{fmtDate(r.nextTestDue)}</td>
+                  <td className="px-3 py-2"><DocAttach farmId={farmId} endpoint="johnes-monitoring" recordId={r.id as number} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["johnes-monitoring", farmId]} compact /></td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
@@ -4459,6 +4552,37 @@ function JohnesTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Johne's Monitoring — {fmtDate(viewRec.testDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Date</p><p className="font-medium">{fmtDate(viewRec.testDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium">{typeLabel(viewRec.testType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd</p><p className="font-medium">{viewRec.herdId ? (herds.find((h: any) => h.id === viewRec.herdId)?.name ?? `Herd #${viewRec.herdId}`) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Risk Level</p><p className="font-medium">{riskLabel(viewRec.riskLevel)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animals Tested</p><p className="font-medium">{viewRec.animalsTestedCount ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Positive Animals</p><p className="font-medium">{viewRec.positiveAnimalsCount ?? 0}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bulk Milk OD</p><p className="font-medium">{viewRec.bulkMilkOd ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab</p><p className="font-medium">{viewRec.labName || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Reference</p><p className="font-medium">{viewRec.labRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scheme</p><p className="font-medium">{JOHNES_SCHEMES.find(s => s.value === viewRec.scheme)?.label ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet</p><p className="font-medium">{viewRec.vetName || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Test Due</p><p className="font-medium">{fmtDate(viewRec.nextTestDue)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">JMM Enrolled</p><p className="font-medium">{viewRec.jmmEnrolled ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Sign-off</p><p className="font-medium">{viewRec.vetSignOff ? "Yes" : "No"}</p></div>
+              {viewRec.actionsTaken && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Actions Taken</p><p className="font-medium">{viewRec.actionsTaken}</p></div>}
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+              {viewRec.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="johnes-monitoring" recordId={viewRec.id as number} /></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRec); setViewRec(null); }}>Edit</Button>
+              <Button onClick={() => setViewRec(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

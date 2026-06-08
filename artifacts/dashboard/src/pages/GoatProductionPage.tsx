@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -164,6 +165,7 @@ function MatingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-mating", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-mating-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-mating-records/${editing.id}`) : api(`farms/${farmId}/goat-mating-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -174,36 +176,26 @@ function MatingTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({ progesteroneSpongeUsed: "false", matingMethod: "natural" }); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.matingStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.matingStartDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
+
   function printMatingRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.matingStartDate)}</td>
-      <td>${fmtDate(r.matingEndDate)}</td>
-      <td>${fmt(r.buckBreed)}</td>
-      <td>${fmt(r.buckEarTag)}</td>
-      <td>${fmt(r.doesExposed)}</td>
-      <td>${fmtDate(r.expectedKiddingDate)}</td>
-      <td>${fmt(r.matingMethod)}</td>
-      <td>${r.progesteroneSpongeUsed === "true" || r.progesteroneSpongeUsed === true ? "Yes" : "No"}</td>
-      <td>${fmt(r.notes)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Goat Mating Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style>
-</head><body>
-<h1>Goat Mating Records</h1>
-<h2>Goat Production · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Start Date</th><th>End Date</th><th>Buck Breed</th><th>Buck Tag</th><th>Does Exposed</th><th>Expected Kidding</th><th>Method</th><th>CIDR/Sponge</th><th>Notes</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Mating records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
-    openPrintWindow(html);
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.matingStartDate)}</td><td>${fmtDate(r.matingEndDate)}</td><td>${fmt(r.buckBreed)}</td><td>${fmt(r.buckEarTag)}</td><td>${fmt(r.doesExposed)}</td><td>${fmtDate(r.expectedKiddingDate)}</td><td>${fmt(r.matingMethod)}</td><td>${r.progesteroneSpongeUsed === "true" || r.progesteroneSpongeUsed === true ? "Yes" : "No"}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Mating Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Goat Mating Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Goat Production · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Start Date</th><th>End Date</th><th>Buck Breed</th><th>Buck Tag</th><th>Does Exposed</th><th>Expected Kidding</th><th>Method</th><th>CIDR/Sponge</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Mating records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Mating Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Mating Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printMatingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printMatingRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -216,8 +208,9 @@ function MatingTab({ farmId }: { farmId: number }) {
             { key: "buckEarTag", label: "Buck Tag" },
             { key: "doesExposed", label: "Does Exposed" },
             { key: "expectedKiddingDate", label: "Expected Kidding", render: r => fmtDate(r.expectedKiddingDate) },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-mating-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
@@ -227,12 +220,15 @@ function MatingTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Mating Record Details</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Start Date", fmtDate(viewing.matingStartDate)], ["End Date", fmtDate(viewing.matingEndDate)], ["Buck Breed", fmt(viewing.buckBreed)], ["Buck Ear Tag", fmt(viewing.buckEarTag)], ["Buck Owner", fmt(viewing.buckOwner)], ["Buck Hired/Owned", fmt(viewing.buckHiredOrOwned)], ["Does Exposed", fmt(viewing.doesExposed)], ["Mating Method", fmt(viewing.matingMethod)], ["CIDR / Sponge Used", viewing.progesteroneSpongeUsed ? "Yes" : "No"], ["Expected Kidding Date", fmtDate(viewing.expectedKiddingDate)]].map(([label, value]) => (
-              <div key={String(label)}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{String(value)}</span></div>
-            ))}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Start Date", fmtDate(viewing.matingStartDate)], ["End Date", fmtDate(viewing.matingEndDate)], ["Buck Breed", fmt(viewing.buckBreed)], ["Buck Ear Tag", fmt(viewing.buckEarTag)], ["Buck Owner", fmt(viewing.buckOwner)], ["Buck Hired/Owned", fmt(viewing.buckHiredOrOwned)], ["Does Exposed", fmt(viewing.doesExposed)], ["Mating Method", fmt(viewing.matingMethod)], ["CIDR / Sponge Used", viewing.progesteroneSpongeUsed ? "Yes" : "No"], ["Expected Kidding Date", fmtDate(viewing.expectedKiddingDate)]].map(([label, value]) => (
+                <div key={String(label)}><span className="text-muted-foreground">{label}:</span> <span className="font-medium">{String(value)}</span></div>
+              ))}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="goat-mating-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -288,6 +284,7 @@ function ScanningTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-scanning", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-scanning-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-scanning-records/${editing.id}`) : api(`farms/${farmId}/goat-scanning-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -295,37 +292,26 @@ function ScanningTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-scanning-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-scanning", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.scanDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.scanDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printScanningRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.scanDate)}</td>
-      <td>${fmt(r.scannerName)}</td>
-      <td>${fmt(r.totalDoesScanned)}</td>
-      <td>${fmt(r.doesBarren)}</td>
-      <td>${fmt(r.doesSingles)}</td>
-      <td>${fmt(r.doesDoubles)}</td>
-      <td>${fmt(r.doesTriples)}</td>
-      <td>${fmt(r.scanningPercentage)}%</td>
-      <td>${fmt(r.expectedTotalKids)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Goat Scanning Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Goat Pregnancy Scanning Records</h1>
-<h2>Goat Production · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Scan Date</th><th>Scanner</th><th>Does Scanned</th><th>Barren</th><th>Singles</th><th>Doubles</th><th>Triplets</th><th>Scanning %</th><th>Expected Kids</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Pregnancy scanning records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
-    openPrintWindow(html);
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.scanDate)}</td><td>${fmt(r.scannerName)}</td><td>${fmt(r.totalDoesScanned)}</td><td>${fmt(r.doesBarren)}</td><td>${fmt(r.doesSingles)}</td><td>${fmt(r.doesDoubles)}</td><td>${fmt(r.doesTriples)}</td><td>${fmt(r.scanningPercentage)}%</td><td>${fmt(r.expectedTotalKids)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Scanning Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body><h1>Goat Pregnancy Scanning Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Goat Production · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Scan Date</th><th>Scanner</th><th>Does Scanned</th><th>Barren</th><th>Singles</th><th>Doubles</th><th>Triplets</th><th>Scanning %</th><th>Expected Kids</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Pregnancy scanning records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Pregnancy Scanning Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Pregnancy Scanning Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printScanningRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printScanningRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -340,8 +326,9 @@ function ScanningTab({ farmId }: { farmId: number }) {
             { key: "doesDoubles", label: "Doubles" },
             { key: "scanningPercentage", label: "Scanning %" },
             { key: "expectedTotalKids", label: "Expected Kids" },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-scanning-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -351,10 +338,13 @@ function ScanningTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Scanning Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Scan Date", fmtDate(viewing.scanDate)], ["Scanner", fmt(viewing.scannerName)], ["Scanner Company", fmt(viewing.scannerCompany)], ["Does Scanned", fmt(viewing.totalDoesScanned)], ["Barren", fmt(viewing.doesBarren)], ["Singles", fmt(viewing.doesSingles)], ["Doubles", fmt(viewing.doesDoubles)], ["Triplets", fmt(viewing.doesTriples)], ["Scanning %", fmt(viewing.scanningPercentage)], ["Expected Kids", fmt(viewing.expectedTotalKids)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Scan Date", fmtDate(viewing.scanDate)], ["Scanner", fmt(viewing.scannerName)], ["Scanner Company", fmt(viewing.scannerCompany)], ["Does Scanned", fmt(viewing.totalDoesScanned)], ["Barren", fmt(viewing.doesBarren)], ["Singles", fmt(viewing.doesSingles)], ["Doubles", fmt(viewing.doesDoubles)], ["Triplets", fmt(viewing.doesTriples)], ["Scanning %", fmt(viewing.scanningPercentage)], ["Expected Kids", fmt(viewing.expectedTotalKids)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="goat-scanning-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -393,6 +383,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-weigh-records/${editing.id}`) : api(`farms/${farmId}/goat-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -400,35 +391,26 @@ function WeighTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.weighDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.weighDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printWeighRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.weighDate)}</td>
-      <td>${fmt(r.ageClassWeighed)}</td>
-      <td>${fmt(r.numberWeighed)}</td>
-      <td>${fmtNum(r.averageWeightKg)}</td>
-      <td>${fmtNum(r.targetWeightKg)}</td>
-      <td>${fmtNum(r.dlwgGPerDay, 0)}</td>
-      <td>${fmt(r.bodyConditionScore)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Goat Weigh-in & Performance Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Goat Weigh-in &amp; Performance Records</h1>
-<h2>Goat Production · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Date</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Target (kg)</th><th>DLWG (g/day)</th><th>BCS</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Weight records and body condition scores must be maintained to demonstrate welfare monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
-    openPrintWindow(html);
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.weighDate)}</td><td>${fmt(r.ageClassWeighed)}</td><td>${fmt(r.numberWeighed)}</td><td>${fmtNum(r.averageWeightKg)}</td><td>${fmtNum(r.targetWeightKg)}</td><td>${fmtNum(r.dlwgGPerDay)}</td><td>${fmt(r.bodyConditionScore)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Weigh-in Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body><h1>Goat Weigh-in &amp; Performance Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Goat Production · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Category</th><th>Count</th><th>Avg Wt (kg)</th><th>Target (kg)</th><th>DLWG (g/day)</th><th>BCS</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Weight records and BCS must be maintained to demonstrate welfare monitoring. Retain for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Weigh-in & Performance Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Weigh-in & Performance Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printWeighRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printWeighRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Weigh</Button>
         </div>
       </div>
@@ -441,8 +423,9 @@ function WeighTab({ farmId }: { farmId: number }) {
             { key: "averageWeightKg", label: "Avg Wt (kg)", render: r => fmtNum(r.averageWeightKg) },
             { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay) },
             { key: "bodyConditionScore", label: "BCS" },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-weigh-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -452,10 +435,13 @@ function WeighTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Date", fmtDate(viewing.weighDate)], ["Weigh Type", fmt(viewing.weighType)], ["Weighed By", fmt(viewing.weighedBy)], ["Category", fmt(viewing.ageClassWeighed)], ["Animals Weighed", fmt(viewing.numberWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Lowest (kg)", fmtNum(viewing.lowestWeightKg)], ["Highest (kg)", fmtNum(viewing.highestWeightKg)], ["Target (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Date", fmtDate(viewing.weighDate)], ["Weigh Type", fmt(viewing.weighType)], ["Weighed By", fmt(viewing.weighedBy)], ["Category", fmt(viewing.ageClassWeighed)], ["Animals Weighed", fmt(viewing.numberWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Lowest (kg)", fmtNum(viewing.lowestWeightKg)], ["Highest (kg)", fmtNum(viewing.highestWeightKg)], ["Target (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="goat-weigh-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }}><ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task</Button>
@@ -519,6 +505,7 @@ function CullTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-cull", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-cull-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-cull-records/${editing.id}`) : api(`farms/${farmId}/goat-cull-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -526,39 +513,22 @@ function CullTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-cull-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-cull", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.cullDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
+  const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.cullDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
   function printCullRecords() {
-    const tableRows = (rows as Record<string, unknown>[]).map(r => `<tr>
-      <td>${fmtDate(r.cullDate)}</td>
-      <td>${fmt(r.ageClass)}</td>
-      <td>${fmt(r.numberCulled)}</td>
-      <td>${fmt(r.reasonForCulling)}</td>
-      <td>${fmt(r.destination)}</td>
-      <td>${fmtNum(r.averageLiveWeightKg)}</td>
-      <td>${fmtNum(r.averageDeadweightKg)}</td>
-      <td>${fmt(r.finishGrade)}</td>
-      <td>${gbp(r.totalValueGbp)}</td>
-    </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Goat Cull / Market Records</title>
-<style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style>
-</head><body>
-<h1>Goat Cull / Draft / Market Records</h1>
-<h2>Goat Production · ${(rows as Record<string, unknown>[]).length} record${(rows as Record<string, unknown>[]).length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2>
-<table><thead><tr><th>Date</th><th>Category</th><th>Number</th><th>Reason</th><th>Destination</th><th>Live Wt (kg)</th><th>DW (kg)</th><th>Grade</th><th>Total Value</th></tr></thead>
-<tbody>${tableRows}</tbody></table>
-<p class="footer">Cull, draft and market records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p>
-</body></html>`;
-    openPrintWindow(html);
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.cullDate)}</td><td>${fmt(r.ageClass)}</td><td>${fmt(r.numberCulled)}</td><td>${fmt(r.reasonForCulling)}</td><td>${fmt(r.destination)}</td><td>${fmtNum(r.averageLiveWeightKg)}</td><td>${fmtNum(r.averageDeadweightKg)}</td><td>${fmt(r.finishGrade)}</td><td>${gbp(r.totalValueGbp)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Cull / Market Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm;size:landscape}}</style></head><body><h1>Goat Cull / Draft / Market Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Goat Production · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Category</th><th>Number</th><th>Reason</th><th>Destination</th><th>Live Wt (kg)</th><th>DW (kg)</th><th>Grade</th><th>Total Value</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Cull, draft and market records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
   }
 
-  const totalValue = (rows as Record<string, unknown>[]).reduce((sum, r) => sum + (parseFloat(String(r.totalValueGbp)) || 0), 0);
-  const totalHead = (rows as Record<string, unknown>[]).reduce((sum, r) => sum + (parseInt(String(r.numberCulled)) || 0), 0);
+  const totalValue = filtered.reduce((sum, r) => sum + (parseFloat(String(r.totalValueGbp)) || 0), 0);
+  const totalHead = filtered.reduce((sum, r) => sum + (parseInt(String(r.numberCulled)) || 0), 0);
 
   return (
     <div className="space-y-4">
-      {(rows as Record<string, unknown>[]).length > 0 && (
+      {filtered.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          {[["Total Batches", (rows as Record<string, unknown>[]).length], ["Total Head", totalHead], ["Total Value", `£${totalValue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`]].map(([l, v]) => (
+          {[["Total Batches", filtered.length], ["Total Head", totalHead], ["Total Value", `£${totalValue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`]].map(([l, v]) => (
             <div key={String(l)} className="rounded-md border p-3 text-center">
               <p className="text-xs text-muted-foreground">{l}</p>
               <p className="text-lg font-semibold">{String(v)}</p>
@@ -566,10 +536,16 @@ function CullTab({ farmId }: { farmId: number }) {
           ))}
         </div>
       )}
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Cull / Draft / Market Records</h3>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Cull / Draft / Market Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-2">
-          {(rows as Record<string, unknown>[]).length > 0 && <Button size="sm" variant="outline" onClick={printCullRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printCullRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
@@ -583,8 +559,9 @@ function CullTab({ farmId }: { farmId: number }) {
             { key: "destination", label: "Destination" },
             { key: "averageLiveWeightKg", label: "Avg Live Wt (kg)", render: r => fmtNum(r.averageLiveWeightKg) },
             { key: "totalValueGbp", label: "Total Value", render: r => gbp(r.totalValueGbp) },
+            { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-cull-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
-          rows={rows}
+          rows={filtered}
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
@@ -594,10 +571,13 @@ function CullTab({ farmId }: { farmId: number }) {
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Cull / Market Record</DialogTitle></DialogHeader>
-          {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-            {[["Date", fmtDate(viewing.cullDate)], ["Category", fmt(viewing.ageClass)], ["Number", fmt(viewing.numberCulled)], ["Reason", fmt(viewing.reasonForCulling)], ["Destination", fmt(viewing.destination)], ["Destination CPH", fmt(viewing.destinationCph)], ["Abattoir", fmt(viewing.abattoirName)], ["Avg Live Wt (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Avg Deadweight (kg)", fmtNum(viewing.averageDeadweightKg)], ["Killout %", fmtNum(viewing.deadweightKilloutPercent)], ["Finish Grade", fmt(viewing.finishGrade)], ["Price/Head", gbp(viewing.pricePerHeadGbp)], ["Total Value", gbp(viewing.totalValueGbp)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-            {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-          </div>}
+          {viewing && <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[["Date", fmtDate(viewing.cullDate)], ["Category", fmt(viewing.ageClass)], ["Number", fmt(viewing.numberCulled)], ["Reason", fmt(viewing.reasonForCulling)], ["Destination", fmt(viewing.destination)], ["Destination CPH", fmt(viewing.destinationCph)], ["Abattoir", fmt(viewing.abattoirName)], ["Avg Live Wt (kg)", fmtNum(viewing.averageLiveWeightKg)], ["Avg Deadweight (kg)", fmtNum(viewing.averageDeadweightKg)], ["Killout %", fmtNum(viewing.deadweightKilloutPercent)], ["Finish Grade", fmt(viewing.finishGrade)], ["Price/Head", gbp(viewing.pricePerHeadGbp)], ["Total Value", gbp(viewing.totalValueGbp)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+            </div>
+            {viewing.id && <RecordAttachments recordType="goat-cull-records" recordId={viewing.id as number} farmId={farmId} />}
+          </>}
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -677,6 +657,8 @@ function HealthTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [vaccYearFilter, setVaccYearFilter] = useState("all");
+  const [diseaseYearFilter, setDiseaseYearFilter] = useState("all");
   const { data: vaccRows = [], isLoading: vLoading } = useQuery({ queryKey: ["goat-vacc", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-vaccination-programmes`), { credentials: "include" }).then(r => r.json()) });
   const { data: diseaseRows = [], isLoading: dLoading } = useQuery({ queryKey: ["goat-disease", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-disease-monitoring`), { credentials: "include" }).then(r => r.json()) });
   const saveVacc = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-vaccination-programmes/${editing.id}`) : api(`farms/${farmId}/goat-vaccination-programmes`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
@@ -684,6 +666,15 @@ function HealthTab({ farmId }: { farmId: number }) {
   const delVacc = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-vaccination-programmes/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }) });
   const delDisease = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-disease", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const vaccYears = useMemo(() => Array.from(new Set((vaccRows as Record<string, unknown>[]).map(r => String(r.vaccinationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [vaccRows]);
+  const filteredVacc = useMemo(() => vaccYearFilter === "all" ? vaccRows as Record<string, unknown>[] : (vaccRows as Record<string, unknown>[]).filter(r => String(r.vaccinationDate ?? "").startsWith(vaccYearFilter)), [vaccRows, vaccYearFilter]);
+  const diseaseYears = useMemo(() => Array.from(new Set((diseaseRows as Record<string, unknown>[]).map(r => String(r.monitoringDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [diseaseRows]);
+  const filteredDisease = useMemo(() => diseaseYearFilter === "all" ? diseaseRows as Record<string, unknown>[] : (diseaseRows as Record<string, unknown>[]).filter(r => String(r.monitoringDate ?? "").startsWith(diseaseYearFilter)), [diseaseRows, diseaseYearFilter]);
+
+  function printVaccRecords() {
+    const tableRows = filteredVacc.map(r => `<tr><td>${fmtDate(r.vaccinationDate)}</td><td>${fmt(r.vaccinationCategory)}</td><td>${fmt(r.vaccineProduct)}</td><td>${fmt(r.numberTreated)}</td><td>${fmt(r.ageClassTreated)}</td><td>${fmtDate(r.nextDueDate)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Vaccination Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Goat Vaccination Records${vaccYearFilter !== "all" ? ` — ${vaccYearFilter}` : ""}</h1><h2>Goat Production · ${filteredVacc.length} record${filteredVacc.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Programme</th><th>Vaccine</th><th>Animals</th><th>Age Class</th><th>Next Due</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Vaccination records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
+  }
 
   return (
     <div className="space-y-4">
@@ -693,9 +684,18 @@ function HealthTab({ farmId }: { farmId: number }) {
       </div>
 
       {subTab === "vaccinations" && <>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-sm">Vaccination Programmes</h3>
-          <Button size="sm" onClick={() => { setEditing(null); setForm({ vetPrescribed: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Vaccination Programmes</h3>
+            <Select value={vaccYearFilter} onValueChange={setVaccYearFilter}>
+              <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All years</SelectItem>{vaccYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            {filteredVacc.length > 0 && <Button size="sm" variant="outline" onClick={printVaccRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+            <Button size="sm" onClick={() => { setEditing(null); setForm({ vetPrescribed: "false" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+          </div>
         </div>
         {vLoading ? <Loader2 className="animate-spin" /> : (
           <DataTable
@@ -705,19 +705,23 @@ function HealthTab({ farmId }: { farmId: number }) {
               { key: "vaccineProduct", label: "Vaccine" },
               { key: "numberTreated", label: "Animals" },
               { key: "nextDueDate", label: "Next Due", render: r => fmtDate(r.nextDueDate) },
+              { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-vaccination-programmes" recordId={r.id as number} farmId={farmId} compact /> : null },
             ]}
-            rows={vaccRows}
+            rows={filteredVacc}
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delVacc.mutate(r.id as number)}
           />
         )}
-        <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <Dialog open={!!viewing && subTab === "vaccinations"} onOpenChange={o => { if (!o) setViewing(null); }}>
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Vaccination Programme</DialogTitle></DialogHeader>
-            {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-              {[["Date", fmtDate(viewing.vaccinationDate)], ["Programme", fmt(viewing.vaccinationCategory)], ["Vaccine", fmt(viewing.vaccineProduct)], ["Route", fmt(viewing.administrationRoute)], ["Dose (ml)", fmt(viewing.doseVolumeMl)], ["Animals Treated", fmt(viewing.numberTreated)], ["Age Class", fmt(viewing.ageClassTreated)], ["Batch No.", fmt(viewing.batchNumber)], ["Expiry", fmtDate(viewing.expiryDate)], ["Next Due", fmtDate(viewing.nextDueDate)], ["Administered By", fmt(viewing.administeredBy)], ["Vet Prescribed", viewing.vetPrescribed ? "Yes" : "No"], ["Withdrawal (days)", fmt(viewing.withdrawalPeriodDays)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-            </div>}
+            {viewing && <>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[["Date", fmtDate(viewing.vaccinationDate)], ["Programme", fmt(viewing.vaccinationCategory)], ["Vaccine", fmt(viewing.vaccineProduct)], ["Route", fmt(viewing.administrationRoute)], ["Dose (ml)", fmt(viewing.doseVolumeMl)], ["Animals Treated", fmt(viewing.numberTreated)], ["Age Class", fmt(viewing.ageClassTreated)], ["Batch No.", fmt(viewing.batchNumber)], ["Expiry", fmtDate(viewing.expiryDate)], ["Next Due", fmtDate(viewing.nextDueDate)], ["Administered By", fmt(viewing.administeredBy)], ["Vet Prescribed", viewing.vetPrescribed ? "Yes" : "No"], ["Withdrawal (days)", fmt(viewing.withdrawalPeriodDays)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+                {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+              </div>
+              {viewing.id && <RecordAttachments recordType="goat-vaccination-programmes" recordId={viewing.id as number} farmId={farmId} />}
+            </>}
             <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
@@ -761,8 +765,14 @@ function HealthTab({ farmId }: { farmId: number }) {
       </>}
 
       {subTab === "disease" && <>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-sm">Disease Monitoring</h3>
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Disease Monitoring</h3>
+            <Select value={diseaseYearFilter} onValueChange={setDiseaseYearFilter}>
+              <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All years</SelectItem>{diseaseYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
           <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
         </div>
         {dLoading ? <Loader2 className="animate-spin" /> : (
@@ -775,8 +785,9 @@ function HealthTab({ farmId }: { farmId: number }) {
               { key: "positiveResults", label: "Positive" },
               { key: "status", label: "Status", render: r => <Badge variant={r.status === "clear" ? "default" : r.status === "positive" ? "destructive" : "secondary"}>{fmt(r.status)}</Badge> },
               { key: "nextTestDue", label: "Next Due", render: r => fmtDate(r.nextTestDue) },
+              { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="goat-disease-monitoring" recordId={r.id as number} farmId={farmId} compact /> : null },
             ]}
-            rows={diseaseRows}
+            rows={filteredDisease}
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delDisease.mutate(r.id as number)}
@@ -784,11 +795,14 @@ function HealthTab({ farmId }: { farmId: number }) {
         )}
         <Dialog open={!!viewing && subTab === "disease"} onOpenChange={o => { if (!o) setViewing(null); }}>
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Disease Monitoring Record</DialogTitle></DialogHeader>
-            {viewing && <div className="grid grid-cols-2 gap-3 text-sm">
-              {[["Date", fmtDate(viewing.monitoringDate)], ["Type", fmt(viewing.monitoringType)], ["Scheme Reference", fmt(viewing.schemeReference)], ["Testing Body", fmt(viewing.testingBody)], ["Samples", fmt(viewing.numberOfSamples)], ["Positive", fmt(viewing.positiveResults)], ["Negative", fmt(viewing.negativeResults)], ["Status", fmt(viewing.status)], ["Next Test Due", fmtDate(viewing.nextTestDue)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
-              {viewing.actionsTaken && <div className="col-span-2"><span className="text-muted-foreground">Actions Taken:</span> {fmt(viewing.actionsTaken)}</div>}
-              {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
-            </div>}
+            {viewing && <>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[["Date", fmtDate(viewing.monitoringDate)], ["Type", fmt(viewing.monitoringType)], ["Scheme Reference", fmt(viewing.schemeReference)], ["Testing Body", fmt(viewing.testingBody)], ["Samples", fmt(viewing.numberOfSamples)], ["Positive", fmt(viewing.positiveResults)], ["Negative", fmt(viewing.negativeResults)], ["Status", fmt(viewing.status)], ["Next Test Due", fmtDate(viewing.nextTestDue)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+                {viewing.actionsTaken && <div className="col-span-2"><span className="text-muted-foreground">Actions Taken:</span> {fmt(viewing.actionsTaken)}</div>}
+                {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
+              </div>
+              {viewing.id && <RecordAttachments recordType="goat-disease-monitoring" recordId={viewing.id as number} farmId={farmId} />}
+            </>}
             <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>

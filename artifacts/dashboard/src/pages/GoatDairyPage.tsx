@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, Droplets } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, Droplets, Printer } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL;
@@ -119,9 +120,6 @@ function MilkTab({ farmId }: { farmId: number }) {
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-milk", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/milk-records`)).then(r => r.json()) });
   const records: MilkRecord[] = data?.records ?? [];
-  const totalYield = records.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
-  const sccReadings = records.map(r => r.buyerSccThousands ?? r.sccThousands).filter((v): v is number => v != null);
-  const avgScc = sccReadings.length ? Math.round(sccReadings.reduce((a, b) => a + b, 0) / sccReadings.length) : null;
 
   const save = useMutation({
     mutationFn: (body: Partial<MilkRecord>) => fetch(api(`farms/${farmId}/goat-dairy/milk-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -132,24 +130,49 @@ function MilkTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-milk", farmId] }); toast({ title: "Record deleted" }); },
   });
 
+  const milkYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.recordDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [milkYearFilter, setMilkYearFilter] = useState("all");
+  const filteredMilk = useMemo(() => milkYearFilter === "all" ? records : records.filter(r => String(r.recordDate || "").startsWith(milkYearFilter)), [records, milkYearFilter]);
+
+  const totalYield = filteredMilk.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
+  const sccReadings = filteredMilk.map(r => r.buyerSccThousands ?? r.sccThousands).filter((v): v is number => v != null);
+  const avgScc = sccReadings.length ? Math.round(sccReadings.reduce((a, b) => a + b, 0) / sccReadings.length) : null;
+
+  const printMilk = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Milk Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Milk Collection Records${milkYearFilter !== "all" ? ` — ${milkYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Session</th><th>Yield (L)</th><th>SCC (k/mL)</th><th>Fat%</th><th>Protein%</th><th>ABR</th><th>Buyer</th></tr></thead><tbody>${filteredMilk.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${r.sessionType || "—"}</td><td>${r.yieldLitres || "—"}</td><td>${(r.buyerSccThousands ?? r.sccThousands) ?? "—"}</td><td>${r.buyerFatPercent ?? r.fatPercent ?? "—"}</td><td>${r.buyerProteinPercent ?? r.proteinPercent ?? "—"}</td><td>${r.antibioticResidueTestResult || "—"}</td><td>${r.milkBuyer || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Yield (all records)</p><p className="text-2xl font-bold text-blue-800">{totalYield.toLocaleString("en-GB", { maximumFractionDigits: 0 })}<span className="text-sm font-normal ml-1">L</span></p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Yield (filtered)</p><p className="text-2xl font-bold text-blue-800">{totalYield.toLocaleString("en-GB", { maximumFractionDigits: 0 })}<span className="text-sm font-normal ml-1">L</span></p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Avg SCC (k/mL)</p><p className={`text-2xl font-bold ${avgScc == null ? "text-gray-400" : avgScc > 1000 ? "text-red-700" : avgScc > 500 ? "text-amber-700" : "text-green-700"}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p><p className="text-xs text-gray-400">UK limit: 1,000k cells/mL</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Records</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Records</p><p className="text-2xl font-bold text-gray-800">{filteredMilk.length}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Milk Collection Records</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={milkYearFilter} onValueChange={setMilkYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{milkYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printMilk}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? (
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredMilk.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><Droplets className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No milk records yet.</p></div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Session</th><th className="py-2 px-3 text-left">Yield (L)</th><th className="py-2 px-3 text-left">SCC</th><th className="py-2 px-3 text-left">Fat%</th><th className="py-2 px-3 text-left">Protein%</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left">Buyer</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-            <tbody>{records.map(r => (
+            <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Session</th><th className="py-2 px-3 text-left">Yield (L)</th><th className="py-2 px-3 text-left">SCC</th><th className="py-2 px-3 text-left">Fat%</th><th className="py-2 px-3 text-left">Protein%</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left">Buyer</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+            <tbody>{filteredMilk.map(r => (
               <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="py-2 px-3 font-medium">{fmt(r.recordDate)}</td>
                 <td className="py-2 px-3 capitalize">{r.sessionType || "—"}</td>
@@ -159,6 +182,7 @@ function MilkTab({ farmId }: { farmId: number }) {
                 <td className="py-2 px-3">{r.buyerProteinPercent ?? r.proteinPercent ?? "—"}</td>
                 <td className="py-2 px-3">{r.antibioticResidueTestResult ? <span className={`px-2 py-0.5 rounded-full text-xs ${r.antibioticResidueTestResult === "positive" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.antibioticResidueTestResult}</span> : "—"}</td>
                 <td className="py-2 px-3 text-gray-500">{r.milkBuyer || "—"}</td>
+                <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/milk-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-milk", String(farmId)]} compact /></td>
                 <td className="py-2 px-3"><div className="flex gap-1">
                   <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                   <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -266,20 +290,44 @@ export function MastitisTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-mastitis", farmId] }); toast({ title: "Deleted" }); },
   });
 
+  const mastiYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [mastiYearFilter, setMastiYearFilter] = useState("all");
+  const filteredMasti = useMemo(() => mastiYearFilter === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYearFilter)), [records, mastiYearFilter]);
+
+  const printMasti = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Mastitis Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Mastitis Records${mastiYearFilter !== "all" ? ` — ${mastiYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Doe LIS Tag</th><th>Half</th><th>Pathogen</th><th>Treatment</th><th>Outcome</th></tr></thead><tbody>${filteredMasti.map(r => `<tr><td>${fmt(r.incidentDate)}</td><td>${r.doeLisTag || "—"}</td><td>${r.halfAffected || "—"}</td><td>${r.pathogenIdentified || "—"}</td><td>${r.treatmentProduct || "—"}</td><td>${r.outcome || "—"}${r.chronicCase ? " (Chronic)" : ""}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{records.filter(r => r.chronicCase).length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{records.filter(r => r.culledDueToMastitis).length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases</p><p className="text-2xl font-bold text-gray-800">{filteredMasti.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{filteredMasti.filter(r => r.chronicCase).length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{filteredMasti.filter(r => r.culledDueToMastitis).length}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button></div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={mastiYearFilter} onValueChange={setMastiYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{mastiYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printMasti}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredMasti.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No mastitis records yet.</p></div>
       ) : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Half</th><th className="py-2 px-3 text-left">Pathogen</th><th className="py-2 px-3 text-left">Treatment</th><th className="py-2 px-3 text-left">Outcome</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Half</th><th className="py-2 px-3 text-left">Pathogen</th><th className="py-2 px-3 text-left">Treatment</th><th className="py-2 px-3 text-left">Outcome</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <tbody>{filteredMasti.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.incidentDate)}</td>
               <td className="py-2 px-3 font-mono text-xs">{r.doeLisTag || "—"}</td>
@@ -287,6 +335,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
               <td className="py-2 px-3">{r.pathogenIdentified || "—"}</td>
               <td className="py-2 px-3">{r.treatmentProduct || "—"}</td>
               <td className="py-2 px-3"><OutcomeBadge v={r.outcome} />{r.chronicCase && <span className="ml-1 text-xs text-amber-600">Chronic</span>}</td>
+              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/mastitis-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-mastitis", String(farmId)]} compact /></td>
               <td className="py-2 px-3"><div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -388,8 +437,6 @@ export function KiddingTab({ farmId }: { farmId: number }) {
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-kidding", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/kidding-records`)).then(r => r.json()) });
   const records: KiddingRecord[] = data?.records ?? [];
-  const liveCount = records.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.kidCount || 1) : 0), 0);
-  const pendingEid = records.filter(r => !r.eidApplied && r.birthOutcome?.includes("live")).length;
 
   const save = useMutation({
     mutationFn: (body: Partial<KiddingRecord>) => fetch(api(`farms/${farmId}/goat-dairy/kidding-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -400,21 +447,48 @@ export function KiddingTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-kidding", farmId] }); toast({ title: "Deleted" }); },
   });
 
+  const kiddingYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.kiddingDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [kiddingYearFilter, setKiddingYearFilter] = useState("all");
+  const filteredKidding = useMemo(() => kiddingYearFilter === "all" ? records : records.filter(r => String(r.kiddingDate || "").startsWith(kiddingYearFilter)), [records, kiddingYearFilter]);
+
+  const liveCount = filteredKidding.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.kidCount || 1) : 0), 0);
+  const pendingEid = filteredKidding.filter(r => !r.eidApplied && r.birthOutcome?.includes("live")).length;
+
+  const printKidding = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Kidding Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Kidding Records${kiddingYearFilter !== "all" ? ` — ${kiddingYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Doe LIS Tag</th><th>Outcome</th><th>Kids</th><th>Ease</th><th>EID Applied</th></tr></thead><tbody>${filteredKidding.map(r => `<tr><td>${fmt(r.kiddingDate)}</td><td>${r.doeLisTag || "—"}</td><td>${r.birthOutcome?.replace(/-/g, " ") || "—"}</td><td>${r.kidCount ?? 1} × ${r.kidSex || "?"}</td><td>${r.easeScore ?? "—"}</td><td>${r.eidApplied ? "Yes" : "Pending"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
         <strong>LIS Tagging:</strong> Goat EID tags must be applied before first movement off the holding. Record EID application date and LIS tag number for each kid.
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Litters Recorded</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Litters Recorded</p><p className="text-2xl font-bold text-gray-800">{filteredKidding.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Live Kids</p><p className="text-2xl font-bold text-green-700">{liveCount}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">EID Pending</p><p className={`text-2xl font-bold ${pendingEid > 0 ? "text-amber-700" : "text-gray-400"}`}>{pendingEid}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">Kidding Records</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button></div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No kidding records yet.</p></div> : (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Kidding Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={kiddingYearFilter} onValueChange={setKiddingYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{kiddingYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printKidding}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredKidding.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No kidding records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Outcome</th><th className="py-2 px-3 text-left">Kids</th><th className="py-2 px-3 text-left">Ease</th><th className="py-2 px-3 text-left">EID</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Outcome</th><th className="py-2 px-3 text-left">Kids</th><th className="py-2 px-3 text-left">Ease</th><th className="py-2 px-3 text-left">EID</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <tbody>{filteredKidding.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.kiddingDate)}</td>
               <td className="py-2 px-3 font-mono text-xs">{r.doeLisTag || "—"}</td>
@@ -422,6 +496,7 @@ export function KiddingTab({ farmId }: { farmId: number }) {
               <td className="py-2 px-3">{r.kidCount ?? 1} × {r.kidSex || "?"}</td>
               <td className="py-2 px-3"><EaseScoreBadge v={r.easeScore} /></td>
               <td className="py-2 px-3">{r.eidApplied ? <span className="text-green-700 font-medium text-xs">✓ Applied</span> : <span className="text-amber-600 text-xs font-medium">Pending</span>}</td>
+              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/kidding-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-kidding", String(farmId)]} compact /></td>
               <td className="py-2 px-3"><div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -529,12 +604,27 @@ export function BcsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BcsRecord | null>(null);
+  const [viewRec, setViewRec] = useState<BcsRecord | null>(null);
   const blank: Partial<BcsRecord> = { assessmentDate: today() };
   const [form, setForm] = useState<Partial<BcsRecord>>(blank);
   const set = (k: keyof BcsRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-bcs", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/bcs-records`)).then(r => r.json()) });
   const records: BcsRecord[] = data?.records ?? [];
+
+  const bcsYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [bcsYearFilter, setBcsYearFilter] = useState("all");
+  const filteredBcs = useMemo(() => bcsYearFilter === "all" ? records : records.filter(r => String(r.assessmentDate || "").startsWith(bcsYearFilter)), [records, bcsYearFilter]);
+
+  const printBcs = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>BCS Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Body Condition Scoring Records${bcsYearFilter !== "all" ? ` — ${bcsYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Doe LIS Tag</th><th>Stage</th><th>BCS</th><th>Action Required</th><th>Assessed By</th></tr></thead><tbody>${filteredBcs.map(r => `<tr><td>${fmt(r.assessmentDate)}</td><td>${r.doeLisTag || "—"}</td><td>${r.assessmentStage || "—"}</td><td>${r.bcsScore || "—"}</td><td>${r.actionRequired || "None"}</td><td>${r.assessedBy || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   const save = useMutation({
     mutationFn: (body: Partial<BcsRecord>) => fetch(api(`farms/${farmId}/goat-dairy/bcs-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -547,11 +637,21 @@ export function BcsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">Body Condition Scoring (1–5 scale)</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button></div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No BCS records yet.</p></div> : (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Body Condition Scoring (1–5 scale)</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={bcsYearFilter} onValueChange={setBcsYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{bcsYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printBcs}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        </div>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredBcs.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No BCS records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Stage</th><th className="py-2 px-3 text-left">BCS</th><th className="py-2 px-3 text-left">Action</th><th className="py-2 px-3 text-left">Assessed By</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Doe LIS Tag</th><th className="py-2 px-3 text-left">Stage</th><th className="py-2 px-3 text-left">BCS</th><th className="py-2 px-3 text-left">Action</th><th className="py-2 px-3 text-left">Assessed By</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <tbody>{filteredBcs.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.assessmentDate)}</td>
               <td className="py-2 px-3 font-mono text-xs">{r.doeLisTag || "—"}</td>
@@ -559,10 +659,33 @@ export function BcsTab({ farmId }: { farmId: number }) {
               <td className="py-2 px-3"><BcsBadge v={r.bcsScore} /></td>
               <td className="py-2 px-3 text-sm">{r.actionRequired || "None"}</td>
               <td className="py-2 px-3 text-gray-500">{r.assessedBy || "—"}</td>
-              <td className="py-2 px-3"><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button></div></td>
+              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/bcs-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-bcs", String(farmId)]} compact /></td>
+              <td className="py-2 px-3"><div className="flex gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table></div>
+      )}
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>BCS Assessment — {fmt(viewRec.assessmentDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Doe LIS Tag</p><p className="font-mono font-medium">{viewRec.doeLisTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Stage</p><p className="font-medium capitalize">{viewRec.assessmentStage || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">BCS Score</p><BcsBadge v={viewRec.bcsScore} /></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{viewRec.assessedBy || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Follow-up Date</p><p className="font-medium">{fmt(viewRec.followUpDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Required</p><p className="font-medium">{viewRec.actionRequired || "None"}</p></div>
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="goat-dairy-bcs" recordId={viewRec.id} /></div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
@@ -609,13 +732,29 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TankRecord | null>(null);
+  const [viewRec, setViewRec] = useState<TankRecord | null>(null);
   const blank: Partial<TankRecord> = { recordDate: today(), recordType: "temperature-check" };
   const [form, setForm] = useState<Partial<TankRecord>>(blank);
   const set = (k: keyof TankRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-tank", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/bulk-tank-records`)).then(r => r.json()) });
   const records: TankRecord[] = data?.records ?? [];
-  const highTempCount = records.filter(r => r.tankTemperatureCelsius && parseFloat(r.tankTemperatureCelsius) > 4).length;
+
+  const tankYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.recordDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [tankYearFilter, setTankYearFilter] = useState("all");
+  const filteredTank = useMemo(() => tankYearFilter === "all" ? records : records.filter(r => String(r.recordDate || "").startsWith(tankYearFilter)), [records, tankYearFilter]);
+
+  const highTempCount = filteredTank.filter(r => r.tankTemperatureCelsius && parseFloat(r.tankTemperatureCelsius) > 4).length;
+
+  const printTank = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Bulk Tank Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Bulk Tank Records${tankYearFilter !== "all" ? ` — ${tankYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Type</th><th>Temperature (°C)</th><th>Cleaned</th><th>ABR Result</th><th>Notes</th></tr></thead><tbody>${filteredTank.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${r.recordType?.replace(/-/g, " ") || "—"}</td><td>${r.tankTemperatureCelsius || "—"}</td><td>${r.tankCleaned ? "Yes" : "—"}</td><td>${r.antibioticResidueResult || "—"}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   const save = useMutation({
     mutationFn: (body: Partial<TankRecord>) => fetch(api(`farms/${farmId}/goat-dairy/bulk-tank-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -629,25 +768,60 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Records</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Records</p><p className="text-2xl font-bold text-gray-800">{filteredTank.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">High Temp Events (&gt;4°C)</p><p className={`text-2xl font-bold ${highTempCount > 0 ? "text-red-700" : "text-green-700"}`}>{highTempCount}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Cleaning Records</p><p className="text-2xl font-bold text-blue-700">{records.filter(r => r.tankCleaned).length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Cleaning Records</p><p className="text-2xl font-bold text-blue-700">{filteredTank.filter(r => r.tankCleaned).length}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">Bulk Tank Records</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button></div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No bulk tank records yet.</p></div> : (
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Bulk Tank Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={tankYearFilter} onValueChange={setTankYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{tankYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printTank}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredTank.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No bulk tank records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Type</th><th className="py-2 px-3 text-left">Temperature</th><th className="py-2 px-3 text-left">Cleaned</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Type</th><th className="py-2 px-3 text-left">Temperature</th><th className="py-2 px-3 text-left">Cleaned</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <tbody>{filteredTank.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.recordDate)}</td>
               <td className="py-2 px-3 capitalize">{r.recordType?.replace(/-/g, " ") || "—"}</td>
               <td className="py-2 px-3">{r.tankTemperatureCelsius ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${parseFloat(r.tankTemperatureCelsius) > 4 ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.tankTemperatureCelsius}°C</span> : "—"}</td>
               <td className="py-2 px-3">{r.tankCleaned ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : "—"}</td>
               <td className="py-2 px-3">{r.antibioticResidueResult ? <span className={`px-2 py-0.5 rounded-full text-xs ${r.antibioticResidueResult === "positive" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.antibioticResidueResult}</span> : "—"}</td>
-              <td className="py-2 px-3"><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button></div></td>
+              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/bulk-tank-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-tank", String(farmId)]} compact /></td>
+              <td className="py-2 px-3"><div className="flex gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table></div>
+      )}
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>Bulk Tank Record — {fmt(viewRec.recordDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium capitalize">{viewRec.recordType?.replace(/-/g, " ") || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Temperature</p><p className="font-medium">{viewRec.tankTemperatureCelsius ? `${viewRec.tankTemperatureCelsius}°C` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tank Cleaned</p><p className="font-medium">{viewRec.tankCleaned ? "Yes" : "No"}</p></div>
+              {viewRec.tankCleaned && <><div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cleaning Product</p><p className="font-medium">{viewRec.cleaningProductUsed || "—"}</p></div><div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Batch</p><p className="font-medium">{viewRec.cleaningProductBatch || "—"}</p></div></>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Test Ref</p><p className="font-medium">{viewRec.antibioticResidueTestRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Result</p><p className="font-medium">{viewRec.antibioticResidueResult || "Not tested"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Ref</p><p className="font-medium">{viewRec.collectionRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tanker Driver</p><p className="font-medium">{viewRec.tankerDriverName || "—"}</p></div>
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="goat-dairy-bulk-tank" recordId={viewRec.id} /></div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
@@ -702,8 +876,22 @@ export function CaeTab({ farmId }: { farmId: number }) {
   const set = (k: keyof CaeRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-cae", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring`)).then(r => r.json()) });
-  const records: CaeRecord[] = data?.records ?? [];
-  const latestAccred = records.find(r => r.caeAccreditationStatus)?.caeAccreditationStatus;
+  const allRecords: CaeRecord[] = data?.records ?? [];
+  const latestAccred = allRecords.find(r => r.caeAccreditationStatus)?.caeAccreditationStatus;
+
+  const caeYears = useMemo(() => {
+    const s = new Set<string>(allRecords.map(r => String(r.testDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [allRecords]);
+  const [caeYearFilter, setCaeYearFilter] = useState("all");
+  const records = useMemo(() => caeYearFilter === "all" ? allRecords : allRecords.filter(r => String(r.testDate || "").startsWith(caeYearFilter)), [allRecords, caeYearFilter]);
+
+  const printCae = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>CAE Test Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>CAE Monitoring Records${caeYearFilter !== "all" ? ` — ${caeYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Test Type</th><th>Animals</th><th>Positives</th><th>Result</th><th>Next Test Due</th><th>Notes</th></tr></thead><tbody>${records.map(r => `<tr><td>${fmt(r.testDate)}</td><td>${r.testType?.replace(/-/g, " ") || "—"}</td><td>${r.animalsTestedCount ?? "—"}</td><td>${r.positiveCount ?? "—"}</td><td>${r.result || "—"}</td><td>${fmt(r.nextTestDue)}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
 
   const save = useMutation({
     mutationFn: (body: Partial<CaeRecord>) => fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -720,10 +908,20 @@ export function CaeTab({ farmId }: { farmId: number }) {
         <strong>CAE — Caprine Arthritis Encephalitis</strong> is a progressive viral disease of goats causing joint disease in adults and neurological disease in kids. Management through CAE accreditation programmes (e.g. SGS UK CAEV-free) is expected by dairy buyers and assurance bodies. Maintain a testing programme and keep records available for inspection.
       </div>
       {latestAccred && <div className="flex items-center gap-2 text-sm"><span className="font-medium text-gray-600">Accreditation status:</span><ResultBadge v={latestAccred} /></div>}
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">CAE Test Records</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test Record</Button></div>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">CAE Test Records</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={caeYearFilter} onValueChange={setCaeYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{caeYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printCae}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test Record</Button>
+        </div>
+      </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No CAE monitoring records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Test Type</th><th className="py-2 px-3 text-left">Animals</th><th className="py-2 px-3 text-left">Positives</th><th className="py-2 px-3 text-left">Result</th><th className="py-2 px-3 text-left">Next Test</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Test Type</th><th className="py-2 px-3 text-left">Animals</th><th className="py-2 px-3 text-left">Positives</th><th className="py-2 px-3 text-left">Result</th><th className="py-2 px-3 text-left">Next Test</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
           <tbody>{records.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.testDate)}</td>
@@ -732,6 +930,7 @@ export function CaeTab({ farmId }: { farmId: number }) {
               <td className="py-2 px-3">{r.positiveCount != null ? <span className={r.positiveCount > 0 ? "text-red-700 font-medium" : "text-green-700"}>{r.positiveCount}</span> : "—"}</td>
               <td className="py-2 px-3"><ResultBadge v={r.result} /></td>
               <td className="py-2 px-3 text-gray-500">{fmt(r.nextTestDue)}</td>
+              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/cae-monitoring" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-cae", String(farmId)]} compact /></td>
               <td className="py-2 px-3"><div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
