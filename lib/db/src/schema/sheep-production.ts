@@ -81,6 +81,13 @@ export const sheepWeighRecordsTable = pgTable("sheep_weigh_records", {
   previousWeighDate: date("previous_weigh_date"),
   previousAverageWeightKg: numeric("previous_average_weight_kg", { precision: 6, scale: 2 }),
   draftedForSaleCount: integer("drafted_for_sale_count").default(0),
+  weighBatchRef: text("weigh_batch_ref"),
+  animalCategory: text("animal_category"),
+  numberOfAnimalsWeighed: integer("number_of_animals_weighed"),
+  totalWeightKg: numeric("total_weight_kg", { precision: 8, scale: 2 }),
+  daysSincePreviousWeigh: integer("days_since_previous_weigh"),
+  bodyConditionScore: numeric("body_condition_score", { precision: 3, scale: 1 }),
+  weighingEquipmentId: integer("weighing_equipment_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -212,5 +219,40 @@ export const sheepRedTractorChecklistTable = pgTable("sheep_red_tractor_checklis
   notes: text("notes"),
   documentPath: text("document_path"),
   documentName: text("document_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Weighing Equipment Register ─────────────────────────────────────────────
+export const weighingEquipmentTable = pgTable("weighing_equipment", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("floor_scale"),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  purchaseDate: date("purchase_date"),
+  lastCalibrationDate: date("last_calibration_date"),
+  lastCalibrationResult: text("last_calibration_result"),
+  calibratedBy: text("calibrated_by"),
+  nextCalibrationDue: date("next_calibration_due"),
+  calibrationIntervalMonths: integer("calibration_interval_months").default(12),
+  location: text("location"),
+  notes: text("notes"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Weighing Equipment Calibration History ───────────────────────────────────
+export const weighingEquipmentCalibrationsTable = pgTable("weighing_equipment_calibrations", {
+  id: serial("id").primaryKey(),
+  equipmentId: integer("equipment_id").notNull().references(() => weighingEquipmentTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  calibrationDate: date("calibration_date").notNull(),
+  result: text("result").notNull(),
+  calibratedBy: text("calibrated_by"),
+  certificateRef: text("certificate_ref"),
+  nextDueDate: date("next_due_date"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

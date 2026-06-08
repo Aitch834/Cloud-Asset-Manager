@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1802,6 +1803,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : "No"}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
             </div>
+            {viewRecord.id && <div className="border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-livestock-treatments" recordId={viewRecord.id as number} /></div>}
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>

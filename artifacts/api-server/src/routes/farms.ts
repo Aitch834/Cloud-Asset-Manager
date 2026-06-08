@@ -326,6 +326,8 @@ import {
   sheepTuppingRecordsTable,
   sheepScanningRecordsTable,
   sheepWeighRecordsTable,
+  weighingEquipmentTable,
+  weighingEquipmentCalibrationsTable,
   sheepShearingRecordsTable,
   sheepCullRecordsTable,
   sheepVaccinationProgrammesTable,
@@ -25921,7 +25923,7 @@ router.post("/farms/:farmId/sheep-weigh-records", requireAuth, requireTenant, re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = req.body as Record<string, unknown>;
-  const [row] = await (db.insert(sheepWeighRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, weighDate: String(b.weighDate ?? ""), weighBatchRef: b.weighBatchRef ? String(b.weighBatchRef) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, numberOfAnimalsWeighed: b.numberOfAnimalsWeighed ? parseInt(String(b.numberOfAnimalsWeighed)) : null, averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await (db.insert(sheepWeighRecordsTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, weighDate: String(b.weighDate ?? ""), weighBatchRef: b.weighBatchRef ? String(b.weighBatchRef) : null, animalCategory: b.animalCategory ? String(b.animalCategory) : null, numberOfAnimalsWeighed: b.numberOfAnimalsWeighed ? parseInt(String(b.numberOfAnimalsWeighed)) : null, averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? parseInt(String(b.daysSincePreviousWeigh)) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, weighingEquipmentId: b.weighingEquipmentId ? parseInt(String(b.weighingEquipmentId)) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
 });
 router.put("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -25930,7 +25932,7 @@ router.put("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTenant,
   const id = parseInt(req.params.id as string, 10);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["flockId","weighDate","weighBatchRef","animalCategory","numberOfAnimalsWeighed","averageWeightKg","totalWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","bodyConditionScore","notes"];
+  const fields = ["flockId","weighDate","weighBatchRef","animalCategory","numberOfAnimalsWeighed","averageWeightKg","totalWeightKg","targetWeightKg","dlwgGPerDay","daysSincePreviousWeigh","bodyConditionScore","weighingEquipmentId","notes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" ? null : b[f]; }
   const [row] = await db.update(sheepWeighRecordsTable).set(updates as any).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -25942,6 +25944,101 @@ router.delete("/farms/:farmId/sheep-weigh-records/:id", requireAuth, requireTena
   const id = parseInt(req.params.id as string, 10);
   await db.delete(sheepWeighRecordsTable).where(and(eq(sheepWeighRecordsTable.id, id), eq(sheepWeighRecordsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Sheep Weigh-Latest (previous record lookup for auto-calc) ────────────────
+router.get("/farms/:farmId/sheep-weigh-latest", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { category, beforeDate } = req.query as Record<string, string>;
+  if (!category || !beforeDate) { res.json(null); return; }
+  const result = await db.execute(sql`SELECT * FROM sheep_weigh_records WHERE farm_id = ${farmId} AND animal_category = ${category} AND weigh_date < ${beforeDate}::date ORDER BY weigh_date DESC LIMIT 1`);
+  res.json((result as any).rows?.[0] ?? null);
+});
+
+// ─── Weighing Equipment Register ──────────────────────────────────────────────
+router.get("/farms/:farmId/weighing-equipment", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(weighingEquipmentTable).where(eq(weighingEquipmentTable.farmId, farmId)).orderBy(desc(weighingEquipmentTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/weighing-equipment", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(weighingEquipmentTable).values({
+    farmId,
+    name: String(b.name ?? ""),
+    type: b.type ? String(b.type) : "floor_scale",
+    manufacturer: b.manufacturer ? String(b.manufacturer) : null,
+    model: b.model ? String(b.model) : null,
+    serialNumber: b.serialNumber ? String(b.serialNumber) : null,
+    purchaseDate: b.purchaseDate ? String(b.purchaseDate) : null,
+    lastCalibrationDate: b.lastCalibrationDate ? String(b.lastCalibrationDate) : null,
+    lastCalibrationResult: b.lastCalibrationResult ? String(b.lastCalibrationResult) : null,
+    calibratedBy: b.calibratedBy ? String(b.calibratedBy) : null,
+    nextCalibrationDue: b.nextCalibrationDue ? String(b.nextCalibrationDue) : null,
+    calibrationIntervalMonths: b.calibrationIntervalMonths ? parseInt(String(b.calibrationIntervalMonths)) : 12,
+    location: b.location ? String(b.location) : null,
+    notes: b.notes ? String(b.notes) : null,
+    status: b.status ? String(b.status) : "active",
+  }).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/weighing-equipment/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  const b = req.body as Record<string, unknown>;
+  const wfields = ["name","type","manufacturer","model","serialNumber","purchaseDate","lastCalibrationDate","lastCalibrationResult","calibratedBy","nextCalibrationDue","calibrationIntervalMonths","location","notes","status"];
+  const updates: Record<string, unknown> = {};
+  for (const wf of wfields) { if (b[wf] !== undefined) updates[wf] = b[wf] === "" ? null : b[wf]; }
+  const [row] = await db.update(weighingEquipmentTable).set(updates).where(and(eq(weighingEquipmentTable.id, id), eq(weighingEquipmentTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/weighing-equipment/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string, 10);
+  await db.delete(weighingEquipmentTable).where(and(eq(weighingEquipmentTable.id, id), eq(weighingEquipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/weighing-equipment/:id/calibrations", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.id as string, 10);
+  const rows = await db.select().from(weighingEquipmentCalibrationsTable).where(and(eq(weighingEquipmentCalibrationsTable.equipmentId, equipmentId), eq(weighingEquipmentCalibrationsTable.farmId, farmId))).orderBy(desc(weighingEquipmentCalibrationsTable.calibrationDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/weighing-equipment/:id/calibrations", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const equipmentId = parseInt(req.params.id as string, 10);
+  const b = req.body as Record<string, unknown>;
+  const [cal] = await db.insert(weighingEquipmentCalibrationsTable).values({
+    equipmentId,
+    farmId,
+    calibrationDate: String(b.calibrationDate ?? ""),
+    result: String(b.result ?? ""),
+    calibratedBy: b.calibratedBy ? String(b.calibratedBy) : null,
+    certificateRef: b.certificateRef ? String(b.certificateRef) : null,
+    nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  await db.update(weighingEquipmentTable).set({
+    lastCalibrationDate: String(b.calibrationDate ?? ""),
+    lastCalibrationResult: String(b.result ?? ""),
+    calibratedBy: b.calibratedBy ? String(b.calibratedBy) : null,
+    ...(b.nextDueDate ? { nextCalibrationDue: String(b.nextDueDate) } : {}),
+  }).where(and(eq(weighingEquipmentTable.id, equipmentId), eq(weighingEquipmentTable.farmId, farmId)));
+  res.status(201).json(cal);
 });
 
 router.get("/farms/:farmId/sheep-shearing-records", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {

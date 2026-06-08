@@ -676,6 +676,11 @@ function HealthTab({ farmId }: { farmId: number }) {
     openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Vaccination Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Goat Vaccination Records${vaccYearFilter !== "all" ? ` — ${vaccYearFilter}` : ""}</h1><h2>Goat Production · ${filteredVacc.length} record${filteredVacc.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Programme</th><th>Vaccine</th><th>Animals</th><th>Age Class</th><th>Next Due</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Vaccination records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
   }
 
+  function printDiseaseRecords() {
+    const tableRows = filteredDisease.map(r => `<tr><td>${fmtDate(r.monitoringDate)}</td><td>${fmt(r.monitoringType)}</td><td>${fmt(r.testingBody)}</td><td>${fmt(r.numberOfSamples)}</td><td>${fmt(r.positiveResults)}</td><td>${fmt(r.status)}</td><td>${fmtDate(r.nextTestDue)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>Goat Disease Monitoring</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Goat Disease Monitoring Records${diseaseYearFilter !== "all" ? ` — ${diseaseYearFilter}` : ""}</h1><h2>Goat Production · ${filteredDisease.length} record${filteredDisease.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Type</th><th>Testing Body</th><th>Samples</th><th>Positive</th><th>Status</th><th>Next Due</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Disease monitoring records should be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2 border-b pb-2">
@@ -773,7 +778,10 @@ function HealthTab({ farmId }: { farmId: number }) {
               <SelectContent><SelectItem value="all">All years</SelectItem>{diseaseYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+          <div className="flex gap-2">
+            {filteredDisease.length > 0 && <Button size="sm" variant="outline" onClick={printDiseaseRecords}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+            <Button size="sm" onClick={() => { setEditing(null); setForm({ status: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add</Button>
+          </div>
         </div>
         {dLoading ? <Loader2 className="animate-spin" /> : (
           <DataTable

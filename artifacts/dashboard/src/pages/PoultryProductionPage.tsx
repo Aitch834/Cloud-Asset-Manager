@@ -1818,6 +1818,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
         { key: "humidity", label: "Humidity %" },
         { key: "ammoniaPpm", label: "Ammonia ppm" },
         { key: "stockingDensity", label: "kg/m²" },
+      { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="poultry-environmental-logs" recordId={r.id as number} farmId={farmId} compact /> : null },
       ]} rows={filteredEnvList} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1837,6 +1838,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alarm Activated</p><p className="font-medium">{viewRecord.alarmActivated ? "Yes" : "No"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alarm Details</p><p className="font-medium">{String(viewRecord.alarmDetails ?? "—")}</p></div>
             </div>
+            {viewRecord.id && <div className="border-t pt-3"><RecordAttachments farmId={farmId} recordType="poultry-environmental-logs" recordId={viewRecord.id as number} /></div>}
             <DialogFooter>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>

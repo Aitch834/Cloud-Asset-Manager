@@ -592,7 +592,10 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const { data: assessments = [], isLoading } = useQuery({ queryKey: ["pig-vet", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-vet-assessments`), { credentials: "include" }).then(r => r.json()) });
+  const { data: allAssessments = [], isLoading } = useQuery({ queryKey: ["pig-vet", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-vet-assessments`), { credentials: "include" }).then(r => r.json()) });
+  const [vetYearFilter, setVetYearFilter] = useState("all");
+  const vetYears = useMemo(() => Array.from(new Set((allAssessments as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allAssessments]);
+  const assessments = useMemo(() => vetYearFilter === "all" ? allAssessments as Record<string,unknown>[] : (allAssessments as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(vetYearFilter)), [allAssessments, vetYearFilter]);
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -610,11 +613,26 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
+  function printVetAssessments() {
+    const rows = assessments as Record<string,unknown>[];
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Vet Assessments</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Veterinary Assessments & Health Plans${vetYearFilter !== "all" ? ` — ${vetYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Vet</th><th>Practice</th><th>Lameness</th><th>Respiratory</th><th>Next Review</th></tr></thead><tbody>${rows.map(r => `<tr><td>${fmtDate(r.assessmentDate)}</td><td>${r.vetName || "—"}</td><td>${r.practiceName || "—"}</td><td>${r.lameness || "—"}</td><td>${r.respiratoryHealth || "—"}</td><td>${fmtDate(r.nextReviewDate)}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Veterinary Assessments & Health Plans</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={vetYearFilter} onValueChange={setVetYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{vetYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          {assessments.length > 0 && <Button size="sm" variant="outline" onClick={printVetAssessments}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -1630,7 +1648,10 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const { data: allRtcRecords = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const [rtcYearFilter, setRtcYearFilter] = useState("all");
+  const rtcYears = useMemo(() => Array.from(new Set((allRtcRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRtcRecords]);
+  const records = useMemo(() => rtcYearFilter === "all" ? allRtcRecords as Record<string,unknown>[] : (allRtcRecords as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(rtcYearFilter)), [allRtcRecords, rtcYearFilter]);
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-red-tractor-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }) });
 
@@ -1643,14 +1664,29 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
 
   const openEdit = (r: Record<string, unknown>) => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
 
+  function printRtcRecords() {
+    const rows = records as Record<string,unknown>[];
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>RT Pig Checklists</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Red Tractor Pig Compliance Checklists${rtcYearFilter !== "all" ? ` — ${rtcYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Assessor</th><th>Certificate No.</th><th>Overall Status</th><th>Next Due</th><th>Non-conformances</th></tr></thead><tbody>${rows.map(r => `<tr><td>${fmtDate(r.assessmentDate)}</td><td>${r.assessorName || "—"}</td><td>${r.certificateNumber || "—"}</td><td>${r.overallStatus || "—"}</td><td>${fmtDate(r.nextAssessmentDue)}</td><td>${r.nonConformances || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold text-sm">Red Tractor Pig Compliance Checklist</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record Red Tractor Pigs Standard self-assessment results. Each major standard area is checked to maintain farm assurance status. Assessments should be carried out at least annually or following any significant changes.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentDate: new Date().toISOString().slice(0, 10), overallStatus: "pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={rtcYearFilter} onValueChange={setRtcYearFilter}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{rtcYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={printRtcRecords}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentDate: new Date().toISOString().slice(0, 10), overallStatus: "pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[

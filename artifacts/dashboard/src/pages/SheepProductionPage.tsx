@@ -440,15 +440,62 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState<string>("all");
+
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["sheep-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-weigh-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: weighEquipList = [] } = useQuery({ queryKey: ["weighing-equipment", farmId], queryFn: () => fetch(api(`farms/${farmId}/weighing-equipment`), { credentials: "include" }).then(r => r.json()) });
+
+  // Previous weigh record lookup — for auto-calc of Days and DLWG
+  const prevWeigh = useQuery({
+    queryKey: ["sheep-weigh-latest", farmId, form.animalCategory, form.weighDate],
+    queryFn: async () => {
+      const params = new URLSearchParams({ category: form.animalCategory ?? "", beforeDate: form.weighDate ?? "" });
+      const res = await fetch(api(`farms/${farmId}/sheep-weigh-latest?${params}`), { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !editing && !!form.animalCategory && !!form.weighDate,
+    staleTime: 60_000,
+  });
+
   const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/sheep-weigh-records/${editing.id}`) : api(`farms/${farmId}/sheep-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/sheep-weigh-records/${editing.id}`) : api(`farms/${farmId}/sheep-weigh-records`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-weigh", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.weighDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.weighDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
+  const equipMap = useMemo(() => Object.fromEntries((weighEquipList as Record<string, unknown>[]).map(e => [String(e.id), String(e.name)])), [weighEquipList]);
+
+  // Auto-calculations (used as placeholder values & merged on save)
+  const prevRec = prevWeigh.data as Record<string, unknown> | null;
+  const calcTotalKg = useMemo(() => {
+    const n = parseFloat(form.numberOfAnimalsWeighed ?? "");
+    const avg = parseFloat(form.averageWeightKg ?? "");
+    return Number.isFinite(n) && Number.isFinite(avg) && n > 0 && avg > 0 ? (n * avg).toFixed(1) : null;
+  }, [form.numberOfAnimalsWeighed, form.averageWeightKg]);
+  const calcDays = useMemo(() => {
+    if (!prevRec?.weighDate || !form.weighDate) return null;
+    const diff = new Date(form.weighDate).getTime() - new Date(String(prevRec.weighDate)).getTime();
+    return diff > 0 ? Math.round(diff / 86400000) : null;
+  }, [prevRec, form.weighDate]);
+  const calcDlwg = useMemo(() => {
+    const curr = parseFloat(form.averageWeightKg ?? "");
+    if (!prevRec?.averageWeightKg || !Number.isFinite(curr) || !calcDays || calcDays <= 0) return null;
+    return Math.round(((curr - parseFloat(String(prevRec.averageWeightKg))) * 1000) / calcDays);
+  }, [prevRec, form.averageWeightKg, calcDays]);
+
+  function handleSave() {
+    const body = { ...form };
+    if (!body.totalWeightKg && calcTotalKg) body.totalWeightKg = calcTotalKg;
+    if (!body.daysSincePreviousWeigh && calcDays != null) body.daysSincePreviousWeigh = String(calcDays);
+    if (!body.dlwgGPerDay && calcDlwg != null) body.dlwgGPerDay = String(calcDlwg);
+    save.mutate(body);
+  }
 
   function printWeighRecords() {
     const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.weighDate)}</td><td>${fmt(r.weighBatchRef)}</td><td>${fmt(r.animalCategory)}</td><td>${fmt(r.numberOfAnimalsWeighed)}</td><td>${fmtNum(r.averageWeightKg)}</td><td>${fmtNum(r.totalWeightKg)}</td><td>${fmtNum(r.targetWeightKg)}</td><td>${fmtNum(r.dlwgGPerDay, 0)}</td><td>${fmt(r.bodyConditionScore)}</td></tr>`).join("");
@@ -482,8 +529,9 @@ function WeighTab({ farmId }: { farmId: number }) {
             { key: "animalCategory", label: "Category" },
             { key: "numberOfAnimalsWeighed", label: "Count" },
             { key: "averageWeightKg", label: "Avg Wt (kg)", render: r => fmtNum(r.averageWeightKg) },
-            { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay) },
+            { key: "dlwgGPerDay", label: "DLWG (g/day)", render: r => fmtNum(r.dlwgGPerDay, 0) },
             { key: "bodyConditionScore", label: "BCS" },
+            { key: "_equip", label: "Equipment", render: r => r.weighingEquipmentId ? <span className="text-xs text-muted-foreground">{equipMap[String(r.weighingEquipmentId)] ?? "—"}</span> : null },
             { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-weigh-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
           rows={filtered}
@@ -493,12 +541,25 @@ function WeighTab({ farmId }: { farmId: number }) {
         />
       )}
 
+      {/* View dialog */}
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Weigh-in Record</DialogTitle></DialogHeader>
           {viewing && <>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {[["Date", fmtDate(viewing.weighDate)], ["Batch Ref", fmt(viewing.weighBatchRef)], ["Category", fmt(viewing.animalCategory)], ["Animals Weighed", fmt(viewing.numberOfAnimalsWeighed)], ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)], ["Total Weight (kg)", fmtNum(viewing.totalWeightKg)], ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)], ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay)], ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)], ["BCS", fmt(viewing.bodyConditionScore)]].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
+              {[
+                ["Date", fmtDate(viewing.weighDate)],
+                ["Batch Ref", fmt(viewing.weighBatchRef)],
+                ["Category", fmt(viewing.animalCategory)],
+                ["Animals Weighed", fmt(viewing.numberOfAnimalsWeighed)],
+                ["Avg Weight (kg)", fmtNum(viewing.averageWeightKg)],
+                ["Total Weight (kg)", fmtNum(viewing.totalWeightKg)],
+                ["Target Weight (kg)", fmtNum(viewing.targetWeightKg)],
+                ["DLWG (g/day)", fmtNum(viewing.dlwgGPerDay, 0)],
+                ["Days Since Last Weigh", fmt(viewing.daysSincePreviousWeigh)],
+                ["BCS", fmt(viewing.bodyConditionScore)],
+                ["Equipment", viewing.weighingEquipmentId ? (equipMap[String(viewing.weighingEquipmentId)] ?? "—") : "—"],
+              ].map(([l, v]) => <div key={String(l)}><span className="text-muted-foreground">{l}:</span> <span className="font-medium">{String(v)}</span></div>)}
               {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {fmt(viewing.notes)}</div>}
             </div>
             {viewing.id && <RecordAttachments recordType="sheep-weigh-records" recordId={viewing.id as number} farmId={farmId} />}
@@ -521,30 +582,352 @@ function WeighTab({ farmId }: { farmId: number }) {
         />
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({}); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Weigh Date *"><Input type="date" value={form.weighDate ?? ""} onChange={e => sf("weighDate", e.target.value)} /></Field>
-            <Field label="Batch Ref"><Input value={form.weighBatchRef ?? ""} onChange={e => sf("weighBatchRef", e.target.value)} /></Field>
-            <Field label="Animal Category">
-              <Select value={form.animalCategory ?? ""} onValueChange={v => sf("animalCategory", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{["Lambs (spring)","Lambs (autumn)","Store lambs","Hoggets","Ewes","Ram lambs"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </Field>
+            <Field label="Batch Ref"><Input value={form.weighBatchRef ?? ""} onChange={e => sf("weighBatchRef", e.target.value)} placeholder="e.g. Spring 2024 — Group A" /></Field>
+            <div className="col-span-2">
+              <Field label="Animal Category">
+                <Select value={form.animalCategory ?? ""} onValueChange={v => sf("animalCategory", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["Lambs (spring)","Lambs (autumn)","Store lambs","Hoggets","Ewes","Ram lambs"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            {/* Previous record info banner */}
+            {prevRec && !editing && (
+              <div className="col-span-2 flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+                <Scale className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
+                <div>
+                  <strong>Previous record found:</strong> {fmtDate(prevRec.weighDate)} · Avg {fmtNum(prevRec.averageWeightKg)} kg
+                  {calcDays != null ? ` · ${calcDays} days ago` : ""}
+                  {" — Days and DLWG will be auto-calculated on save."}
+                </div>
+              </div>
+            )}
+
+            {/* Weighing Equipment */}
+            <div className="col-span-2">
+              <Field label="Weighing Equipment">
+                <Select value={form.weighingEquipmentId ?? ""} onValueChange={v => sf("weighingEquipmentId", v)}>
+                  <SelectTrigger><SelectValue placeholder={(weighEquipList as any[]).filter(e => e.status === "active").length ? "Select scale / crush…" : "No active equipment registered"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None selected</SelectItem>
+                    {(weighEquipList as Record<string, unknown>[]).filter(e => e.status === "active").map(e => (
+                      <SelectItem key={String(e.id)} value={String(e.id)}>{String(e.name)} — {String(e.type ?? "").replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
             <Field label="Number Weighed"><Input type="number" min="1" step="1" value={form.numberOfAnimalsWeighed ?? ""} onChange={e => sf("numberOfAnimalsWeighed", e.target.value)} /></Field>
             <Field label="Avg Weight (kg)"><Input type="number" step="0.1" value={form.averageWeightKg ?? ""} onChange={e => sf("averageWeightKg", e.target.value)} /></Field>
-            <Field label="Total Weight (kg)"><Input type="number" step="0.1" value={form.totalWeightKg ?? ""} onChange={e => sf("totalWeightKg", e.target.value)} /></Field>
+
+            {/* Total weight — auto from N × Avg */}
+            <Field label={<span className="flex items-center gap-1">Total Weight (kg){!form.totalWeightKg && calcTotalKg && !editing && <Badge className="ml-1 text-[9px] px-1 py-0 h-4 bg-blue-100 text-blue-700">auto</Badge>}</span>}>
+              <Input type="number" step="0.1" value={form.totalWeightKg ?? ""} onChange={e => sf("totalWeightKg", e.target.value)} placeholder={!editing && calcTotalKg ? calcTotalKg : ""} className={!form.totalWeightKg && calcTotalKg && !editing ? "placeholder:text-blue-400 bg-blue-50/40" : ""} />
+            </Field>
             <Field label="Target Weight (kg)"><Input type="number" step="0.1" value={form.targetWeightKg ?? ""} onChange={e => sf("targetWeightKg", e.target.value)} /></Field>
-            <Field label="DLWG (g/day)"><Input type="number" step="1" value={form.dlwgGPerDay ?? ""} onChange={e => sf("dlwgGPerDay", e.target.value)} /></Field>
-            <Field label="Days Since Last Weigh"><Input type="number" value={form.daysSincePreviousWeigh ?? ""} onChange={e => sf("daysSincePreviousWeigh", e.target.value)} /></Field>
-            <Field label="BCS (1–5)"><Input type="number" step="0.5" min="1" max="5" value={form.bodyConditionScore ?? ""} onChange={e => sf("bodyConditionScore", e.target.value)} /></Field>
+
+            {/* Days since last — auto from DB lookup */}
+            <Field label={<span className="flex items-center gap-1">Days Since Last Weigh{!form.daysSincePreviousWeigh && calcDays != null && !editing && <Badge className="ml-1 text-[9px] px-1 py-0 h-4 bg-blue-100 text-blue-700">auto</Badge>}</span>}>
+              <Input type="number" value={form.daysSincePreviousWeigh ?? ""} onChange={e => sf("daysSincePreviousWeigh", e.target.value)} placeholder={!editing && calcDays != null ? String(calcDays) : ""} className={!form.daysSincePreviousWeigh && calcDays != null && !editing ? "placeholder:text-blue-400 bg-blue-50/40" : ""} />
+            </Field>
+
+            {/* DLWG — auto from prev record */}
+            <Field label={<span className="flex items-center gap-1">DLWG (g/day){!form.dlwgGPerDay && calcDlwg != null && !editing && <Badge className="ml-1 text-[9px] px-1 py-0 h-4 bg-blue-100 text-blue-700">auto</Badge>}</span>}>
+              <Input type="number" step="1" value={form.dlwgGPerDay ?? ""} onChange={e => sf("dlwgGPerDay", e.target.value)} placeholder={!editing && calcDlwg != null ? String(calcDlwg) : ""} className={!form.dlwgGPerDay && calcDlwg != null && !editing ? "placeholder:text-blue-400 bg-blue-50/40" : ""} />
+            </Field>
+
+            <Field label="BCS (1–5, steps of 0.5)"><Input type="number" step="0.5" min="1" max="5" value={form.bodyConditionScore ?? ""} onChange={e => sf("bodyConditionScore", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({}); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── WEIGHING EQUIPMENT TAB ───────────────────────────────────────────────────
+function WeighingEquipmentTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
+  const [calForm, setCalForm] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<Record<string, string>>({});
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data: equipment = [], isLoading } = useQuery({
+    queryKey: ["weighing-equipment", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/weighing-equipment`), { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: calibrations = [] } = useQuery({
+    queryKey: ["weighing-equipment-calibrations", farmId, viewing?.id],
+    queryFn: () => fetch(api(`farms/${farmId}/weighing-equipment/${viewing!.id}/calibrations`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!viewing?.id,
+  });
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/weighing-equipment/${editing.id}`) : api(`farms/${farmId}/weighing-equipment`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["weighing-equipment", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/weighing-equipment/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["weighing-equipment", farmId] }),
+  });
+  const saveCal = useMutation({
+    mutationFn: (body: Record<string, unknown>) => fetch(api(`farms/${farmId}/weighing-equipment/${viewing!.id}/calibrations`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["weighing-equipment-calibrations", farmId, viewing?.id] });
+      qc.invalidateQueries({ queryKey: ["weighing-equipment", farmId] });
+      setCalOpen(false); setCalForm({});
+    },
+  });
+
+  const EQUIP_TYPES: Record<string, string> = {
+    crush_scale: "Crush Scale", floor_scale: "Floor / Platform Scale", hanging_scale: "Hanging Scale",
+    weigh_band: "Weigh Band / Tape", electronic_crate: "Electronic Weigh Crate",
+    portable_weigher: "Portable Weigher", other: "Other",
+  };
+
+  const overdueAny = (equipment as Record<string, unknown>[]).some(e =>
+    e.status === "active" && e.nextCalibrationDue && new Date(String(e.nextCalibrationDue)) < new Date()
+  );
+
+  function CalibBadge({ equip }: { equip: Record<string, unknown> }) {
+    if (!equip.nextCalibrationDue) return <Badge variant="outline" className="text-xs font-normal">Not set</Badge>;
+    const daysUntil = Math.ceil((new Date(String(equip.nextCalibrationDue)).getTime() - Date.now()) / 86400000);
+    if (daysUntil < 0) return <Badge className="bg-red-100 text-red-800 text-xs font-normal">Overdue {Math.abs(daysUntil)}d</Badge>;
+    if (daysUntil <= 30) return <Badge className="bg-amber-100 text-amber-800 text-xs font-normal">Due in {daysUntil}d</Badge>;
+    return <Badge className="bg-green-100 text-green-800 text-xs font-normal">{fmtDate(equip.nextCalibrationDue)}</Badge>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div>
+          <h3 className="font-semibold text-sm">Weighing Equipment Register</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Register livestock weighing equipment and track calibration dates for Red Tractor compliance and accuracy assurance.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ calibrationIntervalMonths: "12", status: "active" }); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1" />Add Equipment
+        </Button>
+      </div>
+
+      {overdueAny && (
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span><strong>Calibration overdue</strong> — one or more items require calibration. Arrange immediately to maintain weighing accuracy.</span>
+        </div>
+      )}
+
+      {isLoading ? <Loader2 className="animate-spin" /> : (equipment as Record<string, unknown>[]).length === 0 ? (
+        <div className="py-16 text-center text-muted-foreground text-sm">
+          <Scale className="w-8 h-8 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No equipment registered</p>
+          <p className="text-xs mt-1">Add your first scale or crush to begin tracking calibrations.</p>
+        </div>
+      ) : (
+        <div className="rounded-md border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/40 border-b">
+                {["Name / Type", "Last Calibration", "Next Due", "Status", ""].map(h => (
+                  <th key={h} className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(equipment as Record<string, unknown>[]).map(e => (
+                <tr key={String(e.id)} className="border-b last:border-0 hover:bg-muted/20">
+                  <td className="px-3 py-2">
+                    <div className="font-medium text-sm">{String(e.name)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {EQUIP_TYPES[String(e.type ?? "")] ?? String(e.type ?? "")}
+                      {e.manufacturer ? ` · ${e.manufacturer}` : ""}
+                      {e.model ? ` ${e.model}` : ""}
+                      {e.location ? ` · ${e.location}` : ""}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.lastCalibrationDate ? (
+                      <div>
+                        <div className="text-xs">{fmtDate(e.lastCalibrationDate)}</div>
+                        {e.lastCalibrationResult && (
+                          <Badge className={`text-xs mt-0.5 font-normal ${e.lastCalibrationResult === "pass" ? "bg-green-100 text-green-800" : e.lastCalibrationResult === "advisory" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>
+                            {String(e.lastCalibrationResult)}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : <span className="text-muted-foreground text-xs">Not recorded</span>}
+                  </td>
+                  <td className="px-3 py-2"><CalibBadge equip={e} /></td>
+                  <td className="px-3 py-2">
+                    <Badge variant={e.status === "active" ? "default" : "secondary"} className="text-xs font-normal">{String(e.status ?? "").replace(/_/g, " ")}</Badge>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="ghost" title="View / Calibrations" onClick={() => setViewing(e)}><Eye className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditing(e); setForm(Object.fromEntries(Object.entries(e).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => del.mutate(e.id as number)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* View / Calibration history dialog */}
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{viewing && String(viewing.name)}</DialogTitle></DialogHeader>
+          {viewing && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {[
+                  ["Type", EQUIP_TYPES[String(viewing.type ?? "")] ?? fmt(viewing.type)],
+                  ["Manufacturer", fmt(viewing.manufacturer)],
+                  ["Model", fmt(viewing.model)],
+                  ["Serial Number", fmt(viewing.serialNumber)],
+                  ["Location", fmt(viewing.location)],
+                  ["Status", fmt(viewing.status)],
+                  ["Purchase Date", fmtDate(viewing.purchaseDate)],
+                  ["Calibration Interval", viewing.calibrationIntervalMonths ? `${viewing.calibrationIntervalMonths} months` : "—"],
+                  ["Last Calibration", fmtDate(viewing.lastCalibrationDate)],
+                  ["Last Result", fmt(viewing.lastCalibrationResult)],
+                  ["Calibrated By", fmt(viewing.calibratedBy)],
+                  ["Next Due", fmtDate(viewing.nextCalibrationDue)],
+                ].map(([l, v]) => (
+                  <div key={String(l)}><span className="text-muted-foreground text-xs">{l}</span><div className="font-medium text-sm">{String(v)}</div></div>
+                ))}
+                {viewing.notes && <div className="col-span-2"><span className="text-muted-foreground text-xs">Notes</span><div className="text-sm">{fmt(viewing.notes)}</div></div>}
+              </div>
+
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-semibold">Calibration History</h4>
+                  <Button size="sm" onClick={() => { setCalForm({ calibrationDate: new Date().toISOString().slice(0, 10) }); setCalOpen(true); }}>
+                    <Plus className="w-3.5 h-3.5 mr-1" />Log Calibration
+                  </Button>
+                </div>
+                {(calibrations as Record<string, unknown>[]).length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No calibrations logged yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(calibrations as Record<string, unknown>[]).map(c => (
+                      <div key={String(c.id)} className="flex items-start gap-2 p-2.5 bg-muted/30 rounded-lg text-xs">
+                        <div className="flex-1">
+                          <div className="font-medium">{fmtDate(c.calibrationDate)}{c.calibratedBy ? ` · ${String(c.calibratedBy)}` : ""}</div>
+                          {c.certificateRef && <div className="text-muted-foreground">Cert ref: {String(c.certificateRef)}</div>}
+                          {c.nextDueDate && <div className="text-muted-foreground">Next due: {fmtDate(c.nextDueDate)}</div>}
+                          {c.notes && <div className="mt-0.5">{String(c.notes)}</div>}
+                        </div>
+                        <Badge className={`text-xs font-normal ${c.result === "pass" ? "bg-green-100 text-green-800" : c.result === "advisory" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>
+                          {String(c.result)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Log Calibration dialog */}
+      <Dialog open={calOpen} onOpenChange={setCalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Log Calibration{viewing ? ` — ${String(viewing.name)}` : ""}</DialogTitle></DialogHeader>
+          <div className="grid gap-3">
+            <Field label="Calibration Date *"><Input type="date" value={calForm.calibrationDate ?? ""} onChange={e => setCalForm(f => ({ ...f, calibrationDate: e.target.value }))} /></Field>
+            <Field label="Result *">
+              <Select value={calForm.result ?? ""} onValueChange={v => setCalForm(f => ({ ...f, result: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select result…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pass">Pass</SelectItem>
+                  <SelectItem value="advisory">Advisory (minor adjustment needed)</SelectItem>
+                  <SelectItem value="fail">Fail (take out of service)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Calibrated By"><Input value={calForm.calibratedBy ?? ""} onChange={e => setCalForm(f => ({ ...f, calibratedBy: e.target.value }))} /></Field>
+            <Field label="Certificate / Reference"><Input value={calForm.certificateRef ?? ""} onChange={e => setCalForm(f => ({ ...f, certificateRef: e.target.value }))} /></Field>
+            <Field label="Next Due Date"><Input type="date" value={calForm.nextDueDate ?? ""} onChange={e => setCalForm(f => ({ ...f, nextDueDate: e.target.value }))} /></Field>
+            <Field label="Notes"><Textarea value={calForm.notes ?? ""} onChange={e => setCalForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCalOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveCal.mutate(calForm)} disabled={saveCal.isPending || !calForm.result || !calForm.calibrationDate}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit Equipment dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({}); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Register"} Weighing Equipment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Field label="Equipment Name *"><Input value={form.name ?? ""} onChange={e => sf("name", e.target.value)} placeholder="e.g. Main Yard Crush Scale" /></Field></div>
+            <Field label="Type *">
+              <Select value={form.type ?? ""} onValueChange={v => sf("type", v)}>
+                <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(EQUIP_TYPES).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Status">
+              <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="out_of_service">Out of Service</SelectItem>
+                  <SelectItem value="decommissioned">Decommissioned</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Manufacturer"><Input value={form.manufacturer ?? ""} onChange={e => sf("manufacturer", e.target.value)} /></Field>
+            <Field label="Model"><Input value={form.model ?? ""} onChange={e => sf("model", e.target.value)} /></Field>
+            <Field label="Serial Number"><Input value={form.serialNumber ?? ""} onChange={e => sf("serialNumber", e.target.value)} /></Field>
+            <Field label="Location"><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} placeholder="e.g. Main yard, Loading bay" /></Field>
+            <Field label="Purchase Date"><Input type="date" value={form.purchaseDate ?? ""} onChange={e => sf("purchaseDate", e.target.value)} /></Field>
+            <Field label="Calibration Interval (months)"><Input type="number" min="1" value={form.calibrationIntervalMonths ?? "12"} onChange={e => sf("calibrationIntervalMonths", e.target.value)} /></Field>
+            <Field label="Last Calibration Date"><Input type="date" value={form.lastCalibrationDate ?? ""} onChange={e => sf("lastCalibrationDate", e.target.value)} /></Field>
+            <Field label="Last Calibration Result">
+              <Select value={form.lastCalibrationResult ?? ""} onValueChange={v => sf("lastCalibrationResult", v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pass">Pass</SelectItem>
+                  <SelectItem value="advisory">Advisory</SelectItem>
+                  <SelectItem value="fail">Fail</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Calibrated By"><Input value={form.calibratedBy ?? ""} onChange={e => sf("calibratedBy", e.target.value)} /></Field>
+            <Field label="Next Calibration Due"><Input type="date" value={form.nextCalibrationDue ?? ""} onChange={e => sf("nextCalibrationDue", e.target.value)} /></Field>
+            <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({}); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.name || !form.type}>{editing ? "Save Changes" : "Register"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -973,7 +1356,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
 }
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist" | "analytics";
+type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist" | "analytics" | "weighing-equipment";
 
 const SHEEP_COLORS = ["#15803d", "#a16207", "#1d4ed8", "#b91c1c", "#7c3aed", "#0e7490"];
 
@@ -1140,6 +1523,7 @@ export default function SheepProductionPage() {
           <TabButton active={tab === "shearing"} onClick={() => setTab("shearing")}>Shearing</TabButton>
           <TabButton active={tab === "health"} onClick={() => setTab("health")}>Health Plans</TabButton>
           <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
+          <TabButton active={tab === "weighing-equipment"} onClick={() => setTab("weighing-equipment")}><Scale className="w-3.5 h-3.5 mr-1 inline" />Equipment</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</TabButton>
         </TabBar>
 
@@ -1150,6 +1534,7 @@ export default function SheepProductionPage() {
         {tab === "shearing" && <ShearingTab farmId={farmId} />}
         {tab === "health" && <HealthTab farmId={farmId} />}
         {tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
+        {tab === "weighing-equipment" && <WeighingEquipmentTab farmId={farmId} />}
         {tab === "analytics" && <SheepAnalyticsTab farmId={farmId} />}
       </div>
     </AppLayout>
