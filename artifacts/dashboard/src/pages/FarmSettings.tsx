@@ -1289,7 +1289,12 @@ export default function FarmSettings() {
                   step="0.01"
                   placeholder="e.g. 101.2"
                   value={formData.totalHectares}
-                  onChange={e => updateField("totalHectares", e.target.value)}
+                  onChange={e => {
+                    const ha = e.target.value;
+                    updateField("totalHectares", ha);
+                    const n = parseFloat(ha);
+                    updateField("totalAcreage", ha && !isNaN(n) ? (n * 2.47105).toFixed(2) : "");
+                  }}
                 />
                 <p className="text-xs text-muted-foreground mt-1">Used for NVZ, biofuel, and spray compliance calculations</p>
               </div>
@@ -1299,11 +1304,17 @@ export default function FarmSettings() {
                 <Input
                   id="settings-acreage"
                   type="number"
+                  step="0.01"
                   placeholder="e.g. 250"
                   value={formData.totalAcreage}
-                  onChange={e => updateField("totalAcreage", e.target.value)}
+                  onChange={e => {
+                    const ac = e.target.value;
+                    updateField("totalAcreage", ac);
+                    const n = parseFloat(ac);
+                    updateField("totalHectares", ac && !isNaN(n) ? (n / 2.47105).toFixed(2) : "");
+                  }}
                 />
-                <p className="text-xs text-muted-foreground mt-1">For reference — enter either or both</p>
+                <p className="text-xs text-muted-foreground mt-1">Auto-calculated from hectares — or enter directly to set both</p>
               </div>
             </div>
 
