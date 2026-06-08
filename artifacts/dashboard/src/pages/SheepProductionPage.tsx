@@ -167,6 +167,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
             { key: "ramTagNumber", label: "Ram Tag" },
             { key: "ewesExposed", label: "Ewes Exposed" },
             { key: "expectedLambingStart", label: "Expected Lambing", render: r => fmtDate(r.expectedLambingStart) },
+            { key: "progesteroneUsed", label: "Progesterone", render: r => r.progesteroneUsed ? <Badge className="bg-purple-100 text-purple-800 border border-purple-200 text-xs font-medium">CIDR / Prog.</Badge> : null },
             { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="sheep-tupping-records" recordId={r.id as number} farmId={farmId} compact /> : null },
           ]}
           rows={filtered}
@@ -230,6 +231,14 @@ function TuppingTab({ farmId }: { farmId: number }) {
               <Checkbox checked={form.progesteroneUsed === "true"} onCheckedChange={v => sf("progesteroneUsed", v ? "true" : "false")} id="prog" />
               <Label htmlFor="prog">Progesterone / CIDR used</Label>
             </div>
+            {form.progesteroneUsed === "true" && (
+              <div className="col-span-2 flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+                <span>
+                  <strong>POM-V Medicine — Medicine Register record required.</strong> Progesterone / CIDR products (e.g. Chronogest CR, Eazi-Breed CIDR Sheep) are Prescription Only Medicines (Veterinarian) in the UK. Ensure a valid vet prescription is in place before use. Record the product in <strong>Livestock → Medicines</strong> with: product name, batch number, number of ewes treated, dose (ml), withdrawal period (typically 1 day meat for CIDR in sheep), route of administration, and prescribing vet name. Red Tractor Sheep Assurance requires all POM-V medicine records to be available at audit.
+                </span>
+              </div>
+            )}
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
           <DialogFooter>

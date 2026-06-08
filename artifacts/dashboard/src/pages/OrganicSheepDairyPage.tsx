@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -67,11 +67,11 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv";
+type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv";
 
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("conversion");
+  const [tab, setTab] = useState<Tab>("tupping");
   if (!farmId) return <Redirect to="/select" />;
 
   return (
@@ -87,6 +87,7 @@ export default function OrganicSheepDairyPage() {
           </p>
         </div>
         <TabBar>
+          <TabButton active={tab === "tupping"} onClick={() => setTab("tupping")}>Tupping</TabButton>
           <TabButton active={tab === "conversion"} onClick={() => setTab("conversion")}>Flock Conversion</TabButton>
           <TabButton active={tab === "collections"} onClick={() => setTab("collections")}>Milk Collections</TabButton>
           <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>Feed &amp; Nutrition</TabButton>
@@ -97,6 +98,7 @@ export default function OrganicSheepDairyPage() {
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
         </TabBar>
         <div className="mt-6">
+          {tab === "tupping" && <TuppingTab farmId={farmId} />}
           {tab === "conversion" && <FlockConversionTab farmId={farmId} />}
           {tab === "collections" && <OrganicCollectionsTab farmId={farmId} />}
           {tab === "feed" && <FeedNutritionTab farmId={farmId} />}
@@ -844,6 +846,246 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate()} disabled={!form.productName || save.isPending}>
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Organic Tupping Tab ──────────────────────────────────────────────────────
+
+interface TuppingRecord {
+  id: number;
+  tuppingStartDate: string;
+  tuppingEndDate?: string | null;
+  ramBreed?: string | null;
+  ramTagNumber?: string | null;
+  ramSource?: string | null;
+  ewesExposed?: number | null;
+  tuppingMethod?: string | null;
+  harnessColour?: string | null;
+  progesteroneUsed?: boolean | null;
+  expectedLambingStart?: string | null;
+  expectedLambingEnd?: string | null;
+  notes?: string | null;
+}
+
+function TuppingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TuppingRecord | null>(null);
+  const [viewing, setViewing] = useState<TuppingRecord | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
+
+  const { data: rows = [], isLoading } = useQuery<TuppingRecord[]>({
+    queryKey: ["sheep-tupping", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing
+        ? api(`farms/${farmId}/sheep-tupping-records/${editing.id}`)
+        : api(`farms/${farmId}/sheep-tupping-records`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }),
+  });
+
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  function openAdd() { setEditing(null); setForm({ progesteroneUsed: "false" }); setOpen(true); }
+  function openEdit(r: TuppingRecord) {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  }
+
+  const years = useMemo(() =>
+    Array.from(new Set(rows.map(r => String(r.tuppingStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(),
+    [rows]
+  );
+  const filtered = useMemo(() =>
+    yearFilter === "all" ? rows : rows.filter(r => String(r.tuppingStartDate ?? "").startsWith(yearFilter)),
+    [rows, yearFilter]
+  );
+
+  const fmtD = (v?: string | null) => v ? new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const fmtV = (v: unknown) => v == null || v === "" ? "—" : String(v);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Tupping Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin w-5 h-5 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">No tupping records for this period.</div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Start Date</TableHead>
+              <TableHead>End Date</TableHead>
+              <TableHead>Ram Breed</TableHead>
+              <TableHead>Ram Tag</TableHead>
+              <TableHead>Ewes Exposed</TableHead>
+              <TableHead>Expected Lambing</TableHead>
+              <TableHead>Progesterone</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>{fmtD(r.tuppingStartDate)}</TableCell>
+                <TableCell>{fmtD(r.tuppingEndDate)}</TableCell>
+                <TableCell>{fmtV(r.ramBreed)}</TableCell>
+                <TableCell>{fmtV(r.ramTagNumber)}</TableCell>
+                <TableCell>{fmtV(r.ewesExposed)}</TableCell>
+                <TableCell>{fmtD(r.expectedLambingStart)}</TableCell>
+                <TableCell>
+                  {r.progesteroneUsed ? (
+                    <Badge className="bg-red-100 text-red-700 border border-red-200 text-xs font-medium">CIDR / Prog. ⚠</Badge>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewing(r)}><Eye className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent style={{ maxWidth: "36rem" }}>
+          <DialogHeader><DialogTitle>Tupping Record Details</DialogTitle></DialogHeader>
+          {viewing && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {([
+                  ["Start Date", fmtD(viewing.tuppingStartDate)],
+                  ["End Date", fmtD(viewing.tuppingEndDate)],
+                  ["Ram Breed", fmtV(viewing.ramBreed)],
+                  ["Ram Tag", fmtV(viewing.ramTagNumber)],
+                  ["Ram Source", fmtV(viewing.ramSource)],
+                  ["Ewes Exposed", fmtV(viewing.ewesExposed)],
+                  ["Tupping Method", fmtV(viewing.tuppingMethod)],
+                  ["Harness Colour", fmtV(viewing.harnessColour)],
+                  ["Expected Lambing Start", fmtD(viewing.expectedLambingStart)],
+                  ["Expected Lambing End", fmtD(viewing.expectedLambingEnd)],
+                ] as [string, string][]).map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
+                    <p className="font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Progesterone / CIDR</p>
+                <p className="font-medium">{viewing.progesteroneUsed ? "Yes" : "No"}</p>
+              </div>
+              {viewing.progesteroneUsed && (
+                <div className="flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
+                  <span><strong>Organic Restriction:</strong> Synthetic progesterone / CIDR used for reproductive synchronisation is a prohibited input under UK Organic Regulations. Ensure a Vet Treatment record exists in the Vet Treatments tab with doubled withdrawal periods applied and certifier notification recorded.</span>
+                </div>
+              )}
+              {viewing.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
+                  <p className="font-medium">{fmtV(viewing.notes)}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit" : "Add"} Tupping Record</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="space-y-1"><Label>Start Date *</Label><Input type="date" value={form.tuppingStartDate ?? ""} onChange={e => sf("tuppingStartDate", e.target.value)} /></div>
+            <div className="space-y-1"><Label>End Date</Label><Input type="date" value={form.tuppingEndDate ?? ""} onChange={e => sf("tuppingEndDate", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Ram Breed</Label>
+              <Select value={form.ramBreed ?? ""} onValueChange={v => sf("ramBreed", v)}>
+                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
+                <SelectContent>{["Suffolk","Texel","Charollais","Beltex","Bluefaced Leicester","Border Leicester","Hampshire Down","Poll Dorset","Rouge de l'Ouest","Vendeen","Lleyn","Cheviot","Swaledale","Herdwick","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Ram Tag Number</Label><Input value={form.ramTagNumber ?? ""} onChange={e => sf("ramTagNumber", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Ram Source</Label>
+              <Select value={form.ramSource ?? ""} onValueChange={v => sf("ramSource", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Home bred","Purchased at auction/market","Private sale","AI centre","ET donor flock","Hired/loaned","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Ewes Exposed</Label><Input type="number" min="1" step="1" value={form.ewesExposed ?? ""} onChange={e => sf("ewesExposed", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Tupping Method</Label>
+              <Select value={form.tuppingMethod ?? ""} onValueChange={v => sf("tuppingMethod", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Natural service","AI (fresh)","AI (frozen)","ET"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Harness Colour</Label>
+              <Select value={form.harnessColour ?? ""} onValueChange={v => sf("harnessColour", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Red","Orange","Yellow","Green","Blue","Purple","Pink","None"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Expected Lambing Start</Label><Input type="date" value={form.expectedLambingStart ?? ""} onChange={e => sf("expectedLambingStart", e.target.value)} /></div>
+            <div className="space-y-1"><Label>Expected Lambing End</Label><Input type="date" value={form.expectedLambingEnd ?? ""} onChange={e => sf("expectedLambingEnd", e.target.value)} /></div>
+            <div className="col-span-2 flex items-center gap-2 rounded-md border px-3 py-2 bg-muted/30">
+              <Checkbox checked={form.progesteroneUsed === "true"} onCheckedChange={v => sf("progesteroneUsed", v ? "true" : "false")} id="prog-org" />
+              <Label htmlFor="prog-org" className="cursor-pointer font-normal">Progesterone / CIDR used</Label>
+            </div>
+            {form.progesteroneUsed === "true" && (
+              <div className="col-span-2 flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
+                <span>
+                  <strong>⚠ Organic Restriction — Prohibited Input.</strong> Synthetic progesterone and CIDR devices used for reproductive synchronisation are prohibited inputs under UK Organic Regulations (UK Organic Regulations 2022, Schedule 2). If used therapeutically for an individual animal's medical condition on veterinary prescription, record a Vet Treatment in the <strong>Vet Treatments tab</strong> with doubled withdrawal periods applied, and notify your certifying body (Soil Association / OF&amp;G / Biodynamic). If used for cycle synchronisation, consult your certifying body immediately.
+                </span>
+              </div>
+            )}
+            <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate({ ...form })} disabled={!form.tuppingStartDate || save.isPending}>
+              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {editing ? "Save" : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
