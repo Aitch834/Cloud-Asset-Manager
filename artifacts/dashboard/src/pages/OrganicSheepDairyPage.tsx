@@ -886,13 +886,65 @@ function TuppingTab({ farmId }: { farmId: number }) {
   });
 
   const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
+    mutationFn: async (body: Record<string, unknown>) => {
       const url = editing
         ? api(`farms/${farmId}/sheep-tupping-records/${editing.id}`)
         : api(`farms/${farmId}/sheep-tupping-records`);
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const tupping = await res.json();
+      const cidrUsed = body.progesteroneUsed === "true" || body.progesteroneUsed === true;
+      if (cidrUsed && body.cidrProductName) {
+        const adminDate = body.cidrAdminDate || body.tuppingStartDate;
+        const wdDays = parseInt(String(body.cidrWithdrawalDays ?? "1")) || 1;
+        const doubledWd = parseInt(String(body.cidrDoubledWd ?? String(wdDays * 2))) || wdDays * 2;
+        const wdEnd = adminDate ? new Date(new Date(String(adminDate)).getTime() + doubledWd * 86400000).toISOString().slice(0, 10) : null;
+        await fetch(api(`farms/${farmId}/medicine-records`), {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({
+            medicineName: body.cidrProductName, batchNumber: body.cidrBatchNumber || null,
+            dosage: body.cidrDosePerEwe || "1 device per ewe",
+            administrationRoute: body.cidrRoute || "Intravaginal",
+            administeredBy: body.cidrAdministeredBy || null, administeredDate: adminDate,
+            vetName: body.cidrPrescribingVet || null, treatmentScope: "group",
+            treatedAnimalCount: body.ewesExposed ? parseInt(String(body.ewesExposed)) : null,
+            withdrawalPeriodDays: wdDays, doubledWithdrawalDays: doubledWd,
+            withdrawalEndDate: wdEnd, organicWithdrawalEndDate: wdEnd,
+            isOrganicTreatment: true, certifierNotified: body.certifierNotified === "true",
+            reason: body.cidrTherapeuticReason ? `Therapeutic: ${String(body.cidrTherapeuticReason)}` : "Progesterone/CIDR — organic therapeutic use",
+            notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Ram: ${body.ramBreed || ""} ${body.ramTagNumber || ""} | Rx ref: ${body.cidrPrescriptionRef || "—"} | Practice: ${body.cidrVetPractice || "—"} | ORGANIC: doubled withdrawal applied`,
+            source: "tupping-record",
+          }),
+        });
+      }
+      if (cidrUsed && body.createVetVisit === "true" && body.cidrPrescribingVet) {
+        await fetch(api(`farms/${farmId}/vet-visits`), {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({
+            visitDate: body.cidrAdminDate || body.tuppingStartDate,
+            vetName: body.cidrPrescribingVet, vetPractice: body.cidrVetPractice || null,
+            reasonForVisit: "POM-V prescription — Progesterone/CIDR (organic therapeutic use)",
+            treatmentsCarriedOut: `${body.cidrProductName || "CIDR/Progesterone"} — ${body.ewesExposed || "?"} ewes. Therapeutic: ${body.cidrTherapeuticReason || "not specified"}`,
+            prescriptionsIssued: body.cidrPrescriptionRef || null,
+            notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Organic — doubled withdrawal applied`,
+          }),
+        });
+      }
+      if (cidrUsed && body.cidrCostGbp && parseFloat(String(body.cidrCostGbp)) > 0) {
+        await fetch(api(`farms/${farmId}/financial-transactions`), {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({
+            transactionType: "expense", category: "Veterinary & Medicine",
+            description: `${body.cidrProductName || "CIDR/Progesterone"} — ${body.ewesExposed || ""} ewes [ORGANIC] (tupping ${body.tuppingStartDate})`,
+            amountPence: Math.round(parseFloat(String(body.cidrCostGbp)) * 100),
+            transactionDate: body.cidrAdminDate || body.tuppingStartDate,
+            reference: body.cidrPrescriptionRef || null, vendorCustomer: body.cidrVetPractice || null,
+            notes: "Auto-created from organic tupping record (CIDR/Progesterone cost)",
+          }),
+        });
+      }
+      return tupping;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
 
   const del = useMutation({
@@ -1069,14 +1121,46 @@ function TuppingTab({ farmId }: { farmId: number }) {
             <div className="space-y-1"><Label>Expected Lambing End</Label><Input type="date" value={form.expectedLambingEnd ?? ""} onChange={e => sf("expectedLambingEnd", e.target.value)} /></div>
             <div className="col-span-2 flex items-center gap-2 rounded-md border px-3 py-2 bg-muted/30">
               <Checkbox checked={form.progesteroneUsed === "true"} onCheckedChange={v => sf("progesteroneUsed", v ? "true" : "false")} id="prog-org" />
-              <Label htmlFor="prog-org" className="cursor-pointer font-normal">Progesterone / CIDR used</Label>
+              <Label htmlFor="prog-org" className="cursor-pointer font-normal">Progesterone / CIDR used (therapeutic use only — see below)</Label>
             </div>
             {form.progesteroneUsed === "true" && (
-              <div className="col-span-2 flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
-                <span>
-                  <strong>⚠ Organic Restriction — Prohibited Input.</strong> Synthetic progesterone and CIDR devices used for reproductive synchronisation are prohibited inputs under UK Organic Regulations (UK Organic Regulations 2022, Schedule 2). If used therapeutically for an individual animal's medical condition on veterinary prescription, record a Vet Treatment in the <strong>Vet Treatments tab</strong> with doubled withdrawal periods applied, and notify your certifying body (Soil Association / OF&amp;G / Biodynamic). If used for cycle synchronisation, consult your certifying body immediately.
-                </span>
+              <div className="col-span-2 space-y-3 rounded-md border border-red-300 bg-red-50 p-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <span className="text-xs font-semibold text-red-800">⚠ Organic Restriction — UK Organic Regulations 2022, Schedule 2 (Prohibited Inputs)</span>
+                </div>
+                <p className="text-xs text-red-700">Synthetic progesterone / CIDR for reproductive synchronisation is <strong>prohibited</strong> in certified organic production. Therapeutic use for an individual animal's diagnosed medical condition, on veterinary prescription, may be permitted — complete all fields below and notify your certifying body.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 space-y-1"><Label className="text-xs">Therapeutic Reason *</Label><Input value={form.cidrTherapeuticReason ?? ""} onChange={e => sf("cidrTherapeuticReason", e.target.value)} placeholder="e.g. Treatment of individual ewe with prolonged anoestrus" /></div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Product Name</Label>
+                    <Select value={form.cidrProductName ?? ""} onValueChange={v => sf("cidrProductName", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>{["Chronogest CR 0.3g (progesterone sponge)","Eazi-Breed CIDR Sheep (0.3g progesterone)","Chronogest CR 0.33g","Cue-Mate","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1"><Label className="text-xs">Batch Number</Label><Input value={form.cidrBatchNumber ?? ""} onChange={e => sf("cidrBatchNumber", e.target.value)} placeholder="e.g. B24031A" /></div>
+                  <div className="space-y-1"><Label className="text-xs">Dose per Animal</Label><Input value={form.cidrDosePerEwe ?? "1 sponge / device"} onChange={e => sf("cidrDosePerEwe", e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Administered By</Label><Input value={form.cidrAdministeredBy ?? ""} onChange={e => sf("cidrAdministeredBy", e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Administration Date</Label><Input type="date" value={form.cidrAdminDate || form.tuppingStartDate || ""} onChange={e => sf("cidrAdminDate", e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Prescribing Vet *</Label><Input value={form.cidrPrescribingVet ?? ""} onChange={e => sf("cidrPrescribingVet", e.target.value)} placeholder="Mandatory for POM-V" /></div>
+                  <div className="space-y-1"><Label className="text-xs">Vet Practice</Label><Input value={form.cidrVetPractice ?? ""} onChange={e => sf("cidrVetPractice", e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Prescription Reference</Label><Input value={form.cidrPrescriptionRef ?? ""} onChange={e => sf("cidrPrescriptionRef", e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Standard Meat W/D (days)</Label><Input type="number" value={form.cidrWithdrawalDays ?? "1"} onChange={e => { sf("cidrWithdrawalDays", e.target.value); sf("cidrDoubledWd", String(parseInt(e.target.value || "1") * 2)); }} /></div>
+                  <div className="space-y-1"><Label className="text-xs font-semibold text-red-700">Doubled Organic W/D (days)</Label><Input type="number" value={form.cidrDoubledWd ?? "2"} onChange={e => sf("cidrDoubledWd", e.target.value)} className="border-red-300" /></div>
+                  <div className="space-y-1"><Label className="text-xs">Medicine Cost (£)</Label><Input type="number" step="0.01" value={form.cidrCostGbp ?? ""} onChange={e => sf("cidrCostGbp", e.target.value)} placeholder="Optional" /></div>
+                </div>
+                <div className="flex flex-col gap-2 pt-2 border-t border-red-200">
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={form.certifierNotified === "true"} onCheckedChange={v => sf("certifierNotified", v ? "true" : "false")} id="cert-notified-tupping" />
+                    <Label htmlFor="cert-notified-tupping" className="text-xs cursor-pointer font-normal text-red-900">Certifying body has been notified of this treatment</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={form.createVetVisit === "true"} onCheckedChange={v => sf("createVetVisit", v ? "true" : "false")} id="create-vet-visit-org" />
+                    <Label htmlFor="create-vet-visit-org" className="text-xs cursor-pointer font-normal text-red-900">Also create a Vet Visit entry in the Vet Ledger</Label>
+                  </div>
+                </div>
+                <p className="text-xs text-green-700 font-medium">✓ An organic Medicine Register entry (with doubled withdrawal) will be created automatically in Livestock → Medicines when saved.</p>
               </div>
             )}
             <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>

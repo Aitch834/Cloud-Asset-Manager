@@ -1,4 +1,5 @@
 import { useState, useMemo, type ReactNode } from "react";
+import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
@@ -111,6 +112,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
 
   const { data: movements = [], isLoading } = useQuery({ queryKey: ["pig-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-movements`), { credentials: "include" }).then(r => r.json()) });
 
@@ -130,11 +132,30 @@ function MovementsTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
+  const years = useMemo(() => Array.from(new Set((movements as Record<string, unknown>[]).map(r => String(r.movementDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [movements]);
+  const filtered = useMemo(() => yearFilter === "all" ? movements as Record<string, unknown>[] : (movements as Record<string, unknown>[]).filter(r => String(r.movementDate ?? "").startsWith(yearFilter)), [movements, yearFilter]);
+
+  function printMovements() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const rows = filtered.map(r => `<tr><td>${fmtD(r.movementDate)}</td><td>${String(r.movementType ?? "—")}</td><td>${String(r.fromLocation ?? "—")} (${String(r.fromCph ?? "—")})</td><td>${String(r.toLocation ?? "—")} (${String(r.toCph ?? "—")})</td><td>${String(r.numberOfAnimals ?? "—")}</td><td>${String(r.eaml2Reference ?? "—")}</td><td>${String(r.transporterName ?? "—")}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Pig Movements (eAML2)</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Pig Movements (eAML2)${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Animals</th><th>eAML2 Ref</th><th>Transporter</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Pig Movements (eAML2)</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Movement</Button>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Pig Movements (eAML2)</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printMovements}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Movement</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -144,7 +165,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
             { key: "numberOfAnimals", label: "Animals" }, { key: "eaml2Reference", label: "eAML2 Ref" },
             { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-movements" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-movements", String(farmId)]} /> },
           ]}
-          rows={movements}
+          rows={filtered}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
           onView={setViewRecord}
@@ -2601,6 +2622,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const [yearFilter, setYearFilter] = useState<string>("all");
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["pig-salmonella-monitoring", farmId],
@@ -2615,14 +2637,25 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
   });
   const flocks: any[] = Array.isArray(flocksData) ? flocksData : (flocksData?.records ?? []);
 
+  const salmYears = useMemo(() => Array.from(new Set((records as any[]).map((r: any) => String(r.samplingPeriodStart ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredSalm = useMemo(() => yearFilter === "all" ? records as any[] : (records as any[]).filter((r: any) => String(r.samplingPeriodStart ?? "").startsWith(yearFilter)), [records, yearFilter]);
+
   function openAdd() { setEditing(null); setForm({ sampleType: "meat_juice_elisa", actionRequired: false }); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
 
-  async function save() {
-    const url = editing ? api(`farms/${farmId}/pig-salmonella-monitoring/${editing.id}`) : api(`farms/${farmId}/pig-salmonella-monitoring`);
-    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
-    qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] });
-    setOpen(false);
+  const save = useMutation({
+    mutationFn: (body: any) => {
+      const url = editing ? api(`farms/${farmId}/pig-salmonella-monitoring/${editing.id}`) : api(`farms/${farmId}/pig-salmonella-monitoring`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] }); setOpen(false); setForm({ sampleType: "meat_juice_elisa", actionRequired: false }); setEditing(null); },
+  });
+
+  function printSalmonella() {
+    const fmtD = (d: any) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const trs = filteredSalm.map((r: any) => `<tr><td>${fmtD(r.samplingPeriodStart)}${r.samplingPeriodEnd ? `–${fmtD(r.samplingPeriodEnd)}` : ""}</td><td>${flocks.find((f: any) => f.id === r.pigFlockId)?.flockName ?? "—"}</td><td>${SALM_SAMPLE_TYPES.find(t => t.value === r.sampleType)?.label ?? r.sampleType}</td><td>${r.sampleCount ?? "—"}</td><td>${r.positiveCount ?? 0}</td><td>${r.seroprevalence != null ? `${r.seroprevalence}%` : "—"}</td><td>Category ${r.salmonellaCategory ?? "—"}</td><td>${r.actionRequired ? "Yes" : "No"}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Salmonella Monitoring</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Salmonella Monitoring Register${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>NSMP · ${filteredSalm.length} record${filteredSalm.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Sampling Period</th><th>Flock</th><th>Sample Type</th><th>Samples</th><th>Positive</th><th>Seroprevalence</th><th>Category</th><th>Action Required</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    openPrintWindow(html);
   }
 
   async function del(id: number) {
@@ -2640,15 +2673,22 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-start justify-between mb-4 gap-2">
         <div>
           <h3 className="font-semibold text-gray-900">Salmonella Monitoring Register</h3>
-          <p className="text-xs text-gray-500 mt-0.5">National Salmonella Monitoring Programme (NSMP) requires quarterly testing of finishing pigs. Red Tractor Pigs requires documented monitoring with serological category results.</p>
+          <p className="text-xs text-gray-500 mt-0.5">NSMP requires quarterly testing of finishing pigs. Red Tractor Pigs requires documented monitoring with serological category results.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Monitoring Record</Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{salmYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          {filteredSalm.length > 0 && <Button size="sm" variant="outline" onClick={printSalmonella}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Monitoring Record</Button>
+        </div>
       </div>
 
-      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : filteredSalm.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
           <p className="font-medium text-gray-600">No Salmonella monitoring records yet</p>
@@ -2658,10 +2698,10 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
-              <tr>{["Sampling Period","Flock","Sample Type","Samples","Positive","Seroprevalence","Category","Change","Action Required",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+              <tr>{["Sampling Period","Flock","Sample Type","Samples","Positive","Seroprevalence","Category","Change","Action Required","Doc",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
-              {records.map((r: any) => (
+              {filteredSalm.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">{fmtDate(r.samplingPeriodStart)}{r.samplingPeriodEnd ? `–${fmtDate(r.samplingPeriodEnd)}` : ""}</td>
                   <td className="px-3 py-2">{flocks.find((f: any) => f.id === r.pigFlockId)?.flockName ?? "—"}</td>
@@ -2672,6 +2712,9 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">{catBadge(r.salmonellaCategory)}</td>
                   <td className="px-3 py-2">{r.categoryChange ? <span className={`text-xs font-medium ${r.categoryChange === "improved" ? "text-green-700" : r.categoryChange === "worsened" ? "text-red-700" : "text-gray-500"}`}>{r.categoryChange.charAt(0).toUpperCase() + r.categoryChange.slice(1)}</span> : "—"}</td>
                   <td className="px-3 py-2">{r.actionRequired ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Yes</span> : <span className="text-gray-400 text-xs">No</span>}</td>
+                  <td className="px-3 py-2">
+                    <DocAttach farmId={farmId} endpoint="pig-salmonella-monitoring" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-salmonella-monitoring", String(farmId)]} compact />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -2736,7 +2779,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{editing ? "Save Changes" : "Add Record"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

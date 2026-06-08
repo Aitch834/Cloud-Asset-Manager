@@ -937,6 +937,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [dlg, setDlg] = useState<{ open: boolean; mode: "add" | "edit" | "view"; row: Record<string, unknown> }>({ open: false, mode: "add", row: {} });
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [yearFilter, setYearFilter] = useState("all");
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["venison-firearms", farmId],
@@ -963,6 +964,19 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
   };
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const fireYears = useMemo(() => Array.from(new Set((records as any[]).map((r: any) => String(r.issueDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredFirearms = useMemo(() => yearFilter === "all" ? records as any[] : (records as any[]).filter((r: any) => String(r.issueDate ?? "").startsWith(yearFilter)), [records, yearFilter]);
+
+  function printFirearms() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const trs = filteredFirearms.map((r: any) => `<tr><td>${String(r.holderName ?? "—")}</td><td>${String(r.certificateType ?? "—")}</td><td>${String(r.certificateNumber ?? "—")}</td><td>${String(r.issuingAuthority ?? "—")}</td><td>${fmtD(r.issueDate)}</td><td>${fmtD(r.expiryDate)}</td><td>${String(r.calibreOrDescription ?? "—")}</td><td>${String(r.status ?? "—")}</td></tr>`).join("");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Firearms &amp; Stalking Certificates</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Firearms &amp; Stalking Certificates${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>${filteredFirearms.length} certificate${filteredFirearms.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Holder Name</th><th>Certificate Type</th><th>Cert. No.</th><th>Issuing Authority</th><th>Issue Date</th><th>Expiry Date</th><th>Calibre / Desc.</th><th>Status</th></tr></thead><tbody>${trs}</tbody></table></body></html>`);
+    w.document.close();
+    w.print();
+  }
+
   const today = new Date().toISOString().split("T")[0];
   const expiringSoon = records.filter((r: any) => r.expiryDate && r.expiryDate > today && r.expiryDate <= new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0]).length;
   const expired = records.filter((r: any) => r.expiryDate && r.expiryDate < today && r.status === "active").length;
@@ -982,21 +996,33 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
         <ShieldCheck className="inline w-4 h-4 mr-1" />
         <strong>Legal requirement:</strong> All deer stalkers must hold a valid <strong>Section 1 Firearms Certificate (FC)</strong> for the calibre used. Commercial venison supply requires <strong>DSC2</strong> or equivalent and a <strong>Hunter Food Hygiene Certificate (WGMI)</strong>. FCs are renewed every 5 years by the local police authority.
       </div>
-      <SectionHeader title="Firearms & Stalking Certificates" onAdd={() => open("add")} addLabel="Add Certificate" />
-      {records.length === 0 ? (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">Firearms &amp; Stalking Certificates</span>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{fireYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
+          {filteredFirearms.length > 0 && <Button size="sm" variant="outline" onClick={printFirearms}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => open("add")}><Plus className="w-3.5 h-3.5 mr-1" />Add Certificate</Button>
+        </div>
+      </div>
+      {filteredFirearms.length === 0 ? (
         <EmptyState icon={ShieldCheck} message="No certificates registered yet. Add firearms certificates and stalking qualifications for all stalkers above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/30">
-                {["Holder Name", "Certificate Type", "Cert. No.", "Issuing Authority", "Issue Date", "Expiry Date", "Calibre / Description", "Status", ""].map(h => (
+                {["Holder Name", "Certificate Type", "Cert. No.", "Issuing Authority", "Issue Date", "Expiry Date", "Calibre / Description", "Status", "Doc", ""].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any) => {
+              {filteredFirearms.map((r: any) => {
                 const isExpired = r.expiryDate && r.expiryDate < today;
                 const isExpiringSoon = r.expiryDate && !isExpired && r.expiryDate <= new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
                 return (
@@ -1014,6 +1040,9 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
                       <Badge variant="outline" className={`text-xs ${isExpired ? "bg-red-100 text-red-800 border-red-200" : r.status === "active" ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}`}>
                         {isExpired ? "Expired" : fmt(r.status)}
                       </Badge>
+                    </td>
+                    <td className="py-2 px-3">
+                      <DocAttach farmId={farmId} endpoint="venison-firearms-register" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["venison-firearms", String(farmId)]} compact />
                     </td>
                     <td className="py-2 px-3">
                       <div className="flex gap-1">

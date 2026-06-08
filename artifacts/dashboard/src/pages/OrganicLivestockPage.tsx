@@ -1630,6 +1630,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const [viewRecord, setViewRecord] = useState<TreatmentRecord | null>(null);
   const [raiseTaskRecord, setRaiseTaskRecord] = useState<TreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<TreatmentRecord>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
 
   const { data } = useQuery<{ records: TreatmentRecord[] }>({
     queryKey: ["organic-livestock-treatments", farmId],
@@ -1672,6 +1673,9 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const f = (k: keyof TreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const treatYears = useMemo(() => Array.from(new Set(records.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredTreatments = useMemo(() => yearFilter === "all" ? records : records.filter(r => String(r.treatmentDate ?? "").startsWith(yearFilter)), [records, yearFilter]);
+
   return (
     <div className="space-y-4">
       {medicineOrganicRecords.length > 0 && (
@@ -1680,10 +1684,16 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
           <span><strong>{medicineOrganicRecords.length} treatment{medicineOrganicRecords.length !== 1 ? "s" : ""}</strong> auto-populated from the Medicine Register. No double entry needed.</span>
         </div>
       )}
-      <div className="flex justify-between items-center">
-        <Button variant="outline" size="sm" onClick={() => printTreatmentRegister(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-          <Printer className="h-4 w-4" />Print Treatment Register
-        </Button>
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{treatYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => printTreatmentRegister(records, farmName)} disabled={records.length === 0} className="gap-1.5">
+            <Printer className="h-4 w-4" />Print Treatment Register
+          </Button>
+        </div>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Standalone Treatment
         </Button>
@@ -1733,7 +1743,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
               </TableCell>
             </TableRow>
           )}
-          {records.map((r) => (
+          {filteredTreatments.map((r) => (
             <TableRow key={r.id}>
               <TableCell>{fmt(r.treatmentDate)}</TableCell>
               <TableCell><span className="text-xs text-muted-foreground">Standalone</span></TableCell>

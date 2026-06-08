@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
+import { openPrintWindow } from "@/lib/print-report";
 import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -535,11 +536,22 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
   const pricePerBird = parseInt(String(form.pricePerBirdPence ?? "")) || 0;
   const autoTotal = birdsReceived > 0 && pricePerBird > 0 ? birdsReceived * pricePerBird : null;
 
+  function printPurchases() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const fmtGBPp = (p: unknown) => { const n = Number(p ?? 0); return n ? `£${(n / 100).toFixed(2)}` : "—"; };
+    const trs = filteredPurchases.map(r => `<tr><td>${fmtFlockLabel(r.flockId)}</td><td>${String(r.supplierName ?? "—")}</td><td>${String(r.poReference ?? "—")}</td><td>${fmtD(r.orderDate)}</td><td>${String(r.numberOfBirdsOrdered ?? "—")}</td><td>${String(r.numberOfBirdsReceived ?? "—")}</td><td>${fmtGBPp(r.totalCostPence)}</td><td>${String(r.invoiceReference ?? "—")}</td><td>${String(r.paymentStatus ?? "—")}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Chick Purchases</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Chick Purchases</h1><h2>${filteredPurchases.length} record${filteredPurchases.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Flock</th><th>Hatchery</th><th>PO Ref</th><th>Order Date</th><th>Ordered</th><th>Received</th><th>Total Cost</th><th>Invoice Ref</th><th>Status</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
         <div><h3 className="font-semibold text-sm">Chick Purchases <span className="text-muted-foreground font-normal">({filteredPurchases.length})</span></h3><p className="text-xs text-muted-foreground mt-0.5">Track purchase orders, chick receipts, invoices and payment status for each flock placement.</p></div>
-        <Button size="sm" onClick={() => openAdd({ paymentStatus: "unpaid", paymentTermsDays: "30" })}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>
+        <div className="flex gap-2">
+          {filteredPurchases.length > 0 && <Button size="sm" variant="outline" onClick={printPurchases}><Printer className="w-4 h-4 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => openAdd({ paymentStatus: "unpaid", paymentTermsDays: "30" })}><Plus className="w-4 h-4 mr-1" />Add Purchase</Button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         <Select value={yearFilterCP} onValueChange={setYearFilterCP}>
@@ -1403,7 +1415,12 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
 
   const coList = (records ?? []) as Record<string, unknown>[];
   const [houseFilterCO, setHouseFilterCO] = useState("all");
-  const filteredCoList = houseFilterCO === "all" ? coList : coList.filter(r => String(r.houseId) === houseFilterCO);
+  const [yearFilterCO, setYearFilterCO] = useState("all");
+  const coYears = useMemo(() => Array.from(new Set(coList.map(r => String(r.cleanoutStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [coList]);
+  const filteredCoList = coList.filter(r =>
+    (houseFilterCO === "all" || String(r.houseId) === houseFilterCO) &&
+    (yearFilterCO === "all" || String(r.cleanoutStartDate ?? "").startsWith(yearFilterCO))
+  );
   const avgStanding = filteredCoList.filter(r => r.standingTimeDays).length ? Math.round(filteredCoList.filter(r => r.standingTimeDays).reduce((s, r) => s + Number(r.standingTimeDays), 0) / filteredCoList.filter(r => r.standingTimeDays).length) : null;
   const swabsTakenCount = filteredCoList.filter(r => r.swabsTaken).length;
   const totalCostPence = filteredCoList.reduce((s, r) => s + (Number(r.costPence) || 0), 0);
@@ -1428,16 +1445,30 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
     { key: "swabResults", label: "Swab Results" }, { key: "notes", label: "Notes" },
   ];
 
+  function printCleanouts() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const trs = filteredCoList.map(r => `<tr><td>${fmtD(r.cleanoutStartDate)}</td><td>${fmtD(r.cleanoutEndDate)}</td><td>${String(r.houseName ?? "—")}</td><td>${String(r.disinfectantUsed ?? "—")}</td><td>${r.performedByContractor ? `Yes — ${String(r.contractorName ?? "")}` : "No"}</td><td>${r.standingTimeDays ? `${r.standingTimeDays}d` : "—"}</td><td>${r.swabsTaken ? "Yes" : "No"}</td><td>${r.costPence ? `£${(Number(r.costPence) / 100).toFixed(2)}` : "—"}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Cleanout Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>House Cleanout &amp; Disinfection Records</h1><h2>${filteredCoList.length} record${filteredCoList.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Start Date</th><th>End Date</th><th>House</th><th>Disinfectant</th><th>Contractor</th><th>Standing Time</th><th>Swabs Taken</th><th>Cost</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    openPrintWindow(html);
+  }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredCoList, "cleanout-records.csv", coCsvCols)} disabled={!filteredCoList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          {filteredCoList.length > 0 && <Button size="sm" variant="outline" onClick={printCleanouts}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Select value={yearFilterCO} onValueChange={setYearFilterCO}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {coYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={houseFilterCO} onValueChange={setHouseFilterCO}>
           <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="All houses" /></SelectTrigger>
           <SelectContent>
@@ -1723,12 +1754,19 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
     { key: "alarmActivated", label: "Alarm", fmt: (r: Record<string, unknown>) => r.alarmActivated ? "Yes" : "No" },
     { key: "alarmDetails", label: "Alarm Details" },
   ];
+  function printEnvLogs() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const trs = filteredEnvList.map(r => `<tr><td>${fmtD(r.logDate)}${r.logTime ? ` ${r.logTime}` : ""}</td><td>${String(r.flockNumber ?? r.flockId ?? "—")}</td><td>${String(r.houseName ?? "—")}</td><td>${r.temperatureMin != null ? `${r.temperatureMin}°C` : "—"}</td><td>${r.temperatureMax != null ? `${r.temperatureMax}°C` : "—"}</td><td>${r.humidity != null ? `${r.humidity}%` : "—"}</td><td>${r.ammoniaPpm != null ? `${r.ammoniaPpm} ppm` : "—"}</td><td>${r.alarmActivated ? "Yes" : "No"}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Environmental Logs</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Environmental Monitoring Logs</h1><h2>${filteredEnvList.length} record${filteredEnvList.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date/Time</th><th>Flock</th><th>House</th><th>Min Temp</th><th>Max Temp</th><th>Humidity</th><th>Ammonia</th><th>Alarm</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    openPrintWindow(html);
+  }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredEnvList, "environmental-logs.csv", envCsvCols)} disabled={!filteredEnvList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          {filteredEnvList.length > 0 && <Button size="sm" variant="outline" onClick={printEnvLogs}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button>
         </div>
       </div>
@@ -2141,6 +2179,12 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
     { key: "catchingContractorName", label: "Catching Contractor" }, { key: "catchingConditions", label: "Catching Conditions" },
     { key: "transportVehicleReg", label: "Vehicle Reg" }, { key: "notes", label: "Notes" },
   ];
+  function printThinning() {
+    const fmtD = (d: unknown) => d ? new Date(String(d)).toLocaleDateString("en-GB") : "—";
+    const trs = filteredThinList.map(r => `<tr><td>${fmtD(r.thinningDate)}</td><td>${String(r.flockNumber ?? r.flockId ?? "—")}</td><td>${String(r.houseName ?? "—")}</td><td>${String(r.thinningNumber ?? "—")}</td><td>${String(r.birdsRemoved ?? "—")}</td><td>${String(r.doasAtLoading ?? "0")}</td><td>${String(r.averageLiveWeightKg ?? "—")}</td><td>${String(r.destinationAbattoir ?? "—")}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Thinning Records</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;padding:4px 6px;border:1px solid #e5e7eb;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.05em}td{padding:4px 6px;border:1px solid #e5e7eb}@media print{@page{margin:1.5cm}}</style></head><body><h1>Thinning Records</h1><h2>${filteredThinList.length} record${filteredThinList.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Flock</th><th>House</th><th>Thinning No.</th><th>Birds Removed</th><th>DOAs</th><th>Avg Live Wt (kg)</th><th>Abattoir</th></tr></thead><tbody>${trs}</tbody></table></body></html>`;
+    openPrintWindow(html);
+  }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
@@ -2150,6 +2194,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredThinList, "thinning-records.csv", tCsv)} disabled={!filteredThinList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          {filteredThinList.length > 0 && <Button size="sm" variant="outline" onClick={printThinning}><Printer className="w-4 h-4 mr-1" />Print</Button>}
           <Button size="sm" onClick={() => openAdd({ thinningNumber: "1", doasAtLoading: "0" })}><Plus className="w-4 h-4 mr-1" />Log Thinning</Button>
         </div>
       </div>
