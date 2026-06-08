@@ -26022,6 +26022,13 @@ router.post("/farms/:farmId/weighing-equipment/:id/calibrations", requireAuth, r
   if (!farmId) return;
   const equipmentId = parseInt(req.params.id as string, 10);
   const b = req.body as Record<string, unknown>;
+  const [equip] = await db.select().from(weighingEquipmentTable).where(and(eq(weighingEquipmentTable.id, equipmentId), eq(weighingEquipmentTable.farmId, farmId)));
+  let resolvedNextDue: string | null = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (!resolvedNextDue && b.calibrationDate && equip?.calibrationIntervalMonths) {
+    const nd = new Date(String(b.calibrationDate) + "T00:00:00");
+    nd.setMonth(nd.getMonth() + Number(equip.calibrationIntervalMonths));
+    resolvedNextDue = nd.toISOString().slice(0, 10);
+  }
   const [cal] = await db.insert(weighingEquipmentCalibrationsTable).values({
     equipmentId,
     farmId,
@@ -26029,14 +26036,14 @@ router.post("/farms/:farmId/weighing-equipment/:id/calibrations", requireAuth, r
     result: String(b.result ?? ""),
     calibratedBy: b.calibratedBy ? String(b.calibratedBy) : null,
     certificateRef: b.certificateRef ? String(b.certificateRef) : null,
-    nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null,
+    nextDueDate: resolvedNextDue,
     notes: b.notes ? String(b.notes) : null,
   }).returning();
   await db.update(weighingEquipmentTable).set({
     lastCalibrationDate: String(b.calibrationDate ?? ""),
     lastCalibrationResult: String(b.result ?? ""),
     calibratedBy: b.calibratedBy ? String(b.calibratedBy) : null,
-    ...(b.nextDueDate ? { nextCalibrationDue: String(b.nextDueDate) } : {}),
+    ...(resolvedNextDue ? { nextCalibrationDue: resolvedNextDue } : {}),
   }).where(and(eq(weighingEquipmentTable.id, equipmentId), eq(weighingEquipmentTable.farmId, farmId)));
   res.status(201).json(cal);
 });

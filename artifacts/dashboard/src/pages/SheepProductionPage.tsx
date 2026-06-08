@@ -855,9 +855,23 @@ function WeighingEquipmentTab({ farmId }: { farmId: number }) {
       {/* Log Calibration dialog */}
       <Dialog open={calOpen} onOpenChange={setCalOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Log Calibration{viewing ? ` — ${String(viewing.name)}` : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Log Calibration / Inspection{viewing ? ` — ${String(viewing.name)}` : ""}</DialogTitle></DialogHeader>
           <div className="grid gap-3">
-            <Field label="Calibration Date *"><Input type="date" value={calForm.calibrationDate ?? ""} onChange={e => setCalForm(f => ({ ...f, calibrationDate: e.target.value }))} /></Field>
+            <Field label="Calibration Date *">
+              <Input type="date" value={calForm.calibrationDate ?? ""} onChange={e => {
+                const d = e.target.value;
+                setCalForm(f => {
+                  const interval = viewing?.calibrationIntervalMonths ? parseInt(String(viewing.calibrationIntervalMonths)) : null;
+                  let nextDue = f.nextDueDate;
+                  if (d && interval) {
+                    const nd = new Date(d + "T00:00:00");
+                    nd.setMonth(nd.getMonth() + interval);
+                    nextDue = nd.toISOString().slice(0, 10);
+                  }
+                  return { ...f, calibrationDate: d, nextDueDate: nextDue ?? "" };
+                });
+              }} />
+            </Field>
             <Field label="Result *">
               <Select value={calForm.result ?? ""} onValueChange={v => setCalForm(f => ({ ...f, result: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select result…" /></SelectTrigger>
@@ -868,9 +882,12 @@ function WeighingEquipmentTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Calibrated By"><Input value={calForm.calibratedBy ?? ""} onChange={e => setCalForm(f => ({ ...f, calibratedBy: e.target.value }))} /></Field>
-            <Field label="Certificate / Reference"><Input value={calForm.certificateRef ?? ""} onChange={e => setCalForm(f => ({ ...f, certificateRef: e.target.value }))} /></Field>
-            <Field label="Next Due Date"><Input type="date" value={calForm.nextDueDate ?? ""} onChange={e => setCalForm(f => ({ ...f, nextDueDate: e.target.value }))} /></Field>
+            <Field label="Contractor / Supplier"><Input placeholder="Name of contractor or supplier" value={calForm.calibratedBy ?? ""} onChange={e => setCalForm(f => ({ ...f, calibratedBy: e.target.value }))} /></Field>
+            <Field label="Certificate / Reference No."><Input value={calForm.certificateRef ?? ""} onChange={e => setCalForm(f => ({ ...f, certificateRef: e.target.value }))} /></Field>
+            <Field label="Next Due Date">
+              <Input type="date" value={calForm.nextDueDate ?? ""} onChange={e => setCalForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+              {viewing?.calibrationIntervalMonths && <p className="text-xs text-muted-foreground mt-1">Auto-calculated from {String(viewing.calibrationIntervalMonths)}-month interval — adjust if needed</p>}
+            </Field>
             <Field label="Notes"><Textarea value={calForm.notes ?? ""} onChange={e => setCalForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></Field>
           </div>
           <DialogFooter>
@@ -910,19 +927,6 @@ function WeighingEquipmentTab({ farmId }: { farmId: number }) {
             <Field label="Location"><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} placeholder="e.g. Main yard, Loading bay" /></Field>
             <Field label="Purchase Date"><Input type="date" value={form.purchaseDate ?? ""} onChange={e => sf("purchaseDate", e.target.value)} /></Field>
             <Field label="Calibration Interval (months)"><Input type="number" min="1" value={form.calibrationIntervalMonths ?? "12"} onChange={e => sf("calibrationIntervalMonths", e.target.value)} /></Field>
-            <Field label="Last Calibration Date"><Input type="date" value={form.lastCalibrationDate ?? ""} onChange={e => sf("lastCalibrationDate", e.target.value)} /></Field>
-            <Field label="Last Calibration Result">
-              <Select value={form.lastCalibrationResult ?? ""} onValueChange={v => sf("lastCalibrationResult", v)}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pass">Pass</SelectItem>
-                  <SelectItem value="advisory">Advisory</SelectItem>
-                  <SelectItem value="fail">Fail</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Calibrated By"><Input value={form.calibratedBy ?? ""} onChange={e => sf("calibratedBy", e.target.value)} /></Field>
-            <Field label="Next Calibration Due"><Input type="date" value={form.nextCalibrationDue ?? ""} onChange={e => sf("nextCalibrationDue", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
           <DialogFooter>
