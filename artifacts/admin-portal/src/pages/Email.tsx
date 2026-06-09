@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { api, type EmailTemplate, type AdminEmailSent, type Tenant, type InboxEmail, type FullEmail } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
   ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
   Reply, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
+  ArrowUp, ArrowDown,
 } from "lucide-react";
 
 const CATEGORIES = ["general", "onboarding", "billing", "support", "compliance"];
@@ -140,6 +141,7 @@ function InboxTab() {
   const [replying, setReplying] = useState(false);
   const [replyResult, setReplyResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
   async function load(quiet = false) {
@@ -212,6 +214,15 @@ function InboxTab() {
     }
   }
 
+  const sortedEmails = useMemo(() =>
+    [...emails].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      return sortOrder === "desc" ? db - da : da - db;
+    }),
+    [emails, sortOrder]
+  );
+
   const unreadCount = emails.filter((e) => !e.seen).length;
 
   if (loading) {
@@ -251,14 +262,24 @@ function InboxTab() {
               </span>
             )}
           </div>
-          <button
-            onClick={() => load(true)}
-            disabled={refreshing}
-            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSortOrder((o) => o === "desc" ? "asc" : "desc")}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title={sortOrder === "desc" ? "Showing newest first — click for oldest first" : "Showing oldest first — click for newest first"}
+            >
+              {sortOrder === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+              {sortOrder === "desc" ? "Newest" : "Oldest"}
+            </button>
+            <button
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
 
         {emails.length === 0 ? (
@@ -268,7 +289,7 @@ function InboxTab() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto divide-y divide-border">
-            {emails.map((e) => (
+            {sortedEmails.map((e) => (
               <button
                 key={e.uid}
                 onClick={() => openEmail(e)}
@@ -609,6 +630,7 @@ function SentTab() {
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<AdminEmailSent | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   async function load() {
     setRefreshing(true);
@@ -627,6 +649,15 @@ function SentTab() {
       hour: "2-digit", minute: "2-digit",
     });
   }
+
+  const sortedEmails = useMemo(() =>
+    [...emails].sort((a, b) => {
+      const da = new Date(a.sentAt).getTime();
+      const db = new Date(b.sentAt).getTime();
+      return sortOrder === "desc" ? db - da : da - db;
+    }),
+    [emails, sortOrder]
+  );
 
   if (loading) {
     return (
@@ -665,13 +696,22 @@ function SentTab() {
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">To</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Subject</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Sent</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">
+                  <button
+                    onClick={() => setSortOrder((o) => o === "desc" ? "asc" : "desc")}
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    title={sortOrder === "desc" ? "Newest first — click for oldest first" : "Oldest first — click for newest first"}
+                  >
+                    Sent
+                    {sortOrder === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+                  </button>
+                </th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Status</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
-              {emails.map((e, i) => (
+              {sortedEmails.map((e, i) => (
                 <tr key={e.id} className={`border-t border-border ${i % 2 === 0 ? "" : "bg-muted/20"}`}>
                   <td className="px-4 py-3">
                     <p className="font-medium truncate max-w-[200px]">{e.toName || e.toAddress}</p>
