@@ -50,6 +50,16 @@ export async function farmRlsMiddleware(
   const client = await pool.connect();
   let closed = false;
 
+  // If Postgres kills this connection (e.g. idle-in-transaction timeout) before
+  // the response finishes, the pg Client emits 'error'. Without a handler Node
+  // would crash the process — swallow it here and mark the connection closed.
+  client.on("error", () => {
+    if (!closed) {
+      closed = true;
+      try { client.release(true); } catch { /* already released */ }
+    }
+  });
+
   const closeClient = async (commit: boolean) => {
     if (closed) return;
     closed = true;
