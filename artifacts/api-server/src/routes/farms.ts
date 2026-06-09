@@ -379,12 +379,14 @@ import {
   sheepDairyMastitisRecordsTable,
   sheepDairyKiddingRecordsTable,
   sheepDairyBcsRecordsTable,
+  sheepDairyBulkTanksTable,
   sheepDairyBulkTankRecordsTable,
   sheepDairyMvMonitoringTable,
   goatDairyMilkRecordsTable,
   goatDairyMastitisRecordsTable,
   goatDairyKiddingRecordsTable,
   goatDairyBcsRecordsTable,
+  goatDairyBulkTanksTable,
   goatDairyBulkTankRecordsTable,
   goatDairyCaeMonitoringTable,
   organicSheepDairyFlockConversionTable,
@@ -28076,6 +28078,36 @@ router.delete("/farms/:farmId/sheep-dairy/bcs-records/:recordId", requireAuth, r
   res.json({ success: true });
 });
 
+router.get("/farms/:farmId/sheep-dairy/tanks", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tanks = await db.select().from(sheepDairyBulkTanksTable).where(eq(sheepDairyBulkTanksTable.farmId, farmId)).orderBy(sheepDairyBulkTanksTable.name);
+  res.json({ tanks });
+});
+router.post("/farms/:farmId/sheep-dairy/tanks", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, location, capacityLitres, manufacturer, serialNumber, installDate, notes } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+  const [tank] = await db.insert(sheepDairyBulkTanksTable).values({ farmId, name: name.trim(), location: location || null, capacityLitres: capacityLitres || null, manufacturer: manufacturer || null, serialNumber: serialNumber || null, installDate: installDate || null, notes: notes || null }).returning();
+  res.json({ tank });
+});
+router.put("/farms/:farmId/sheep-dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = parseInt(req.params.tankId as string);
+  const { name, location, capacityLitres, manufacturer, serialNumber, installDate, notes } = req.body;
+  const [tank] = await db.update(sheepDairyBulkTanksTable).set({ name: name?.trim(), location: location || null, capacityLitres: capacityLitres || null, manufacturer: manufacturer || null, serialNumber: serialNumber || null, installDate: installDate || null, notes: notes || null }).where(and(eq(sheepDairyBulkTanksTable.id, tankId), eq(sheepDairyBulkTanksTable.farmId, farmId))).returning();
+  res.json({ tank });
+});
+router.delete("/farms/:farmId/sheep-dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = parseInt(req.params.tankId as string);
+  await db.delete(sheepDairyBulkTanksTable).where(and(eq(sheepDairyBulkTanksTable.id, tankId), eq(sheepDairyBulkTanksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 router.get("/farms/:farmId/sheep-dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -28245,6 +28277,36 @@ router.delete("/farms/:farmId/goat-dairy/bcs-records/:recordId", requireAuth, re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   await db.delete(goatDairyBcsRecordsTable).where(and(eq(goatDairyBcsRecordsTable.id, Number(req.params.recordId)), eq(goatDairyBcsRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/goat-dairy/tanks", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tanks = await db.select().from(goatDairyBulkTanksTable).where(eq(goatDairyBulkTanksTable.farmId, farmId)).orderBy(goatDairyBulkTanksTable.name);
+  res.json({ tanks });
+});
+router.post("/farms/:farmId/goat-dairy/tanks", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, location, capacityLitres, manufacturer, serialNumber, installDate, notes } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+  const [tank] = await db.insert(goatDairyBulkTanksTable).values({ farmId, name: name.trim(), location: location || null, capacityLitres: capacityLitres || null, manufacturer: manufacturer || null, serialNumber: serialNumber || null, installDate: installDate || null, notes: notes || null }).returning();
+  res.json({ tank });
+});
+router.put("/farms/:farmId/goat-dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = parseInt(req.params.tankId as string);
+  const { name, location, capacityLitres, manufacturer, serialNumber, installDate, notes } = req.body;
+  const [tank] = await db.update(goatDairyBulkTanksTable).set({ name: name?.trim(), location: location || null, capacityLitres: capacityLitres || null, manufacturer: manufacturer || null, serialNumber: serialNumber || null, installDate: installDate || null, notes: notes || null }).where(and(eq(goatDairyBulkTanksTable.id, tankId), eq(goatDairyBulkTanksTable.farmId, farmId))).returning();
+  res.json({ tank });
+});
+router.delete("/farms/:farmId/goat-dairy/tanks/:tankId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = parseInt(req.params.tankId as string);
+  await db.delete(goatDairyBulkTanksTable).where(and(eq(goatDairyBulkTanksTable.id, tankId), eq(goatDairyBulkTanksTable.farmId, farmId)));
   res.json({ success: true });
 });
 

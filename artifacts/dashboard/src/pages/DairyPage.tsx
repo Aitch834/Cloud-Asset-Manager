@@ -2309,7 +2309,8 @@ export function BcsTab({ farmId }: { farmId: number }) {
                     {r.assessedBy && <span className="text-xs text-gray-400">by {r.assessedBy}</span>}
                     {r.actionRequired && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Action needed</span>}
                   </div>
-                  <div className="flex gap-1 ml-2">
+                  <div className="flex items-center gap-1 ml-2">
+                    <RecordAttachments farmId={farmId} recordType="dairy-bcs-records" recordId={r.id} compact />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -2640,7 +2641,8 @@ export function MobilityTab({ farmId }: { farmId: number }) {
                       {r.assessedBy && <span className="text-xs text-gray-400">by {r.assessedBy}</span>}
                       {r.nextAssessmentDue && <span className="text-xs text-gray-400">Next: {formatDate(r.nextAssessmentDue)}</span>}
                     </div>
-                    <div className="flex gap-1 ml-2" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
+                      <RecordAttachments farmId={farmId} recordType="dairy-mobility-scorings" recordId={r.id} compact />
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>

@@ -1758,7 +1758,8 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
                 </Badge>
               </TableCell>
               <TableCell>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1">
+                  <RecordAttachments farmId={farmId} recordType="organic-livestock-treatments" recordId={r.id as number} compact />
                   <Button variant="ghost" size="icon" title="View" onClick={() => setViewRecord(r)}>
                     <Eye className="h-4 w-4" />
                   </Button>

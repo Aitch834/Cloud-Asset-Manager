@@ -127,9 +127,23 @@ export const sheepDairyBcsRecordsTable = pgTable("sheep_dairy_bcs_records", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const sheepDairyBulkTanksTable = pgTable("sheep_dairy_bulk_tanks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  location: text("location"),
+  capacityLitres: numeric("capacity_litres", { precision: 10, scale: 0 }),
+  manufacturer: text("manufacturer"),
+  serialNumber: text("serial_number"),
+  installDate: date("install_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const sheepDairyBulkTankRecordsTable = pgTable("sheep_dairy_bulk_tank_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => sheepDairyBulkTanksTable.id),
   recordDate: timestamp("record_date", { withTimezone: true }).notNull(),
   recordType: text("record_type").notNull(),
   tankTemperatureCelsius: numeric("tank_temperature_celsius", { precision: 5, scale: 2 }),
@@ -287,9 +301,23 @@ export const goatDairyBcsRecordsTable = pgTable("goat_dairy_bcs_records", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const goatDairyBulkTanksTable = pgTable("goat_dairy_bulk_tanks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  location: text("location"),
+  capacityLitres: numeric("capacity_litres", { precision: 10, scale: 0 }),
+  manufacturer: text("manufacturer"),
+  serialNumber: text("serial_number"),
+  installDate: date("install_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const goatDairyBulkTankRecordsTable = pgTable("goat_dairy_bulk_tank_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => goatDairyBulkTanksTable.id),
   recordDate: timestamp("record_date", { withTimezone: true }).notNull(),
   recordType: text("record_type").notNull(),
   tankTemperatureCelsius: numeric("tank_temperature_celsius", { precision: 5, scale: 2 }),

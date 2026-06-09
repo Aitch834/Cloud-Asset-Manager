@@ -719,8 +719,14 @@ export function BcsTab({ farmId }: { farmId: number }) {
 
 // ─── Bulk Tank ─────────────────────────────────────────────────────────────────
 
+interface BulkTank {
+  id: number; name: string; location?: string | null;
+  capacityLitres?: string | null; manufacturer?: string | null;
+  serialNumber?: string | null; installDate?: string | null; notes?: string | null;
+}
+
 interface TankRecord {
-  id: number; recordDate: string; recordType: string;
+  id: number; tankId?: number | null; recordDate: string; recordType: string;
   tankTemperatureCelsius?: string | null; tankCleaned?: boolean;
   cleaningProductUsed?: string | null; cleaningProductBatch?: string | null;
   antibioticResidueTestRef?: string | null; antibioticResidueResult?: string | null;
@@ -730,6 +736,33 @@ interface TankRecord {
 export function BulkTankTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  // ── Tank register ──────────────────────────────────────────────────────────
+  const [tanksOpen, setTanksOpen] = useState(true);
+  const [tankDialog, setTankDialog] = useState(false);
+  const [editingTank, setEditingTank] = useState<BulkTank | null>(null);
+  const [tankForm, setTankForm] = useState<Partial<BulkTank>>({});
+  const stf = (k: keyof BulkTank, v: unknown) => setTankForm(p => ({ ...p, [k]: v }));
+
+  const tanksQ = useQuery<{ tanks: BulkTank[] }>({
+    queryKey: ["goat-dairy-tanks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/tanks`)).then(r => r.json()),
+  });
+  const tanks: BulkTank[] = tanksQ.data?.tanks ?? [];
+
+  const saveTank = useMutation({
+    mutationFn: (body: Partial<BulkTank>) => {
+      const url = editingTank ? api(`farms/${farmId}/goat-dairy/tanks/${editingTank.id}`) : api(`farms/${farmId}/goat-dairy/tanks`);
+      return fetch(url, { method: editingTank ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-tanks", farmId] }); setTankDialog(false); setEditingTank(null); setTankForm({}); },
+  });
+  const delTank = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/tanks/${id}`), { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-dairy-tanks", farmId] }),
+  });
+
+  // ── Monitoring records ─────────────────────────────────────────────────────
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TankRecord | null>(null);
   const [viewRec, setViewRec] = useState<TankRecord | null>(null);
@@ -752,7 +785,7 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const printTank = () => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>Bulk Tank Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Bulk Tank Records${tankYearFilter !== "all" ? ` — ${tankYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Type</th><th>Temperature (°C)</th><th>Cleaned</th><th>ABR Result</th><th>Notes</th></tr></thead><tbody>${filteredTank.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${r.recordType?.replace(/-/g, " ") || "—"}</td><td>${r.tankTemperatureCelsius || "—"}</td><td>${r.tankCleaned ? "Yes" : "—"}</td><td>${r.antibioticResidueResult || "—"}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.write(`<html><head><title>Bulk Tank Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Bulk Tank Records${tankYearFilter !== "all" ? ` — ${tankYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Tank</th><th>Type</th><th>Temperature (°C)</th><th>Cleaned</th><th>ABR Result</th><th>Notes</th></tr></thead><tbody>${filteredTank.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${tanks.find(t => t.id === r.tankId)?.name || "—"}</td><td>${r.recordType?.replace(/-/g, " ") || "—"}</td><td>${r.tankTemperatureCelsius || "—"}</td><td>${r.tankCleaned ? "Yes" : "—"}</td><td>${r.antibioticResidueResult || "—"}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
     w.document.close(); w.print();
   };
 
@@ -767,6 +800,36 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      {/* ── Tank Register ──────────────────────────────────────────────────── */}
+      <div className="border rounded-lg overflow-hidden">
+        <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left" onClick={() => setTanksOpen(o => !o)}>
+          <span className="font-semibold text-sm text-gray-800">Registered Bulk Tanks ({tanks.length})</span>
+          <span className="text-xs text-gray-400">{tanksOpen ? "▲" : "▼"}</span>
+        </button>
+        {tanksOpen && (
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-gray-500">Register each bulk tank on the holding. Once registered, select the tank when logging monitoring records.</p>
+            {tanksQ.isLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-400" /> : tanks.length === 0
+              ? <p className="text-sm text-gray-400 italic">No tanks registered yet.</p>
+              : tanks.map(t => (
+                <div key={t.id} className="flex items-center justify-between bg-white border rounded px-3 py-2">
+                  <div className="min-w-0">
+                    <span className="font-medium text-sm">{t.name}</span>
+                    {t.location && <span className="text-xs text-gray-500 ml-2">· {t.location}</span>}
+                    {t.capacityLitres && <span className="text-xs text-gray-400 ml-2">· {Number(t.capacityLitres).toLocaleString()} L</span>}
+                    {t.manufacturer && <span className="text-xs text-gray-400 ml-2">· {t.manufacturer}</span>}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingTank(t); setTankForm({ ...t }); setTankDialog(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => delTank.mutate(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+              ))}
+            <Button size="sm" variant="outline" onClick={() => { setEditingTank(null); setTankForm({}); setTankDialog(true); }}><Plus className="w-3.5 h-3.5 mr-1" />Add Tank</Button>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Records</p><p className="text-2xl font-bold text-gray-800">{filteredTank.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">High Temp Events (&gt;4°C)</p><p className={`text-2xl font-bold ${highTempCount > 0 ? "text-red-700" : "text-green-700"}`}>{highTempCount}</p></CardContent></Card>
@@ -785,10 +848,11 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredTank.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No bulk tank records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Type</th><th className="py-2 px-3 text-left">Temperature</th><th className="py-2 px-3 text-left">Cleaned</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
+          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Tank</th><th className="py-2 px-3 text-left">Type</th><th className="py-2 px-3 text-left">Temperature</th><th className="py-2 px-3 text-left">Cleaned</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
           <tbody>{filteredTank.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.recordDate)}</td>
+              <td className="py-2 px-3 text-xs text-gray-500">{tanks.find(t => t.id === r.tankId)?.name || "—"}</td>
               <td className="py-2 px-3 capitalize">{r.recordType?.replace(/-/g, " ") || "—"}</td>
               <td className="py-2 px-3">{r.tankTemperatureCelsius ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${parseFloat(r.tankTemperatureCelsius) > 4 ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.tankTemperatureCelsius}°C</span> : "—"}</td>
               <td className="py-2 px-3">{r.tankCleaned ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : "—"}</td>
@@ -808,6 +872,7 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
           <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader><DialogTitle>Bulk Tank Record — {fmt(viewRec.recordDate)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              {viewRec.tankId && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Tank</p><p className="font-medium">{tanks.find(t => t.id === viewRec.tankId)?.name || "—"}</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium capitalize">{viewRec.recordType?.replace(/-/g, " ") || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Temperature</p><p className="font-medium">{viewRec.tankTemperatureCelsius ? `${viewRec.tankTemperatureCelsius}°C` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tank Cleaned</p><p className="font-medium">{viewRec.tankCleaned ? "Yes" : "No"}</p></div>
@@ -828,6 +893,12 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{editing ? "Edit Bulk Tank Record" : "Add Bulk Tank Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div><Label>Date *</Label><Input type="date" value={String(form.recordDate || "").slice(0, 10)} onChange={e => set("recordDate", e.target.value)} /></div>
+            <div><Label>Tank</Label>
+              <Select value={form.tankId != null ? String(form.tankId) : "__none__"} onValueChange={v => set("tankId", v === "__none__" ? null : parseInt(v))}>
+                <SelectTrigger><SelectValue placeholder="Select tank…" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— No tank —</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Record Type *</Label>
               <Select value={form.recordType || "temperature-check"} onValueChange={v => set("recordType", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -849,6 +920,26 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tank add/edit dialog */}
+      <Dialog open={tankDialog} onOpenChange={setTankDialog}>
+        <DialogContent style={{ maxWidth: "30rem" }}>
+          <DialogHeader><DialogTitle>{editingTank ? "Edit Tank" : "Register Bulk Tank"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2"><Label>Tank Name *</Label><Input placeholder="e.g. Main Parlour Tank" value={tankForm.name || ""} onChange={e => stf("name", e.target.value)} /></div>
+            <div><Label>Location</Label><Input placeholder="e.g. Milking parlour" value={tankForm.location || ""} onChange={e => stf("location", e.target.value)} /></div>
+            <div><Label>Capacity (litres)</Label><Input type="number" value={tankForm.capacityLitres || ""} onChange={e => stf("capacityLitres", e.target.value)} /></div>
+            <div><Label>Manufacturer</Label><Input value={tankForm.manufacturer || ""} onChange={e => stf("manufacturer", e.target.value)} /></div>
+            <div><Label>Serial Number</Label><Input value={tankForm.serialNumber || ""} onChange={e => stf("serialNumber", e.target.value)} /></div>
+            <div><Label>Install Date</Label><Input type="date" value={tankForm.installDate || ""} onChange={e => stf("installDate", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={tankForm.notes || ""} onChange={e => stf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTankDialog(false)}>Cancel</Button>
+            <Button onClick={() => saveTank.mutate(tankForm)} disabled={saveTank.isPending || !tankForm.name?.trim()}>{saveTank.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}{editingTank ? "Save Changes" : "Register Tank"}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

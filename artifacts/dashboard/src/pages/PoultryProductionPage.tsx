@@ -590,6 +590,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
         { key: "totalCostPence", label: "Total Cost", fmt: r => fmtGBP(r.totalCostPence) },
         { key: "invoiceReference", label: "Invoice Ref" },
         { key: "paymentStatus", label: "Status", render: r => <span className={`capitalize font-medium text-xs ${payStatusClass(r.paymentStatus)}`}>{String(r.paymentStatus ?? "—")}</span> },
+        { key: "_attach", label: "", render: r => r.id ? <RecordAttachments farmId={farmId} recordType="poultry-chick-purchases" recordId={r.id as number} compact /> : null },
       ]} rows={filteredPurchases} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
 
       {viewRecord && (
@@ -1497,6 +1498,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
         { key: "disinfectantUsed", label: "Disinfectant" },
         { key: "standingTimeDays", label: "Standing (days)" },
         { key: "verifiedBy", label: "Verified By" },
+        { key: "_attach", label: "", render: r => r.id ? <RecordAttachments farmId={farmId} recordType="poultry-house-cleanout" recordId={r.id as number} compact /> : null },
       ]} rows={filteredCoList} onEdit={r => openEditCO(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
 
       {viewRecord && (
