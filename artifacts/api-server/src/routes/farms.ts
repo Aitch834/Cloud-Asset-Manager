@@ -381,6 +381,7 @@ import {
   sheepDairyBcsRecordsTable,
   sheepDairyBulkTanksTable,
   sheepDairyBulkTankRecordsTable,
+  sheepDairyMilkCollectionsTable,
   sheepDairyMvMonitoringTable,
   goatDairyMilkRecordsTable,
   goatDairyMastitisRecordsTable,
@@ -388,6 +389,7 @@ import {
   goatDairyBcsRecordsTable,
   goatDairyBulkTanksTable,
   goatDairyBulkTankRecordsTable,
+  goatDairyMilkCollectionsTable,
   goatDairyCaeMonitoringTable,
   organicSheepDairyFlockConversionTable,
   organicSheepDairyCollectionsTable,
@@ -28164,6 +28166,38 @@ router.delete("/farms/:farmId/sheep-dairy/mv-monitoring/:recordId", requireAuth,
   res.json({ success: true });
 });
 
+
+// ─── Sheep Dairy: Milk Collections ──────────────────────────────────────────
+router.get("/farms/:farmId/sheep-dairy/milk-collections", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collections = await db.select().from(sheepDairyMilkCollectionsTable).where(eq(sheepDairyMilkCollectionsTable.farmId, farmId)).orderBy(desc(sheepDairyMilkCollectionsTable.collectionDate));
+  res.json({ collections });
+});
+router.post("/farms/:farmId/sheep-dairy/milk-collections", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
+  if (!collectionDate) { res.status(400).json({ error: "collectionDate is required" }); return; }
+  const [collection] = await db.insert(sheepDairyMilkCollectionsTable).values({ farmId, tankId: tankId ? parseInt(tankId) : null, collectionDate: new Date(collectionDate), volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).returning();
+  res.json({ collection });
+});
+router.put("/farms/:farmId/sheep-dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collectionId = parseInt(req.params.collectionId as string);
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
+  const [collection] = await db.update(sheepDairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).where(and(eq(sheepDairyMilkCollectionsTable.id, collectionId), eq(sheepDairyMilkCollectionsTable.farmId, farmId))).returning();
+  res.json({ collection });
+});
+router.delete("/farms/:farmId/sheep-dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collectionId = parseInt(req.params.collectionId as string);
+  await db.delete(sheepDairyMilkCollectionsTable).where(and(eq(sheepDairyMilkCollectionsTable.id, collectionId), eq(sheepDairyMilkCollectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // GOAT DAIRY ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -28365,6 +28399,38 @@ router.delete("/farms/:farmId/goat-dairy/cae-monitoring/:recordId", requireAuth,
   await db.delete(goatDairyCaeMonitoringTable).where(and(eq(goatDairyCaeMonitoringTable.id, Number(req.params.recordId)), eq(goatDairyCaeMonitoringTable.farmId, farmId)));
   res.json({ success: true });
 });
+
+// ─── Goat Dairy: Milk Collections ──────────────────────────────────────────
+router.get("/farms/:farmId/goat-dairy/milk-collections", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collections = await db.select().from(goatDairyMilkCollectionsTable).where(eq(goatDairyMilkCollectionsTable.farmId, farmId)).orderBy(desc(goatDairyMilkCollectionsTable.collectionDate));
+  res.json({ collections });
+});
+router.post("/farms/:farmId/goat-dairy/milk-collections", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
+  if (!collectionDate) { res.status(400).json({ error: "collectionDate is required" }); return; }
+  const [collection] = await db.insert(goatDairyMilkCollectionsTable).values({ farmId, tankId: tankId ? parseInt(tankId) : null, collectionDate: new Date(collectionDate), volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).returning();
+  res.json({ collection });
+});
+router.put("/farms/:farmId/goat-dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collectionId = parseInt(req.params.collectionId as string);
+  const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, notes } = req.body;
+  const [collection] = await db.update(goatDairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, notes: notes || null }).where(and(eq(goatDairyMilkCollectionsTable.id, collectionId), eq(goatDairyMilkCollectionsTable.farmId, farmId))).returning();
+  res.json({ collection });
+});
+router.delete("/farms/:farmId/goat-dairy/milk-collections/:collectionId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const collectionId = parseInt(req.params.collectionId as string);
+  await db.delete(goatDairyMilkCollectionsTable).where(and(eq(goatDairyMilkCollectionsTable.id, collectionId), eq(goatDairyMilkCollectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 
 // ─── Organic Sheep Dairy — Flock Conversion ───────────────────────────────────
 

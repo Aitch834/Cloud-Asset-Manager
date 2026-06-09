@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL;
@@ -685,203 +686,401 @@ interface BulkTank {
   capacityLitres?: string | null; manufacturer?: string | null;
   serialNumber?: string | null; installDate?: string | null; notes?: string | null;
 }
-
 interface TankRecord {
   id: number; tankId?: number | null; recordDate: string; recordType: string;
   tankTemperatureCelsius?: string | null; tankCleaned?: boolean;
   cleaningProductUsed?: string | null; cleaningProductBatch?: string | null;
   antibioticResidueTestRef?: string | null; antibioticResidueResult?: string | null;
-  tankerDriverName?: string | null; collectionRef?: string | null; notes?: string | null;
+  notes?: string | null;
 }
+interface MilkCollection {
+  id: number; tankId?: number | null; collectionDate: string;
+  volumeCollectedLitres?: string | null; milkBuyer?: string | null;
+  tankerRegistration?: string | null; tankerDriverName?: string | null;
+  collectionRef?: string | null; statementRef?: string | null;
+  abtResultBeforeCollection?: string | null;
+  pencePerLitre?: string | null; grossValuePence?: number | null;
+  qualityBonusPence?: number | null; qualityPenaltyPence?: number | null;
+  transportDeductionPence?: number | null; netPaymentPence?: number | null;
+  notes?: string | null;
+}
+
+const MONITOR_TYPES = [
+  { value: "daily-temperature", label: "Daily Temperature Check" },
+  { value: "cleaning", label: "Cleaning Record" },
+  { value: "abr-test", label: "Antibiotic Residue Test" },
+  { value: "maintenance", label: "Maintenance Check" },
+];
+const ABR_RESULTS = ["Negative", "Positive", "Borderline", "Invalid"];
 
 export function BulkTankTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  // ── Tank register ──────────────────────────────────────────────────────────
-  const [tanksOpen, setTanksOpen] = useState(true);
+  // tank register
+  const [showTanks, setShowTanks] = useState(false);
   const [tankDialog, setTankDialog] = useState(false);
   const [editingTank, setEditingTank] = useState<BulkTank | null>(null);
-  const [tankForm, setTankForm] = useState<Partial<BulkTank>>({});
-  const stf = (k: keyof BulkTank, v: unknown) => setTankForm(p => ({ ...p, [k]: v }));
+  const [tankForm, setTankForm] = useState({ name: "", location: "", capacityLitres: "", manufacturer: "", serialNumber: "", installDate: "", notes: "" });
 
-  const tanksQ = useQuery<{ tanks: BulkTank[] }>({
-    queryKey: ["sheep-dairy-tanks", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/tanks`)).then(r => r.json()),
-  });
-  const tanks: BulkTank[] = tanksQ.data?.tanks ?? [];
+  // monitoring records
+  const [monDialog, setMonDialog] = useState(false);
+  const [editingMon, setEditingMon] = useState<TankRecord | null>(null);
+  const [monForm, setMonForm] = useState({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false as boolean, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" });
+  const [monYear, setMonYear] = useState(String(new Date().getFullYear()));
 
-  const saveTank = useMutation({
-    mutationFn: (body: Partial<BulkTank>) => {
-      const url = editingTank ? api(`farms/${farmId}/sheep-dairy/tanks/${editingTank.id}`) : api(`farms/${farmId}/sheep-dairy/tanks`);
-      return fetch(url, { method: editingTank ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tanks", farmId] }); setTankDialog(false); setEditingTank(null); setTankForm({}); },
-  });
-  const delTank = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/tanks/${id}`), { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-dairy-tanks", farmId] }),
-  });
+  // milk collections
+  const [collDialog, setCollDialog] = useState(false);
+  const [editingColl, setEditingColl] = useState<MilkCollection | null>(null);
+  const [collForm, setCollForm] = useState({ tankId: "", collectionDate: today(), volumeCollectedLitres: "", milkBuyer: "", tankerRegistration: "", tankerDriverName: "", collectionRef: "", statementRef: "", abtResultBeforeCollection: "", pencePerLitre: "", grossValuePence: "", qualityBonusPence: "", qualityPenaltyPence: "", transportDeductionPence: "", netPaymentPence: "", notes: "" });
+  const [collYear, setCollYear] = useState(String(new Date().getFullYear()));
 
-  // ── Monitoring records ─────────────────────────────────────────────────────
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<TankRecord | null>(null);
-  const blank: Partial<TankRecord> = { recordDate: today(), recordType: "temperature-check" };
-  const [form, setForm] = useState<Partial<TankRecord>>(blank);
-  const set = (k: keyof TankRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+  // queries
+  const tanksQ = useQuery<{ tanks: BulkTank[] }>({ queryKey: ["sheep-dairy-bulk-tanks", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks`)).then(r => r.json()) });
+  const tanks = tanksQ.data?.tanks ?? [];
 
-  const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-tank", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records`)).then(r => r.json()) });
-  const records: TankRecord[] = data?.records ?? [];
+  const monQ = useQuery<{ records: TankRecord[] }>({ queryKey: ["sheep-dairy-tank-records", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records`)).then(r => r.json()) });
+  const allMonRecords = monQ.data?.records ?? [];
+  const monRecords = useMemo(() => allMonRecords.filter(r => new Date(r.recordDate).getFullYear() === parseInt(monYear)), [allMonRecords, monYear]);
 
-  const tankYears = useMemo(() => {
-    const s = new Set<string>(records.map(r => String(r.recordDate || "").slice(0, 4)).filter(Boolean));
-    return Array.from(s).sort((a, b) => b.localeCompare(a));
-  }, [records]);
-  const [tankYearFilter, setTankYearFilter] = useState("all");
-  const filteredTank = useMemo(() => tankYearFilter === "all" ? records : records.filter(r => String(r.recordDate || "").startsWith(tankYearFilter)), [records, tankYearFilter]);
+  const collQ = useQuery<{ collections: MilkCollection[] }>({ queryKey: ["sheep-dairy-milk-collections", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/milk-collections`)).then(r => r.json()) });
+  const allColls = collQ.data?.collections ?? [];
+  const colls = useMemo(() => allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(collYear)), [allColls, collYear]);
 
-  const highTempCount = filteredTank.filter(r => r.tankTemperatureCelsius && parseFloat(r.tankTemperatureCelsius) > 4).length;
+  // compliance summary
+  const summary = useMemo(() => {
+    const yr = parseInt(monYear);
+    const yrRecs = allMonRecords.filter(r => new Date(r.recordDate).getFullYear() === yr);
+    const tempRecs = yrRecs.filter(r => r.recordType === "daily-temperature" && r.tankTemperatureCelsius != null);
+    const tempOk = tempRecs.filter(r => parseFloat(r.tankTemperatureCelsius!) <= 4).length;
+    const cleanings = yrRecs.filter(r => r.tankCleaned).length;
+    const abrTests = yrRecs.filter(r => r.recordType === "abr-test").length;
+    const yrColls = allColls.filter(c => new Date(c.collectionDate).getFullYear() === yr);
+    const totalVol = yrColls.reduce((s, c) => s + (c.volumeCollectedLitres ? parseFloat(c.volumeCollectedLitres) : 0), 0);
+    return { tempOk, tempTotal: tempRecs.length, cleanings, abrTests, totalVol, collCount: yrColls.length };
+  }, [allMonRecords, allColls, monYear]);
 
-  const printTank = () => {
+  const years = useMemo(() => Array.from(new Set([
+    ...allMonRecords.map(r => String(new Date(r.recordDate).getFullYear())),
+    ...allColls.map(c => String(new Date(c.collectionDate).getFullYear())),
+    String(new Date().getFullYear()),
+  ])).sort((a, b) => parseInt(b) - parseInt(a)), [allMonRecords, allColls]);
+
+  // mutations — tanks
+  const saveTankM = useMutation({ mutationFn: (d: Record<string, unknown>) => editingTank ? fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks/${editingTank.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()) : fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-bulk-tanks", farmId] }); setTankDialog(false); toast({ title: editingTank ? "Tank updated" : "Tank added" }); } });
+  const delTankM = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks/${id}`), { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-bulk-tanks", farmId] }); toast({ title: "Tank removed" }); } });
+
+  // mutations — monitoring
+  const saveMonM = useMutation({ mutationFn: (d: Record<string, unknown>) => editingMon ? fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records/${editingMon.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()) : fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank-records", farmId] }); setMonDialog(false); toast({ title: editingMon ? "Record updated" : "Record saved" }); } });
+  const delMonM = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records/${id}`), { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank-records", farmId] }); toast({ title: "Record deleted" }); } });
+
+  // mutations — collections
+  const saveCollM = useMutation({ mutationFn: (d: Record<string, unknown>) => editingColl ? fetch(api(`farms/${farmId}/sheep-dairy/milk-collections/${editingColl.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()) : fetch(api(`farms/${farmId}/sheep-dairy/milk-collections`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk-collections", farmId] }); setCollDialog(false); toast({ title: editingColl ? "Collection updated" : "Collection recorded" }); } });
+  const delCollM = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/milk-collections/${id}`), { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk-collections", farmId] }); toast({ title: "Collection deleted" }); } });
+
+  // helpers
+  function openNewTank() { setEditingTank(null); setTankForm({ name: "", location: "", capacityLitres: "", manufacturer: "", serialNumber: "", installDate: "", notes: "" }); setTankDialog(true); }
+  function openEditTank(t: BulkTank) { setEditingTank(t); setTankForm({ name: t.name, location: t.location || "", capacityLitres: t.capacityLitres || "", manufacturer: t.manufacturer || "", serialNumber: t.serialNumber || "", installDate: t.installDate || "", notes: t.notes || "" }); setTankDialog(true); }
+  function openNewMon() { setEditingMon(null); setMonForm({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" }); setMonDialog(true); }
+  function openEditMon(r: TankRecord) { setEditingMon(r); setMonForm({ tankId: r.tankId ? String(r.tankId) : "", recordDate: r.recordDate.slice(0, 10), recordType: r.recordType, tankTemperatureCelsius: r.tankTemperatureCelsius || "", tankCleaned: r.tankCleaned || false, cleaningProductUsed: r.cleaningProductUsed || "", cleaningProductBatch: r.cleaningProductBatch || "", antibioticResidueTestRef: r.antibioticResidueTestRef || "", antibioticResidueResult: r.antibioticResidueResult || "", notes: r.notes || "" }); setMonDialog(true); }
+  function openNewColl() { setEditingColl(null); setCollForm({ tankId: "", collectionDate: today(), volumeCollectedLitres: "", milkBuyer: "", tankerRegistration: "", tankerDriverName: "", collectionRef: "", statementRef: "", abtResultBeforeCollection: "", pencePerLitre: "", grossValuePence: "", qualityBonusPence: "", qualityPenaltyPence: "", transportDeductionPence: "", netPaymentPence: "", notes: "" }); setCollDialog(true); }
+  function openEditColl(c: MilkCollection) { setEditingColl(c); setCollForm({ tankId: c.tankId ? String(c.tankId) : "", collectionDate: c.collectionDate.slice(0, 10), volumeCollectedLitres: c.volumeCollectedLitres || "", milkBuyer: c.milkBuyer || "", tankerRegistration: c.tankerRegistration || "", tankerDriverName: c.tankerDriverName || "", collectionRef: c.collectionRef || "", statementRef: c.statementRef || "", abtResultBeforeCollection: c.abtResultBeforeCollection || "", pencePerLitre: c.pencePerLitre || "", grossValuePence: c.grossValuePence ? String(c.grossValuePence) : "", qualityBonusPence: c.qualityBonusPence ? String(c.qualityBonusPence) : "", qualityPenaltyPence: c.qualityPenaltyPence ? String(c.qualityPenaltyPence) : "", transportDeductionPence: c.transportDeductionPence ? String(c.transportDeductionPence) : "", netPaymentPence: c.netPaymentPence ? String(c.netPaymentPence) : "", notes: c.notes || "" }); setCollDialog(true); }
+
+  const tankName = (id?: number | null) => id ? (tanks.find(t => t.id === id)?.name || `Tank #${id}`) : "—";
+
+  function generateReport() {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>Bulk Tank Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Bulk Tank Records${tankYearFilter !== "all" ? ` — ${tankYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Tank</th><th>Type</th><th>Temperature (°C)</th><th>Cleaned</th><th>ABR Result</th><th>Notes</th></tr></thead><tbody>${filteredTank.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${tanks.find(t => t.id === r.tankId)?.name || "—"}</td><td>${r.recordType?.replace(/-/g, " ") || "—"}</td><td>${r.tankTemperatureCelsius || "—"}</td><td>${r.tankCleaned ? "Yes" : "—"}</td><td>${r.antibioticResidueResult || "—"}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
-    w.document.close(); w.print();
-  };
+    w.document.write(`<!DOCTYPE html><html><head><title>Sheep Dairy Bulk Tank Report ${monYear}</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px}h1{font-size:16px;margin-bottom:4px}h2{font-size:13px;margin:16px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{background:#f0f0f0;padding:5px 8px;text-align:left;font-size:10px;border:1px solid #ddd}td{padding:4px 8px;border:1px solid #ddd;font-size:10px}.kpi{display:inline-block;background:#f7f7f7;border:1px solid #ddd;padding:8px 16px;border-radius:6px;margin:0 12px 8px 0}.kpi-val{font-size:18px;font-weight:bold;color:#1d4ed8}.kpi-lab{font-size:10px;color:#666}@media print{button{display:none}}</style></head><body>
+<h1>Sheep Dairy — Bulk Tank Report</h1>
+<p style="color:#666;font-size:10px">Year: ${monYear} | Generated: ${new Date().toLocaleDateString("en-GB")}</p>
+<div>
+<div class="kpi"><div class="kpi-val">${summary.tempOk}/${summary.tempTotal}</div><div class="kpi-lab">Temp ≤4°C Checks</div></div>
+<div class="kpi"><div class="kpi-val">${summary.cleanings}</div><div class="kpi-lab">Cleaning Records</div></div>
+<div class="kpi"><div class="kpi-val">${summary.abrTests}</div><div class="kpi-lab">ABR Tests</div></div>
+<div class="kpi"><div class="kpi-val">${summary.totalVol.toFixed(0)}L</div><div class="kpi-lab">Milk Collected (${summary.collCount} collections)</div></div>
+</div>
+<h2>Tank Monitoring Records</h2>
+<table><tr><th>Date</th><th>Tank</th><th>Type</th><th>Temp (°C)</th><th>Cleaned</th><th>Cleaning Product</th><th>ABR Ref</th><th>ABR Result</th><th>Notes</th></tr>
+${monRecords.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${tankName(r.tankId)}</td><td>${r.recordType.replace(/-/g," ")}</td><td>${r.tankTemperatureCelsius||"—"}</td><td>${r.tankCleaned?"Yes":"—"}</td><td>${r.cleaningProductUsed||"—"}</td><td>${r.antibioticResidueTestRef||"—"}</td><td>${r.antibioticResidueResult||"—"}</td><td>${r.notes||"—"}</td></tr>`).join("")}
+</table>
+<h2>Milk Collections</h2>
+<table><tr><th>Date</th><th>Tank</th><th>Volume (L)</th><th>Buyer</th><th>Tanker Reg</th><th>Driver</th><th>Coll. Ref</th><th>ABR Before</th><th>Net Pay (£)</th><th>Notes</th></tr>
+${colls.map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}</td><td>${c.volumeCollectedLitres||"—"}</td><td>${c.milkBuyer||"—"}</td><td>${c.tankerRegistration||"—"}</td><td>${c.tankerDriverName||"—"}</td><td>${c.collectionRef||"—"}</td><td>${c.abtResultBeforeCollection||"—"}</td><td>${c.netPaymentPence?"£"+(c.netPaymentPence/100).toFixed(2):"—"}</td><td>${c.notes||"—"}</td></tr>`).join("")}
+</table>
+<script>window.onload=()=>window.print()</script>
+</body></html>`);
+    w.document.close();
+  }
 
-  const save = useMutation({
-    mutationFn: (body: Partial<TankRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Added" }); },
-  });
-  const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records/${id}`), { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank", farmId] }); toast({ title: "Deleted" }); },
-  });
+  function TempBadge({ v }: { v?: string | null }) {
+    if (!v) return <span className="text-gray-400">—</span>;
+    const n = parseFloat(v);
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${n <= 4 ? "bg-green-100 text-green-800" : n <= 6 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{v}°C{n > 4 ? " ⚠" : ""}</span>;
+  }
 
   return (
-    <div className="space-y-4">
-      {/* ── Tank Register ──────────────────────────────────────────────────── */}
-      <div className="border rounded-lg overflow-hidden">
-        <button className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left" onClick={() => setTanksOpen(o => !o)}>
-          <span className="font-semibold text-sm text-gray-800">Registered Bulk Tanks ({tanks.length})</span>
-          <span className="text-xs text-gray-400">{tanksOpen ? "▲" : "▼"}</span>
-        </button>
-        {tanksOpen && (
-          <div className="p-4 space-y-3">
-            <p className="text-xs text-gray-500">Register each bulk tank on the holding. Once registered, select the tank when logging monitoring records.</p>
-            {tanksQ.isLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-400" /> : tanks.length === 0
-              ? <p className="text-sm text-gray-400 italic">No tanks registered yet.</p>
-              : tanks.map(t => (
-                <div key={t.id} className="flex items-center justify-between bg-white border rounded px-3 py-2">
-                  <div className="min-w-0">
-                    <span className="font-medium text-sm">{t.name}</span>
-                    {t.location && <span className="text-xs text-gray-500 ml-2">· {t.location}</span>}
-                    {t.capacityLitres && <span className="text-xs text-gray-400 ml-2">· {Number(t.capacityLitres).toLocaleString()} L</span>}
-                    {t.manufacturer && <span className="text-xs text-gray-400 ml-2">· {t.manufacturer}</span>}
+    <div className="space-y-6">
+      {/* Compliance Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Temp ≤4°C</p><p className="text-2xl font-bold text-blue-700">{summary.tempOk}/{summary.tempTotal}</p><p className="text-xs text-gray-400">checks ({monYear})</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Cleaning Records</p><p className="text-2xl font-bold text-blue-700">{summary.cleanings}</p><p className="text-xs text-gray-400">records ({monYear})</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">ABR Tests</p><p className="text-2xl font-bold text-blue-700">{summary.abrTests}</p><p className="text-xs text-gray-400">tests ({monYear})</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Milk Collected</p><p className="text-2xl font-bold text-blue-700">{summary.totalVol.toFixed(0)}L</p><p className="text-xs text-gray-400">{summary.collCount} collections ({collYear})</p></CardContent></Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={generateReport}><Printer className="w-4 h-4 mr-1" />Print Report</Button>
+      </div>
+
+      {/* Tank Registry */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setShowTanks(v => !v)}>
+            <h3 className="font-semibold text-gray-800 flex items-center gap-1">
+              {showTanks ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              Tank Registry ({tanks.length})
+            </h3>
+            <Button size="sm" onClick={e => { e.stopPropagation(); openNewTank(); }}><Plus className="w-4 h-4 mr-1" />Add Tank</Button>
+          </div>
+          {showTanks && (
+            <div className="mt-3 divide-y">
+              {tanks.length === 0 ? <p className="text-sm text-gray-500 py-2">No tanks registered.</p> : tanks.map(t => (
+                <div key={t.id} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="font-medium text-sm">{t.name}</p>
+                    <p className="text-xs text-gray-500">{[t.location, t.capacityLitres ? `${t.capacityLitres}L` : null, t.manufacturer].filter(Boolean).join(" · ") || "—"}</p>
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="ghost" onClick={() => { setEditingTank(t); setTankForm({ ...t }); setTankDialog(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="sm" variant="ghost" className="text-red-500" onClick={() => delTank.mutate(t.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEditTank(t)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => delTankM.mutate(t.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                   </div>
                 </div>
               ))}
-            <Button size="sm" variant="outline" onClick={() => { setEditingTank(null); setTankForm({}); setTankDialog(true); }}><Plus className="w-3.5 h-3.5 mr-1" />Add Tank</Button>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Records</p><p className="text-2xl font-bold text-gray-800">{filteredTank.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">High Temp Events (&gt;4°C)</p><p className={`text-2xl font-bold ${highTempCount > 0 ? "text-red-700" : "text-green-700"}`}>{highTempCount}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Cleaning Records</p><p className="text-2xl font-bold text-blue-700">{filteredTank.filter(r => r.tankCleaned).length}</p></CardContent></Card>
-      </div>
-      <div className="flex flex-wrap justify-between items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-800">Bulk Tank Records</h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Select value={tankYearFilter} onValueChange={setTankYearFilter}>
-            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All years</SelectItem>{tankYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" onClick={printTank}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
-          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
-        </div>
-      </div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredTank.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No bulk tank records yet.</p></div> : (
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Tank</th><th className="py-2 px-3 text-left">Type</th><th className="py-2 px-3 text-left">Temperature</th><th className="py-2 px-3 text-left">Cleaned</th><th className="py-2 px-3 text-left">ABR</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{filteredTank.map(r => (
-            <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="py-2 px-3 font-medium">{fmt(r.recordDate)}</td>
-              <td className="py-2 px-3 text-xs text-gray-500">{tanks.find(t => t.id === r.tankId)?.name || "—"}</td>
-              <td className="py-2 px-3 capitalize">{r.recordType?.replace(/-/g, " ") || "—"}</td>
-              <td className="py-2 px-3">{r.tankTemperatureCelsius ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${parseFloat(r.tankTemperatureCelsius) > 4 ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.tankTemperatureCelsius}°C</span> : "—"}</td>
-              <td className="py-2 px-3">{r.tankCleaned ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : "—"}</td>
-              <td className="py-2 px-3">{r.antibioticResidueResult ? <span className={`px-2 py-0.5 rounded-full text-xs ${r.antibioticResidueResult === "positive" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.antibioticResidueResult}</span> : "—"}</td>
-              <td className="py-2 px-3"><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button></div></td>
-            </tr>
-          ))}</tbody>
-        </table></div>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Bulk Tank Record" : "Add Bulk Tank Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <div><Label>Date *</Label><Input type="date" value={String(form.recordDate || "").slice(0, 10)} onChange={e => set("recordDate", e.target.value)} /></div>
-            <div><Label>Tank</Label>
-              <Select value={form.tankId != null ? String(form.tankId) : "__none__"} onValueChange={v => set("tankId", v === "__none__" ? null : parseInt(v))}>
-                <SelectTrigger><SelectValue placeholder="Select tank…" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— No tank —</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
-              </Select>
+      {/* Tank Monitoring Records */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="font-semibold text-gray-800">Tank Monitoring Records</h3>
+            <div className="flex items-center gap-2">
+              <Select value={monYear} onValueChange={setMonYear}><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
+              <Button size="sm" onClick={openNewMon}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+            </div>
+          </div>
+          {monQ.isLoading ? <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : monRecords.length === 0 ? <p className="text-sm text-gray-400 py-4">No monitoring records for {monYear}.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-xs text-gray-500"><th className="text-left py-2 pr-3 font-medium">Date</th><th className="text-left py-2 pr-3 font-medium">Tank</th><th className="text-left py-2 pr-3 font-medium">Type</th><th className="text-left py-2 pr-3 font-medium">Temp</th><th className="text-left py-2 pr-3 font-medium">Cleaned</th><th className="text-left py-2 pr-3 font-medium">ABR Result</th><th className="text-left py-2 font-medium">Notes</th><th></th></tr></thead>
+                <tbody>
+                  {monRecords.map(r => (
+                    <tr key={r.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 pr-3 text-xs whitespace-nowrap">{fmt(r.recordDate)}</td>
+                      <td className="py-2 pr-3 text-xs">{tankName(r.tankId)}</td>
+                      <td className="py-2 pr-3 text-xs capitalize">{r.recordType.replace(/-/g, " ")}</td>
+                      <td className="py-2 pr-3"><TempBadge v={r.tankTemperatureCelsius} /></td>
+                      <td className="py-2 pr-3 text-xs">{r.tankCleaned ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span className="text-gray-400">—</span>}</td>
+                      <td className="py-2 pr-3"><ResultBadge v={r.antibioticResidueResult} /></td>
+                      <td className="py-2 text-xs text-gray-500 max-w-[160px] truncate">{r.notes || "—"}</td>
+                      <td className="py-2">
+                        <div className="flex items-center gap-1">
+                          <RecordAttachments recordType="sheep-dairy-tank-record" recordId={r.id} farmId={farmId} compact />
+                          <Button size="sm" variant="ghost" onClick={() => openEditMon(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => delMonM.mutate(r.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Milk Collections */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="font-semibold text-gray-800">Milk Collections</h3>
+            <div className="flex items-center gap-2">
+              <Select value={collYear} onValueChange={setCollYear}><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
+              <Button size="sm" onClick={openNewColl}><Plus className="w-4 h-4 mr-1" />Record Collection</Button>
+            </div>
+          </div>
+          {collQ.isLoading ? <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : colls.length === 0 ? <p className="text-sm text-gray-400 py-4">No milk collections for {collYear}.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-xs text-gray-500"><th className="text-left py-2 pr-3 font-medium">Date</th><th className="text-left py-2 pr-3 font-medium">Tank</th><th className="text-left py-2 pr-3 font-medium">Volume (L)</th><th className="text-left py-2 pr-3 font-medium">Buyer</th><th className="text-left py-2 pr-3 font-medium">Tanker Reg</th><th className="text-left py-2 pr-3 font-medium">ABR Before</th><th className="text-left py-2 pr-3 font-medium">Net Pay</th><th></th></tr></thead>
+                <tbody>
+                  {colls.map(c => (
+                    <tr key={c.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 pr-3 text-xs whitespace-nowrap">{fmt(c.collectionDate)}</td>
+                      <td className="py-2 pr-3 text-xs">{tankName(c.tankId)}</td>
+                      <td className="py-2 pr-3 text-sm font-medium">{c.volumeCollectedLitres || "—"}</td>
+                      <td className="py-2 pr-3 text-xs">{c.milkBuyer || "—"}</td>
+                      <td className="py-2 pr-3 text-xs">{c.tankerRegistration || "—"}</td>
+                      <td className="py-2 pr-3"><ResultBadge v={c.abtResultBeforeCollection} /></td>
+                      <td className="py-2 pr-3 text-xs font-medium">{c.netPaymentPence ? `£${(c.netPaymentPence / 100).toFixed(2)}` : "—"}</td>
+                      <td className="py-2">
+                        <div className="flex items-center gap-1">
+                          <RecordAttachments recordType="sheep-dairy-milk-collection" recordId={c.id} farmId={farmId} compact />
+                          <Button size="sm" variant="ghost" onClick={() => openEditColl(c)}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => delCollM.mutate(c.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Monitoring Record Dialog */}
+      <Dialog open={monDialog} onOpenChange={setMonDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editingMon ? "Edit" : "Add"} Monitoring Record</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Date *</Label><Input type="date" value={monForm.recordDate} onChange={e => setMonForm(f => ({ ...f, recordDate: e.target.value }))} /></div>
+              <div><Label>Tank</Label>
+                <Select value={monForm.tankId} onValueChange={v => setMonForm(f => ({ ...f, tankId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select tank…" /></SelectTrigger>
+                  <SelectContent><SelectItem value="">— None —</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <div><Label>Record Type *</Label>
-              <Select value={form.recordType || "temperature-check"} onValueChange={v => set("recordType", v)}>
+              <Select value={monForm.recordType} onValueChange={v => setMonForm(f => ({ ...f, recordType: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="temperature-check">Temperature check</SelectItem><SelectItem value="cleaning">Tank cleaning</SelectItem><SelectItem value="collection">Milk collection</SelectItem><SelectItem value="abr-test">ABR test</SelectItem><SelectItem value="maintenance">Maintenance</SelectItem></SelectContent>
+                <SelectContent>{MONITOR_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Temperature (°C)</Label><Input type="number" step="0.1" value={form.tankTemperatureCelsius || ""} onChange={e => set("tankTemperatureCelsius", e.target.value)} /></div>
-            <div className="flex items-end pb-2"><label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.tankCleaned} onChange={e => set("tankCleaned", e.target.checked)} />Tank cleaned</label></div>
-            {form.tankCleaned && <>
-              <div><Label>Cleaning Product</Label><Input value={form.cleaningProductUsed || ""} onChange={e => set("cleaningProductUsed", e.target.value)} /></div>
-              <div><Label>Product Batch</Label><Input value={form.cleaningProductBatch || ""} onChange={e => set("cleaningProductBatch", e.target.value)} /></div>
-            </>}
-            <div><Label>ABR Test Ref</Label><Input value={form.antibioticResidueTestRef || ""} onChange={e => set("antibioticResidueTestRef", e.target.value)} /></div>
-            <div><Label>ABR Result</Label>
-              <Select value={form.antibioticResidueResult || "__none__"} onValueChange={v => set("antibioticResidueResult", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">Not tested</SelectItem><SelectItem value="negative">Negative ✓</SelectItem><SelectItem value="positive">Positive ⚠</SelectItem></SelectContent>
-              </Select>
+            <div><Label>Tank Temperature (°C)</Label><Input type="number" step="0.1" placeholder="e.g. 3.5" value={monForm.tankTemperatureCelsius} onChange={e => setMonForm(f => ({ ...f, tankTemperatureCelsius: e.target.value }))} /></div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="mon-tc" checked={monForm.tankCleaned} onChange={e => setMonForm(f => ({ ...f, tankCleaned: e.target.checked }))} className="w-4 h-4 rounded" />
+              <Label htmlFor="mon-tc">Tank cleaned this session</Label>
             </div>
-            <div><Label>Collection Ref</Label><Input value={form.collectionRef || ""} onChange={e => set("collectionRef", e.target.value)} /></div>
-            <div><Label>Tanker Driver</Label><Input value={form.tankerDriverName || ""} onChange={e => set("tankerDriverName", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+            {monForm.tankCleaned && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Cleaning Product</Label><Input value={monForm.cleaningProductUsed} onChange={e => setMonForm(f => ({ ...f, cleaningProductUsed: e.target.value }))} /></div>
+                <div><Label>Batch Number</Label><Input value={monForm.cleaningProductBatch} onChange={e => setMonForm(f => ({ ...f, cleaningProductBatch: e.target.value }))} /></div>
+              </div>
+            )}
+            {monForm.recordType === "abr-test" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>ABR Test Ref</Label><Input value={monForm.antibioticResidueTestRef} onChange={e => setMonForm(f => ({ ...f, antibioticResidueTestRef: e.target.value }))} /></div>
+                <div><Label>ABR Result</Label>
+                  <Select value={monForm.antibioticResidueResult} onValueChange={v => setMonForm(f => ({ ...f, antibioticResidueResult: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>{ABR_RESULTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <div><Label>Notes</Label><Textarea value={monForm.notes} onChange={e => setMonForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMonDialog(false)}>Cancel</Button>
+            <Button onClick={() => saveMonM.mutate({ ...monForm, tankId: monForm.tankId || null })} disabled={saveMonM.isPending}>
+              {saveMonM.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingMon ? "Save Changes" : "Add Record"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Tank add/edit dialog */}
+      {/* Milk Collection Dialog */}
+      <Dialog open={collDialog} onOpenChange={setCollDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingColl ? "Edit" : "Record"} Milk Collection</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate} onChange={e => setCollForm(f => ({ ...f, collectionDate: e.target.value }))} /></div>
+              <div><Label>Tank</Label>
+                <Select value={collForm.tankId} onValueChange={v => setCollForm(f => ({ ...f, tankId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select tank…" /></SelectTrigger>
+                  <SelectContent><SelectItem value="">— None —</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Volume Collected (L)</Label><Input type="number" step="0.01" value={collForm.volumeCollectedLitres} onChange={e => setCollForm(f => ({ ...f, volumeCollectedLitres: e.target.value }))} /></div>
+              <div><Label>Milk Buyer</Label><Input value={collForm.milkBuyer} onChange={e => setCollForm(f => ({ ...f, milkBuyer: e.target.value }))} placeholder="e.g. Arla, First Milk…" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Tanker Registration</Label><Input value={collForm.tankerRegistration} onChange={e => setCollForm(f => ({ ...f, tankerRegistration: e.target.value }))} /></div>
+              <div><Label>Driver Name</Label><Input value={collForm.tankerDriverName} onChange={e => setCollForm(f => ({ ...f, tankerDriverName: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Collection Reference</Label><Input value={collForm.collectionRef} onChange={e => setCollForm(f => ({ ...f, collectionRef: e.target.value }))} /></div>
+              <div><Label>Statement Reference</Label><Input value={collForm.statementRef} onChange={e => setCollForm(f => ({ ...f, statementRef: e.target.value }))} /></div>
+            </div>
+            <div><Label>ABR Result Before Collection</Label>
+              <Select value={collForm.abtResultBeforeCollection} onValueChange={v => setCollForm(f => ({ ...f, abtResultBeforeCollection: v }))}>
+                <SelectTrigger><SelectValue placeholder="— Not tested —" /></SelectTrigger>
+                <SelectContent><SelectItem value="">— Not tested —</SelectItem>{ABR_RESULTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Payment Details (optional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Pence per Litre</Label><Input type="number" step="0.0001" value={collForm.pencePerLitre} onChange={e => setCollForm(f => ({ ...f, pencePerLitre: e.target.value }))} /></div>
+                <div><Label>Gross Value (pence)</Label><Input type="number" value={collForm.grossValuePence} onChange={e => setCollForm(f => ({ ...f, grossValuePence: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <div><Label>Quality Bonus (p)</Label><Input type="number" value={collForm.qualityBonusPence} onChange={e => setCollForm(f => ({ ...f, qualityBonusPence: e.target.value }))} /></div>
+                <div><Label>Quality Penalty (p)</Label><Input type="number" value={collForm.qualityPenaltyPence} onChange={e => setCollForm(f => ({ ...f, qualityPenaltyPence: e.target.value }))} /></div>
+                <div><Label>Transport Deduction (p)</Label><Input type="number" value={collForm.transportDeductionPence} onChange={e => setCollForm(f => ({ ...f, transportDeductionPence: e.target.value }))} /></div>
+              </div>
+              <div className="mt-3"><Label>Net Payment (pence)</Label><Input type="number" value={collForm.netPaymentPence} onChange={e => setCollForm(f => ({ ...f, netPaymentPence: e.target.value }))} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={collForm.notes} onChange={e => setCollForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCollDialog(false)}>Cancel</Button>
+            <Button onClick={() => saveCollM.mutate({ ...collForm, tankId: collForm.tankId || null, grossValuePence: collForm.grossValuePence ? parseInt(collForm.grossValuePence) : null, qualityBonusPence: collForm.qualityBonusPence ? parseInt(collForm.qualityBonusPence) : null, qualityPenaltyPence: collForm.qualityPenaltyPence ? parseInt(collForm.qualityPenaltyPence) : null, transportDeductionPence: collForm.transportDeductionPence ? parseInt(collForm.transportDeductionPence) : null, netPaymentPence: collForm.netPaymentPence ? parseInt(collForm.netPaymentPence) : null })} disabled={saveCollM.isPending}>
+              {saveCollM.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingColl ? "Save Changes" : "Record Collection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tank Dialog */}
       <Dialog open={tankDialog} onOpenChange={setTankDialog}>
-        <DialogContent style={{ maxWidth: "30rem" }}>
-          <DialogHeader><DialogTitle>{editingTank ? "Edit Tank" : "Register Bulk Tank"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="col-span-2"><Label>Tank Name *</Label><Input placeholder="e.g. Main Parlour Tank" value={tankForm.name || ""} onChange={e => stf("name", e.target.value)} /></div>
-            <div><Label>Location</Label><Input placeholder="e.g. Milking parlour" value={tankForm.location || ""} onChange={e => stf("location", e.target.value)} /></div>
-            <div><Label>Capacity (litres)</Label><Input type="number" value={tankForm.capacityLitres || ""} onChange={e => stf("capacityLitres", e.target.value)} /></div>
-            <div><Label>Manufacturer</Label><Input value={tankForm.manufacturer || ""} onChange={e => stf("manufacturer", e.target.value)} /></div>
-            <div><Label>Serial Number</Label><Input value={tankForm.serialNumber || ""} onChange={e => stf("serialNumber", e.target.value)} /></div>
-            <div><Label>Install Date</Label><Input type="date" value={tankForm.installDate || ""} onChange={e => stf("installDate", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={tankForm.notes || ""} onChange={e => stf("notes", e.target.value)} rows={2} /></div>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editingTank ? "Edit" : "Add"} Bulk Tank</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Tank Name *</Label><Input value={tankForm.name} onChange={e => setTankForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Main Tank" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Location</Label><Input value={tankForm.location} onChange={e => setTankForm(f => ({ ...f, location: e.target.value }))} /></div>
+              <div><Label>Capacity (L)</Label><Input type="number" value={tankForm.capacityLitres} onChange={e => setTankForm(f => ({ ...f, capacityLitres: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Manufacturer</Label><Input value={tankForm.manufacturer} onChange={e => setTankForm(f => ({ ...f, manufacturer: e.target.value }))} /></div>
+              <div><Label>Serial Number</Label><Input value={tankForm.serialNumber} onChange={e => setTankForm(f => ({ ...f, serialNumber: e.target.value }))} /></div>
+            </div>
+            <div><Label>Install Date</Label><Input type="date" value={tankForm.installDate} onChange={e => setTankForm(f => ({ ...f, installDate: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Textarea value={tankForm.notes} onChange={e => setTankForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTankDialog(false)}>Cancel</Button>
-            <Button onClick={() => saveTank.mutate(tankForm)} disabled={saveTank.isPending || !tankForm.name?.trim()}>{saveTank.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}{editingTank ? "Save Changes" : "Register Tank"}</Button>
+            <Button onClick={() => saveTankM.mutate(tankForm)} disabled={saveTankM.isPending}>
+              {saveTankM.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingTank ? "Save Changes" : "Add Tank"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+
 
 // ─── Maedi-Visna Monitoring ────────────────────────────────────────────────────
 

@@ -159,6 +159,28 @@ export const sheepDairyBulkTankRecordsTable = pgTable("sheep_dairy_bulk_tank_rec
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const sheepDairyMilkCollectionsTable = pgTable("sheep_dairy_milk_collections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => sheepDairyBulkTanksTable.id),
+  collectionDate: timestamp("collection_date", { withTimezone: true }).notNull(),
+  volumeCollectedLitres: numeric("volume_collected_litres", { precision: 10, scale: 2 }),
+  milkBuyer: text("milk_buyer"),
+  tankerRegistration: text("tanker_registration"),
+  tankerDriverName: text("tanker_driver_name"),
+  collectionRef: text("collection_ref"),
+  statementRef: text("statement_ref"),
+  abtResultBeforeCollection: text("abt_result_before_collection"),
+  pencePerLitre: numeric("pence_per_litre", { precision: 8, scale: 4 }),
+  grossValuePence: integer("gross_value_pence"),
+  qualityBonusPence: integer("quality_bonus_pence"),
+  qualityPenaltyPence: integer("quality_penalty_pence"),
+  transportDeductionPence: integer("transport_deduction_pence"),
+  netPaymentPence: integer("net_payment_pence"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Maedi-Visna (MV) — the sheep equivalent of BVD/Johne's for dairy
 // A progressive chronic viral disease; OIE listed; accreditation schemes via SRUC/MAEDI-VISNA
 export const sheepDairyMvMonitoringTable = pgTable("sheep_dairy_mv_monitoring", {
@@ -331,6 +353,28 @@ export const goatDairyBulkTankRecordsTable = pgTable("goat_dairy_bulk_tank_recor
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const goatDairyMilkCollectionsTable = pgTable("goat_dairy_milk_collections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => goatDairyBulkTanksTable.id),
+  collectionDate: timestamp("collection_date", { withTimezone: true }).notNull(),
+  volumeCollectedLitres: numeric("volume_collected_litres", { precision: 10, scale: 2 }),
+  milkBuyer: text("milk_buyer"),
+  tankerRegistration: text("tanker_registration"),
+  tankerDriverName: text("tanker_driver_name"),
+  collectionRef: text("collection_ref"),
+  statementRef: text("statement_ref"),
+  abtResultBeforeCollection: text("abt_result_before_collection"),
+  pencePerLitre: numeric("pence_per_litre", { precision: 8, scale: 4 }),
+  grossValuePence: integer("gross_value_pence"),
+  qualityBonusPence: integer("quality_bonus_pence"),
+  qualityPenaltyPence: integer("quality_penalty_pence"),
+  transportDeductionPence: integer("transport_deduction_pence"),
+  netPaymentPence: integer("net_payment_pence"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
