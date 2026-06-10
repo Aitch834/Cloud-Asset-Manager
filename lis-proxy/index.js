@@ -27,9 +27,11 @@ const LIS_SUBSCRIPTION_KEY = process.env.LIS_SUBSCRIPTION_KEY;
 const USE_SANDBOX = process.env.LIS_USE_SANDBOX_API === "true";
 const LIS_B2C_CLIENT_ID = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
+// Note: LIS uses standard Azure AD ROPC (login.microsoftonline.com), NOT Azure AD B2C.
+// b2clogin.com returns HTML 404. Confirmed working via live test June 2026.
 const B2C_TOKEN_URL = USE_SANDBOX
-  ? "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1_ROPC_Auth/oauth2/v2.0/token"
-  : "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1_ROPC_Auth/oauth2/v2.0/token";
+  ? "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token"
+  : "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
 
 const CLA_API_BASE = USE_SANDBOX
   ? "https://api.sandbox.cla.livestockinformation.org.uk"
@@ -80,9 +82,7 @@ app.post("/lis/token", requireSecret, async (req, res) => {
     return res.status(400).json({ error: "username and password are required" });
   }
 
-  const B2C_SCOPE = USE_SANDBOX
-    ? "https://livestockinformationb2cprod.onmicrosoft.com/api/user_impersonation openid profile offline_access"
-    : "https://livestockinformation.onmicrosoft.com/api/user_impersonation openid profile offline_access";
+  const B2C_SCOPE = "openid profile offline_access";
 
   const body = new URLSearchParams({
     grant_type: "password",
