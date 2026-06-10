@@ -18,3 +18,9 @@ id = "mTKi7N-DXPNv8Nw2vnH4G"
 uri = "file://docs/vps-deployment-guide.md"
 type = "text"
 title = "UK VPS Deployment Guide — bdefarmtrac.co.uk"
+
+[[outputs]]
+id = "zHPRFjXwOyFFAXzsR5ks_"
+uri = "file://docs/lis-proxy-setup.md"
+type = "text"
+title = "LIS UK Proxy — Setup Guide"

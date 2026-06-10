@@ -47,6 +47,26 @@ const LIS_B2C_CLIENT_ID  = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 const LIS_API_BASE = "https://api.cla.livestockinformation.org.uk";
 const LIS_API_BASE_SANDBOX = "https://api.sandbox.cla.livestockinformation.org.uk";
 
+/**
+ * When LIS_PROXY_URL is set (e.g. https://lis-proxy.bdefarmtrac.co.uk), all
+ * LIS calls are forwarded to the UK proxy instead of hitting the LIS APIs
+ * directly (which are unreachable from Replit's US infrastructure).
+ *
+ * The proxy exposes:
+ *   POST <proxy>/lis/token       — B2C token exchange
+ *   POST <proxy>/lis/cla/*       — CLA API (adds subscription key server-side)
+ *
+ * A shared secret is sent in X-Proxy-Secret to prevent public access.
+ */
+function proxyUrl(): string | null {
+  return process.env.LIS_PROXY_URL?.replace(/\/$/, "") ?? null;
+}
+
+function proxyHeaders(): Record<string, string> {
+  const secret = process.env.LIS_PROXY_SECRET;
+  return secret ? { "X-Proxy-Secret": secret } : {};
+}
+
 export function isLisSandboxMode(): boolean {
   return !process.env.LIS_SUBSCRIPTION_KEY;
 }
@@ -111,6 +131,37 @@ export async function fetchLisToken(username: string, password: string): Promise
     };
   }
 
+  const proxy = proxyUrl();
+
+  // ── Route through UK proxy if configured ──────────────────────────────────
+  if (proxy) {
+    try {
+      const res = await fetch(`${proxy}/lis/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...proxyHeaders() },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok || data.error) {
+        return {
+          sandbox: false,
+          success: false,
+          errorMessage: data.error_description ?? data.error ?? data.message ?? `HTTP ${res.status}`,
+        };
+      }
+      return {
+        sandbox: false,
+        success: true,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      };
+    } catch (err: any) {
+      return { sandbox: false, success: false, errorMessage: `UK proxy unreachable: ${err?.message}` };
+    }
+  }
+
+  // ── Direct call (requires UK network) ────────────────────────────────────
   try {
     const body = new URLSearchParams({
       grant_type: "password",
@@ -186,6 +237,31 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
       refreshToken: `SANDBOX_REFRESH_${Date.now()}`,
       expiresIn: 3600,
     };
+  }
+
+  const proxy = proxyUrl();
+
+  if (proxy) {
+    try {
+      const res = await fetch(`${proxy}/lis/token/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...proxyHeaders() },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok || data.error) {
+        return { sandbox: false, success: false, errorMessage: data.error_description ?? data.error ?? data.message ?? `HTTP ${res.status}` };
+      }
+      return {
+        sandbox: false,
+        success: true,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      };
+    } catch (err: any) {
+      return { sandbox: false, success: false, errorMessage: `UK proxy unreachable: ${err?.message}` };
+    }
   }
 
   try {
@@ -272,22 +348,33 @@ export async function submitLisMovement(req: LisMovementRequest): Promise<LisRes
     };
   }
 
-  const subscriptionKey = process.env.LIS_SUBSCRIPTION_KEY!;
   const token = req.accessToken;
 
   if (!token) {
     return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: "No LIS access token available — please reconnect your LIS account." };
   }
 
+  const proxy = proxyUrl();
+
   try {
-    const apiBase = process.env.LIS_USE_SANDBOX_API === "true" ? LIS_API_BASE_SANDBOX : LIS_API_BASE;
-    const res = await fetch(`${apiBase}/v1/movements`, {
+    let upstreamUrl: string;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
+    if (proxy) {
+      upstreamUrl = `${proxy}/lis/cla/v1/movements`;
+      Object.assign(headers, proxyHeaders());
+    } else {
+      const apiBase = process.env.LIS_USE_SANDBOX_API === "true" ? LIS_API_BASE_SANDBOX : LIS_API_BASE;
+      upstreamUrl = `${apiBase}/v1/movements`;
+      headers["Ocp-Apim-Subscription-Key"] = process.env.LIS_SUBSCRIPTION_KEY!;
+    }
+
+    const res = await fetch(upstreamUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        "Ocp-Apim-Subscription-Key": subscriptionKey,
-      },
+      headers,
       body: payloadStr,
     });
 
