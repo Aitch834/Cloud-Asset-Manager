@@ -27,12 +27,12 @@ const LIS_SUBSCRIPTION_KEY = process.env.LIS_SUBSCRIPTION_KEY;
 const USE_SANDBOX = process.env.LIS_USE_SANDBOX_API === "true";
 const LIS_B2C_CLIENT_ID = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
-// Correct B2C endpoints from LIS Developer Hub (Additional Credentials page, June 2026).
-// Auth uses Azure B2C with a custom policy (B2C_1A_SIGNIN), not standard AAD ROPC.
-// Token endpoint format: {tenant}.b2clogin.com/{tenant}.onmicrosoft.com/{policy}/oauth2/v2.0/token
+// B2C_1A_SIGNIN is an interactive policy only — it rejects ROPC (grant_type=password)
+// with AADB2C90057. For ROPC we use the standard AAD v2 endpoint on the B2C tenant,
+// which supports username/password and issues tokens with the apim-cla-ext scope.
 const B2C_TOKEN_URL = USE_SANDBOX
-  ? "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token"
-  : "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+  ? "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token"
+  : "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
 
 // Correct CLA API gateway confirmed from LIS Developer Hub (api-url field, June 2026).
 // The /v1.0 version prefix is part of the base — do NOT include /v1/ in individual paths.
