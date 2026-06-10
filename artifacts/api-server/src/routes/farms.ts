@@ -24010,11 +24010,12 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   const attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }> = {};
 
   const endpoints = [
-    "/v1/flocks",
-    "/v1/herds",
-    cphNumber ? `/v1/holdings/${encodedCph}/flocks` : null,
-    cphNumber ? `/v1/holdings/${encodedCph}/herds` : null,
-    cphNumber ? `/v1/holdings/${encodeURIComponent(cphNumber)}/flocks` : null,
+    // /v1.0 is now baked into CLA_API_BASE on the proxy — paths here must not re-add it
+    "/flocks",
+    "/herds",
+    cphNumber ? `/holdings/${encodedCph}/flocks` : null,
+    cphNumber ? `/holdings/${encodedCph}/herds` : null,
+    cphNumber ? `/holdings/${encodeURIComponent(cphNumber)}/flocks` : null,
   ].filter(Boolean) as string[];
 
   for (const path of endpoints) {

@@ -24,16 +24,19 @@
  * Policy (both):              B2C_1_ROPC_Auth
  */
 
-// Production AAD tenant (live environment)
-// Note: LIS uses standard Azure AD ROPC (login.microsoftonline.com), not Azure AD B2C
+// Correct B2C endpoints from LIS Developer Hub (Additional Credentials page, June 2026).
+// Auth uses Azure B2C with a custom policy (B2C_1A_SIGNIN), NOT standard AAD login.microsoftonline.com.
+// b2c-authority from dev hub: livestockinformationb2cprod.b2clogin.com/.../B2C_1A_SIGNIN/v2.0
 const LIS_B2C_TOKEN_URL_PROD =
-  "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
-const LIS_B2C_SCOPE_PROD = "openid profile offline_access";
+  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+const LIS_B2C_SCOPE_PROD =
+  "openid https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
-// Sandbox/Beta AAD tenant — used with api.sandbox.cla.*
+// Sandbox/Beta B2C tenant — api-scopes from dev hub: apim-cla-ext/user_impersonation
 const LIS_B2C_TOKEN_URL_SANDBOX =
-  "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token";
-const LIS_B2C_SCOPE_SANDBOX = "openid profile offline_access";
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+const LIS_B2C_SCOPE_SANDBOX =
+  "openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
 function isSandboxApi(): boolean {
   return process.env.LIS_USE_SANDBOX_API === "true";
@@ -43,11 +46,10 @@ const LIS_B2C_TOKEN_URL = isSandboxApi() ? LIS_B2C_TOKEN_URL_SANDBOX : LIS_B2C_T
 const LIS_B2C_SCOPE      = isSandboxApi() ? LIS_B2C_SCOPE_SANDBOX      : LIS_B2C_SCOPE_PROD;
 const LIS_B2C_CLIENT_ID  = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
-// Note: api.cla.livestockinformation.org.uk does NOT exist in DNS.
-// The correct gateway is api.livestockinformation.org.uk (confirmed June 2026).
-// Sandbox vs production is differentiated by Bearer token tenant, not hostname.
-const LIS_API_BASE = "https://api.livestockinformation.org.uk";
-const LIS_API_BASE_SANDBOX = "https://api.livestockinformation.org.uk";
+// Correct CLA API gateway from LIS Developer Hub (api-url field, June 2026).
+// The /v1.0 version prefix is part of the base — do NOT add /v1/ to individual paths.
+const LIS_API_BASE = "https://cla.api.livestockinformation.org.uk/v1.0";
+const LIS_API_BASE_SANDBOX = "https://ext-cla.api.livestockinformation.org.uk/v1.0";
 
 /**
  * When LIS_PROXY_URL is set (e.g. https://lis-proxy.bdefarmtrac.co.uk), all
@@ -366,11 +368,13 @@ export async function submitLisMovement(req: LisMovementRequest): Promise<LisRes
     };
 
     if (proxy) {
-      upstreamUrl = `${proxy}/lis/cla/v1/movements`;
+      // /v1.0 is part of CLA_API_BASE on the proxy — path here must not re-add it
+      upstreamUrl = `${proxy}/lis/cla/movements`;
       Object.assign(headers, proxyHeaders());
     } else {
       const apiBase = process.env.LIS_USE_SANDBOX_API === "true" ? LIS_API_BASE_SANDBOX : LIS_API_BASE;
-      upstreamUrl = `${apiBase}/v1/movements`;
+      // LIS_API_BASE already includes /v1.0 — just append the resource path
+      upstreamUrl = `${apiBase}/movements`;
       headers["Ocp-Apim-Subscription-Key"] = process.env.LIS_SUBSCRIPTION_KEY!;
     }
 

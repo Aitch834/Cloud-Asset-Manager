@@ -233,30 +233,40 @@ This is the most likely blocker between "Connected" and actually submitting move
 
 ---
 
-## Known blocker — sandbox CLA API DNS (June 2026)
+## Confirmed correct credentials — from LIS Developer Hub (June 2026)
 
-**Finding:** The domain `api.sandbox.cla.livestockinformation.org.uk` does not resolve in public DNS.
-A direct `curl` from the DigitalOcean London VPS returns: `Could not resolve host`.
+All three of the following were wrong in earlier attempts. Correct values confirmed from the
+"Additional Credentials" page of the LIS Developer Hub portal:
 
-**The LIS auth endpoint (`login.microsoftonline.com`) works fine** — the blocker is only with the CLA API itself.
+| Setting | Correct value |
+|---|---|
+| Sandbox CLA API base | `https://ext-cla.api.livestockinformation.org.uk/v1.0` |
+| Production CLA API base | `https://cla.api.livestockinformation.org.uk/v1.0` |
+| B2C token URL (sandbox) | `https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token` |
+| B2C scope (sandbox) | `openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access` |
+| B2C policy | `B2C_1A_SIGNIN` |
 
-**What to ask LIS support (exact wording):**
+**Important:** The `/v1.0` version prefix is **part of the base URL**. Do NOT prefix resource
+paths with `/v1/` — use `/flocks`, `/movements`, etc. directly.
 
-> We have successfully authenticated against the LIS sandbox using the ROPC flow 
-> (`login.microsoftonline.com` / `livestockinformationb2cprod` tenant) and receive a 
-> valid Bearer token. However, the hostname `api.sandbox.cla.livestockinformation.org.uk` 
-> does not resolve in public DNS from our UK VPS (DigitalOcean London). 
->
-> Could you confirm:
-> 1. Is the correct sandbox CLA API hostname `api.sandbox.cla.livestockinformation.org.uk`, 
->    or should we use a different domain?
-> 2. Does the sandbox CLA API require IP whitelisting or any additional access registration?
-> 3. Is there a different approach for sandbox testing (e.g. same production domain with a 
->    test subscription key or header)?
+**DNS note:** `api.cla.livestockinformation.org.uk` and `api.sandbox.cla.livestockinformation.org.uk`
+do not exist in public DNS. The correct gateway is `ext-cla.api.livestockinformation.org.uk`.
 
-**Things to test while awaiting response:**
-- Does `api.cla.livestockinformation.org.uk` (production) resolve? (VPS curl test)
-- If production resolves, can we make read-only calls (e.g. GET /v1/flocks) against it 
-  using the sandbox Bearer token + our subscription key?
+### VPS proxy update required
+
+After committing these changes, SSH to the VPS and pull or apply the updated `lis-proxy/index.js`:
+
+```bash
+cd /opt/lis-proxy
+git pull   # or: nano index.js and apply the changes manually
+pm2 restart lis-proxy
+pm2 logs lis-proxy --lines 8 --nostream
+```
+
+Then retry **Sync from LIS** in Farm Settings. Expect one of:
+- HTTP 200/201 with data → 
+- HTTP 401 → token scope issue (client_secret may be required)
+- HTTP 403 → subscription key not accepted or IP not whitelisted
+- HTTP 404 → path is wrong (try /herds, /flocks, /animals etc.)
 
 *Last updated: June 2026*

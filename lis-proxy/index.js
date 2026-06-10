@@ -27,17 +27,18 @@ const LIS_SUBSCRIPTION_KEY = process.env.LIS_SUBSCRIPTION_KEY;
 const USE_SANDBOX = process.env.LIS_USE_SANDBOX_API === "true";
 const LIS_B2C_CLIENT_ID = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
-// Note: LIS uses standard Azure AD ROPC (login.microsoftonline.com), NOT Azure AD B2C.
-// b2clogin.com returns HTML 404. Confirmed working via live test June 2026.
+// Correct B2C endpoints from LIS Developer Hub (Additional Credentials page, June 2026).
+// Auth uses Azure B2C with a custom policy (B2C_1A_SIGNIN), not standard AAD ROPC.
+// Token endpoint format: {tenant}.b2clogin.com/{tenant}.onmicrosoft.com/{policy}/oauth2/v2.0/token
 const B2C_TOKEN_URL = USE_SANDBOX
-  ? "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token"
-  : "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
+  ? "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token"
+  : "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
 
-// Note: api.cla.livestockinformation.org.uk does NOT exist in DNS.
-// The correct gateway is api.livestockinformation.org.uk (confirmed June 2026).
-// Sandbox vs production is determined by the Bearer token tenant / subscription key,
-// not a different hostname.
-const CLA_API_BASE = "https://api.livestockinformation.org.uk";
+// Correct CLA API gateway confirmed from LIS Developer Hub (api-url field, June 2026).
+// The /v1.0 version prefix is part of the base — do NOT include /v1/ in individual paths.
+const CLA_API_BASE = USE_SANDBOX
+  ? "https://ext-cla.api.livestockinformation.org.uk/v1.0"
+  : "https://cla.api.livestockinformation.org.uk/v1.0";
 
 // ─── App ───────────────────────────────────────────────────────────────────
 
@@ -84,7 +85,10 @@ app.post("/lis/token", requireSecret, async (req, res) => {
     return res.status(400).json({ error: "username and password are required" });
   }
 
-  const B2C_SCOPE = "openid profile offline_access";
+  // Scope from LIS Developer Hub api-scopes field (June 2026)
+  const B2C_SCOPE = USE_SANDBOX
+    ? "openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access"
+    : "openid https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
   const body = new URLSearchParams({
     grant_type: "password",
