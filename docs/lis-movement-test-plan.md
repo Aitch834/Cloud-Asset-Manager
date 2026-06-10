@@ -231,4 +231,32 @@ This is the most likely blocker between "Connected" and actually submitting move
 
 ---
 
-*Last updated: June 2026. Sandbox environment: `api.sandbox.cla.livestockinformation.org.uk`*
+---
+
+## Known blocker — sandbox CLA API DNS (June 2026)
+
+**Finding:** The domain `api.sandbox.cla.livestockinformation.org.uk` does not resolve in public DNS.
+A direct `curl` from the DigitalOcean London VPS returns: `Could not resolve host`.
+
+**The LIS auth endpoint (`login.microsoftonline.com`) works fine** — the blocker is only with the CLA API itself.
+
+**What to ask LIS support (exact wording):**
+
+> We have successfully authenticated against the LIS sandbox using the ROPC flow 
+> (`login.microsoftonline.com` / `livestockinformationb2cprod` tenant) and receive a 
+> valid Bearer token. However, the hostname `api.sandbox.cla.livestockinformation.org.uk` 
+> does not resolve in public DNS from our UK VPS (DigitalOcean London). 
+>
+> Could you confirm:
+> 1. Is the correct sandbox CLA API hostname `api.sandbox.cla.livestockinformation.org.uk`, 
+>    or should we use a different domain?
+> 2. Does the sandbox CLA API require IP whitelisting or any additional access registration?
+> 3. Is there a different approach for sandbox testing (e.g. same production domain with a 
+>    test subscription key or header)?
+
+**Things to test while awaiting response:**
+- Does `api.cla.livestockinformation.org.uk` (production) resolve? (VPS curl test)
+- If production resolves, can we make read-only calls (e.g. GET /v1/flocks) against it 
+  using the sandbox Bearer token + our subscription key?
+
+*Last updated: June 2026*
