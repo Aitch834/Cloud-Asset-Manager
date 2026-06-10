@@ -126,6 +126,18 @@ export async function fetchLisToken(username: string, password: string): Promise
       body: body.toString(),
     });
 
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      return {
+        sandbox: false,
+        success: false,
+        errorMessage:
+          `LIS authentication endpoint returned a non-JSON response (HTTP ${res.status}). ` +
+          `The B2C tenant or policy name may be incorrect, or the LIS API may not be accessible from this server's network. ` +
+          `The LIS API is only reachable from UK-based infrastructure — deploy to a UK server to test a live connection.`,
+      };
+    }
+
     const data = await res.json() as any;
 
     if (!res.ok || data.error) {
@@ -144,6 +156,20 @@ export async function fetchLisToken(username: string, password: string): Promise
       expiresIn: data.expires_in,
     };
   } catch (err: any) {
+    const isNetworkError =
+      err?.cause?.code === "ENOTFOUND" ||
+      err?.code === "ENOTFOUND" ||
+      (err?.message as string)?.includes("ENOTFOUND") ||
+      (err?.message as string)?.includes("fetch failed");
+    if (isNetworkError) {
+      return {
+        sandbox: false,
+        success: false,
+        errorMessage:
+          "Cannot reach LIS API from this server. The LIS API is only accessible from UK-based infrastructure. " +
+          "Deploy to a UK server to test a live connection.",
+      };
+    }
     return { sandbox: false, success: false, errorMessage: err?.message ?? "Network error fetching token" };
   }
 }
