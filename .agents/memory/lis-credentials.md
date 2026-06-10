@@ -1,6 +1,6 @@
 ---
 name: LIS credentials & integration status
-description: LIS CLA API secrets configured in Replit, Azure AD B2C auth endpoint, and confirmed correct API URLs
+description: LIS CLA API secrets, confirmed working auth endpoint, and current blocker
 ---
 
 ## Configured secrets (Replit)
@@ -10,41 +10,52 @@ description: LIS CLA API secrets configured in Replit, Azure AD B2C auth endpoin
 - `LIS_PROXY_URL` — URL of the UK VPS proxy (e.g. http://<IP>:3001)
 - `LIS_PROXY_SECRET` — shared secret sent in X-Proxy-Secret header to the proxy
 
-## Integration mode
-- `isLisSandboxMode()` returns `false` when `LIS_SUBSCRIPTION_KEY` is set (real API calls)
-- `isSandboxApi()` returns `true` when `LIS_USE_SANDBOX_API=true` — routes CLA API to sandbox gateway AND uses sandbox B2C tenant
-- Code in `artifacts/api-server/src/lib/lis.ts`
-- Proxy code in `lis-proxy/index.js` (deployed on DigitalOcean London VPS)
+## Confirmed working auth (June 2026)
 
-## Auth endpoint — confirmed from LIS Developer Hub Additional Credentials page (June 2026)
+**Token URL (sandbox):**
+`https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token`
 
-LIS uses **Azure B2C with a custom policy (B2C_1A_SIGNIN)**.  
-The correct token endpoint format uses `b2clogin.com` + `/tfp/` NOT `login.microsoftonline.com`:
+**Token URL (production):**
+`https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token`
 
-- **Sandbox:** `https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token`
-- **Production:** `https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token`
-- **Scope (sandbox):** `openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
-- **Scope (prod):** `openid https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
-- **B2C policy:** `B2C_1A_SIGNIN`
-- **B2C authority (from dev hub):** `https://livestockinformationb2cprod.b2clogin.com/tfp/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/v2.0`
+**Scope (sandbox):**
+`https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
 
-**Why:** Confirmed from the "Additional Credentials" page on the LIS Developer Hub portal, June 2026.
-Previous attempts used `login.microsoftonline.com` + `openid profile offline_access` — these returned tokens but tokens lacked the CLA API scope (`apim-cla-ext/user_impersonation`) needed to call the API.
+**Scope (production):**
+`https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
 
-## CLA API gateway — confirmed from LIS Developer Hub (June 2026)
+**Why NOT b2clogin.com / B2C_1A_SIGNIN:**
+`B2C_1A_SIGNIN` is an interactive-only policy. ROPC (grant_type=password) against it returns
+`AADB2C90057` ("application not configured for implicit flow"). Standard AAD v2 endpoint works.
+
+**Do NOT include `openid` in scope** — triggers implicit flow error on B2C policies.
+
+## CLA API gateway (confirmed from LIS Developer Hub, June 2026)
 
 - **Sandbox:** `https://ext-cla.api.livestockinformation.org.uk/v1.0`
-- **Production:** `https://cla.api.livestockinformation.org.uk/v1.0`  
-- **The `/v1.0` version prefix is PART OF THE BASE URL** — do NOT add `/v1/` to individual resource paths (e.g. use `/flocks` not `/v1/flocks`)
-- `api.cla.livestockinformation.org.uk`, `api.sandbox.cla.livestockinformation.org.uk`, `api.livestockinformation.org.uk` — none of these resolve in public DNS; they are documentation artefacts
+- **Production:** `https://cla.api.livestockinformation.org.uk/v1.0`
+- `/v1.0` is part of the base URL — do NOT add `/v1/` to resource paths
+- Domain resolves from UK VPS ✓, returns HTTP 404 on root path ✓ (APIM gateway live)
+
+## APIM CLA Ext application
+
+- App name: **APIM CLA Ext**
+- App ID: `77f8ff53-0866-4598-98b3-2ec6ca15ae9b`
+- This is the Azure AD app that protects the CLA API
+
+## Current blocker — AADSTS50105 (June 2026)
+
+Auth works and reaches Azure AD successfully. Token is rejected because the sandbox test user
+is not assigned/granted access to the APIM CLA Ext application.
+
+Error: `AADSTS50105 — user not a direct member of a group with access, nor directly assigned`
+
+**Resolution required from LIS support:**
+- Ask LIS to assign the sandbox test user to the APIM CLA Ext app, OR
+- Ask which sandbox users already have access
 
 ## UK Proxy
-- LIS API unreachable from Replit US infrastructure (ENOTFOUND)
-- Proxy deployed on DigitalOcean London (LON1) VPS at port 3001
+- Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
+- No git repo on VPS — update by pasting full `index.js` content via heredoc then `pm2 restart lis-proxy`
 - When `LIS_PROXY_URL` is set in Replit Secrets, all LIS calls route through it
 - Proxy setup guide: `docs/lis-proxy-setup.md`
-- **VPS proxy must be updated** whenever `lis-proxy/index.js` changes in the repo
-
-## Pending
-- First live sync attempt with correct URLs (VPS proxy needs updating then retry sync-herds)
-- Whether `client_secret` is required for confidential client registration
