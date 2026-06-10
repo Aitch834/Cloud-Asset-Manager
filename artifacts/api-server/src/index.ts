@@ -24,7 +24,10 @@ const ENV_SPEC: EnvSpec[] = [
   { key: "SMTP_PASS",              description: "SMTP relay password / API key — enables sending",   required: false },
   { key: "SMTP_FROM",              description: "Sender address (default: noreply@bdefarmtrac.co.uk)", required: false },
   { key: "TWILIO_ACCOUNT_SID",     description: "Twilio account SID — enables SMS alerts",          required: false },
-  { key: "TITAN_IMAP_PASSWORD",    description: "Titan IMAP password — enables admin email inbox",  required: false },
+  { key: "TITAN_IMAP_PASSWORD",       description: "Titan IMAP password — enables admin email inbox",        required: false },
+  { key: "CREDENTIAL_ENCRYPTION_KEY", description: "AES-256 key for encrypting stored LIS/BCMS credentials", required: false },
+  { key: "LIS_SUBSCRIPTION_KEY",      description: "LIS CLA API vendor subscription key — enables live LIS",  required: false },
+  { key: "LIS_B2C_CLIENT_ID",         description: "LIS Azure B2C client ID for ROPC token flow",             required: false },
 ];
 
 function auditEnvVars(): void {

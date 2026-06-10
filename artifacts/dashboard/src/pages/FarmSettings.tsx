@@ -391,18 +391,33 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   }, [creds]);
 
   const saveMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/lis-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: async (body: any) => {
+      const r = await fetch(`/api/farms/${farmId}/lis-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error ?? "Save failed");
+      return data;
+    },
     onSuccess: () => { toast({ title: "LIS credentials saved" }); credsQ.refetch(); setDirty(false); setPassword(""); },
-    onError: () => toast({ title: "Failed to save credentials", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed to save credentials", description: e?.message, variant: "destructive" }),
   });
   const testMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/lis-credentials/test`, { method: "POST" }).then(r => r.json()),
+    mutationFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/lis-credentials/test`, { method: "POST" });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.message ?? data?.error ?? "Test failed");
+      return data;
+    },
     onSuccess: (d) => { credsQ.refetch(); toast({ title: d.success ? (d.sandbox ? "Sandbox test passed" : "Connected to LIS") : "Connection failed", description: d.message, variant: d.success ? "default" : "destructive" }); },
-    onError: () => toast({ title: "Test failed", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Test failed", description: e?.message, variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/lis-credentials`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/lis-credentials`, { method: "DELETE" });
+      if (!r.ok) throw new Error("Delete failed");
+      return r.json();
+    },
     onSuccess: () => { toast({ title: "LIS credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); },
+    onError: () => toast({ title: "Failed to remove credentials", variant: "destructive" }),
   });
 
   const statusBadge = () => {
