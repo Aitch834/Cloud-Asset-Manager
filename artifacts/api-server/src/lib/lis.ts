@@ -19,15 +19,30 @@
  *
  * LIS Developer Hub:   https://developers.livestockinformation.org.uk
  * CLA API base URL:    https://api.cla.livestockinformation.org.uk
- * Azure B2C tenant:    livestockinformation.b2clogin.com
- * Policy:              B2C_1_ROPC_Auth
+ * Azure B2C tenant (prod):    livestockinformation.b2clogin.com
+ * Azure B2C tenant (sandbox): livestockinformationb2cprod.b2clogin.com
+ * Policy (both):              B2C_1_ROPC_Auth
  */
 
-const LIS_B2C_TOKEN_URL =
+// Production Azure B2C tenant (live environment)
+const LIS_B2C_TOKEN_URL_PROD =
   "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1_ROPC_Auth/oauth2/v2.0/token";
-const LIS_B2C_SCOPE =
+const LIS_B2C_SCOPE_PROD =
   "https://livestockinformation.onmicrosoft.com/api/user_impersonation openid profile offline_access";
-const LIS_B2C_CLIENT_ID = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
+
+// Beta/Sandbox Azure B2C tenant — separate tenant used by api.sandbox.cla.*
+const LIS_B2C_TOKEN_URL_SANDBOX =
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1_ROPC_Auth/oauth2/v2.0/token";
+const LIS_B2C_SCOPE_SANDBOX =
+  "https://livestockinformationb2cprod.onmicrosoft.com/api/user_impersonation openid profile offline_access";
+
+function isSandboxApi(): boolean {
+  return process.env.LIS_USE_SANDBOX_API === "true";
+}
+
+const LIS_B2C_TOKEN_URL = isSandboxApi() ? LIS_B2C_TOKEN_URL_SANDBOX : LIS_B2C_TOKEN_URL_PROD;
+const LIS_B2C_SCOPE      = isSandboxApi() ? LIS_B2C_SCOPE_SANDBOX      : LIS_B2C_SCOPE_PROD;
+const LIS_B2C_CLIENT_ID  = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
 const LIS_API_BASE = "https://api.cla.livestockinformation.org.uk";
 const LIS_API_BASE_SANDBOX = "https://api.sandbox.cla.livestockinformation.org.uk";
