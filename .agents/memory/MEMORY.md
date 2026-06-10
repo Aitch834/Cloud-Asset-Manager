@@ -8,3 +8,4 @@
 - [Test-dashboard Vite cache fix](test-dashboard-vite-cache.md) — clear node_modules/.vite on startup; "Invalid hook call" on CompliancePage = stale browserHash, not a hooks bug
 - [RLS fix script — regex multistatement pitfall](rls-fix-regex-multistatement.md) — bulk regex-line-replace silently drops trailing content; check with tsc after any bulk script
 - [TanStack Query shared-key cache-shape mismatch](tanstack-query-shared-key-shape-mismatch.md) — never unwrap arrays inside queryFn for shared keys; normalise at access point with Array.isArray guard
+- [LIS credentials & integration status](lis-credentials.md) — both secrets set; Beta Sandbox client ID documented; pending: client_secret confirmation from LIS support
