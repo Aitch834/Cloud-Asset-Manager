@@ -407,7 +407,7 @@ import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
-import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode } from "../lib/lis";
+import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode, callLisApi } from "../lib/lis";
 
 const router: IRouter = Router();
 
@@ -23949,6 +23949,120 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
     await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "Submission failed" });
   }
+});
+
+// ─── LIS Herd Sync ──────────────────────────────────────────────────────────
+
+/**
+ * POST /api/farms/:farmId/lis/sync-herds
+ * Fetches herds and flocks from the LIS CLA API for this farm's CPH number.
+ * Tries multiple endpoint patterns and returns both structured results and raw
+ * responses so we can discover the correct CLA API paths in the sandbox.
+ */
+router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (!creds?.isConfigured) {
+    res.status(400).json({ success: false, message: "LIS credentials not configured. Save and test your credentials first." });
+    return;
+  }
+
+  // Internal sandbox mode (no LIS_SUBSCRIPTION_KEY) — return simulated empty result
+  if (isLisSandboxMode()) {
+    res.json({
+      success: true,
+      sandbox: true,
+      cphNumber: null,
+      message: "Running in internal sandbox mode — no live LIS call made. Set LIS_SUBSCRIPTION_KEY to enable real API calls.",
+      herds: [],
+      attempts: {},
+    });
+    return;
+  }
+
+  // Get or refresh access token
+  const password = decryptCredential(creds.lisPasswordEncrypted ?? "");
+  let accessToken = creds.accessToken ?? undefined;
+  const tokenExpired = !accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000));
+  if (tokenExpired) {
+    const tokenResult = await fetchLisToken(creds.lisUsername!, password);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+      res.status(401).json({ success: false, message: `Re-authentication failed: ${tokenResult.errorMessage ?? "unknown error"}` });
+      return;
+    }
+    accessToken = tokenResult.accessToken;
+    await db.update(lisFarmTokensTable).set({
+      accessToken,
+      refreshToken: tokenResult.refreshToken ?? undefined,
+      tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
+      updatedAt: new Date(),
+    }).where(eq(lisFarmTokensTable.farmId, farmId));
+  }
+
+  // Fetch the farm's CPH number
+  const [farm] = await db.select({ cphNumber: farmsTable.cphNumber }).from(farmsTable).where(eq(farmsTable.id, farmId));
+  const cphNumber = farm?.cphNumber ?? "";
+  const encodedCph = encodeURIComponent(cphNumber.replace(/\//g, "-")); // LIS CPH in URL typically uses dashes
+
+  // ── Try multiple CLA API paths to discover the correct endpoints ───────────
+  const attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }> = {};
+
+  const endpoints = [
+    "/v1/flocks",
+    "/v1/herds",
+    cphNumber ? `/v1/holdings/${encodedCph}/flocks` : null,
+    cphNumber ? `/v1/holdings/${encodedCph}/herds` : null,
+    cphNumber ? `/v1/holdings/${encodeURIComponent(cphNumber)}/flocks` : null,
+  ].filter(Boolean) as string[];
+
+  for (const path of endpoints) {
+    try {
+      const r = await callLisApi(accessToken!, path);
+      attempts[`GET ${path}`] = { status: r.status, ok: r.ok, data: r.data };
+    } catch (e: any) {
+      attempts[`GET ${path}`] = { error: e?.message ?? "error" };
+    }
+  }
+
+  // Find the first successful response that looks like a list
+  const successEntry = Object.entries(attempts).find(([, v]) => "ok" in v && v.ok);
+  const successData = successEntry ? (successEntry[1] as any).data : null;
+
+  // Parse herds from successful response — handle common LIS response shapes
+  type HerdSummary = { ref: string; species: string; count?: number; name?: string };
+  let herds: HerdSummary[] = [];
+  if (Array.isArray(successData)) {
+    herds = successData.map((h: any) => ({
+      ref: h.flockRef ?? h.herdRef ?? h.flockMark ?? h.herdMark ?? h.id ?? "unknown",
+      species: h.speciesIdentifier ?? h.species ?? "unknown",
+      count: h.animalCount ?? h.numberOfAnimals ?? undefined,
+      name: h.name ?? h.flockName ?? h.herdName ?? undefined,
+    }));
+  } else if (successData && typeof successData === "object") {
+    // Some APIs wrap the list: { flocks: [...] } or { herds: [...] }
+    const inner = (successData as any).flocks ?? (successData as any).herds ?? (successData as any).items ?? (successData as any).value;
+    if (Array.isArray(inner)) {
+      herds = inner.map((h: any) => ({
+        ref: h.flockRef ?? h.herdRef ?? h.flockMark ?? h.herdMark ?? h.id ?? "unknown",
+        species: h.speciesIdentifier ?? h.species ?? "unknown",
+        count: h.animalCount ?? h.numberOfAnimals ?? undefined,
+        name: h.name ?? h.flockName ?? h.herdName ?? undefined,
+      }));
+    }
+  }
+
+  res.json({
+    success: !!successEntry,
+    sandbox: false,
+    cphNumber,
+    message: successEntry
+      ? `Fetched from ${successEntry[0]} — ${herds.length} herd/flock record(s) found`
+      : "No CLA API endpoint returned a successful response. See 'attempts' for details.",
+    herds,
+    attempts,
+  });
 });
 
 // ─── Farm Customers ─────────────────────────────────────────────────────────

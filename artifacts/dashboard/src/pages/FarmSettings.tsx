@@ -371,6 +371,15 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   );
 }
 
+type LisSyncResult = {
+  success: boolean;
+  sandbox?: boolean;
+  cphNumber?: string;
+  message: string;
+  herds: { ref: string; species: string; count?: number; name?: string }[];
+  attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }>;
+};
+
 function LisConnectionCard({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [showPass, setShowPass] = useState(false);
@@ -378,6 +387,8 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   const [password, setPassword] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [syncResult, setSyncResult] = useState<LisSyncResult | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const credsQ = useQuery({
     queryKey: ["lis-credentials", farmId],
@@ -418,6 +429,23 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
     },
     onSuccess: () => { toast({ title: "LIS credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); },
     onError: () => toast({ title: "Failed to remove credentials", variant: "destructive" }),
+  });
+  const syncMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/lis/sync-herds`, { method: "POST" });
+      const data = await r.json() as LisSyncResult;
+      if (!r.ok) throw new Error(data?.message ?? "Sync failed");
+      return data;
+    },
+    onSuccess: (d) => {
+      setSyncResult(d);
+      toast({
+        title: d.success ? `Sync complete — ${d.herds.length} herd/flock record(s) found` : "Sync returned no data",
+        description: d.message,
+        variant: d.success ? "default" : "destructive",
+      });
+    },
+    onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
   });
 
   const statusBadge = () => {
@@ -515,6 +543,18 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />}
             Test Connection
           </Button>
+          {creds?.configured && creds?.testStatus === "ok" && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncMut.isPending}
+              onClick={() => syncMut.mutate()}
+              title="Fetch your registered herds and flocks from the LIS CLA API"
+            >
+              {syncMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+              Sync from LIS
+            </Button>
+          )}
           {creds?.configured && (
             <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm({ msg: "Remove LIS credentials for this farm?", fn: () => deleteMut.mutate() })}>
               <Trash2 size={14} />
@@ -526,6 +566,67 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
           <div style={{ fontSize: "0.78rem", color: creds.testStatus === "ok" ? "#166534" : "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
             {creds.testStatus === "ok" ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
             Last test: {new Date(creds.lastTestedAt).toLocaleString("en-GB")} — {creds.testMessage}
+          </div>
+        )}
+
+        {syncResult && (
+          <div style={{ border: `1px solid ${syncResult.success ? "#bbf7d0" : "#fecaca"}`, borderRadius: 10, padding: "0.875rem 1rem", background: syncResult.success ? "#f0fdf4" : "#fef2f2" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: syncResult.herds.length > 0 ? 10 : 0 }}>
+              <p style={{ fontSize: "0.82rem", fontWeight: 600, color: syncResult.success ? "#166534" : "#dc2626" }}>
+                {syncResult.success ? "✓ " : "✗ "}{syncResult.message}
+              </p>
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                style={{ fontSize: "0.72rem", color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              >
+                {showDebug ? "Hide" : "Show"} API debug
+              </button>
+            </div>
+
+            {syncResult.herds.length > 0 && (
+              <table style={{ width: "100%", fontSize: "0.78rem", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #d1fae5" }}>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Herd/Flock Ref</th>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Species</th>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Name</th>
+                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Animals</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncResult.herds.map((h, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #d1fae5" }}>
+                      <td style={{ padding: "4px 8px", fontFamily: "monospace", color: "#166534" }}>{h.ref}</td>
+                      <td style={{ padding: "4px 8px", color: "#374151" }}>{h.species}</td>
+                      <td style={{ padding: "4px 8px", color: "#6b7280" }}>{h.name ?? "—"}</td>
+                      <td style={{ padding: "4px 8px", textAlign: "right", color: "#374151" }}>{h.count ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {syncResult.herds.length === 0 && syncResult.success && (
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 6 }}>
+                The API responded successfully but returned no herds or flocks. The endpoint may not be the correct one — check the API debug below.
+              </p>
+            )}
+
+            {showDebug && (
+              <div style={{ marginTop: 10, background: "#1e293b", borderRadius: 6, padding: "0.75rem", overflowX: "auto" }}>
+                <p style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: 6, fontWeight: 600 }}>API endpoint attempts</p>
+                {Object.entries(syncResult.attempts).map(([path, result]: [string, any]) => (
+                  <div key={path} style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: "0.72rem", fontFamily: "monospace", color: result.ok ? "#4ade80" : result.error ? "#f87171" : "#fbbf24", marginBottom: 2 }}>
+                      {result.ok ? "✓" : result.error ? "✗" : "○"} {path} {result.status ? `HTTP ${result.status}` : ""}
+                    </p>
+                    <pre style={{ fontSize: "0.68rem", color: "#cbd5e1", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                      {JSON.stringify(result.data ?? result.error, null, 2).slice(0, 500)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

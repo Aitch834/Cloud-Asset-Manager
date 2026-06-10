@@ -406,6 +406,43 @@ export async function submitLisMovement(req: LisMovementRequest): Promise<LisRes
 }
 
 /**
+ * Make an authenticated call to the LIS CLA API via the UK proxy.
+ * Supports any HTTP method. Returns status, parsed data, and raw response text.
+ */
+export async function callLisApi(
+  accessToken: string,
+  path: string,
+  method: string = "GET",
+  body?: object,
+): Promise<{ ok: boolean; status: number; data: unknown; raw: string }> {
+  const proxy = proxyUrl();
+
+  if (!proxy) {
+    return { ok: false, status: 0, data: null, raw: "No UK proxy configured (LIS_PROXY_URL not set)" };
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${accessToken}`,
+    ...proxyHeaders(),
+  };
+
+  try {
+    const res = await fetch(`${proxy}/lis/cla${path}`, {
+      method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const raw = await res.text();
+    let data: unknown;
+    try { data = JSON.parse(raw); } catch { data = raw; }
+    return { ok: res.ok, status: res.status, data, raw };
+  } catch (err: any) {
+    return { ok: false, status: 0, data: null, raw: err?.message ?? "Network error" };
+  }
+}
+
+/**
  * Test connectivity and credentials against LIS.
  * In sandbox mode simulates a successful test.
  */
