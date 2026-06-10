@@ -43,8 +43,11 @@ const LIS_B2C_TOKEN_URL = isSandboxApi() ? LIS_B2C_TOKEN_URL_SANDBOX : LIS_B2C_T
 const LIS_B2C_SCOPE      = isSandboxApi() ? LIS_B2C_SCOPE_SANDBOX      : LIS_B2C_SCOPE_PROD;
 const LIS_B2C_CLIENT_ID  = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
 
-const LIS_API_BASE = "https://api.cla.livestockinformation.org.uk";
-const LIS_API_BASE_SANDBOX = "https://api.sandbox.cla.livestockinformation.org.uk";
+// Note: api.cla.livestockinformation.org.uk does NOT exist in DNS.
+// The correct gateway is api.livestockinformation.org.uk (confirmed June 2026).
+// Sandbox vs production is differentiated by Bearer token tenant, not hostname.
+const LIS_API_BASE = "https://api.livestockinformation.org.uk";
+const LIS_API_BASE_SANDBOX = "https://api.livestockinformation.org.uk";
 
 /**
  * When LIS_PROXY_URL is set (e.g. https://lis-proxy.bdefarmtrac.co.uk), all

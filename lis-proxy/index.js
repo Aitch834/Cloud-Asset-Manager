@@ -33,9 +33,11 @@ const B2C_TOKEN_URL = USE_SANDBOX
   ? "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token"
   : "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
 
-const CLA_API_BASE = USE_SANDBOX
-  ? "https://api.sandbox.cla.livestockinformation.org.uk"
-  : "https://api.cla.livestockinformation.org.uk";
+// Note: api.cla.livestockinformation.org.uk does NOT exist in DNS.
+// The correct gateway is api.livestockinformation.org.uk (confirmed June 2026).
+// Sandbox vs production is determined by the Bearer token tenant / subscription key,
+// not a different hostname.
+const CLA_API_BASE = "https://api.livestockinformation.org.uk";
 
 // ─── App ───────────────────────────────────────────────────────────────────
 
