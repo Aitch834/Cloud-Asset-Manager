@@ -86,9 +86,11 @@ app.post("/lis/token", requireSecret, async (req, res) => {
   }
 
   // Scope from LIS Developer Hub api-scopes field (June 2026)
+  // Do NOT include "openid" — B2C treats it as implicit flow (AADB2C90057).
+  // ROPC only needs the API access scope + offline_access for a refresh token.
   const B2C_SCOPE = USE_SANDBOX
-    ? "openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access"
-    : "openid https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
+    ? "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access"
+    : "https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
   const body = new URLSearchParams({
     grant_type: "password",
