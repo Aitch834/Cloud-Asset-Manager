@@ -1292,6 +1292,11 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.checkDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.checkDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
+  function printRtChecklists() {
+    const tableRows = filtered.map(r => `<tr><td>${fmtDate(r.checkDate)}</td><td>${fmt(r.checkedBy)}</td><td>${fmt(r.overallStatus)}</td><td>${boolFields.filter(k => r[k]).map(k => boolLabels[k]).join("; ") || "—"}</td><td>${fmt(r.notes)}</td></tr>`).join("");
+    openPrintWindow(`<!DOCTYPE html><html><head><title>RT Sheep Checklists</title><style>body{font-family:Arial,sans-serif;font-size:10px;margin:20px}h1{font-size:14px;margin:0 0 2px}h2{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th{background:#f9fafb;font-size:8px;font-weight:700;text-transform:uppercase;padding:4px 6px;border:1px solid #e5e7eb;text-align:left}td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:14px;font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}@media print{@page{margin:1.5cm}}</style></head><body><h1>Red Tractor Sheep Checklists${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h1><h2>Red Tractor Sheep · ${filtered.length} record${filtered.length !== 1 ? "s" : ""} · Printed: ${new Date().toLocaleDateString("en-GB")}</h2><table><thead><tr><th>Date</th><th>Checked By</th><th>Status</th><th>Compliant Items</th><th>Notes</th></tr></thead><tbody>${tableRows}</tbody></table><p class="footer">Red Tractor Sheep: checklist records must be retained for a minimum of 3 years. Printed: ${new Date().toLocaleDateString("en-GB")}</p></body></html>`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
@@ -1302,7 +1307,10 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
             <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ overallStatus: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />New Check</Button>
+        <div className="flex gap-2">
+          {filtered.length > 0 && <Button size="sm" variant="outline" onClick={printRtChecklists}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ overallStatus: "pending" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />New Check</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin" /> : (
         <DataTable
