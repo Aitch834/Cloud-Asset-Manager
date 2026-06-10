@@ -12,3 +12,9 @@ id = "54DDEDwbzIHkzWo1T81BB"
 uri = "file://artifacts/website/public/bde-farm-trac-logo.svg"
 type = "image"
 title = "BDE Farm Trac — Master Vector Logo (SVG)"
+
+[[outputs]]
+id = "mTKi7N-DXPNv8Nw2vnH4G"
+uri = "file://docs/vps-deployment-guide.md"
+type = "text"
+title = "UK VPS Deployment Guide — bdefarmtrac.co.uk"
