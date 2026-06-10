@@ -199,8 +199,10 @@ app.all("/lis/cla/*", requireSecret, async (req, res) => {
     res.set("Content-Type", upstream.headers.get("content-type") ?? "application/json");
     res.send(responseText);
   } catch (err) {
-    console.error("[LIS-PROXY] CLA API error:", err);
-    res.status(502).json({ error: "upstream_unreachable", message: err.message });
+    const cause = err?.cause;
+    const detail = cause?.code ?? cause?.message ?? err?.message ?? "unknown";
+    console.error("[LIS-PROXY] CLA API error:", detail, err);
+    res.status(502).json({ error: "upstream_unreachable", message: `${err.message} — ${detail}`, detail });
   }
 });
 
