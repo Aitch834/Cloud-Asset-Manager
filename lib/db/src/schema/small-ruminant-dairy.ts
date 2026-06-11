@@ -43,6 +43,9 @@ export const sheepDairyMilkRecordsTable = pgTable("sheep_dairy_milk_records", {
   grossValuePence: integer("gross_value_pence"),
   netPaymentPence: integer("net_payment_pence"),
   notes: text("notes"),
+  // Retest linkage
+  isRetest: boolean("is_retest").notNull().default(false),
+  retestOfId: integer("retest_of_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -245,6 +248,9 @@ export const goatDairyMilkRecordsTable = pgTable("goat_dairy_milk_records", {
   grossValuePence: integer("gross_value_pence"),
   netPaymentPence: integer("net_payment_pence"),
   notes: text("notes"),
+  // Retest linkage
+  isRetest: boolean("is_retest").notNull().default(false),
+  retestOfId: integer("retest_of_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

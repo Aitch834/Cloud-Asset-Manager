@@ -368,6 +368,19 @@ export async function createDairyAbrInvalidNotification(params: {
   });
 }
 
+export async function resolveAbrNotificationsForRecord({ farmId, retestOfId }: { farmId: number; retestOfId: number }) {
+  await db.delete(notificationsTable).where(
+    and(
+      eq(notificationsTable.farmId, farmId),
+      or(
+        eq(notificationsTable.dedupeKey, `dairy-abr-positive-${retestOfId}`),
+        eq(notificationsTable.dedupeKey, `dairy-abr-borderline-${retestOfId}`),
+        eq(notificationsTable.dedupeKey, `dairy-abr-invalid-${retestOfId}`)
+      )
+    )
+  );
+}
+
 export async function createMobilityLamenessAlert(params: {
   tenantId: number;
   farmId: number;

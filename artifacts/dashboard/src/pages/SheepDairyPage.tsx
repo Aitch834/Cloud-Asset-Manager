@@ -108,6 +108,7 @@ interface MilkRecord {
   buyerLabResultsStatus?: string | null; buyerSccThousands?: number | null;
   buyerFatPercent?: string | null; buyerProteinPercent?: string | null;
   pencePerLitre?: string | null; netPaymentPence?: number | null; notes?: string | null;
+  isRetest?: boolean | null; retestOfId?: number | null;
 }
 
 function MilkTab({ farmId }: { farmId: number }) {
@@ -245,11 +246,34 @@ function MilkTab({ farmId }: { farmId: number }) {
                       <SelectItem value="__none__">Not tested</SelectItem>
                       <SelectItem value="negative">Negative ✓</SelectItem>
                       <SelectItem value="positive">Positive ⚠</SelectItem>
-                      <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                      <SelectItem value="borderline">Borderline</SelectItem>
+                      <SelectItem value="invalid">Invalid (test void)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div><Label>ABR Kit Lot</Label><Input value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>
+                <div className="col-span-3 border-t border-amber-100 pt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="is-retest-sd" checked={!!form.isRetest} onChange={e => { set("isRetest", e.target.checked); if (!e.target.checked) set("retestOfId", null); }} className="w-4 h-4 rounded" />
+                    <Label htmlFor="is-retest-sd" className="font-normal cursor-pointer">This is a follow-up retest of a previous non-negative result</Label>
+                  </div>
+                  {form.isRetest && (
+                    <div className="space-y-1">
+                      <Label>Retest of (original concerning record)</Label>
+                      <Select value={form.retestOfId ? String(form.retestOfId) : ""} onValueChange={v => set("retestOfId", v ? Number(v) : null)}>
+                        <SelectTrigger><SelectValue placeholder="Select the original record…" /></SelectTrigger>
+                        <SelectContent>
+                          {records.filter(r => r.id !== editing?.id && ["positive","borderline","invalid"].includes(r.antibioticResidueTestResult ?? "")).slice(0, 40).map(r => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {new Date(r.recordDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})} — ABR {r.antibioticResidueTestResult}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">A Negative retest will auto-resolve the alert for the original record.</p>
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
               </div>
             </TabsContent>

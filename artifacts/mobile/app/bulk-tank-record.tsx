@@ -30,7 +30,7 @@ const RECORD_TYPES = [
   { value: "maintenance",       label: "Tank Maintenance" },
 ];
 
-const ABR_RESULTS = ["negative", "positive", "inconclusive"];
+const ABR_RESULTS = ["negative", "positive", "borderline", "invalid"];
 
 function today() {
   return new Date().toISOString().slice(0, 10);

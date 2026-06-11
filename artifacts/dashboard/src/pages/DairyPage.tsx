@@ -119,6 +119,7 @@ interface MilkRecord {
   // On-farm ABR
   antibioticResidueTestResult?: string | null; abrTestedBy?: string | null;
   abrTestKitLot?: string | null; abrTestKitBatch?: string | null;
+  isRetest?: boolean | null; retestOfId?: number | null;
   // Buyer lab results
   buyerLabResultsStatus?: string | null; buyerLabResultsDate?: string | null;
   buyerLabRef?: string | null; buyerSccThousands?: number | null;
@@ -128,6 +129,7 @@ interface MilkRecord {
   sccThousands?: number | null; tbcCfuMl?: number | null;
   fatPercent?: string | null; proteinPercent?: string | null; lactosePercent?: string | null;
   collectorReference?: string | null; herdId?: number | null; notes?: string | null;
+  documentPath?: string | null; documentName?: string | null;
 }
 
 function LabResultsBadge({ status }: { status?: string | null }) {
@@ -519,12 +521,17 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                         ABR: {r.antibioticResidueTestResult}
                       </span>
                     )}
+                    {r.isRetest && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">↩ Retest</span>}
+                    {!r.isRetest && (data?.records ?? []).some(rt => rt.retestOfId === r.id && rt.antibioticResidueTestResult === "negative") && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">✓ Retested — Negative</span>
+                    )}
                     <LabResultsBadge status={r.buyerLabResultsStatus} />
                   </div>
                   <div className="flex gap-1 ml-2 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <DocAttach farmId={farmId} endpoint="dairy/milk-records" recordId={r.id} documentPath={r.documentPath ?? null} documentName={r.documentName ?? null} queryKey={["dairy-milk", farmId]} compact />
                     {((r.antibioticResidueTestResult && r.antibioticResidueTestResult !== "negative") || (r.sccThousands && Number(r.sccThousands ?? 0) > 200) || (r.buyerSccThousands && Number(r.buyerSccThousands ?? 0) > 200)) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" title="Raise Task — quality alert" onClick={() => setRaiseTaskFor(r)}><ClipboardList className="h-3.5 w-3.5" /></Button>
                     )}
@@ -612,7 +619,8 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                         <SelectContent>
                           <SelectItem value="negative">Negative (safe to supply)</SelectItem>
                           <SelectItem value="positive">Positive (milk discarded)</SelectItem>
-                          <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                          <SelectItem value="borderline">Borderline</SelectItem>
+                          <SelectItem value="invalid">Invalid (test void)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -632,6 +640,28 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     </div>
                     <div><Label>ABR Kit Lot Number</Label><Input placeholder="From kit packaging" value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>
                     <div><Label>ABR Kit Batch Number</Label><Input placeholder="From kit packaging" value={form.abrTestKitBatch || ""} onChange={e => set("abrTestKitBatch", e.target.value)} /></div>
+                    <div className="col-span-3 border-t border-amber-100 pt-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="is-retest-abr" checked={!!form.isRetest} onChange={e => { set("isRetest", e.target.checked); if (!e.target.checked) set("retestOfId", null); }} className="w-4 h-4 rounded" />
+                        <Label htmlFor="is-retest-abr" className="font-normal cursor-pointer">This is a follow-up retest of a previous non-negative result</Label>
+                      </div>
+                      {form.isRetest && (
+                        <div className="space-y-1">
+                          <Label>Retest of (original concerning record)</Label>
+                          <Select value={form.retestOfId ? String(form.retestOfId) : ""} onValueChange={v => set("retestOfId", v ? Number(v) : null)}>
+                            <SelectTrigger><SelectValue placeholder="Select the original record…" /></SelectTrigger>
+                            <SelectContent>
+                              {(data?.records ?? []).filter(r => r.id !== editing?.id && ["positive","borderline","invalid"].includes(r.antibioticResidueTestResult ?? "")).slice(0, 40).map(r => (
+                                <SelectItem key={r.id} value={String(r.id)}>
+                                  {new Date(r.recordDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})} — ABR {r.antibioticResidueTestResult}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">A Negative retest will auto-resolve the alert for the original record.</p>
+                        </div>
+                      )}
+                    </div>
                     <div className="col-span-3 border-t border-blue-200 pt-3">
                       <p className="text-xs text-blue-600 mb-2 font-medium">On-farm quality measurements (optional — if tested on-farm separately from buyer)</p>
                       <div className="grid grid-cols-5 gap-2">
@@ -3456,7 +3486,8 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
                 <SelectContent>
                   <SelectItem value="negative">Negative</SelectItem>
                   <SelectItem value="positive">Positive</SelectItem>
-                  <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                  <SelectItem value="borderline">Borderline</SelectItem>
+                  <SelectItem value="invalid">Invalid (test void)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

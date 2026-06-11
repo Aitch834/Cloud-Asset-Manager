@@ -40,7 +40,8 @@ const ABR_OPTIONS = [
   { value: "",             label: "Not tested" },
   { value: "negative",     label: "Negative ✓" },
   { value: "positive",     label: "Positive ⚠" },
-  { value: "inconclusive", label: "Inconclusive" },
+  { value: "borderline",   label: "Borderline" },
+  { value: "invalid",      label: "Invalid (test void)" },
 ];
 
 export default function SheepMilkRecordScreen() {

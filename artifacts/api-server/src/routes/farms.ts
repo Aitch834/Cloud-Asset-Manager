@@ -401,7 +401,7 @@ import {
   organicGoatDairyTreatmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -13248,8 +13248,8 @@ router.get("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requ
 router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes, abrKitStockId } = req.body;
-  const [record] = await db.insert(dairyMilkRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType: recordType || "bulk-tank", sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || "not-applicable", buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes }).returning();
+  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes, abrKitStockId, isRetest, retestOfId } = req.body;
+  const [record] = await db.insert(dairyMilkRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType: recordType || "bulk-tank", sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || "not-applicable", buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes, isRetest: !!isRetest, retestOfId: retestOfId || null }).returning();
   // Decrement ABR test kit stock if a kit was used
   if (antibioticResidueTestResult && abrKitStockId) {
     await db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(abrKitStockId)), eq(dairyAbrTestKitStockTable.farmId, farmId)));
@@ -13269,6 +13269,9 @@ router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, req
   if (antibioticResidueTestResult === "invalid") {
     createDairyAbrInvalidNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR invalid alert failed:", e));
   }
+  if (isRetest && retestOfId && antibioticResidueTestResult === "negative") {
+    resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(retestOfId) }).catch(e => console.error("[DAIRY] ABR retest resolve failed:", e));
+  }
   res.json({ record });
 });
 
@@ -13276,10 +13279,10 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId as string);
-  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes } = req.body;
+  const { recordDate, recordType, sessionType, milkBuyer, yieldLitres, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccThousands, buyerTbcCfuMl, buyerFatPercent, buyerProteinPercent, buyerLactosePercent, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId, notes, isRetest, retestOfId } = req.body;
   // Fetch current state so we only alert when status is CHANGING to a critical value
   const [prev] = await db.select({ buyerLabResultsStatus: dairyMilkRecordsTable.buyerLabResultsStatus, antibioticResidueTestResult: dairyMilkRecordsTable.antibioticResidueTestResult, recordDate: dairyMilkRecordsTable.recordDate }).from(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).limit(1);
-  const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || null, buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, milkBuyer: milkBuyer || null, yieldLitres, milkTemperatureCelsius, tempTestedBy: tempTestedBy || null, antibioticResidueTestResult, abrTestedBy: abrTestedBy || null, abrTestKitLot: abrTestKitLot || null, abrTestKitBatch: abrTestKitBatch || null, buyerLabResultsStatus: buyerLabResultsStatus || null, buyerLabResultsDate: buyerLabResultsDate || null, buyerLabRef: buyerLabRef || null, buyerSccThousands: buyerSccThousands || null, buyerTbcCfuMl: buyerTbcCfuMl || null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerLactosePercent: buyerLactosePercent || null, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, collectorReference, herdId: herdId || null, notes, isRetest: isRetest !== undefined ? !!isRetest : undefined, retestOfId: retestOfId !== undefined ? (retestOfId || null) : undefined }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
   // Only alert if status is newly changing to a critical value (not already flagged)
   const tenantId = req.tenantId!;
   const rdStr = recordDate ? String(recordDate) : (prev?.recordDate ? new Date(prev.recordDate).toISOString() : new Date().toISOString());
@@ -13295,6 +13298,9 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
   if (antibioticResidueTestResult === "invalid" && prev?.antibioticResidueTestResult !== "invalid") {
     createDairyAbrInvalidNotification({ tenantId, farmId, recordId, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR invalid alert failed:", e));
   }
+  if (isRetest && retestOfId && antibioticResidueTestResult === "negative") {
+    resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(retestOfId) }).catch(e => console.error("[DAIRY] ABR retest resolve failed:", e));
+  }
   res.json({ record });
 });
 
@@ -13304,6 +13310,16 @@ router.delete("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requir
   const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/dairy/milk-records/:recordId/document", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath, documentName } = req.body;
+  const [record] = await db.update(dairyMilkRecordsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
 });
 
 router.get("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -28106,6 +28122,13 @@ router.post("/farms/:farmId/sheep-dairy/milk-records", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(sheepDairyMilkRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const { antibioticResidueTestResult: sAbr, isRetest: sIsRetest, retestOfId: sRetestOfId, sessionType: sSession, abrTestedBy: sAbrBy } = req.body as Record<string, unknown>;
+  const sTenantId = req.tenantId!;
+  const sRdStr = record.recordDate ? new Date(record.recordDate).toISOString() : new Date().toISOString();
+  if (sAbr === "positive") { createDairyAbrPositiveNotification({ tenantId: sTenantId, farmId, recordId: record.id, recordDate: sRdStr, sessionType: (sSession as string) || null, abrTestedBy: (sAbrBy as string) || null }).catch(e => console.error("[SHEEP-DAIRY] ABR positive:", e)); }
+  if (sAbr === "borderline") { createDairyAbrBorderlineNotification({ tenantId: sTenantId, farmId, recordId: record.id, recordDate: sRdStr, sessionType: (sSession as string) || null, abrTestedBy: (sAbrBy as string) || null }).catch(e => console.error("[SHEEP-DAIRY] ABR borderline:", e)); }
+  if (sAbr === "invalid") { createDairyAbrInvalidNotification({ tenantId: sTenantId, farmId, recordId: record.id, recordDate: sRdStr, sessionType: (sSession as string) || null, abrTestedBy: (sAbrBy as string) || null }).catch(e => console.error("[SHEEP-DAIRY] ABR invalid:", e)); }
+  if (sIsRetest && sRetestOfId && sAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(sRetestOfId) }).catch(e => console.error("[SHEEP-DAIRY] retest resolve:", e)); }
   res.status(201).json({ record });
 });
 
@@ -28113,6 +28136,8 @@ router.put("/farms/:farmId/sheep-dairy/milk-records/:recordId", requireAuth, req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.update(sheepDairyMilkRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sheepDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(sheepDairyMilkRecordsTable.farmId, farmId))).returning();
+  const { isRetest: spIsRetest, retestOfId: spRetestOfId, antibioticResidueTestResult: spAbr } = req.body as Record<string, unknown>;
+  if (spIsRetest && spRetestOfId && spAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(spRetestOfId) }).catch(e => console.error("[SHEEP-DAIRY PUT] retest resolve:", e)); }
   res.json({ record });
 });
 
@@ -28340,6 +28365,13 @@ router.post("/farms/:farmId/goat-dairy/milk-records", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(goatDairyMilkRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const { antibioticResidueTestResult: gAbr, isRetest: gIsRetest, retestOfId: gRetestOfId, sessionType: gSession, abrTestedBy: gAbrBy } = req.body as Record<string, unknown>;
+  const gTenantId = req.tenantId!;
+  const gRdStr = record.recordDate ? new Date(record.recordDate).toISOString() : new Date().toISOString();
+  if (gAbr === "positive") { createDairyAbrPositiveNotification({ tenantId: gTenantId, farmId, recordId: record.id, recordDate: gRdStr, sessionType: (gSession as string) || null, abrTestedBy: (gAbrBy as string) || null }).catch(e => console.error("[GOAT-DAIRY] ABR positive:", e)); }
+  if (gAbr === "borderline") { createDairyAbrBorderlineNotification({ tenantId: gTenantId, farmId, recordId: record.id, recordDate: gRdStr, sessionType: (gSession as string) || null, abrTestedBy: (gAbrBy as string) || null }).catch(e => console.error("[GOAT-DAIRY] ABR borderline:", e)); }
+  if (gAbr === "invalid") { createDairyAbrInvalidNotification({ tenantId: gTenantId, farmId, recordId: record.id, recordDate: gRdStr, sessionType: (gSession as string) || null, abrTestedBy: (gAbrBy as string) || null }).catch(e => console.error("[GOAT-DAIRY] ABR invalid:", e)); }
+  if (gIsRetest && gRetestOfId && gAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(gRetestOfId) }).catch(e => console.error("[GOAT-DAIRY] retest resolve:", e)); }
   res.status(201).json({ record });
 });
 
@@ -28347,6 +28379,8 @@ router.put("/farms/:farmId/goat-dairy/milk-records/:recordId", requireAuth, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.update(goatDairyMilkRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(goatDairyMilkRecordsTable.id, Number(req.params.recordId)), eq(goatDairyMilkRecordsTable.farmId, farmId))).returning();
+  const { isRetest: gpIsRetest, retestOfId: gpRetestOfId, antibioticResidueTestResult: gpAbr } = req.body as Record<string, unknown>;
+  if (gpIsRetest && gpRetestOfId && gpAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(gpRetestOfId) }).catch(e => console.error("[GOAT-DAIRY PUT] retest resolve:", e)); }
   res.json({ record });
 });
 

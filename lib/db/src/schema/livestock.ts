@@ -331,6 +331,11 @@ export const dairyMilkRecordsTable = pgTable("dairy_milk_records", {
   lactosePercent: numeric("lactose_percent", { precision: 5, scale: 2 }),
   collectorReference: text("collector_reference"),
   notes: text("notes"),
+  // Retest linkage — links a follow-up test back to the original concerning result
+  isRetest: boolean("is_retest").notNull().default(false),
+  retestOfId: integer("retest_of_id"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
