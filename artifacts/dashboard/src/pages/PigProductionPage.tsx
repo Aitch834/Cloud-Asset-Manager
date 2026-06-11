@@ -343,13 +343,33 @@ function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
     return sp === "pigs" || sp === "mixed";
   }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
 
+  const [yearFilterDel, setYearFilterDel] = useState("all");
+  const delivYears = useMemo(() => Array.from(new Set(pigDeliveries.map(d => String(d.deliveryDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [pigDeliveries]);
+  const displayedDeliveries = yearFilterDel === "all" ? pigDeliveries : pigDeliveries.filter(d => String(d.deliveryDate ?? "").startsWith(yearFilterDel));
+
+  function printDeliveries() {
+    const trs = displayedDeliveries.map(r => `<tr><td>${fmtDate(r.deliveryDate)}</td><td>${fmt(r.supplierName)}</td><td>${fmt(r.feedType)}</td><td>${r.quantityKg != null ? `${r.quantityKg} kg` : "—"}</td><td>${fmt(r.batchNumber)}</td><td>${fmt(r.deliveryNoteNumber)}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Pig Feed Deliveries</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Pig Feed Deliveries${yearFilterDel !== "all" ? ` — ${yearFilterDel}` : ""}</h2><table><thead><tr><th>Date</th><th>Supplier</th><th>Feed Type</th><th>Qty (kg)</th><th>Batch No.</th><th>Delivery Note</th></tr></thead><tbody>${trs}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  }
+
   if (isLoading) return <Loader2 className="animate-spin w-5 h-5" />;
   if (pigDeliveries.length === 0) return (
     <Empty msg='No pig or mixed-species feed deliveries on record. Log a delivery in Feed Management with species set to "Pigs" or "Mixed".' />
   );
   return (
     <div className="space-y-2">
-      {pigDeliveries.map((r, i) => (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Select value={yearFilterDel} onValueChange={setYearFilterDel}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All years</SelectItem>{delivYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+        </Select>
+        {displayedDeliveries.length > 0 && <Button size="sm" variant="outline" onClick={printDeliveries}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+      </div>
+      {displayedDeliveries.length === 0 && pigDeliveries.length > 0 && <p className="text-sm text-gray-400 py-2">No deliveries for {yearFilterDel}.</p>}
+      {displayedDeliveries.map((r, i) => (
         <div key={i} className="border rounded-lg p-3 bg-white">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -389,6 +409,10 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   });
   const rows: Record<string, unknown>[] = Array.isArray(rawRows) ? rawRows : (rawRows?.records ?? rawRows ?? []);
   const sorted = [...rows].sort((a, b) => String(b.consumptionDate ?? "").localeCompare(String(a.consumptionDate ?? "")));
+
+  const [yearFilterCon, setYearFilterCon] = useState("all");
+  const conYears = useMemo(() => Array.from(new Set(sorted.map(r => String(r.consumptionDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [sorted]);
+  const displayed = yearFilterCon === "all" ? sorted : sorted.filter(r => String(r.consumptionDate ?? "").startsWith(yearFilterCon));
 
   const { data: flocksRaw } = useQuery({
     queryKey: ["pig-flocks", farmId],
@@ -436,6 +460,14 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
     setOpen(true);
   }
 
+  function printConsumption() {
+    const trs = displayed.map(r => `<tr><td>${fmtDate(r.consumptionDate)}</td><td>${fmt(r.flockName)}</td><td>${fmt(r.locationName)}</td><td>${fmt(r.feedType)}</td><td>${r.quantityKg != null ? `${r.quantityKg} kg` : "—"}</td><td>${fmt(r.batchLotNumber)}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>Pen Feed Consumption</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Pig Pen Feed Consumption${yearFilterCon !== "all" ? ` — ${yearFilterCon}` : ""}</h2><table><thead><tr><th>Date</th><th>Herd/Group</th><th>Location</th><th>Feed Type</th><th>Quantity</th><th>Batch No.</th></tr></thead><tbody>${trs}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  }
+
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-lg border border-green-100 bg-green-50 flex items-start gap-2">
@@ -448,15 +480,24 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
           <p className="text-xs text-amber-800">No farm locations are set up yet. Go to <strong>Farm Locations</strong> in the sidebar and add your pig sheds, farrowing houses, and outdoor areas before recording feed consumption.</p>
         </div>
       )}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterCon} onValueChange={setYearFilterCon}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{conYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          {displayed.length > 0 && <Button size="sm" variant="outline" onClick={printConsumption}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>}
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
         <Empty msg="No feeding records yet. Add your pig sheds to Farm Locations, then record daily feed consumption per herd / group and location." />
+      ) : displayed.length === 0 ? (
+        <p className="text-sm text-gray-400 py-2">No records for {yearFilterCon}.</p>
       ) : (
         <div className="space-y-2">
-          {sorted.map((r, i) => (
+          {displayed.map((r, i) => (
             <div key={i} className="border rounded-lg p-3 bg-white">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -476,7 +517,8 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
                     {!!r.linkedDeliveryId && <span><span className="font-medium text-foreground/70">Linked delivery #:</span> {fmt(r.linkedDeliveryId)}</span>}
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
+                <div className="flex gap-1 shrink-0 items-center">
+                  <RecordAttachments recordType="pig-feed-consumption" recordId={r.id as number} farmId={farmId} compact />
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                 </div>

@@ -729,12 +729,6 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const [monForm, setMonForm] = useState({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false as boolean, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" });
   const [monYear, setMonYear] = useState(String(new Date().getFullYear()));
 
-  // milk collections
-  const [collDialog, setCollDialog] = useState(false);
-  const [editingColl, setEditingColl] = useState<MilkCollection | null>(null);
-  const [collForm, setCollForm] = useState({ tankId: "", collectionDate: today(), volumeCollectedLitres: "", milkBuyer: "", tankerRegistration: "", tankerDriverName: "", collectionRef: "", statementRef: "", abtResultBeforeCollection: "", pencePerLitre: "", grossValuePence: "", qualityBonusPence: "", qualityPenaltyPence: "", transportDeductionPence: "", netPaymentPence: "", notes: "" });
-  const [collYear, setCollYear] = useState(String(new Date().getFullYear()));
-
   // queries
   const tanksQ = useQuery<{ tanks: BulkTank[] }>({ queryKey: ["sheep-dairy-bulk-tanks", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks`)).then(r => r.json()) });
   const tanks = tanksQ.data?.tanks ?? [];
@@ -745,7 +739,6 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
 
   const collQ = useQuery<{ collections: MilkCollection[] }>({ queryKey: ["sheep-dairy-milk-collections", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/milk-collections`)).then(r => r.json()) });
   const allColls = collQ.data?.collections ?? [];
-  const colls = useMemo(() => allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(collYear)), [allColls, collYear]);
 
   // compliance summary
   const summary = useMemo(() => {
@@ -774,18 +767,11 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const saveMonM = useMutation({ mutationFn: (d: Record<string, unknown>) => editingMon ? fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records/${editingMon.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()) : fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank-records", farmId] }); setMonDialog(false); toast({ title: editingMon ? "Record updated" : "Record saved" }); } });
   const delMonM = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tank-records/${id}`), { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-tank-records", farmId] }); toast({ title: "Record deleted" }); } });
 
-  // mutations — collections
-  const saveCollM = useMutation({ mutationFn: (d: Record<string, unknown>) => editingColl ? fetch(api(`farms/${farmId}/sheep-dairy/milk-collections/${editingColl.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()) : fetch(api(`farms/${farmId}/sheep-dairy/milk-collections`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk-collections", farmId] }); setCollDialog(false); toast({ title: editingColl ? "Collection updated" : "Collection recorded" }); } });
-  const delCollM = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/milk-collections/${id}`), { method: "DELETE" }).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk-collections", farmId] }); toast({ title: "Collection deleted" }); } });
-
   // helpers
   function openNewTank() { setEditingTank(null); setTankForm({ name: "", location: "", capacityLitres: "", manufacturer: "", serialNumber: "", installDate: "", notes: "" }); setTankDialog(true); }
   function openEditTank(t: BulkTank) { setEditingTank(t); setTankForm({ name: t.name, location: t.location || "", capacityLitres: t.capacityLitres || "", manufacturer: t.manufacturer || "", serialNumber: t.serialNumber || "", installDate: t.installDate || "", notes: t.notes || "" }); setTankDialog(true); }
   function openNewMon() { setEditingMon(null); setMonForm({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" }); setMonDialog(true); }
   function openEditMon(r: TankRecord) { setEditingMon(r); setMonForm({ tankId: r.tankId ? String(r.tankId) : "", recordDate: r.recordDate.slice(0, 10), recordType: r.recordType, tankTemperatureCelsius: r.tankTemperatureCelsius || "", tankCleaned: r.tankCleaned || false, cleaningProductUsed: r.cleaningProductUsed || "", cleaningProductBatch: r.cleaningProductBatch || "", antibioticResidueTestRef: r.antibioticResidueTestRef || "", antibioticResidueResult: r.antibioticResidueResult || "", notes: r.notes || "" }); setMonDialog(true); }
-  function openNewColl() { setEditingColl(null); setCollForm({ tankId: "", collectionDate: today(), volumeCollectedLitres: "", milkBuyer: "", tankerRegistration: "", tankerDriverName: "", collectionRef: "", statementRef: "", abtResultBeforeCollection: "", pencePerLitre: "", grossValuePence: "", qualityBonusPence: "", qualityPenaltyPence: "", transportDeductionPence: "", netPaymentPence: "", notes: "" }); setCollDialog(true); }
-  function openEditColl(c: MilkCollection) { setEditingColl(c); setCollForm({ tankId: c.tankId ? String(c.tankId) : "", collectionDate: c.collectionDate.slice(0, 10), volumeCollectedLitres: c.volumeCollectedLitres || "", milkBuyer: c.milkBuyer || "", tankerRegistration: c.tankerRegistration || "", tankerDriverName: c.tankerDriverName || "", collectionRef: c.collectionRef || "", statementRef: c.statementRef || "", abtResultBeforeCollection: c.abtResultBeforeCollection || "", pencePerLitre: c.pencePerLitre || "", grossValuePence: c.grossValuePence ? String(c.grossValuePence) : "", qualityBonusPence: c.qualityBonusPence ? String(c.qualityBonusPence) : "", qualityPenaltyPence: c.qualityPenaltyPence ? String(c.qualityPenaltyPence) : "", transportDeductionPence: c.transportDeductionPence ? String(c.transportDeductionPence) : "", netPaymentPence: c.netPaymentPence ? String(c.netPaymentPence) : "", notes: c.notes || "" }); setCollDialog(true); }
-
   const tankName = (id?: number | null) => id ? (tanks.find(t => t.id === id)?.name || `Tank #${id}`) : "—";
 
   function generateReport() {
@@ -807,7 +793,7 @@ ${monRecords.map(r => `<tr><td>${fmt(r.recordDate)}</td><td>${tankName(r.tankId)
 </table>
 <h2>Milk Collections</h2>
 <table><tr><th>Date</th><th>Tank</th><th>Volume (L)</th><th>Buyer</th><th>Tanker Reg</th><th>Driver</th><th>Coll. Ref</th><th>ABR Before</th><th>Net Pay (£)</th><th>Notes</th></tr>
-${colls.map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}</td><td>${c.volumeCollectedLitres||"—"}</td><td>${c.milkBuyer||"—"}</td><td>${c.tankerRegistration||"—"}</td><td>${c.tankerDriverName||"—"}</td><td>${c.collectionRef||"—"}</td><td>${c.abtResultBeforeCollection||"—"}</td><td>${c.netPaymentPence?"£"+(c.netPaymentPence/100).toFixed(2):"—"}</td><td>${c.notes||"—"}</td></tr>`).join("")}
+${allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(monYear)).map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}</td><td>${c.volumeCollectedLitres||"—"}</td><td>${c.milkBuyer||"—"}</td><td>${c.tankerRegistration||"—"}</td><td>${c.tankerDriverName||"—"}</td><td>${c.collectionRef||"—"}</td><td>${c.abtResultBeforeCollection||"—"}</td><td>${c.netPaymentPence?"£"+(c.netPaymentPence/100).toFixed(2):"—"}</td><td>${c.notes||"—"}</td></tr>`).join("")}
 </table>
 <script>window.onload=()=>window.print()</script>
 </body></html>`);
@@ -827,7 +813,7 @@ ${colls.map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}
         <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Temp ≤4°C</p><p className="text-2xl font-bold text-blue-700">{summary.tempOk}/{summary.tempTotal}</p><p className="text-xs text-gray-400">checks ({monYear})</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Cleaning Records</p><p className="text-2xl font-bold text-blue-700">{summary.cleanings}</p><p className="text-xs text-gray-400">records ({monYear})</p></CardContent></Card>
         <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">ABR Tests</p><p className="text-2xl font-bold text-blue-700">{summary.abrTests}</p><p className="text-xs text-gray-400">tests ({monYear})</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Milk Collected</p><p className="text-2xl font-bold text-blue-700">{summary.totalVol.toFixed(0)}L</p><p className="text-xs text-gray-400">{summary.collCount} collections ({collYear})</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-gray-500 mb-1">Milk Collected</p><p className="text-2xl font-bold text-blue-700">{summary.totalVol.toFixed(0)}L</p><p className="text-xs text-gray-400">{summary.collCount} collections ({monYear})</p></CardContent></Card>
       </div>
 
       <div className="flex justify-end">
@@ -903,46 +889,6 @@ ${colls.map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}
         </CardContent>
       </Card>
 
-      {/* Milk Collections */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <h3 className="font-semibold text-gray-800">Milk Collections</h3>
-            <div className="flex items-center gap-2">
-              <Select value={collYear} onValueChange={setCollYear}><SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
-              <Button size="sm" onClick={openNewColl}><Plus className="w-4 h-4 mr-1" />Record Collection</Button>
-            </div>
-          </div>
-          {collQ.isLoading ? <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : colls.length === 0 ? <p className="text-sm text-gray-400 py-4">No milk collections for {collYear}.</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="border-b text-xs text-gray-500"><th className="text-left py-2 pr-3 font-medium">Date</th><th className="text-left py-2 pr-3 font-medium">Tank</th><th className="text-left py-2 pr-3 font-medium">Volume (L)</th><th className="text-left py-2 pr-3 font-medium">Buyer</th><th className="text-left py-2 pr-3 font-medium">Tanker Reg</th><th className="text-left py-2 pr-3 font-medium">ABR Before</th><th className="text-left py-2 pr-3 font-medium">Net Pay</th><th></th></tr></thead>
-                <tbody>
-                  {colls.map(c => (
-                    <tr key={c.id} className="border-b hover:bg-gray-50">
-                      <td className="py-2 pr-3 text-xs whitespace-nowrap">{fmt(c.collectionDate)}</td>
-                      <td className="py-2 pr-3 text-xs">{tankName(c.tankId)}</td>
-                      <td className="py-2 pr-3 text-sm font-medium">{c.volumeCollectedLitres || "—"}</td>
-                      <td className="py-2 pr-3 text-xs">{c.milkBuyer || "—"}</td>
-                      <td className="py-2 pr-3 text-xs">{c.tankerRegistration || "—"}</td>
-                      <td className="py-2 pr-3"><ResultBadge v={c.abtResultBeforeCollection} /></td>
-                      <td className="py-2 pr-3 text-xs font-medium">{c.netPaymentPence ? `£${(c.netPaymentPence / 100).toFixed(2)}` : "—"}</td>
-                      <td className="py-2">
-                        <div className="flex items-center gap-1">
-                          <RecordAttachments recordType="sheep-dairy-milk-collection" recordId={c.id} farmId={farmId} compact />
-                          <Button size="sm" variant="ghost" onClick={() => openEditColl(c)}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => delCollM.mutate(c.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Monitoring Record Dialog */}
       <Dialog open={monDialog} onOpenChange={setMonDialog}>
         <DialogContent className="max-w-lg">
@@ -991,62 +937,6 @@ ${colls.map(c => `<tr><td>${fmt(c.collectionDate)}</td><td>${tankName(c.tankId)}
             <Button variant="outline" onClick={() => setMonDialog(false)}>Cancel</Button>
             <Button onClick={() => saveMonM.mutate({ ...monForm, tankId: monForm.tankId || null })} disabled={saveMonM.isPending}>
               {saveMonM.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingMon ? "Save Changes" : "Add Record"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Milk Collection Dialog */}
-      <Dialog open={collDialog} onOpenChange={setCollDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingColl ? "Edit" : "Record"} Milk Collection</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate} onChange={e => setCollForm(f => ({ ...f, collectionDate: e.target.value }))} /></div>
-              <div><Label>Tank</Label>
-                <Select value={collForm.tankId} onValueChange={v => setCollForm(f => ({ ...f, tankId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select tank…" /></SelectTrigger>
-                  <SelectContent><SelectItem value="">— None —</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Volume Collected (L)</Label><Input type="number" step="0.01" value={collForm.volumeCollectedLitres} onChange={e => setCollForm(f => ({ ...f, volumeCollectedLitres: e.target.value }))} /></div>
-              <div><Label>Milk Buyer</Label><Input value={collForm.milkBuyer} onChange={e => setCollForm(f => ({ ...f, milkBuyer: e.target.value }))} placeholder="e.g. Arla, First Milk…" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Tanker Registration</Label><Input value={collForm.tankerRegistration} onChange={e => setCollForm(f => ({ ...f, tankerRegistration: e.target.value }))} /></div>
-              <div><Label>Driver Name</Label><Input value={collForm.tankerDriverName} onChange={e => setCollForm(f => ({ ...f, tankerDriverName: e.target.value }))} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Collection Reference</Label><Input value={collForm.collectionRef} onChange={e => setCollForm(f => ({ ...f, collectionRef: e.target.value }))} /></div>
-              <div><Label>Statement Reference</Label><Input value={collForm.statementRef} onChange={e => setCollForm(f => ({ ...f, statementRef: e.target.value }))} /></div>
-            </div>
-            <div><Label>ABR Result Before Collection</Label>
-              <Select value={collForm.abtResultBeforeCollection} onValueChange={v => setCollForm(f => ({ ...f, abtResultBeforeCollection: v }))}>
-                <SelectTrigger><SelectValue placeholder="— Not tested —" /></SelectTrigger>
-                <SelectContent><SelectItem value="">— Not tested —</SelectItem>{ABR_RESULTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="border-t pt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Payment Details (optional)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Pence per Litre</Label><Input type="number" step="0.0001" value={collForm.pencePerLitre} onChange={e => setCollForm(f => ({ ...f, pencePerLitre: e.target.value }))} /></div>
-                <div><Label>Gross Value (pence)</Label><Input type="number" value={collForm.grossValuePence} onChange={e => setCollForm(f => ({ ...f, grossValuePence: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 mt-3">
-                <div><Label>Quality Bonus (p)</Label><Input type="number" value={collForm.qualityBonusPence} onChange={e => setCollForm(f => ({ ...f, qualityBonusPence: e.target.value }))} /></div>
-                <div><Label>Quality Penalty (p)</Label><Input type="number" value={collForm.qualityPenaltyPence} onChange={e => setCollForm(f => ({ ...f, qualityPenaltyPence: e.target.value }))} /></div>
-                <div><Label>Transport Deduction (p)</Label><Input type="number" value={collForm.transportDeductionPence} onChange={e => setCollForm(f => ({ ...f, transportDeductionPence: e.target.value }))} /></div>
-              </div>
-              <div className="mt-3"><Label>Net Payment (pence)</Label><Input type="number" value={collForm.netPaymentPence} onChange={e => setCollForm(f => ({ ...f, netPaymentPence: e.target.value }))} /></div>
-            </div>
-            <div><Label>Notes</Label><Textarea value={collForm.notes} onChange={e => setCollForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCollDialog(false)}>Cancel</Button>
-            <Button onClick={() => saveCollM.mutate({ ...collForm, tankId: collForm.tankId || null, grossValuePence: collForm.grossValuePence ? parseInt(collForm.grossValuePence) : null, qualityBonusPence: collForm.qualityBonusPence ? parseInt(collForm.qualityBonusPence) : null, qualityPenaltyPence: collForm.qualityPenaltyPence ? parseInt(collForm.qualityPenaltyPence) : null, transportDeductionPence: collForm.transportDeductionPence ? parseInt(collForm.transportDeductionPence) : null, netPaymentPence: collForm.netPaymentPence ? parseInt(collForm.netPaymentPence) : null })} disabled={saveCollM.isPending}>
-              {saveCollM.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingColl ? "Save Changes" : "Record Collection"}
             </Button>
           </DialogFooter>
         </DialogContent>

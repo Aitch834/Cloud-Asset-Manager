@@ -1730,10 +1730,13 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
   const envList = (records ?? []) as Record<string, unknown>[];
   const [flockFilterEnv, setFlockFilterEnv] = useState("all");
+  const [yearFilterEnv, setYearFilterEnv] = useState("all");
   const [dateFromEnv, setDateFromEnv] = useState("");
   const [dateToEnv, setDateToEnv] = useState("");
+  const envYears = useMemo(() => Array.from(new Set(envList.map(r => String(r.logDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [envList]);
   const filteredEnvList = envList.filter(r =>
     (flockFilterEnv === "all" || String(r.flockId) === flockFilterEnv) &&
+    (yearFilterEnv === "all" || String(r.logDate ?? "").startsWith(yearFilterEnv)) &&
     (!dateFromEnv || String(r.logDate ?? "") >= dateFromEnv) &&
     (!dateToEnv || String(r.logDate ?? "") <= dateToEnv)
   );
@@ -1773,6 +1776,10 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       <div className="flex flex-wrap gap-2 items-center">
+        <Select value={yearFilterEnv} onValueChange={setYearFilterEnv}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All years</SelectItem>{envYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+        </Select>
         <Select value={flockFilterEnv} onValueChange={setFlockFilterEnv}>
           <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All flocks" /></SelectTrigger>
           <SelectContent>
@@ -1788,14 +1795,14 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
           <label className="text-xs text-muted-foreground">To</label>
           <input type="date" value={dateToEnv} onChange={e => setDateToEnv(e.target.value)} className="h-8 rounded-md border border-input px-2 text-xs bg-background" />
         </div>
-        {(flockFilterEnv !== "all" || dateFromEnv || dateToEnv) && (
-          <button onClick={() => { setFlockFilterEnv("all"); setDateFromEnv(""); setDateToEnv(""); }} className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground border rounded-md">Clear</button>
+        {(flockFilterEnv !== "all" || yearFilterEnv !== "all" || dateFromEnv || dateToEnv) && (
+          <button onClick={() => { setFlockFilterEnv("all"); setYearFilterEnv("all"); setDateFromEnv(""); setDateToEnv(""); }} className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground border rounded-md">Clear</button>
         )}
       </div>
       {!isLoading && envList.length > 0 && (
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Environmental Summary{flockFilterEnv !== "all" || dateFromEnv || dateToEnv ? " — Filtered" : " — All Records"}</p></div>
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Environmental Summary{flockFilterEnv !== "all" || yearFilterEnv !== "all" || dateFromEnv || dateToEnv ? " — Filtered" : " — All Records"}</p></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="Avg Min Temp" value={avgMinTemp !== null ? `${avgMinTemp} °C` : "—"} />
               <StatCard label="Avg Max Temp" value={avgMaxTemp !== null ? `${avgMaxTemp} °C` : "—"} />
