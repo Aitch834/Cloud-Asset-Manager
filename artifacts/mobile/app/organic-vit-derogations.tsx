@@ -64,6 +64,7 @@ interface VitDerogCase {
   certifier: string | null;
   certifierRef: string | null;
   applicationDate: string | null;
+  internalDecisionDate: string | null;
   decisionDate: string | null;
   expiryDate: string | null;
   status: DerogationStatus;
@@ -73,6 +74,9 @@ interface VitDerogCase {
   justification: string | null;
   vintageYear: number | null;
   regulatoryBasis: string | null;
+  rejectionReason: string | null;
+  rejectionRef: string | null;
+  correctiveAction: string | null;
 }
 
 const STATUS_CONFIG: Record<DerogationStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -195,6 +199,11 @@ export default function OrganicVitDerogationsScreen() {
                       <View style={[styles.statusBadge, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
                         <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
                       </View>
+                      {c.status === "refused" && !c.correctiveAction && (
+                        <View style={[styles.statusBadge, { backgroundColor: "#fff7ed", borderColor: "#fed7aa" }]}>
+                          <Text style={[styles.statusLabel, { color: "#c2410c" }]}>Action Required</Text>
+                        </View>
+                      )}
                       <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
                     </View>
                   </View>
@@ -271,6 +280,43 @@ export default function OrganicVitDerogationsScreen() {
                         <View style={[styles.detailRow, { alignItems: "flex-start" }]}>
                           <Text style={styles.detailLabel}>Conditions</Text>
                           <Text style={[styles.detailValue, { flex: 1 }]}>{c.approvalConditions}</Text>
+                        </View>
+                      ) : null}
+
+                      {c.internalDecisionDate ? (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Internal Decision</Text>
+                          <Text style={styles.detailValue}>{fmtDate(c.internalDecisionDate)}</Text>
+                        </View>
+                      ) : null}
+
+                      {c.rejectionReason ? (
+                        <View style={[styles.detailRow, { alignItems: "flex-start" }]}>
+                          <Text style={styles.detailLabel}>Refusal Reason</Text>
+                          <Text style={[styles.detailValue, { flex: 1, color: "#dc2626" }]}>{c.rejectionReason}</Text>
+                        </View>
+                      ) : null}
+
+                      {c.rejectionRef ? (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Refusal Ref</Text>
+                          <Text style={styles.detailValue}>{c.rejectionRef}</Text>
+                        </View>
+                      ) : null}
+
+                      {c.correctiveAction ? (
+                        <View style={[styles.detailRow, { alignItems: "flex-start" }]}>
+                          <Text style={styles.detailLabel}>Corrective Action</Text>
+                          <Text style={[styles.detailValue, { flex: 1, color: "#16a34a" }]}>{c.correctiveAction}</Text>
+                        </View>
+                      ) : null}
+
+                      {c.status === "refused" && !c.correctiveAction ? (
+                        <View style={[styles.dashboardNote, { backgroundColor: "#fff7ed", borderColor: "#fed7aa", borderWidth: 1 }]}>
+                          <Feather name="alert-circle" size={12} color="#c2410c" />
+                          <Text style={[styles.dashboardNoteText, { color: "#c2410c" }]}>
+                            Action required — this derogation was refused. Record a corrective action in the dashboard.
+                          </Text>
                         </View>
                       ) : null}
 

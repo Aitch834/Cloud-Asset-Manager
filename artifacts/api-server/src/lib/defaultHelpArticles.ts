@@ -3855,6 +3855,10 @@ const CONTENT: [string, string][] = [
 <p>When the certifier issues a decision, open the case and click <strong>Record Decision</strong>. Enter the decision date, outcome (Approved, Refused, Withdrawn, or Expired), expiry date (for approvals), and any approval conditions specified by the certifier.</p>
 <h3>Correspondence log</h3>
 <p>Expand any case card to view and add correspondence entries — each with the date, direction (Inbound/Outbound), type (Email, Letter, Phone Call, Decision Notice, or other), summary, and reference number. This creates a complete communication trail from first application to decision, satisfying the certifier audit requirement that derogation evidence includes the full correspondence history.</p>
+<h3>Rejection handling</h3>
+<p>When a certifier issues a rejection, the Record Decision form captures the <strong>Rejection Reason</strong> (the certifier's stated grounds), the <strong>Rejection Reference</strong> (the certifier's correspondence reference), and a <strong>Corrective Action</strong> field for recording the steps taken in response — for example, sourcing a certified organic alternative, varying the ration, or preparing a new application with additional evidence. Until a corrective action is recorded, the case card displays an <strong>Action Required</strong> badge to ensure rejected cases are not left unresolved. The mobile app viewer mirrors this badge so field staff are aware of open action items.</p>
+<h3>Internal decision date</h3>
+<p>The Record Decision form includes an <strong>Internal Decision Date</strong> — the date your farm team noted or processed the certifier's decision, which may differ from the certifier's official decision date. Recording both dates provides a complete internal/external decision timeline for audit purposes.</p>
 <h3>Document storage</h3>
 <p>Attach the availability search evidence, application submission, and approval/refusal letter to the case. All documents are stored permanently in the case record and can be retrieved instantly for an annual inspection.</p>`,
   ],
@@ -3943,6 +3947,10 @@ const CONTENT: [string, string][] = [
 <p>Navigate to <strong>Organic → Fresh Produce → Input Derogations</strong> and click <strong>New Case</strong>. The new case form captures the input name, input type, crop it is required for, regulatory basis, certifying body, availability search date and reference, application date, and justification. On saving, the case is created at Pending status with no decision fields — the decision is recorded separately when received.</p>
 <h3>Record decision workflow</h3>
 <p>When the certifier issues their decision, open the case card and click <strong>Record Decision</strong>. Enter the decision date, outcome, expiry date (for approvals), and any approval conditions. The case status updates and an expiry urgency badge appears at 90 and 30 days before the approval expires, prompting renewal or a return to permitted organic sources.</p>
+<h3>Rejection handling</h3>
+<p>When a certifier rejects an input derogation application, the Record Decision form captures the <strong>Rejection Reason</strong>, the <strong>Rejection Reference</strong>, and a <strong>Corrective Action</strong> field for recording the farm's response — sourcing a permitted alternative, modifying the treatment approach, or preparing a revised application with additional evidence. Until a corrective action is recorded, the case card shows an <strong>Action Required</strong> badge. This ensures rejected cases are flagged for resolution and not overlooked during the growing season. The mobile app viewer mirrors the same badge so field teams can see open action items without logging into the dashboard.</p>
+<h3>Internal decision date</h3>
+<p>An <strong>Internal Decision Date</strong> field in the Record Decision form records the date the farm team noted or processed the decision — which may differ from the certifier's official decision date. Both dates are stored on the case record for a complete decision timeline.</p>
 <h3>Correspondence log and documents</h3>
 <p>Expand any case card to view and add correspondence entries. Attach availability search evidence, application submissions, and certifier decision letters directly to the case record. The complete case file — application, correspondence, and decision — is permanently stored and instantly retrievable for annual certification inspection.</p>`,
   ],
@@ -4059,7 +4067,9 @@ const CONTENT: [string, string][] = [
 <h3>New case workflow</h3>
 <p>Navigate to <strong>Organic Viticulture → Input Derogations</strong> and click <strong>New Case</strong>. Enter the input name, type, regulatory basis (UK Organic Regs 2020, Sch. 1 Part B), certifying body, availability search date and reference, application date, vintage year, and justification. Save — the case is created at Pending status with no decision fields populated.</p>
 <h3>Record Decision workflow</h3>
-<p>When a decision is received, click <strong>Record Decision</strong> on the case card. Enter the decision date, outcome (Approved, Refused, Withdrawn, or Expired), expiry date, and any approval conditions. Expiry urgency badges appear at 90 and 30 days before the approval expires, prompting renewal before the current season's application needs arise.</p>`,
+<p>When a decision is received, click <strong>Record Decision</strong> on the case card. Enter the <strong>Internal Decision Date</strong> (when your farm team noted the decision), the official <strong>Decision Date</strong>, and the outcome (Approved, Refused, Withdrawn, or Expired). For approved cases, enter the expiry date and any approval conditions. Expiry urgency badges appear at 90 and 30 days before the approval expires, prompting renewal before the current season's application needs arise.</p>
+<h3>Refusal handling</h3>
+<p>When a certifier refuses an application, the Record Decision form captures the <strong>Refusal Reason</strong> (the certifier's stated grounds), the <strong>Refusal Reference</strong> (the certifier's correspondence reference), and a <strong>Corrective Action</strong> field for documenting the farm's response — sourcing a permitted alternative, amending the treatment programme, or submitting a revised application with additional evidence. Until a corrective action is recorded, the case card displays an <strong>Action Required</strong> badge to ensure refused applications do not remain unresolved. The mobile app viewer mirrors this badge so field teams see open items without logging into the dashboard.</p>`,
   ],
 
   // 206 — Organic Viticulture — Wine Production Additives: SO₂ Compliance, Additive Records and Organic Certification
@@ -4906,13 +4916,18 @@ const CONTENT: [string, string][] = [
 <h3>Derogation lifecycle</h3>
 <ol>
 <li><strong>Identify the need</strong> — you need an input for which no certified organic equivalent is commercially available.</li>
-<li><strong>Apply</strong> — submit a written application to your certifying body with the input name, reason, and evidence that no organic alternative is available (Organic Farming Input Scheme (OFIS) / UKOAS availability search evidence).</li>
-<li><strong>Record the application</strong> — add a new derogation case in BDE Farm Trac with Status: Pending, Application Date, and Justification text.</li>
-<li><strong>Decision</strong> — update the case when a decision is received: Status: Approved or Refused, Decision Date, and for approved cases the Expiry Date and Approval Conditions.</li>
+<li><strong>Record the availability search</strong> — search the Organic Farming Input Scheme (OFIS) / UKOAS database and record the search date and reference number in the Availability Search Evidence fields.</li>
+<li><strong>Apply</strong> — submit a written application to your certifying body with the input name, reason, and the availability search evidence.</li>
+<li><strong>Record the application</strong> — add a new derogation case in BDE Farm Trac with Status: Pending, the Application Date, Availability Search Date and OFIS/UKOAS Reference, and Justification text. Leave the Decision fields empty at this stage.</li>
+<li><strong>Record the decision</strong> — when the certifier responds, open the case and enter the Internal Decision Date (when you received and noted it), the official Decision Date, and the outcome (Approved or Refused). For approved cases, enter the Expiry Date and Approval Conditions. For refused cases, record the Refusal Reason, Refusal Reference, and the Corrective Action your farm will take.</li>
 <li><strong>Expiry</strong> — approved derogations have a fixed expiry date. Renew the application before expiry if the input is still needed.</li>
 </ol>
+<h3>Refusal handling and Action Required</h3>
+<p>When a certifier refuses an application, recording the Refusal Reason and Corrective Action on the case is essential for maintaining your compliance record. Until a corrective action is entered, the case card displays an <strong>Action Required</strong> badge — both in the dashboard and in the mobile app — to ensure refused cases are not left unresolved.</p>
 <h3>Regulatory basis</h3>
 <p>Record the relevant regulatory article, e.g. <em>UK Organic Reg Art. 24</em> or <em>Commission Reg (EC) 889/2008 Annex V</em>. This demonstrates you applied correctly and that the certifier's approval has a sound legal basis.</p>
+<h3>Mobile capture</h3>
+<p>New derogation applications can be recorded from the mobile app when connectivity is limited — the form captures all application-phase fields (input name, type, certifying body, availability search date and reference, application date, justification, and regulatory basis) and syncs to the dashboard automatically when you reconnect. For recording decisions and managing correspondence, use the dashboard.</p>
 <h3>Inspection review</h3>
 <p>Your certifying body inspector will review the derogations register at your annual inspection. All derogation cases — whether approved, refused, or withdrawn — should be retained for audit purposes.</p>`,
   ],

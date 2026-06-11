@@ -44,12 +44,18 @@ export default function OrganicVenisonDerogationScreen() {
   const [applicationDate, setApplicationDate] = useState(todayDate());
   const [justification, setJustification] = useState("");
   const [status, setStatus] = useState("pending");
+  const [internalDecisionDate, setInternalDecisionDate] = useState("");
   const [decisionDate, setDecisionDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [approvalConditions, setApprovalConditions] = useState("");
+  const [availabilitySearchDate, setAvailabilitySearchDate] = useState("");
+  const [availabilitySearchRef, setAvailabilitySearchRef] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionRef, setRejectionRef] = useState("");
   const [notes, setNotes] = useState("");
 
   const isDecided = status === "approved" || status === "refused";
+  const isRefused = status === "refused";
 
   const handleSave = async () => {
     if (!inputName.trim()) { Alert.alert("Input name required", "Please enter the name of the input requiring a derogation."); return; }
@@ -72,6 +78,11 @@ export default function OrganicVenisonDerogationScreen() {
         decisionDate: decisionDate || null,
         expiryDate: expiryDate || null,
         approvalConditions: approvalConditions || null,
+        internalDecisionDate: internalDecisionDate || null,
+        availabilitySearchDate: availabilitySearchDate || null,
+        availabilitySearchRef: availabilitySearchRef || null,
+        rejectionReason: rejectionReason || null,
+        rejectionRef: rejectionRef || null,
         notes: notes || null,
         syncEndpoint: `/api/farms/${currentFarm?.id}/organic-venison/derogations`,
         syncMethod: "POST",
@@ -137,6 +148,18 @@ export default function OrganicVenisonDerogationScreen() {
         <Text style={styles.sectionTitle}>Justification *</Text>
         <Input value={justification} onChangeText={setJustification} placeholder="Why is no certified organic alternative commercially available? Include OFIS/UKOAS search reference if applicable." multiline numberOfLines={4} />
 
+        <Text style={styles.sectionTitle}>Availability Search Evidence</Text>
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>Search Date</Text>
+            <Input value={availabilitySearchDate} onChangeText={setAvailabilitySearchDate} placeholder="YYYY-MM-DD" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>Search Ref (OFIS/UKOAS)</Text>
+            <Input value={availabilitySearchRef} onChangeText={setAvailabilitySearchRef} placeholder="e.g. UKOAS-2025-001" />
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>Status</Text>
         <View style={styles.chips}>
           {STATUSES.map((s) => (
@@ -155,14 +178,36 @@ export default function OrganicVenisonDerogationScreen() {
                 <Input value={decisionDate} onChangeText={setDecisionDate} placeholder="YYYY-MM-DD" />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Expiry Date</Text>
-                <Input value={expiryDate} onChangeText={setExpiryDate} placeholder="YYYY-MM-DD" />
+                <Text style={styles.label}>Internal Decision Date</Text>
+                <Input value={internalDecisionDate} onChangeText={setInternalDecisionDate} placeholder="YYYY-MM-DD" />
               </View>
             </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Approval Conditions</Text>
-              <Input value={approvalConditions} onChangeText={setApprovalConditions} placeholder="Any conditions attached to the approval…" multiline numberOfLines={3} />
-            </View>
+            {!isRefused && (
+              <>
+                <View style={styles.row}>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <Text style={styles.label}>Expiry Date</Text>
+                    <Input value={expiryDate} onChangeText={setExpiryDate} placeholder="YYYY-MM-DD" />
+                  </View>
+                </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Approval Conditions</Text>
+                  <Input value={approvalConditions} onChangeText={setApprovalConditions} placeholder="Any conditions attached to the approval…" multiline numberOfLines={3} />
+                </View>
+              </>
+            )}
+            {isRefused && (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Refusal Reason</Text>
+                  <Input value={rejectionReason} onChangeText={setRejectionReason} placeholder="Reason given by the certifier for refusing the derogation…" multiline numberOfLines={3} />
+                </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Refusal Reference</Text>
+                  <Input value={rejectionRef} onChangeText={setRejectionRef} placeholder="e.g. CB-REF-2025-007" />
+                </View>
+              </>
+            )}
           </>
         )}
 
