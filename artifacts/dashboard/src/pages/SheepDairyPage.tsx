@@ -12,6 +12,7 @@ import { Redirect } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
@@ -210,48 +211,65 @@ function MilkTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Milk Record" : "Add Milk Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <div><Label>Date *</Label><Input type="date" value={String(form.recordDate || "").slice(0, 10)} onChange={e => set("recordDate", e.target.value)} /></div>
-            <div><Label>Session</Label>
-              <Select value={form.sessionType || "__none__"} onValueChange={v => set("sessionType", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning</SelectItem>
-                  <SelectItem value="afternoon">Afternoon</SelectItem>
-                  <SelectItem value="evening">Evening</SelectItem>
-                  <SelectItem value="full-day">Full day</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
-            <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} /></div>
-            <div><Label>On-farm SCC (k/mL)</Label><Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : null)} /><p className="text-xs text-gray-400 mt-0.5">UK limit: 1,500k</p></div>
-            <div><Label>On-farm TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div><Label>Fat %</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
-            <div><Label>Protein %</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
-            <div><Label>ABR Test Result</Label>
-              <Select value={form.antibioticResidueTestResult || "__none__"} onValueChange={v => set("antibioticResidueTestResult", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Not tested</SelectItem>
-                  <SelectItem value="negative">Negative ✓</SelectItem>
-                  <SelectItem value="positive">Positive ⚠</SelectItem>
-                  <SelectItem value="inconclusive">Inconclusive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>ABR Kit Lot</Label><Input value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>
-            <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Buyer / Collection</p></div>
-            <div><Label>Milk Buyer</Label><Input value={form.milkBuyer || ""} onChange={e => set("milkBuyer", e.target.value)} /></div>
-            <div><Label>Collector Reference</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
-            <div><Label>Buyer SCC (k/mL)</Label><Input type="number" value={form.buyerSccThousands || ""} onChange={e => set("buyerSccThousands", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div><Label>Buyer Fat %</Label><Input type="number" step="0.01" value={form.buyerFatPercent || ""} onChange={e => set("buyerFatPercent", e.target.value)} /></div>
-            <div><Label>Buyer Protein %</Label><Input type="number" step="0.01" value={form.buyerProteinPercent || ""} onChange={e => set("buyerProteinPercent", e.target.value)} /></div>
-            <div><Label>Pence per litre</Label><Input type="number" step="0.01" value={form.pencePerLitre || ""} onChange={e => set("pencePerLitre", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
-          </div>
+          <Tabs defaultValue="session" className="w-full">
+            <TabsList className="mb-2">
+              <TabsTrigger value="session">Milking Session</TabsTrigger>
+              <TabsTrigger value="collection">Collection &amp; Buyer Lab</TabsTrigger>
+            </TabsList>
+            <TabsContent value="session">
+              <div className="grid grid-cols-2 gap-3 py-2">
+                <div><Label>Date *</Label><Input type="date" value={String(form.recordDate || "").slice(0, 10)} onChange={e => set("recordDate", e.target.value)} /></div>
+                <div><Label>Session</Label>
+                  <Select value={form.sessionType || "__none__"} onValueChange={v => set("sessionType", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="morning">Morning</SelectItem>
+                      <SelectItem value="afternoon">Afternoon</SelectItem>
+                      <SelectItem value="evening">Evening</SelectItem>
+                      <SelectItem value="full-day">Full day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
+                <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} /></div>
+                <div><Label>On-farm SCC (k/mL)</Label><Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : null)} /><p className="text-xs text-gray-400 mt-0.5">UK limit: 1,500k</p></div>
+                <div><Label>On-farm TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                <div><Label>Fat %</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
+                <div><Label>Protein %</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
+                <div><Label>ABR Test Result</Label>
+                  <Select value={form.antibioticResidueTestResult || "__none__"} onValueChange={v => set("antibioticResidueTestResult", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not tested</SelectItem>
+                      <SelectItem value="negative">Negative ✓</SelectItem>
+                      <SelectItem value="positive">Positive ⚠</SelectItem>
+                      <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>ABR Kit Lot</Label><Input value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+              </div>
+            </TabsContent>
+            <TabsContent value="collection">
+              <div className="space-y-4 py-2">
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-800 mb-1">One collection covers multiple milkings</p>
+                  <p className="text-xs text-amber-700">A tanker typically collects from the bulk tank every 2–3 days. Enter the same Collector Reference on every milking session that went into one collection load. The buyer's lab results are tied to the collection event, not each individual milking.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Milk Buyer</Label><Input value={form.milkBuyer || ""} onChange={e => set("milkBuyer", e.target.value)} /></div>
+                  <div><Label>Collector Reference</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
+                  <div><Label>Buyer SCC (k/mL)</Label><Input type="number" value={form.buyerSccThousands || ""} onChange={e => set("buyerSccThousands", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                  <div><Label>Buyer Fat %</Label><Input type="number" step="0.01" value={form.buyerFatPercent || ""} onChange={e => set("buyerFatPercent", e.target.value)} /></div>
+                  <div><Label>Buyer Protein %</Label><Input type="number" step="0.01" value={form.buyerProteinPercent || ""} onChange={e => set("buyerProteinPercent", e.target.value)} /></div>
+                  <div><Label>Pence per litre</Label><Input type="number" step="0.01" value={form.pencePerLitre || ""} onChange={e => set("pencePerLitre", e.target.value)} /></div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button>
