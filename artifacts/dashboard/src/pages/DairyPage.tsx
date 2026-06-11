@@ -3023,6 +3023,7 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const [editingMon, setEditingMon] = useState<BulkTankRecord | null>(null);
   const [viewMon, setViewMon] = useState<BulkTankRecord | null>(null);
   const [monForm, setMonForm] = useState<Partial<BulkTankRecord>>({});
+  const [monYearFilter, setMonYearFilter] = useState("all");
 
   const monQ = useQuery<{ records: BulkTankRecord[] }>({
     queryKey: ["dairy-tank-records", farmId],
@@ -3054,7 +3055,15 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
 
   const tankName = (id?: number | null) => tanks.find(t => t.id === id)?.name ?? null;
 
-  const monRecords = monQ.data?.records ?? [];
+  const allMonRecords = monQ.data?.records ?? [];
+  const monYears = React.useMemo(() => {
+    const s = new Set(allMonRecords.map(r => r.recordDate.slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort().reverse();
+  }, [allMonRecords]);
+  const monRecords = React.useMemo(
+    () => monYearFilter === "all" ? allMonRecords : allMonRecords.filter(r => r.recordDate.startsWith(monYearFilter)),
+    [allMonRecords, monYearFilter],
+  );
   const collRecords = collQ.data?.collections ?? [];
 
   const tankComplianceSummary = React.useMemo(() => {
@@ -3221,9 +3230,18 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
             <h3 className="font-semibold text-sm text-gray-800">Tank Monitoring Records</h3>
             <p className="text-xs text-gray-500 mt-0.5">Daily temperature checks, cleaning, antibiotic residue tests, and maintenance logs.</p>
           </div>
-          <Button size="sm" onClick={openAddMon} disabled={tanksQ.isLoading || tanks.length === 0}>
-            <Plus className="h-4 w-4 mr-1" />Add Record
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={monYearFilter} onValueChange={setMonYearFilter}>
+              <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All years</SelectItem>
+                {monYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={openAddMon} disabled={tanksQ.isLoading || tanks.length === 0}>
+              <Plus className="h-4 w-4 mr-1" />Add Record
+            </Button>
+          </div>
         </div>
         {!tanksQ.isLoading && tanks.length === 0 && (
           <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5 mb-3">
@@ -3236,10 +3254,10 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
         )}
         {monQ.isLoading
           ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-          : !monQ.data?.records?.length
-            ? <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No monitoring records yet.</CardContent></Card>
+          : !monRecords.length
+            ? <Card><CardContent className="py-8 text-center text-gray-400 text-sm">{allMonRecords.length ? "No records for selected year." : "No monitoring records yet."}</CardContent></Card>
             : <div className="space-y-2">
-              {monQ.data.records.map(r => (
+              {monRecords.map(r => (
                 <Card key={r.id}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center justify-between">
