@@ -161,12 +161,32 @@ export const organicVenisonDerogationsTable = pgTable("organic_venison_derogatio
   inputType: text("input_type"),
   regulatoryBasis: text("regulatory_basis"),
   certifyingBody: text("certifying_body"),
+  certifierRef: text("certifier_ref"),                        // reference issued by certifier when approving
+  internalDecisionDate: date("internal_decision_date"),       // when the holding internally decided it needed this input
+  availabilitySearchDate: date("availability_search_date"),   // date of OFAS/UKOAS search
+  availabilitySearchRef: text("availability_search_ref"),     // OFAS/UKOAS search reference number
   applicationDate: date("application_date"),
   justification: text("justification"),
   status: text("status").notNull().default("pending"),
   decisionDate: date("decision_date"),
   expiryDate: date("expiry_date"),
   approvalConditions: text("approval_conditions"),
+  rejectionReason: text("rejection_reason"),                  // certifier's stated reason for rejection
+  rejectionRef: text("rejection_ref"),                        // certifier's reference for the rejection notice
+  correctiveAction: text("corrective_action"),                // what the farm did in response to rejection
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organicVenisonDerogationCorrespondenceTable = pgTable("organic_venison_derogation_correspondence", {
+  id: serial("id").primaryKey(),
+  derogationId: integer("derogation_id").notNull().references(() => organicVenisonDerogationsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  correspondenceDate: date("correspondence_date").notNull(),
+  direction: text("direction").notNull().default("to-certifier"),  // to-certifier | from-certifier | internal
+  correspondenceType: text("correspondence_type").notNull(),
+  summary: text("summary").notNull(),
+  reference: text("reference"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

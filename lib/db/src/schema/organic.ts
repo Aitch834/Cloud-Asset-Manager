@@ -153,12 +153,18 @@ export const organicFeedDerogationTable = pgTable("organic_feed_derogation", {
   status: text("status").notNull().default("pending"),        // pending | approved | rejected | expired | withdrawn
   certifierRef: text("certifier_ref"),                        // reference issued by certifier when approving
   regulatoryCategory: text("regulatory_category"),            // e.g. "Art. 22(2)(b) UK Org Regs 2020"
+  internalDecisionDate: date("internal_decision_date"),       // when the holding internally decided it needed this ingredient
   appliedDate: date("applied_date"),                          // date application submitted to certifier
+  availabilitySearchDone: boolean("availability_search_done").notNull().default(false),
+  availabilitySearchDate: date("availability_search_date"),   // date of OFAS/UKOAS search
+  availabilitySearchRef: text("availability_search_ref"),     // OFAS/UKOAS search reference number
   decisionDate: date("decision_date"),                        // date certifier issued decision
   expiryDate: date("expiry_date"),                            // when approval expires (typically end of cert year)
-  availabilitySearchDone: boolean("availability_search_done").notNull().default(false),
   justification: text("justification"),                       // why no organic equivalent was available
   conditions: text("conditions"),                             // any conditions attached to the approval
+  rejectionReason: text("rejection_reason"),                  // certifier's stated reason for rejection
+  rejectionRef: text("rejection_ref"),                        // certifier's reference for the rejection notice
+  correctiveAction: text("corrective_action"),                // what the farm did in response to rejection
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -353,6 +359,7 @@ export const organicFpDerogationTable = pgTable("organic_fp_derogation", {
   regulatoryBasis: text("regulatory_basis"),
   certifier: text("certifier"),
   certifierRef: text("certifier_ref"),
+  internalDecisionDate: date("internal_decision_date"),       // when the holding internally decided it needed this input
   availabilitySearchDate: date("availability_search_date"),
   availabilitySearchRef: text("availability_search_ref"),
   applicationDate: date("application_date"),
@@ -362,6 +369,9 @@ export const organicFpDerogationTable = pgTable("organic_fp_derogation", {
   expiryDate: date("expiry_date"),
   cropYear: integer("crop_year"),
   justification: text("justification"),
+  rejectionReason: text("rejection_reason"),                  // certifier's stated reason for rejection
+  rejectionRef: text("rejection_ref"),                        // certifier's reference for the rejection notice
+  correctiveAction: text("corrective_action"),                // what the farm did in response to rejection
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -446,6 +456,7 @@ export const organicVitDerogationTable = pgTable("organic_vit_derogation", {
   regulatoryBasis: text("regulatory_basis"),
   certifier: text("certifier"),
   certifierRef: text("certifier_ref"),
+  internalDecisionDate: date("internal_decision_date"),       // when the holding internally decided it needed this input
   availabilitySearchDate: date("availability_search_date"),
   availabilitySearchRef: text("availability_search_ref"),
   applicationDate: date("application_date"),
@@ -455,6 +466,9 @@ export const organicVitDerogationTable = pgTable("organic_vit_derogation", {
   expiryDate: date("expiry_date"),
   vintageYear: integer("vintage_year"),
   justification: text("justification"),
+  rejectionReason: text("rejection_reason"),                  // certifier's stated reason for rejection
+  rejectionRef: text("rejection_ref"),                        // certifier's reference for the rejection notice
+  correctiveAction: text("corrective_action"),                // what the farm did in response to rejection
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

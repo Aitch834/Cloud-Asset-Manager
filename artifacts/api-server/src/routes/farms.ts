@@ -348,6 +348,7 @@ import {
   organicVenisonLandRegisterTable,
   organicVenisonFeedSupplementsTable,
   organicVenisonDerogationsTable,
+  organicVenisonDerogationCorrespondenceTable,
   beefWeighRecordsTable,
   beefAnimalWeighEntriesTable,
   beefFinishingRecordsTable,
@@ -18462,16 +18463,16 @@ router.get("/farms/:farmId/organic-fp/input-derogations", requireAuth, requireTe
 
 router.post("/farms/:farmId/organic-fp/input-derogations", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, notes } = req.body;
-  const [record] = await db.insert(organicFpDerogationTable).values({ farmId, inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, notes: notes ?? null }).returning();
+  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, internalDecisionDate, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, rejectionReason, rejectionRef, correctiveAction, notes } = req.body;
+  const [record] = await db.insert(organicFpDerogationTable).values({ farmId, inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, internalDecisionDate: internalDecisionDate || null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, rejectionReason: rejectionReason ?? null, rejectionRef: rejectionRef ?? null, correctiveAction: correctiveAction ?? null, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
 router.put("/farms/:farmId/organic-fp/input-derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, notes } = req.body;
-  await db.update(organicFpDerogationTable).set({ inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, notes: notes ?? null }).where(and(eq(organicFpDerogationTable.id, id), eq(organicFpDerogationTable.farmId, farmId)));
+  const { inputName, inputType, regulatoryBasis, certifier, certifierRef, internalDecisionDate, availabilitySearchDate, availabilitySearchRef, applicationDate, decisionDate, status, approvalConditions, expiryDate, cropYear, justification, rejectionReason, rejectionRef, correctiveAction, notes } = req.body;
+  await db.update(organicFpDerogationTable).set({ inputName, inputType, regulatoryBasis: regulatoryBasis ?? null, certifier: certifier ?? null, certifierRef: certifierRef ?? null, internalDecisionDate: internalDecisionDate || null, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, applicationDate: applicationDate || null, decisionDate: decisionDate || null, status: status ?? "pending", approvalConditions: approvalConditions ?? null, expiryDate: expiryDate || null, cropYear: cropYear ? Number(cropYear) : null, justification: justification ?? null, rejectionReason: rejectionReason ?? null, rejectionRef: rejectionRef ?? null, correctiveAction: correctiveAction ?? null, notes: notes ?? null }).where(and(eq(organicFpDerogationTable.id, id), eq(organicFpDerogationTable.farmId, farmId)));
   const [record] = await db.select().from(organicFpDerogationTable).where(eq(organicFpDerogationTable.id, id));
   res.json({ record });
 });
@@ -23065,8 +23066,8 @@ router.get("/farms/:farmId/organic-livestock/feed-derogations", requireAuth, req
 router.post("/farms/:farmId/organic-livestock/feed-derogations", requireAuth, requireTenant, requireModuleByKey("organic-livestock", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { ingredientName, feedProductName, species, certifier, status, certifierRef, regulatoryCategory, appliedDate, decisionDate, expiryDate, availabilitySearchDone, justification, conditions, notes } = req.body;
-  const [record] = await db.insert(organicFeedDerogationTable).values({ farmId, ingredientName, feedProductName: feedProductName ?? null, species: species ?? null, certifier: certifier ?? null, status: status ?? "pending", certifierRef: certifierRef ?? null, regulatoryCategory: regulatoryCategory ?? null, appliedDate: appliedDate ?? null, decisionDate: decisionDate ?? null, expiryDate: expiryDate ?? null, availabilitySearchDone: availabilitySearchDone ?? false, justification: justification ?? null, conditions: conditions ?? null, notes: notes ?? null }).returning();
+  const { ingredientName, feedProductName, species, certifier, status, certifierRef, regulatoryCategory, internalDecisionDate, appliedDate, availabilitySearchDone, availabilitySearchDate, availabilitySearchRef, decisionDate, expiryDate, justification, conditions, rejectionReason, rejectionRef, correctiveAction, notes } = req.body;
+  const [record] = await db.insert(organicFeedDerogationTable).values({ farmId, ingredientName, feedProductName: feedProductName ?? null, species: species ?? null, certifier: certifier ?? null, status: status ?? "pending", certifierRef: certifierRef ?? null, regulatoryCategory: regulatoryCategory ?? null, internalDecisionDate: internalDecisionDate || null, appliedDate: appliedDate ?? null, availabilitySearchDone: availabilitySearchDone ?? false, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, decisionDate: decisionDate ?? null, expiryDate: expiryDate ?? null, justification: justification ?? null, conditions: conditions ?? null, rejectionReason: rejectionReason ?? null, rejectionRef: rejectionRef ?? null, correctiveAction: correctiveAction ?? null, notes: notes ?? null }).returning();
   res.status(201).json({ record });
 });
 
@@ -23074,8 +23075,8 @@ router.put("/farms/:farmId/organic-livestock/feed-derogations/:id", requireAuth,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
-  const { ingredientName, feedProductName, species, certifier, status, certifierRef, regulatoryCategory, appliedDate, decisionDate, expiryDate, availabilitySearchDone, justification, conditions, notes } = req.body;
-  await db.update(organicFeedDerogationTable).set({ ingredientName, feedProductName: feedProductName ?? null, species: species ?? null, certifier: certifier ?? null, status: status ?? "pending", certifierRef: certifierRef ?? null, regulatoryCategory: regulatoryCategory ?? null, appliedDate: appliedDate ?? null, decisionDate: decisionDate ?? null, expiryDate: expiryDate ?? null, availabilitySearchDone: availabilitySearchDone ?? false, justification: justification ?? null, conditions: conditions ?? null, notes: notes ?? null }).where(and(eq(organicFeedDerogationTable.id, id), eq(organicFeedDerogationTable.farmId, farmId)));
+  const { ingredientName, feedProductName, species, certifier, status, certifierRef, regulatoryCategory, internalDecisionDate, appliedDate, availabilitySearchDone, availabilitySearchDate, availabilitySearchRef, decisionDate, expiryDate, justification, conditions, rejectionReason, rejectionRef, correctiveAction, notes } = req.body;
+  await db.update(organicFeedDerogationTable).set({ ingredientName, feedProductName: feedProductName ?? null, species: species ?? null, certifier: certifier ?? null, status: status ?? "pending", certifierRef: certifierRef ?? null, regulatoryCategory: regulatoryCategory ?? null, internalDecisionDate: internalDecisionDate || null, appliedDate: appliedDate ?? null, availabilitySearchDone: availabilitySearchDone ?? false, availabilitySearchDate: availabilitySearchDate || null, availabilitySearchRef: availabilitySearchRef ?? null, decisionDate: decisionDate ?? null, expiryDate: expiryDate ?? null, justification: justification ?? null, conditions: conditions ?? null, rejectionReason: rejectionReason ?? null, rejectionRef: rejectionRef ?? null, correctiveAction: correctiveAction ?? null, notes: notes ?? null }).where(and(eq(organicFeedDerogationTable.id, id), eq(organicFeedDerogationTable.farmId, farmId)));
   const [record] = await db.select().from(organicFeedDerogationTable).where(eq(organicFeedDerogationTable.id, id));
   res.json({ record });
 });
@@ -29442,7 +29443,7 @@ router.post("/farms/:farmId/organic-venison/derogations", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(organicVenisonDerogationsTable).values({ farmId, caseReference: b.caseReference ? String(b.caseReference) : null, inputName: String(b.inputName ?? ""), inputType: b.inputType ? String(b.inputType) : null, regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, applicationDate: b.applicationDate ? String(b.applicationDate) : null, justification: b.justification ? String(b.justification) : null, status: b.status ? String(b.status) : "pending", decisionDate: b.decisionDate ? String(b.decisionDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(organicVenisonDerogationsTable).values({ farmId, caseReference: b.caseReference ? String(b.caseReference) : null, inputName: String(b.inputName ?? ""), inputType: b.inputType ? String(b.inputType) : null, regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierRef: b.certifierRef ? String(b.certifierRef) : null, internalDecisionDate: b.internalDecisionDate ? String(b.internalDecisionDate) : null, availabilitySearchDate: b.availabilitySearchDate ? String(b.availabilitySearchDate) : null, availabilitySearchRef: b.availabilitySearchRef ? String(b.availabilitySearchRef) : null, applicationDate: b.applicationDate ? String(b.applicationDate) : null, justification: b.justification ? String(b.justification) : null, status: b.status ? String(b.status) : "pending", decisionDate: b.decisionDate ? String(b.decisionDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null, rejectionReason: b.rejectionReason ? String(b.rejectionReason) : null, rejectionRef: b.rejectionRef ? String(b.rejectionRef) : null, correctiveAction: b.correctiveAction ? String(b.correctiveAction) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -29463,6 +29464,13 @@ router.put("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requir
   if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
   if (b.approvalConditions !== undefined) updates.approvalConditions = b.approvalConditions ? String(b.approvalConditions) : null;
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  if (b.certifierRef !== undefined) updates.certifierRef = b.certifierRef ? String(b.certifierRef) : null;
+  if (b.internalDecisionDate !== undefined) updates.internalDecisionDate = b.internalDecisionDate ? String(b.internalDecisionDate) : null;
+  if (b.availabilitySearchDate !== undefined) updates.availabilitySearchDate = b.availabilitySearchDate ? String(b.availabilitySearchDate) : null;
+  if (b.availabilitySearchRef !== undefined) updates.availabilitySearchRef = b.availabilitySearchRef ? String(b.availabilitySearchRef) : null;
+  if (b.rejectionReason !== undefined) updates.rejectionReason = b.rejectionReason ? String(b.rejectionReason) : null;
+  if (b.rejectionRef !== undefined) updates.rejectionRef = b.rejectionRef ? String(b.rejectionRef) : null;
+  if (b.correctiveAction !== undefined) updates.correctiveAction = b.correctiveAction ? String(b.correctiveAction) : null;
   const [row] = await db.update(organicVenisonDerogationsTable).set(updates).where(and(eq(organicVenisonDerogationsTable.id, id), eq(organicVenisonDerogationsTable.farmId, farmId))).returning();
   res.json({ row });
 });
@@ -29472,3 +29480,57 @@ router.delete("/farms/:farmId/organic-venison/derogations/:id", requireAuth, req
   await db.delete(organicVenisonDerogationsTable).where(and(eq(organicVenisonDerogationsTable.id, Number(req.params.id)), eq(organicVenisonDerogationsTable.farmId, farmId)));
   res.json({ success: true });
 });
+// ─── Organic Venison Derogation Correspondence ───────────────────────────────
+router.get("/farms/:farmId/organic-venison/derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const derogationId = Number(req.params.id);
+  const items = await db.select().from(organicVenisonDerogationCorrespondenceTable).where(and(eq(organicVenisonDerogationCorrespondenceTable.farmId, farmId), eq(organicVenisonDerogationCorrespondenceTable.derogationId, derogationId))).orderBy(desc(organicVenisonDerogationCorrespondenceTable.correspondenceDate));
+  res.json({ items });
+});
+router.post("/farms/:farmId/organic-venison/derogations/:id/correspondence", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const derogationId = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [item] = await db.insert(organicVenisonDerogationCorrespondenceTable).values({ farmId, derogationId, correspondenceDate: String(b.correspondenceDate), direction: b.direction ? String(b.direction) : "to-certifier", correspondenceType: b.correspondenceType ? String(b.correspondenceType) : "", summary: b.summary ? String(b.summary) : "", reference: b.reference ? String(b.reference) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ item });
+});
+router.put("/farms/:farmId/organic-venison/derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [item] = await db.update(organicVenisonDerogationCorrespondenceTable).set({ correspondenceDate: b.correspondenceDate ? String(b.correspondenceDate) : undefined, direction: b.direction ? String(b.direction) : undefined, correspondenceType: b.correspondenceType ? String(b.correspondenceType) : undefined, summary: b.summary ? String(b.summary) : undefined, reference: b.reference !== undefined ? (b.reference ? String(b.reference) : null) : undefined, notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined }).where(and(eq(organicVenisonDerogationCorrespondenceTable.id, id), eq(organicVenisonDerogationCorrespondenceTable.farmId, farmId))).returning();
+  res.json({ item });
+});
+router.delete("/farms/:farmId/organic-venison/derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(organicVenisonDerogationCorrespondenceTable).where(and(eq(organicVenisonDerogationCorrespondenceTable.id, Number(req.params.id)), eq(organicVenisonDerogationCorrespondenceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+// ─── Organic Venison Derogation Documents ────────────────────────────────────
+router.get("/farms/:farmId/organic-venison/derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-venison", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const items = await db.select().from(farmRecordAttachmentsTable).where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, "organic_venison_derogation"), eq(farmRecordAttachmentsTable.recordId, id), isNull(farmRecordAttachmentsTable.deletedAt))).orderBy(farmRecordAttachmentsTable.uploadedAt);
+  res.json({ items });
+});
+router.post("/farms/:farmId/organic-venison/derogations/:id/documents", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const { fileKey, fileName, fileSize, documentType, mimeType } = req.body;
+  const fileUrl = fileKey;
+  const [item] = await db.insert(farmRecordAttachmentsTable).values({ farmId, recordType: "organic_venison_derogation", recordId: id, fileUrl, fileKey, fileName, fileSize: fileSize ?? null, mimeType: mimeType ?? null, notes: documentType ?? null }).returning();
+  res.status(201).json({ item });
+});
+router.delete("/farms/:farmId/organic-venison/derogation-documents/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.update(farmRecordAttachmentsTable).set({ deletedAt: new Date() }).where(and(eq(farmRecordAttachmentsTable.id, Number(req.params.id)), eq(farmRecordAttachmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+

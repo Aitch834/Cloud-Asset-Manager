@@ -757,10 +757,13 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
 type DerogCase = {
   id: number; farmId: number; inputName: string; inputType: string;
   regulatoryBasis?: string | null; certifier?: string | null; certifierRef?: string | null;
+  internalDecisionDate?: string | null;
   availabilitySearchDate?: string | null; availabilitySearchRef?: string | null;
   applicationDate?: string | null; decisionDate?: string | null;
   status: string; approvalConditions?: string | null; expiryDate?: string | null;
-  vintageYear?: number | null; justification?: string | null; notes?: string | null;
+  vintageYear?: number | null; justification?: string | null;
+  rejectionReason?: string | null; rejectionRef?: string | null; correctiveAction?: string | null;
+  notes?: string | null;
   createdAt: string;
 };
 
@@ -778,11 +781,13 @@ function RecordDecisionDialog({ farmId, derogCase, onClose }: { farmId: number; 
   const [certifierRef, setCertifierRef] = useState(derogCase.certifierRef ?? "");
   const [approvalConditions, setApprovalConditions] = useState(derogCase.approvalConditions ?? "");
   const [expiryDate, setExpiryDate] = useState(derogCase.expiryDate ?? "");
+  const [rejectionReason, setRejectionReason] = useState(derogCase.rejectionReason ?? "");
+  const [rejectionRef, setRejectionRef] = useState(derogCase.rejectionRef ?? "");
 
   const mut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/input-derogations/${derogCase.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, decisionDate: decisionDate || null, certifierRef: certifierRef || null, approvalConditions: approvalConditions || null, expiryDate: expiryDate || null }),
+      body: JSON.stringify({ status, decisionDate: decisionDate || null, certifierRef: certifierRef || null, approvalConditions: approvalConditions || null, expiryDate: expiryDate || null, rejectionReason: rejectionReason || null, rejectionRef: rejectionRef || null }),
     }).then(r => { if (!r.ok) throw new Error("Failed"); }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["org-vit-derogations", farmId] });
@@ -867,7 +872,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
     enabled: expandedId !== null,
   });
 
-  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()) }); setShowAdd(true); };
+  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()), internalDecisionDate: "", rejectionReason: "", rejectionRef: "", correctiveAction: "" }); setShowAdd(true); };
   const openEdit = (c: DerogCase) => {
     setForm({
       inputName: c.inputName ?? "",
@@ -884,6 +889,10 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       expiryDate: c.expiryDate ?? "",
       vintageYear: c.vintageYear ? String(c.vintageYear) : "",
       justification: c.justification ?? "",
+      internalDecisionDate: c.internalDecisionDate ?? "",
+      rejectionReason: c.rejectionReason ?? "",
+      rejectionRef: c.rejectionRef ?? "",
+      correctiveAction: c.correctiveAction ?? "",
       notes: c.notes ?? "",
     });
     setEditing(c);
@@ -999,6 +1008,9 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                           Record Decision <ArrowRight className="h-3 w-3" />
                         </Button>
                       )}
+                      {(c.status === "refused" && !c.correctiveAction) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-orange-100 text-orange-800 border-orange-300">Action Required</span>
+                      )}
                       {c.expiryDate && (
                         <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Viticulture Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
                           <ClipboardList className="h-4 w-4 text-amber-600" />
@@ -1023,6 +1035,21 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
                     )}
                     {c.approvalConditions && (
                       <div className="text-sm"><span className="font-medium text-gray-700">Approval Conditions:</span> <span className="text-gray-600">{c.approvalConditions}</span></div>
+                    )}
+                    {c.rejectionReason && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Rejection reason: </span>
+                        <span className="text-red-700">{c.rejectionReason}</span>
+                        {c.rejectionRef && <span className="ml-2 text-xs text-gray-500">(Ref: {c.rejectionRef})</span>}
+                      </div>
+                    )}
+                    {c.status === "refused" && !c.correctiveAction && (
+                      <div className="rounded-md border border-orange-300 bg-orange-50 p-2 text-xs text-orange-800">
+                        <strong>Action Required:</strong> Record a corrective action in response to this refusal.
+                      </div>
+                    )}
+                    {c.correctiveAction && (
+                      <div className="text-sm"><span className="text-gray-500">Corrective action: </span><span className="text-green-700">{c.correctiveAction}</span></div>
                     )}
                     {c.notes && (
                       <div className="text-sm text-gray-500">{c.notes}</div>
@@ -1128,6 +1155,13 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
             <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={sf("vintageYear")} placeholder="e.g. 2025" /></div>
             <div><Label>Justification</Label><Textarea value={form.justification ?? ""} onChange={sf("justification")} placeholder="Why the organic alternative was unavailable" rows={3} /></div>
             {editing && <div><Label>Approval Conditions</Label><Textarea value={form.approvalConditions ?? ""} onChange={sf("approvalConditions")} rows={2} /></div>}
+            {editing && (form.status === "refused") && (
+              <>
+                <div><Label>Rejection Reason</Label><Textarea value={form.rejectionReason ?? ""} onChange={sf("rejectionReason")} rows={2} placeholder="Certifier's stated reason for refusing the derogation" /></div>
+                <div><Label>Rejection Reference</Label><Input value={form.rejectionRef ?? ""} onChange={sf("rejectionRef")} placeholder="Certifier ref for rejection notice" /></div>
+                <div><Label>Corrective Action Taken</Label><Textarea value={form.correctiveAction ?? ""} onChange={sf("correctiveAction")} rows={2} placeholder="What the farm did in response to the refusal" /></div>
+              </>
+            )}
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
           {editing && (

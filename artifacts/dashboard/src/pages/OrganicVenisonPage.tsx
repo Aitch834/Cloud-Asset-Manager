@@ -508,134 +508,419 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── DEROGATIONS TAB ──────────────────────────────────────────────────────────
+const VENS_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Pending", cls: "bg-blue-100 text-blue-800" },
+  approved: { label: "Approved", cls: "bg-green-100 text-green-800" },
+  refused: { label: "Refused", cls: "bg-red-100 text-red-800" },
+  rejected: { label: "Rejected", cls: "bg-red-100 text-red-800" },
+  expired: { label: "Expired", cls: "bg-gray-100 text-gray-600" },
+  withdrawn: { label: "Withdrawn", cls: "bg-gray-100 text-gray-600" },
+};
+
+function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
+  farmId: number; c: any; isExpanded: boolean; onToggle: () => void; qc: any;
+}) {
+  const { toast } = useToast();
+  const [recordDecisionOpen, setRecordDecisionOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  const [corrOpen, setCorrOpen] = useState(false);
+  const [editCorr, setEditCorr] = useState<any>(null);
+  const [corrForm, setCorrForm] = useState<any>({ correspondenceDate: new Date().toISOString().slice(0,10), direction: "to-certifier", correspondenceType: "Application to Certifier", summary: "", reference: "", notes: "" });
+  const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState("Approval Letter");
+
+  const { data: corrData } = useQuery({
+    queryKey: ["vens-derog-corr", rec.id],
+    queryFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}/correspondence`), { credentials: "include" }).then(r => r.json()),
+    enabled: isExpanded,
+  });
+  const { data: docsData } = useQuery({
+    queryKey: ["vens-derog-docs", rec.id],
+    queryFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}/documents`), { credentials: "include" }).then(r => r.json()),
+    enabled: isExpanded,
+  });
+  const corrItems = corrData?.items ?? [];
+  const docs = docsData?.items ?? [];
+
+  const saveEdit = useMutation({
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setEditOpen(false); toast({ title: "Saved" }); },
+  });
+  const saveDecision = useMutation({
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setRecordDecisionOpen(false); toast({ title: "Decision recorded" }); },
+  });
+  const delDerog = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); toast({ title: "Deleted" }); },
+  });
+  const saveCorr = useMutation({
+    mutationFn: (body: any) => {
+      const url = editCorr ? api(`farms/${farmId}/organic-venison/derogation-correspondence/${editCorr.id}`) : api(`farms/${farmId}/organic-venison/derogations/${rec.id}/correspondence`);
+      return fetch(url, { method: editCorr ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-corr", rec.id] }); setCorrOpen(false); setEditCorr(null); toast({ title: "Saved" }); },
+  });
+  const delCorr = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-corr", rec.id] }); toast({ title: "Deleted" }); },
+  });
+  const delDoc = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-documents/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-docs", rec.id] }); },
+  });
+
+  const cfg = VENS_STATUS_CFG[rec.status] ?? VENS_STATUS_CFG.pending;
+  const days = rec.expiryDate ? Math.ceil((new Date(rec.expiryDate).getTime() - Date.now()) / 86400000) : null;
+
+  async function handleFileUpload(file: File, docType: string) {
+    setUploading(true);
+    try {
+      const presignRes = await fetch(api("uploads/presign"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type, recordType: "organic_venison_derogation" }) });
+      const { uploadUrl, fileKey } = await presignRes.json();
+      await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      await fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileKey, fileName: file.name, fileSize: file.size, mimeType: file.type, documentType: docType }) });
+      qc.invalidateQueries({ queryKey: ["vens-derog-docs", rec.id] });
+    } catch { toast({ title: "Upload failed", variant: "destructive" }); }
+    setUploading(false);
+  }
+
+  const [decisionStatus, setDecisionStatus] = useState("approved");
+  const [decisionDate, setDecisionDate] = useState(new Date().toISOString().slice(0,10));
+  const [decisionCertRef, setDecisionCertRef] = useState(rec.certifierRef ?? "");
+  const [decisionConditions, setDecisionConditions] = useState(rec.approvalConditions ?? "");
+  const [decisionExpiry, setDecisionExpiry] = useState(rec.expiryDate ?? "");
+  const [decisionRejReason, setDecisionRejReason] = useState("");
+  const [decisionRejRef, setDecisionRejRef] = useState("");
+
+  return (
+    <div className="border rounded-md overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 cursor-pointer" onClick={onToggle}>
+        {isExpanded ? <span className="text-muted-foreground text-sm">▾</span> : <span className="text-muted-foreground text-sm">▸</span>}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-sm">{rec.inputName}</span>
+            {rec.caseReference && <span className="font-mono text-xs text-muted-foreground">{rec.caseReference}</span>}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls} border-current/20`}>{cfg.label}</span>
+            {(rec.status === "rejected" || rec.status === "refused") && !rec.correctiveAction && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-orange-100 text-orange-800 border-orange-300">Action Required</span>
+            )}
+            {days !== null && rec.status === "approved" && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${days < 0 ? "bg-red-100 text-red-700" : days <= 14 ? "bg-red-100 text-red-700" : days <= 60 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                {days < 0 ? `Expired ${Math.abs(days)}d ago` : `${days}d remaining`}
+              </span>
+            )}
+            {docs.length > 0 && <span className="text-xs text-muted-foreground">📎 {docs.length}</span>}
+          </div>
+          <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
+            {rec.certifyingBody && <span>Certifier: {rec.certifyingBody}</span>}
+            {rec.certifierRef && <span>Ref: {rec.certifierRef}</span>}
+            {rec.applicationDate && <span>Applied: {rec.applicationDate}</span>}
+            {rec.expiryDate && <span>Expires: {rec.expiryDate}</span>}
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0 items-center" onClick={e => e.stopPropagation()}>
+          {(rec.status === "pending") && (
+            <button className="text-xs px-2 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" onClick={() => setRecordDecisionOpen(true)}>Record Decision</button>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => { setEditForm({ ...rec }); setEditOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this derogation case and all its correspondence?")) delDerog.mutate(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="border-t bg-muted/10 p-4 space-y-5">
+          {(rec.status === "rejected" || rec.status === "refused") && !rec.correctiveAction && (
+            <div className="rounded-md border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
+              <strong>Action Required:</strong> This derogation was refused. Record a corrective action by editing this case.
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+            {rec.inputType && <div><span className="text-muted-foreground">Input type: </span>{rec.inputType}</div>}
+            {rec.regulatoryBasis && <div><span className="text-muted-foreground">Regulatory basis: </span>{rec.regulatoryBasis}</div>}
+            {rec.internalDecisionDate && <div><span className="text-muted-foreground">Internal decision: </span>{rec.internalDecisionDate}</div>}
+            {rec.availabilitySearchDate && <div><span className="text-muted-foreground">Availability search: </span>{rec.availabilitySearchDate}</div>}
+            {rec.availabilitySearchRef && <div><span className="text-muted-foreground">Search ref: </span>{rec.availabilitySearchRef}</div>}
+            {rec.decisionDate && <div><span className="text-muted-foreground">Decision date: </span>{rec.decisionDate}</div>}
+            {rec.approvalConditions && <div className="col-span-2"><span className="text-muted-foreground">Conditions: </span>{rec.approvalConditions}</div>}
+            {rec.rejectionReason && <div className="col-span-2"><span className="text-muted-foreground">Rejection reason: </span><span className="text-red-700">{rec.rejectionReason}</span></div>}
+            {rec.rejectionRef && <div><span className="text-muted-foreground">Rejection ref: </span>{rec.rejectionRef}</div>}
+            {rec.correctiveAction && <div className="col-span-2"><span className="text-muted-foreground">Corrective action: </span><span className="text-green-700">{rec.correctiveAction}</span></div>}
+            {rec.justification && <div className="col-span-2"><span className="text-muted-foreground">Justification: </span>{rec.justification}</div>}
+            {rec.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes: </span>{rec.notes}</div>}
+          </div>
+
+          {/* Correspondence */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">Correspondence Log</h4>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditCorr(null); setCorrForm({ correspondenceDate: new Date().toISOString().slice(0,10), direction: "to-certifier", correspondenceType: "Application to Certifier", summary: "", reference: "", notes: "" }); setCorrOpen(true); }}>+ Add</Button>
+            </div>
+            {corrItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No correspondence logged yet.</p>
+            ) : corrItems.map((ci: any) => (
+              <div key={ci.id} className="bg-white border rounded p-3 flex items-start justify-between gap-2">
+                <div className="text-sm flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="font-medium">{ci.correspondenceDate}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{ci.direction}</span>
+                    <span className="text-xs text-muted-foreground">{ci.correspondenceType}</span>
+                  </div>
+                  <p>{ci.summary}</p>
+                  {ci.reference && <p className="text-xs text-muted-foreground">Ref: {ci.reference}</p>}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => { setEditCorr(ci); setCorrForm({ ...ci }); setCorrOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="text-red-500" onClick={() => delCorr.mutate(ci.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Documents */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">Documents</h4>
+              <div className="flex items-center gap-2">
+                <Select value={uploadType} onValueChange={setUploadType}>
+                  <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{["Approval Letter","Availability Search Evidence","Application Letter","Supporting Evidence","Rejection Notice","Conditions Letter","Other"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={uploading} onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"; inp.onchange = async () => { if (inp.files?.[0]) await handleFileUpload(inp.files[0], uploadType); }; inp.click(); }}>
+                  {uploading ? "Uploading…" : "Upload"}
+                </Button>
+              </div>
+            </div>
+            {docs.length === 0 ? <p className="text-xs text-muted-foreground">No documents uploaded yet.</p> : docs.map((doc: any) => (
+              <div key={doc.id} className="flex items-center gap-2 rounded border bg-background px-3 py-2">
+                <span className="text-muted-foreground text-sm">📄</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{doc.fileName}</p>
+                  <p className="text-xs text-muted-foreground">{doc.notes} · {new Date(doc.uploadedAt).toLocaleDateString("en-GB")}</p>
+                </div>
+                <a href={`/api${doc.fileKey}`} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" className="h-7 w-7">↗</Button></a>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => delDoc.mutate(doc.id)}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Record Decision Dialog */}
+      <Dialog open={recordDecisionOpen} onOpenChange={o => { if (!o) setRecordDecisionOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Record Certifier Decision</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Decision *</Label>
+                <Select value={decisionStatus} onValueChange={setDecisionStatus}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="refused">Refused</SelectItem>
+                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    <SelectItem value="expired">Expired — no decision</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Decision Date *</Label><Input type="date" className="mt-1" value={decisionDate} onChange={e => setDecisionDate(e.target.value)} /></div>
+            </div>
+            {decisionStatus === "approved" && (
+              <>
+                <div><Label>Certifier Reference</Label><Input className="mt-1" value={decisionCertRef} onChange={e => setDecisionCertRef(e.target.value)} /></div>
+                <div><Label>Approval Conditions</Label><Textarea className="mt-1" value={decisionConditions} onChange={e => setDecisionConditions(e.target.value)} rows={2} /></div>
+                <div><Label>Expiry Date</Label><Input type="date" className="mt-1" value={decisionExpiry} onChange={e => setDecisionExpiry(e.target.value)} /></div>
+              </>
+            )}
+            {decisionStatus === "refused" && (
+              <>
+                <div><Label>Rejection Reason</Label><Textarea className="mt-1" value={decisionRejReason} onChange={e => setDecisionRejReason(e.target.value)} rows={2} /></div>
+                <div><Label>Rejection Reference</Label><Input className="mt-1" value={decisionRejRef} onChange={e => setDecisionRejRef(e.target.value)} /></div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecordDecisionOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveDecision.mutate({ ...rec, status: decisionStatus, decisionDate: decisionDate || null, certifierRef: decisionCertRef || null, approvalConditions: decisionConditions || null, expiryDate: decisionExpiry || null, rejectionReason: decisionRejReason || null, rejectionRef: decisionRejRef || null })} disabled={saveDecision.isPending}>
+              {saveDecision.isPending ? "Saving…" : "Save Decision"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Case Dialog */}
+      <Dialog open={editOpen} onOpenChange={o => { if (!o) setEditOpen(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Derogation Case</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Case Reference</Label><Input value={String(editForm.caseReference || "")} onChange={e => setEditForm((f:any) => ({ ...f, caseReference: e.target.value }))} /></div>
+            <div>
+              <Label>Status</Label>
+              <Select value={String(editForm.status || "pending")} onValueChange={v => setEditForm((f:any) => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{DEROGATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Input Name *</Label><Input value={String(editForm.inputName || "")} onChange={e => setEditForm((f:any) => ({ ...f, inputName: e.target.value }))} /></div>
+            <div><Label>Input Type</Label><Input value={String(editForm.inputType || "")} onChange={e => setEditForm((f:any) => ({ ...f, inputType: e.target.value }))} /></div>
+            <div><Label>Regulatory Basis</Label><Input value={String(editForm.regulatoryBasis || "")} onChange={e => setEditForm((f:any) => ({ ...f, regulatoryBasis: e.target.value }))} /></div>
+            <div>
+              <Label>Certifying Body</Label>
+              <Select value={String(editForm.certifyingBody || "")} onValueChange={v => setEditForm((f:any) => ({ ...f, certifyingBody: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select body" /></SelectTrigger>
+                <SelectContent>{CERTIFYING_BODIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Certifier Ref</Label><Input value={String(editForm.certifierRef || "")} onChange={e => setEditForm((f:any) => ({ ...f, certifierRef: e.target.value }))} /></div>
+            <div><Label>Internal Decision Date</Label><Input type="date" value={String(editForm.internalDecisionDate || "")} onChange={e => setEditForm((f:any) => ({ ...f, internalDecisionDate: e.target.value }))} /></div>
+            <div><Label>Availability Search Date</Label><Input type="date" value={String(editForm.availabilitySearchDate || "")} onChange={e => setEditForm((f:any) => ({ ...f, availabilitySearchDate: e.target.value }))} /></div>
+            <div><Label>Availability Search Ref</Label><Input value={String(editForm.availabilitySearchRef || "")} onChange={e => setEditForm((f:any) => ({ ...f, availabilitySearchRef: e.target.value }))} placeholder="OFAS / UKOAS ref" /></div>
+            <div><Label>Application Date</Label><Input type="date" value={String(editForm.applicationDate || "")} onChange={e => setEditForm((f:any) => ({ ...f, applicationDate: e.target.value }))} /></div>
+            <div><Label>Decision Date</Label><Input type="date" value={String(editForm.decisionDate || "")} onChange={e => setEditForm((f:any) => ({ ...f, decisionDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Expiry Date</Label><Input type="date" value={String(editForm.expiryDate || "")} onChange={e => setEditForm((f:any) => ({ ...f, expiryDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Justification</Label><Textarea rows={2} value={String(editForm.justification || "")} onChange={e => setEditForm((f:any) => ({ ...f, justification: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Approval Conditions</Label><Textarea rows={2} value={String(editForm.approvalConditions || "")} onChange={e => setEditForm((f:any) => ({ ...f, approvalConditions: e.target.value }))} /></div>
+            {(editForm.status === "refused" || editForm.status === "rejected") && (
+              <>
+                <div className="col-span-2"><Label>Rejection Reason</Label><Textarea rows={2} value={String(editForm.rejectionReason || "")} onChange={e => setEditForm((f:any) => ({ ...f, rejectionReason: e.target.value }))} /></div>
+                <div><Label>Rejection Reference</Label><Input value={String(editForm.rejectionRef || "")} onChange={e => setEditForm((f:any) => ({ ...f, rejectionRef: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Corrective Action Taken</Label><Textarea rows={2} value={String(editForm.correctiveAction || "")} onChange={e => setEditForm((f:any) => ({ ...f, correctiveAction: e.target.value }))} /></div>
+              </>
+            )}
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(editForm.notes || "")} onChange={e => setEditForm((f:any) => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveEdit.mutate(editForm)} disabled={saveEdit.isPending || !editForm.inputName}>{saveEdit.isPending ? "Saving…" : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Correspondence Dialog */}
+      <Dialog open={corrOpen} onOpenChange={o => { if (!o) { setCorrOpen(false); setEditCorr(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editCorr ? "Edit Correspondence" : "Add Correspondence"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Date *</Label><Input type="date" value={corrForm.correspondenceDate ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, correspondenceDate: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Direction</Label>
+                <Select value={corrForm.direction ?? "to-certifier"} onValueChange={v => setCorrForm((f:any) => ({ ...f, direction: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="to-certifier">To certifier</SelectItem>
+                    <SelectItem value="from-certifier">From certifier</SelectItem>
+                    <SelectItem value="internal">Internal note</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Type *</Label>
+                <Select value={corrForm.correspondenceType ?? ""} onValueChange={v => setCorrForm((f:any) => ({ ...f, correspondenceType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>{["Application to Certifier","Availability Search Evidence","Supporting Evidence","Certifier Query","Approval Letter","Rejection Notice","Conditions Letter","Renewal Request","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label>Summary *</Label><Textarea value={corrForm.summary ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, summary: e.target.value }))} rows={2} /></div>
+            <div><Label>Reference</Label><Input value={corrForm.reference ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, reference: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Textarea value={corrForm.notes ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCorrOpen(false); setEditCorr(null); }}>Cancel</Button>
+            <Button onClick={() => saveCorr.mutate(corrForm)} disabled={!corrForm.correspondenceDate || !corrForm.correspondenceType || !corrForm.summary || saveCorr.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function DerogationsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [dlg, setDlg] = useState<{ open: boolean; mode: "add" | "edit" | "view"; row: Record<string, unknown> }>({ open: false, mode: "add", row: {} });
-  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState<any>({ status: "pending" });
+  const sf = (k: string, v: any) => setAddForm((f: any) => ({ ...f, [k]: v }));
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["org-venison-derog", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations`), { credentials: "include" }).then(r => r.json()),
   });
+  const records: any[] = data ?? [];
 
-  const mutSave = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      fetch(api(`farms/${farmId}/organic-venison/derogations${data.id ? `/${data.id}` : ""}`), {
-        method: data.id ? "PUT" : "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
-      }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setDlg({ open: false, mode: "add", row: {} }); toast({ title: "Saved" }); },
-    onError: () => toast({ title: "Error saving", variant: "destructive" }),
+  const mutAdd = useMutation({
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (d) => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setAddOpen(false); setAddForm({ status: "pending" }); toast({ title: "Case created" }); setExpandedId(d?.id ?? null); },
+    onError: () => toast({ title: "Error creating case", variant: "destructive" }),
   });
-  const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogations/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); toast({ title: "Deleted" }); },
-  });
-
-  const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => {
-    setDlg({ open: true, mode, row });
-    setForm(mode === "add" ? { status: "pending" } : row);
-  };
-  const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-        <FileQuestion className="inline w-4 h-4 mr-1" />
-        <strong>Derogation Case Register</strong> — Record all requests to use non-organic inputs or practices where no organic alternative is available. Derogations must be applied for before the input is used and approved in writing by your certifying body. Each approved derogation has a defined scope and expiry date.
+        <strong>Derogation Case Register</strong> — Record all requests to use non-organic inputs or practices where no organic alternative is available. Each case tracks the availability search, certifier correspondence, decision, and supporting documents.
       </div>
-      <SectionHeader title="Input Derogation Cases" onAdd={() => open("add")} addLabel="New Derogation" />
-      {records.length === 0 ? (
-        <EmptyState icon={FileQuestion} message="No derogation cases recorded yet. Add a case if you need to use an input that is not certified organic." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b bg-muted/30">
-                {["Case Ref", "Input Name", "Input Type", "Certifying Body", "Application Date", "Status", "Decision Date", "Expiry Date", ""].map(h => (
-                  <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-medium whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r: any) => (
-                <tr key={r.id} className="border-b hover:bg-muted/20 transition-colors">
-                  <td className="py-2 px-3 font-mono text-xs">{fmt(r.caseReference)}</td>
-                  <td className="py-2 px-3 font-medium">{fmt(r.inputName)}</td>
-                  <td className="py-2 px-3 text-xs">{fmt(r.inputType)}</td>
-                  <td className="py-2 px-3 text-xs">{fmt(r.certifyingBody)}</td>
-                  <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.applicationDate)}</td>
-                  <td className="py-2 px-3"><Badge variant="outline" className={`text-xs ${statusColor(r.status || "")}`}>{fmt(r.status)}</Badge></td>
-                  <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.decisionDate)}</td>
-                  <td className="py-2 px-3 whitespace-nowrap">{fmtDate(r.expiryDate)}</td>
-                  <td className="py-2 px-3">
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("view", r)}><Eye className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => open("edit", r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => mutDel.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {Object.entries(VENS_STATUS_CFG).map(([s, cfg]) => {
+            const count = records.filter((r: any) => r.status === s).length;
+            return count > 0 ? <span key={s} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls} border-current/20`}>{cfg.label}: {count}</span> : null;
+          })}
+          {records.length === 0 && <span className="text-sm text-muted-foreground">No derogation cases yet</span>}
         </div>
-      )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Derogation Case" : dlg.mode === "edit" ? "Edit Derogation" : "New Derogation Case"}</DialogTitle></DialogHeader>
-          {dlg.mode === "view" ? (
-            <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Case Reference" value={fmt(dlg.row.caseReference)} />
-              <FieldView label="Status" value={fmt(dlg.row.status)} />
-              <FieldView label="Input Name" value={fmt(dlg.row.inputName)} />
-              <FieldView label="Input Type" value={fmt(dlg.row.inputType)} />
-              <FieldView label="Regulatory Basis" value={fmt(dlg.row.regulatoryBasis)} />
-              <FieldView label="Certifying Body" value={fmt(dlg.row.certifyingBody)} />
-              <FieldView label="Application Date" value={fmtDate(dlg.row.applicationDate)} />
-              <FieldView label="Decision Date" value={fmtDate(dlg.row.decisionDate)} />
-              <FieldView label="Expiry Date" value={fmtDate(dlg.row.expiryDate)} />
-              {dlg.row.justification && <div className="col-span-2"><FieldView label="Justification" value={fmt(dlg.row.justification)} /></div>}
-              {dlg.row.approvalConditions && <div className="col-span-2"><FieldView label="Approval Conditions" value={fmt(dlg.row.approvalConditions)} /></div>}
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+        <Button size="sm" onClick={() => { setAddForm({ status: "pending" }); setAddOpen(true); }}><Plus className="w-4 h-4 mr-1" />New Derogation</Button>
+      </div>
+
+      <div className="space-y-2">
+        {records.map((r: any) => (
+          <VensDerogCard
+            key={r.id}
+            farmId={farmId}
+            c={r}
+            isExpanded={expandedId === r.id}
+            onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
+            qc={qc}
+          />
+        ))}
+      </div>
+
+      {/* New Case Dialog */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) setAddOpen(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>New Derogation Case</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Case Reference</Label><Input value={addForm.caseReference || ""} onChange={e => sf("caseReference", e.target.value)} placeholder="e.g. VENS-DERG-2025-001" /></div>
+            <div>
+              <Label>Status</Label>
+              <Select value={addForm.status || "pending"} onValueChange={v => sf("status", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{DEROGATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <div><Label>Case Reference</Label><Input placeholder="e.g. DERG-2025-001" value={String(form.caseReference || "")} onChange={e => sf("caseReference", e.target.value)} /></div>
-              <div>
-                <Label>Status</Label>
-                <Select value={String(form.status || "pending")} onValueChange={v => sf("status", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{DEROGATION_STATUSES.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Input Name *</Label><Input placeholder="Name of input / treatment" value={String(form.inputName || "")} onChange={e => sf("inputName", e.target.value)} /></div>
-              <div><Label>Input Type</Label><Input placeholder="e.g. Antibiotic, mineral supplement" value={String(form.inputType || "")} onChange={e => sf("inputType", e.target.value)} /></div>
-              <div><Label>Regulatory Basis</Label><Input placeholder="e.g. UK Organic Reg Art. 24" value={String(form.regulatoryBasis || "")} onChange={e => sf("regulatoryBasis", e.target.value)} /></div>
-              <div>
-                <Label>Certifying Body</Label>
-                <Select value={String(form.certifyingBody || "")} onValueChange={v => sf("certifyingBody", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select body" /></SelectTrigger>
-                  <SelectContent>{CERTIFYING_BODIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Application Date</Label><Input type="date" value={String(form.applicationDate || "")} onChange={e => sf("applicationDate", e.target.value)} /></div>
-              <div><Label>Decision Date</Label><Input type="date" value={String(form.decisionDate || "")} onChange={e => sf("decisionDate", e.target.value)} /></div>
-              <div className="col-span-2"><Label>Expiry Date (if approved)</Label><Input type="date" value={String(form.expiryDate || "")} onChange={e => sf("expiryDate", e.target.value)} /></div>
-              <div className="col-span-2"><Label>Justification</Label><Textarea rows={2} placeholder="Why no organic alternative is available" value={String(form.justification || "")} onChange={e => sf("justification", e.target.value)} /></div>
-              <div className="col-span-2"><Label>Approval Conditions (if approved)</Label><Textarea rows={2} placeholder="Conditions or restrictions attached to the approval" value={String(form.approvalConditions || "")} onChange={e => sf("approvalConditions", e.target.value)} /></div>
-              <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
+            <div><Label>Input Name *</Label><Input value={addForm.inputName || ""} onChange={e => sf("inputName", e.target.value)} placeholder="Name of input / treatment" /></div>
+            <div><Label>Input Type</Label><Input value={addForm.inputType || ""} onChange={e => sf("inputType", e.target.value)} placeholder="e.g. Mineral supplement" /></div>
+            <div><Label>Regulatory Basis</Label><Input value={addForm.regulatoryBasis || ""} onChange={e => sf("regulatoryBasis", e.target.value)} placeholder="e.g. UK Organic Reg Art. 24" /></div>
+            <div>
+              <Label>Certifying Body</Label>
+              <Select value={addForm.certifyingBody || ""} onValueChange={v => sf("certifyingBody", v)}>
+                <SelectTrigger><SelectValue placeholder="Select body" /></SelectTrigger>
+                <SelectContent>{CERTIFYING_BODIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          )}
+            <div><Label>Internal Decision Date</Label><Input type="date" value={addForm.internalDecisionDate || ""} onChange={e => sf("internalDecisionDate", e.target.value)} /></div>
+            <div><Label>Availability Search Date</Label><Input type="date" value={addForm.availabilitySearchDate || ""} onChange={e => sf("availabilitySearchDate", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Availability Search Ref (OFAS / UKOAS)</Label><Input value={addForm.availabilitySearchRef || ""} onChange={e => sf("availabilitySearchRef", e.target.value)} placeholder="Search reference number" /></div>
+            <div><Label>Application Date</Label><Input type="date" value={addForm.applicationDate || ""} onChange={e => sf("applicationDate", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Justification</Label><Textarea rows={2} value={addForm.justification || ""} onChange={e => sf("justification", e.target.value)} placeholder="Why no organic alternative is available" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={addForm.notes || ""} onChange={e => sf("notes", e.target.value)} /></div>
+          </div>
           <DialogFooter>
-            {dlg.mode !== "view" && (
-              <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.inputName}>
-                {mutSave.isPending ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : null}
-                {dlg.mode === "edit" ? "Update" : "Save"}
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={() => mutAdd.mutate(addForm)} disabled={mutAdd.isPending || !addForm.inputName}>{mutAdd.isPending ? "Saving…" : "Create Case"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
@@ -1502,6 +1503,7 @@ type FpDerogCase = {
   regulatoryBasis: string | null;
   certifier: string | null;
   certifierRef: string | null;
+  internalDecisionDate: string | null;
   availabilitySearchDate: string | null;
   availabilitySearchRef: string | null;
   applicationDate: string | null;
@@ -1511,6 +1513,9 @@ type FpDerogCase = {
   expiryDate: string | null;
   cropYear: number | null;
   justification: string | null;
+  rejectionReason: string | null;
+  rejectionRef: string | null;
+  correctiveAction: string | null;
   notes: string | null;
   createdAt: string;
 };
@@ -1559,9 +1564,9 @@ const FP_DOCUMENT_TYPES = ["Availability Search Evidence", "Application Letter",
 
 const EMPTY_FP_CASE_FORM = {
   inputName: "", inputType: "Seed", regulatoryBasis: "UK Organic Regulations 2020 — Schedule 1 / Annex II",
-  certifier: "", certifierRef: "", availabilitySearchDate: "", availabilitySearchRef: "",
+  certifier: "", certifierRef: "", internalDecisionDate: "", availabilitySearchDate: "", availabilitySearchRef: "",
   applicationDate: "", decisionDate: "", status: "pending", approvalConditions: "",
-  expiryDate: "", cropYear: new Date().getFullYear(), justification: "", notes: "",
+  expiryDate: "", cropYear: new Date().getFullYear(), justification: "", rejectionReason: "", rejectionRef: "", correctiveAction: "", notes: "",
 };
 
 const EMPTY_FP_CORRESP_FORM = {
@@ -1586,11 +1591,79 @@ function FpDaysRemaining({ dateStr }: { dateStr: string | null | undefined }) {
   return <span className="text-xs text-muted-foreground">Expires {fmt(dateStr)}</span>;
 }
 
+
+// ─── FP Record Decision Dialog ────────────────────────────────────────────────
+function FpRecordDecisionDialog({ farmId, derogCase, onClose, onSaved }: {
+  farmId: number; derogCase: FpDerogCase; onClose: () => void; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [status, setStatus] = React.useState("approved");
+  const [decisionDate, setDecisionDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [certifierRef, setCertifierRef] = React.useState(derogCase.certifierRef ?? "");
+  const [approvalConditions, setApprovalConditions] = React.useState(derogCase.approvalConditions ?? "");
+  const [expiryDate, setExpiryDate] = React.useState(derogCase.expiryDate ?? "");
+  const [rejectionReason, setRejectionReason] = React.useState("");
+  const [rejectionRef, setRejectionRef] = React.useState("");
+  const mut = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/organic-fp/input-derogations/${derogCase.id}`), {
+      method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ ...derogCase, status, decisionDate: decisionDate || null, certifierRef: certifierRef || null, approvalConditions: approvalConditions || null, expiryDate: expiryDate || null, rejectionReason: rejectionReason || null, rejectionRef: rejectionRef || null }),
+    }).then(r => { if (!r.ok) throw new Error("Failed"); }),
+    onSuccess: () => { onSaved(); toast({ title: "Decision recorded" }); onClose(); },
+    onError: () => toast({ title: "Error saving decision", variant: "destructive" }),
+  });
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record Certifier Decision</DialogTitle>
+          <DialogDescription>{derogCase.inputName} — decision from {derogCase.certifier ?? "certifying body"}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Decision *</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="withdrawn">Withdrawn (by applicant)</SelectItem>
+                  <SelectItem value="expired">Expired — no decision received</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Decision Date *</Label><Input type="date" className="mt-1" value={decisionDate} onChange={e => setDecisionDate(e.target.value)} /></div>
+          </div>
+          {status === "approved" && (
+            <>
+              <div><Label>Certifier Reference No.</Label><Input className="mt-1" value={certifierRef} onChange={e => setCertifierRef(e.target.value)} placeholder="Reference from certifying body" /></div>
+              <div><Label>Approval Conditions</Label><Textarea className="mt-1" value={approvalConditions} onChange={e => setApprovalConditions(e.target.value)} rows={2} placeholder="Any conditions attached to the approval…" /></div>
+              <div><Label>Expiry Date</Label><Input type="date" className="mt-1" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} /></div>
+            </>
+          )}
+          {status === "rejected" && (
+            <>
+              <div><Label>Rejection Reason</Label><Textarea className="mt-1" value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} rows={2} placeholder="Certifier's stated reason for refusing the derogation" /></div>
+              <div><Label>Rejection Reference</Label><Input className="mt-1" value={rejectionRef} onChange={e => setRejectionRef(e.target.value)} placeholder="Certifier's reference for the rejection notice" /></div>
+            </>
+          )}
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending || !decisionDate}>{mut.isPending ? "Saving…" : "Save Decision"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [expandedId, setExpandedId] = React.useState<number | null>(null);
   const [caseOpen, setCaseOpen] = React.useState(false);
+  const [recordDecisionFor, setRecordDecisionFor] = React.useState<FpDerogCase | null>(null);
   const [editingCase, setEditingCase] = React.useState<FpDerogCase | null>(null);
   const [caseForm, setCaseForm] = React.useState({ ...EMPTY_FP_CASE_FORM });
   const [correspOpen, setCorrespOpen] = React.useState(false);
@@ -1707,6 +1780,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
     setCaseForm({
       inputName: c.inputName, inputType: c.inputType, regulatoryBasis: c.regulatoryBasis ?? "",
       certifier: c.certifier ?? "", certifierRef: c.certifierRef ?? "",
+      internalDecisionDate: c.internalDecisionDate?.slice(0, 10) ?? "",
       availabilitySearchDate: c.availabilitySearchDate?.slice(0, 10) ?? "",
       availabilitySearchRef: c.availabilitySearchRef ?? "",
       applicationDate: c.applicationDate?.slice(0, 10) ?? "",
@@ -1714,7 +1788,11 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
       status: c.status, approvalConditions: c.approvalConditions ?? "",
       expiryDate: c.expiryDate?.slice(0, 10) ?? "",
       cropYear: c.cropYear ?? new Date().getFullYear(),
-      justification: c.justification ?? "", notes: c.notes ?? "",
+      justification: c.justification ?? "",
+      rejectionReason: c.rejectionReason ?? "",
+      rejectionRef: c.rejectionRef ?? "",
+      correctiveAction: c.correctiveAction ?? "",
+      notes: c.notes ?? "",
     });
     setCaseOpen(true);
   }
@@ -1778,8 +1856,16 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
                   {c.expiryDate && c.status === "approved" && <FpDaysRemaining dateStr={c.expiryDate} />}
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-2">
+                  {c.status === "pending" && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 border-amber-300 hover:bg-amber-50 gap-1" onClick={e => { e.stopPropagation(); setRecordDecisionFor(c); }}>
+                      Record Decision
+                    </Button>
+                  )}
+                  {(c.status === "rejected" && !c.correctiveAction) && (
+                    <Badge className="bg-orange-100 text-orange-800 text-xs border border-orange-300">Action Required</Badge>
+                  )}
                   {c.expiryDate && c.status === "approved" && (
-                    <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Input Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
+                  <Button variant="ghost" size="icon" title="Raise task" onClick={e => { e.stopPropagation(); setRaiseTaskFor({ title: `Organic Input Derogation Expiring — ${c.inputName}`, description: `The derogation approval for '${c.inputName}' is due to expire. Renew or confirm with your certifying body.`, dueDate: c.expiryDate ?? undefined }); }}>
                       <ClipboardList className="h-4 w-4 text-amber-600" />
                     </Button>
                   )}
@@ -1908,6 +1994,11 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
               <Input type="date" value={caseForm.availabilitySearchDate} onChange={cf("availabilitySearchDate")} />
             </div>
             <div className="space-y-1">
+              <Label>Internal Decision Date</Label>
+              <Input type="date" value={caseForm.internalDecisionDate} onChange={cf("internalDecisionDate")} />
+              <p className="text-xs text-muted-foreground">Date the holding decided this input was needed.</p>
+            </div>
+            <div className="space-y-1">
               <Label>Availability Search Ref (OFAS / UKOAS)</Label>
               <Input value={caseForm.availabilitySearchRef} onChange={cf("availabilitySearchRef")} placeholder="Search reference number" />
             </div>
@@ -1941,6 +2032,22 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
               <Label>Approval Conditions</Label>
               <Textarea value={caseForm.approvalConditions} onChange={cf("approvalConditions")} rows={2} placeholder="Any conditions placed on the approval by the certifier" />
             </div>
+            {(caseForm.status === "rejected") && (
+              <>
+                <div className="col-span-2 space-y-1">
+                  <Label>Rejection Reason</Label>
+                  <Textarea value={caseForm.rejectionReason} onChange={cf("rejectionReason")} rows={2} placeholder="Certifier's stated reason for refusing the derogation" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Rejection Reference</Label>
+                  <Input value={caseForm.rejectionRef} onChange={cf("rejectionRef")} placeholder="Certifier's reference for the rejection notice" />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label>Corrective Action Taken</Label>
+                  <Textarea value={caseForm.correctiveAction} onChange={cf("correctiveAction")} rows={2} placeholder="What the farm did in response to rejection" />
+                </div>
+              </>
+            )}
             <div className="col-span-2 space-y-1">
               <Label>Notes</Label>
               <Textarea value={caseForm.notes} onChange={cf("notes")} rows={2} />
@@ -1954,6 +2061,15 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {recordDecisionFor && (
+        <FpRecordDecisionDialog
+          farmId={farmId}
+          derogCase={recordDecisionFor}
+          onClose={() => setRecordDecisionFor(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["ofp-input-derogations", farmId] })}
+        />
+      )}
 
       <Dialog open={correspOpen} onOpenChange={v => { if (!v) { setCorrespOpen(false); setEditingCorresp(null); } }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
