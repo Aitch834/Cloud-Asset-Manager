@@ -514,7 +514,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     {r.yieldLitres && <span className="text-sm text-gray-700">{parseFloat(r.yieldLitres).toLocaleString()} L</span>}
                     <SccBadge v={r.sccThousands || r.buyerSccThousands} />
                     {r.antibioticResidueTestResult && (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${r.antibioticResidueTestResult === "negative" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${r.antibioticResidueTestResult === "negative" ? "bg-green-100 text-green-700" : r.antibioticResidueTestResult === "positive" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
                         {r.antibioticResidueTestResult === "negative" ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
                         ABR: {r.antibioticResidueTestResult}
                       </span>
@@ -525,7 +525,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    {(r.antibioticResidueTestResult === "positive" || (r.sccThousands && Number(r.sccThousands ?? 0) > 200) || (r.buyerSccThousands && Number(r.buyerSccThousands ?? 0) > 200)) && (
+                    {((r.antibioticResidueTestResult && r.antibioticResidueTestResult !== "negative") || (r.sccThousands && Number(r.sccThousands ?? 0) > 200) || (r.buyerSccThousands && Number(r.buyerSccThousands ?? 0) > 200)) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600" title="Raise Task — quality alert" onClick={() => setRaiseTaskFor(r)}><ClipboardList className="h-3.5 w-3.5" /></Button>
                     )}
                   </div>
@@ -542,7 +542,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
           farmId={farmId}
           open={!!raiseTaskFor}
           onClose={() => setRaiseTaskFor(null)}
-          defaultTitle={`Milk Quality Alert — ${raiseTaskFor.antibioticResidueTestResult === "positive" ? "ABR Positive" : "High SCC"}`}
+          defaultTitle={`Milk Quality Alert — ${raiseTaskFor.antibioticResidueTestResult && raiseTaskFor.antibioticResidueTestResult !== "negative" ? `ABR ${raiseTaskFor.antibioticResidueTestResult.charAt(0).toUpperCase()}${raiseTaskFor.antibioticResidueTestResult.slice(1)}` : "High SCC"}`}
           defaultDescription={`Date: ${raiseTaskFor.recordDate ?? "—"} · ABR: ${raiseTaskFor.antibioticResidueTestResult ?? "—"} · SCC: ${raiseTaskFor.sccThousands ?? raiseTaskFor.buyerSccThousands ?? "—"} k/mL · Buyer: ${raiseTaskFor.milkBuyer ?? "—"}`}
           module="dairy"
         />

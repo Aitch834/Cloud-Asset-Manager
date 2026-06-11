@@ -230,7 +230,7 @@ export default function SheepMilkRecordScreen() {
             {ABR_OPTIONS.map(o => (
               <Pressable
                 key={o.value}
-                style={[styles.pill, abrResult === o.value && styles.pillActive, o.value === "positive" && abrResult === "positive" && styles.pillDanger]}
+                style={[styles.pill, abrResult === o.value && styles.pillActive, abrResult === o.value && (o.value === "positive" ? styles.pillDanger : (o.value === "borderline" || o.value === "invalid") ? styles.pillWarning : null)]}
                 onPress={() => setAbrResult(abrResult === o.value ? "" : o.value)}
               >
                 <Text style={[styles.pillText, abrResult === o.value && styles.pillTextActive]}>{o.label}</Text>
@@ -313,6 +313,7 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   pillActive: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
   pillDanger: { backgroundColor: "#dc2626", borderColor: "#dc2626" },
+  pillWarning: { backgroundColor: "#d97706", borderColor: "#d97706" },
   pillText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textSecondary },
   pillTextActive: { color: "#fff" },
   warning: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: "#fef3c7", borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm },

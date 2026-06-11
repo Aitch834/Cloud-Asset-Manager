@@ -401,7 +401,7 @@ import {
   organicGoatDairyTreatmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -13263,6 +13263,12 @@ router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, req
   if (antibioticResidueTestResult === "positive") {
     createDairyAbrPositiveNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR positive alert failed:", e));
   }
+  if (antibioticResidueTestResult === "borderline") {
+    createDairyAbrBorderlineNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR borderline alert failed:", e));
+  }
+  if (antibioticResidueTestResult === "invalid") {
+    createDairyAbrInvalidNotification({ tenantId, farmId, recordId: record.id, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR invalid alert failed:", e));
+  }
   res.json({ record });
 });
 
@@ -13282,6 +13288,12 @@ router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTe
   }
   if (antibioticResidueTestResult === "positive" && prev?.antibioticResidueTestResult !== "positive") {
     createDairyAbrPositiveNotification({ tenantId, farmId, recordId, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR positive alert failed:", e));
+  }
+  if (antibioticResidueTestResult === "borderline" && prev?.antibioticResidueTestResult !== "borderline") {
+    createDairyAbrBorderlineNotification({ tenantId, farmId, recordId, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR borderline alert failed:", e));
+  }
+  if (antibioticResidueTestResult === "invalid" && prev?.antibioticResidueTestResult !== "invalid") {
+    createDairyAbrInvalidNotification({ tenantId, farmId, recordId, recordDate: rdStr, sessionType: sessionType || null, abrTestedBy: abrTestedBy || null }).catch(e => console.error("[DAIRY] ABR invalid alert failed:", e));
   }
   res.json({ record });
 });

@@ -314,6 +314,60 @@ export async function createDairyAbrPositiveNotification(params: {
   await dispatchSmsForCriticalAlert(params.tenantId, title, message);
 }
 
+export async function createDairyAbrBorderlineNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  recordDate: string;
+  sessionType?: string | null;
+  abrTestedBy?: string | null;
+}) {
+  const dateLabel = new Date(params.recordDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const sessionLabel = params.sessionType ? ` (${params.sessionType} session)` : "";
+  const testerLabel = params.abrTestedBy ? ` Tested by: ${params.abrTestedBy}.` : "";
+  const title = `ABR Test Borderline — Retest Required (${dateLabel})`;
+  const message = `An antibiotic residue test on ${dateLabel}${sessionLabel} has returned a BORDERLINE result.${testerLabel} Retest before the next collection. Investigate any recently treated animals and do not allow collection until a confirmed negative result is obtained. Notify your milk buyer if collection is due.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_abr_borderline",
+    severity: "warning",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-abr-borderline-${params.recordId}`,
+  });
+}
+
+export async function createDairyAbrInvalidNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  recordDate: string;
+  sessionType?: string | null;
+  abrTestedBy?: string | null;
+}) {
+  const dateLabel = new Date(params.recordDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const sessionLabel = params.sessionType ? ` (${params.sessionType} session)` : "";
+  const testerLabel = params.abrTestedBy ? ` Tested by: ${params.abrTestedBy}.` : "";
+  const title = `ABR Test Invalid — Retest Required (${dateLabel})`;
+  const message = `An antibiotic residue test on ${dateLabel}${sessionLabel} returned an INVALID result.${testerLabel} The test kit may be expired or have been used incorrectly. Retest immediately using a fresh kit batch before the next collection.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "dairy_abr_invalid",
+    severity: "warning",
+    title,
+    message,
+    relatedModule: "dairy-management",
+    relatedId: params.recordId,
+    dedupeKey: `dairy-abr-invalid-${params.recordId}`,
+  });
+}
+
 export async function createMobilityLamenessAlert(params: {
   tenantId: number;
   farmId: number;

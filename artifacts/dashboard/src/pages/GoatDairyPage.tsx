@@ -181,7 +181,7 @@ function MilkTab({ farmId }: { farmId: number }) {
                 <td className="py-2 px-3"><GoatSccBadge v={r.buyerSccThousands ?? r.sccThousands} /></td>
                 <td className="py-2 px-3">{r.buyerFatPercent ?? r.fatPercent ?? "—"}</td>
                 <td className="py-2 px-3">{r.buyerProteinPercent ?? r.proteinPercent ?? "—"}</td>
-                <td className="py-2 px-3">{r.antibioticResidueTestResult ? <span className={`px-2 py-0.5 rounded-full text-xs ${r.antibioticResidueTestResult === "positive" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{r.antibioticResidueTestResult}</span> : "—"}</td>
+                <td className="py-2 px-3">{r.antibioticResidueTestResult ? <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.antibioticResidueTestResult === "negative" ? "bg-green-100 text-green-800" : r.antibioticResidueTestResult === "positive" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>{r.antibioticResidueTestResult}</span> : "—"}</td>
                 <td className="py-2 px-3 text-gray-500">{r.milkBuyer || "—"}</td>
                 <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/milk-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-milk", String(farmId)]} compact /></td>
                 <td className="py-2 px-3"><div className="flex gap-1">
