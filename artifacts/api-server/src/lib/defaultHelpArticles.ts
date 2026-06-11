@@ -3879,17 +3879,44 @@ const CONTENT: [string, string][] = [
 <p>The Outdoor Access chart on the Organic Livestock overview page shows month-by-month access vs restriction across the certification year. Certifiers expect to see a clear pattern of access during spring, summer, and autumn, with documented restrictions concentrated in the winter months when weather and ground conditions typically prevent safe access.</p>`,
   ],
 
-  // 196 — Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults
+  // 196 — Organic Dairy — Milk Collection Records, ABR Testing, Buyer Lab Results & Retest Linkage
   [
-    "How milk collection records and feed records work in BDE Farm Trac's Organic Dairy module, with daily date default functionality.",
-    `<h2>Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults</h2>
-<p>The Organic Dairy module provides dedicated milk collection and feed records for organic dairy herds, designed for quick daily data entry with smart defaults that reduce the time required to maintain accurate records.</p>
+    "How milk collection records work in BDE Farm Trac's Organic Dairy module, including ABR testing, temperature recording, buyer lab results, and retest linkage.",
+    `<h2>Organic Dairy — Milk Collection Records, ABR Testing, Buyer Lab Results & Retest Linkage</h2>
+<p>The Organic Dairy module provides comprehensive milk collection records for organic dairy herds. The add and edit form is split into three tabs to keep related fields grouped and reduce scrolling during data entry.</p>
 <h3>Daily date defaults</h3>
-<p>When you open any Organic Dairy record form — milk collection or feed record — the date field defaults to today. For dairy farms where records are entered daily, this means only the quantity or ration details need to be entered — the date is already correct. If entering a historical record, simply change the date before saving.</p>
-<h3>Milk collection records</h3>
-<p>Navigate to <strong>Organic → Dairy → Milk Collection</strong> and click <strong>New Collection</strong>. Record the collection date, volume collected (litres), collection tanker reference, and milk buyer. The cumulative volume collected month-to-date is shown on the collection record page for quick checking against the dairy's statement.</p>
+<p>The Collection Date field defaults to today whenever you open a new milk collection form. For dairy farms entering records at the time of each uplift, no date change is needed — enter the collection details and save. To record a historical collection, overtype the date before saving.</p>
+<h3>Tab 1 — Collection Details</h3>
+<p>Navigate to <strong>Organic → Dairy → Milk Collections</strong> and click <strong>New Collection</strong>. The Collection Details tab captures:</p>
+<ul>
+<li><strong>Collection Date</strong> (defaults to today), Volume (litres), Collector / Milk Buyer, Vehicle Registration, Processor Ref, Collection Docket / Slip Ref.</li>
+<li><strong>Organic certified flag</strong> — toggle off if this collection is non-organic (e.g. antibiotic withdrawal period); a Reason field appears when unchecked.</li>
+<li><strong>Deductions (pence) and Net Value (pence)</strong> — for recording the tanker driver's docket deductions and the net payment amount.</li>
+<li><strong>Witnessed By</strong> — name of the farm staff member present at collection.</li>
+<li><strong>Recorded By / Notes</strong>.</li>
+</ul>
+<h3>Tab 2 — Quality & ABR</h3>
+<p>The Quality &amp; ABR tab records the on-farm quality measurements and antibiotic residue test:</p>
+<ul>
+<li><strong>Milk Temperature (°C)</strong> — the temperature of the milk at the point of collection; record who tested it in the Temp Tested By field.</li>
+<li><strong>Fat %, Protein %, Lactose %</strong> — on-farm compositional measurements.</li>
+<li><strong>SCC (000s/mL) and TBC (000s/mL)</strong> — somatic cell count and total bacterial count from the on-farm reading.</li>
+<li><strong>ABR Test Result</strong> — four-state result: Negative, Positive, Borderline, or Invalid. A colour-coded badge (green / red / amber / grey) is displayed on every row in the Milk Collections table for an instant at-a-glance compliance view without opening individual records.</li>
+<li><strong>ABR Tested By</strong>, <strong>ABR Kit Lot</strong>, and <strong>ABR Kit Batch</strong> — for full traceability of the test kit used.</li>
+</ul>
+<h3>Tab 3 — Buyer Lab Results</h3>
+<p>The Buyer Lab Results tab holds the independent quality analysis returned by the milk processor or buyer — typically available a few days after the collection:</p>
+<ul>
+<li><strong>Status</strong> — Pending (awaiting results), Received (results in), or Failed (buyer rejected the collection).</li>
+<li><strong>Result Date and Buyer Lab Reference</strong>.</li>
+<li><strong>Buyer SCC, Buyer TBC, Buyer Fat %, Buyer Protein %, Buyer Lactose %</strong> — the processor's returned figures, sitting alongside the on-farm readings for direct comparison.</li>
+</ul>
+<h3>Retest linkage</h3>
+<p>If an initial ABR result is borderline or positive and a confirmatory retest is required before the collection is accepted, record the retest as a new collection entry. Toggle on <strong>This is a retest</strong> and use the <strong>Retest of</strong> picker to select the original collection that prompted the retest. The link is stored permanently, giving certifiers and your milk buyer a clear audit trail connecting the original and confirmatory results.</p>
 <h3>Feed records</h3>
-<p>Navigate to <strong>Organic → Dairy → Feed Records</strong>. Each feed record logs the date or date range, the herd (selected from the organic cattle herd list), and the ration composition. Each component is entered with its feed type (forage, concentrate, mineral), organic status (Certified Organic, In Conversion, Conventional — within the 10% allowance), and dry matter percentage. The organic DM proportion is calculated automatically. Records where conventional inclusion exceeds the permitted level are flagged for review and certifier notification.</p>`,
+<p>Navigate to <strong>Organic → Dairy → Feed Records</strong>. Each feed record logs the date or date range, the herd (selected from the organic cattle herd list), and the ration composition. Each component is entered with its feed type (forage, concentrate, mineral), organic status (Certified Organic, In Conversion, Conventional — within the 10% allowance), and dry matter percentage. The organic DM proportion is calculated automatically. Records where conventional inclusion exceeds the permitted level are flagged for review and certifier notification.</p>
+<h3>Document attachments</h3>
+<p>The full view dialog for any Milk Collection record includes a RecordAttachments panel. Attach PDFs, photos, or documents — for example a copy of the collection docket, an ABR test printout, or the buyer's lab results letter — directly to the record. Attachments are stored permanently in secure cloud storage and accessible instantly during certifier inspection. The same attachment capability is available on Herd Conversion records and Feed &amp; Nutrition records.</p>`,
   ],
 
   // 197 — Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults

@@ -28,19 +28,37 @@ function todayDate(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+const ABR_OPTIONS = ["Negative", "Positive", "Borderline", "Invalid"] as const;
+type AbrResult = (typeof ABR_OPTIONS)[number] | "";
+
+const ABR_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  Negative: { bg: "#f0fdf4", text: "#16a34a", border: "#86efac" },
+  Positive: { bg: "#fef2f2", text: "#dc2626", border: "#fca5a5" },
+  Borderline: { bg: "#fffbeb", text: "#d97706", border: "#fcd34d" },
+  Invalid: { bg: "#f9fafb", text: "#6b7280", border: "#d1d5db" },
+};
+
 type FormState = {
   collectionDate: string;
   volumeLitres: string;
   collectorName: string;
   vehicleRegistration: string;
   processorRef: string;
+  milkTemperatureCelsius: string;
+  tempTestedBy: string;
   fatPercentage: string;
   proteinPercentage: string;
+  lactosePercentage: string;
   sccCount: string;
   tbcCount: string;
+  antibioticResidueTestResult: AbrResult;
+  abrTestedBy: string;
+  abrTestKitLot: string;
+  abrTestKitBatch: string;
   collectionSlipRef: string;
   isOrganicCollection: boolean;
   nonOrganicReason: string;
+  isRetest: boolean;
   witnessedBy: string;
   notes: string;
 };
@@ -51,13 +69,21 @@ const INITIAL: FormState = {
   collectorName: "",
   vehicleRegistration: "",
   processorRef: "",
+  milkTemperatureCelsius: "",
+  tempTestedBy: "",
   fatPercentage: "",
   proteinPercentage: "",
+  lactosePercentage: "",
   sccCount: "",
   tbcCount: "",
+  antibioticResidueTestResult: "",
+  abrTestedBy: "",
+  abrTestKitLot: "",
+  abrTestKitBatch: "",
   collectionSlipRef: "",
   isOrganicCollection: true,
   nonOrganicReason: "",
+  isRetest: false,
   witnessedBy: "",
   notes: "",
 };
@@ -96,13 +122,21 @@ export default function OrganicMilkCollectionScreen() {
         collectorName: form.collectorName || null,
         vehicleRegistration: form.vehicleRegistration || null,
         processorRef: form.processorRef || null,
+        milkTemperatureCelsius: form.milkTemperatureCelsius || null,
+        tempTestedBy: form.tempTestedBy || null,
         fatPercentage: form.fatPercentage || null,
         proteinPercentage: form.proteinPercentage || null,
+        lactosePercentage: form.lactosePercentage || null,
         sccCount: form.sccCount ? Number(form.sccCount) : null,
         tbcCount: form.tbcCount ? Number(form.tbcCount) : null,
+        antibioticResidueTestResult: form.antibioticResidueTestResult || null,
+        abrTestedBy: form.abrTestedBy || null,
+        abrTestKitLot: form.abrTestKitLot || null,
+        abrTestKitBatch: form.abrTestKitBatch || null,
         collectionSlipRef: form.collectionSlipRef || null,
         isOrganicCollection: form.isOrganicCollection,
         nonOrganicReason: form.isOrganicCollection ? null : form.nonOrganicReason,
+        isRetest: form.isRetest,
         witnessedBy: form.witnessedBy || null,
         recordedByUserName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || null : null,
         notes: form.notes || null,
@@ -174,7 +208,18 @@ export default function OrganicMilkCollectionScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Quality Data</Text>
+        <Text style={styles.sectionTitle}>Temperature & Quality</Text>
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>Milk Temp (°C)</Text>
+            <Input value={form.milkTemperatureCelsius} onChangeText={set("milkTemperatureCelsius")} placeholder="e.g. 4.0" keyboardType="decimal-pad" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>Temp Tested By</Text>
+            <Input value={form.tempTestedBy} onChangeText={set("tempTestedBy")} placeholder="Name" />
+          </View>
+        </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
@@ -189,18 +234,66 @@ export default function OrganicMilkCollectionScreen() {
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>Lactose %</Text>
+            <Input value={form.lactosePercentage} onChangeText={set("lactosePercentage")} placeholder="e.g. 4.6" keyboardType="decimal-pad" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
             <Text style={styles.label}>SCC (000s/ml)</Text>
             <Input value={form.sccCount} onChangeText={set("sccCount")} placeholder="e.g. 180" keyboardType="number-pad" />
           </View>
-          <View style={[styles.field, { flex: 1 }]}>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
             <Text style={styles.label}>TBC (000s/ml)</Text>
             <Input value={form.tbcCount} onChangeText={set("tbcCount")} placeholder="e.g. 15" keyboardType="number-pad" />
+          </View>
+          <View style={{ flex: 1 }} />
+        </View>
+
+        <Text style={styles.sectionTitle}>ABR Test</Text>
+
+        <Text style={styles.label}>ABR Result</Text>
+        <View style={styles.chipRow}>
+          {ABR_OPTIONS.map(opt => {
+            const active = form.antibioticResidueTestResult === opt;
+            const col = ABR_COLORS[opt];
+            return (
+              <Pressable
+                key={opt}
+                style={[styles.chip, active && { backgroundColor: col.bg, borderColor: col.border }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setForm(p => ({ ...p, antibioticResidueTestResult: active ? "" : opt }));
+                }}
+              >
+                <Text style={[styles.chipText, active && { color: col.text, fontFamily: fonts.semiBold }]}>{opt}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {!!form.antibioticResidueTestResult && form.antibioticResidueTestResult === "Positive" && (
+          <View style={styles.warningBox}>
+            <Feather name="alert-triangle" size={16} color="#dc2626" style={{ marginTop: 2 }} />
+            <Text style={styles.warningText}>Positive ABR result — this collection should not be accepted. Contact your milk buyer immediately.</Text>
+          </View>
+        )}
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>ABR Tested By</Text>
+            <Input value={form.abrTestedBy} onChangeText={set("abrTestedBy")} placeholder="Name" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>Kit Lot</Text>
+            <Input value={form.abrTestKitLot} onChangeText={set("abrTestKitLot")} placeholder="Lot number" />
           </View>
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Collection Docket / Receipt Ref</Text>
-          <Input value={form.collectionSlipRef} onChangeText={set("collectionSlipRef")} placeholder="Docket number from tanker driver" />
+          <Text style={styles.label}>Kit Batch</Text>
+          <Input value={form.abrTestKitBatch} onChangeText={set("abrTestKitBatch")} placeholder="Batch number" />
         </View>
 
         <Text style={styles.sectionTitle}>Organic Certification</Text>
@@ -222,19 +315,37 @@ export default function OrganicMilkCollectionScreen() {
           <View style={styles.warningBox}>
             <Feather name="alert-triangle" size={16} color="#d97706" style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.warningTitle}>Non-organic collection — reason required</Text>
+              <Text style={[styles.warningText, { color: "#92400e", fontFamily: fonts.semiBold }]}>Non-organic collection — reason required</Text>
               <Input
                 value={form.nonOrganicReason}
                 onChangeText={set("nonOrganicReason")}
                 placeholder="e.g. Antibiotic withdrawal period, conversion milk…"
                 multiline
               />
-              <Text style={styles.warningHint}>This milk will be sold as conventional. Notify your certifier if this occurs regularly.</Text>
+              <Text style={[styles.warningText, { marginTop: spacing.xs, color: "#b45309" }]}>This milk will be sold as conventional. Notify your certifier if this occurs regularly.</Text>
             </View>
           </View>
         )}
 
+        <Pressable
+          style={[styles.toggleRow, form.isRetest && styles.toggleRowAmber]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setForm(p => ({ ...p, isRetest: !p.isRetest }));
+          }}
+        >
+          <View style={[styles.toggleIndicator, form.isRetest && styles.toggleIndicatorAmber]}>
+            {form.isRetest && <Feather name="check" size={14} color="#fff" />}
+          </View>
+          <Text style={styles.toggleLabel}>This is a retest of a previous collection</Text>
+        </Pressable>
+
         <Text style={styles.sectionTitle}>Traceability</Text>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Collection Docket / Receipt Ref</Text>
+          <Input value={form.collectionSlipRef} onChangeText={set("collectionSlipRef")} placeholder="Docket number from tanker driver" />
+        </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>Witnessed By (farm staff at collection)</Text>
@@ -298,6 +409,25 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -313,6 +443,10 @@ const styles = StyleSheet.create({
     borderColor: "#16a34a",
     backgroundColor: "#f0fdf4",
   },
+  toggleRowAmber: {
+    borderColor: "#d97706",
+    backgroundColor: "#fffbeb",
+  },
   toggleIndicator: {
     width: 22,
     height: 22,
@@ -326,6 +460,10 @@ const styles = StyleSheet.create({
   toggleIndicatorActive: {
     borderColor: "#16a34a",
     backgroundColor: "#16a34a",
+  },
+  toggleIndicatorAmber: {
+    borderColor: "#d97706",
+    backgroundColor: "#d97706",
   },
   toggleLabel: {
     fontFamily: fonts.regular,
@@ -343,17 +481,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fffbeb",
     marginBottom: spacing.sm,
   },
-  warningTitle: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    color: "#92400e",
-    marginBottom: spacing.xs,
-  },
-  warningHint: {
+  warningText: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: "#b45309",
-    marginTop: spacing.xs,
+    color: "#92400e",
+    flex: 1,
   },
   saveBtn: { marginTop: spacing.lg },
 });

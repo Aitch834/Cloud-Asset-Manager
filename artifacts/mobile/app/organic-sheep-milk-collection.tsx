@@ -38,6 +38,16 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
   );
 }
 
+const ABR_OPTIONS = ["Negative", "Positive", "Borderline", "Invalid"] as const;
+type AbrResult = (typeof ABR_OPTIONS)[number] | "";
+
+const ABR_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  Negative: { bg: "#f0fdf4", text: "#16a34a", border: "#86efac" },
+  Positive: { bg: "#fef2f2", text: "#dc2626", border: "#fca5a5" },
+  Borderline: { bg: "#fffbeb", text: "#d97706", border: "#fcd34d" },
+  Invalid: { bg: "#f9fafb", text: "#6b7280", border: "#d1d5db" },
+};
+
 export default function OrganicSheepMilkCollectionScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -50,14 +60,22 @@ export default function OrganicSheepMilkCollectionScreen() {
   const [collectorName, setCollectorName] = useState("");
   const [vehicleRegistration, setVehicleRegistration] = useState("");
   const [processorRef, setProcessorRef] = useState("");
+  const [milkTemperatureCelsius, setMilkTemperatureCelsius] = useState("");
+  const [tempTestedBy, setTempTestedBy] = useState("");
   const [fatPercentage, setFatPercentage] = useState("");
   const [proteinPercentage, setProteinPercentage] = useState("");
+  const [lactosePercentage, setLactosePercentage] = useState("");
   const [sccCount, setSccCount] = useState("");
   const [tbcCount, setTbcCount] = useState("");
+  const [antibioticResidueTestResult, setAntibioticResidueTestResult] = useState<AbrResult>("");
+  const [abrTestedBy, setAbrTestedBy] = useState("");
+  const [abrTestKitLot, setAbrTestKitLot] = useState("");
+  const [abrTestKitBatch, setAbrTestKitBatch] = useState("");
   const [collectionSlipRef, setCollectionSlipRef] = useState("");
   const [isOrganicCollection, setIsOrganicCollection] = useState(true);
   const [nonOrganicReason, setNonOrganicReason] = useState("");
   const [organicPremiumPence, setOrganicPremiumPence] = useState("");
+  const [isRetest, setIsRetest] = useState(false);
   const [witnessedBy, setWitnessedBy] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -84,14 +102,22 @@ export default function OrganicSheepMilkCollectionScreen() {
         collectorName: collectorName || null,
         vehicleRegistration: vehicleRegistration || null,
         processorRef: processorRef || null,
+        milkTemperatureCelsius: milkTemperatureCelsius || null,
+        tempTestedBy: tempTestedBy || null,
         fatPercentage: fatPercentage || null,
         proteinPercentage: proteinPercentage || null,
+        lactosePercentage: lactosePercentage || null,
         sccCount: sccCount ? Number(sccCount) : null,
         tbcCount: tbcCount ? Number(tbcCount) : null,
+        antibioticResidueTestResult: antibioticResidueTestResult || null,
+        abrTestedBy: abrTestedBy || null,
+        abrTestKitLot: abrTestKitLot || null,
+        abrTestKitBatch: abrTestKitBatch || null,
         collectionSlipRef: collectionSlipRef || null,
         isOrganicCollection,
         nonOrganicReason: isOrganicCollection ? null : nonOrganicReason,
         organicPremiumPence: organicPremiumPence ? Number(organicPremiumPence) : null,
+        isRetest,
         witnessedBy: witnessedBy || null,
         recordedByUserName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || null : null,
         notes: notes || null,
@@ -161,7 +187,18 @@ export default function OrganicSheepMilkCollectionScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Milk Quality</Text>
+        <Text style={styles.sectionTitle}>Temperature & Quality</Text>
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>Milk Temp (°C)</Text>
+            <Input value={milkTemperatureCelsius} onChangeText={setMilkTemperatureCelsius} placeholder="e.g. 4.0" keyboardType="decimal-pad" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>Temp Tested By</Text>
+            <Input value={tempTestedBy} onChangeText={setTempTestedBy} placeholder="Name" />
+          </View>
+        </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
@@ -176,13 +213,21 @@ export default function OrganicSheepMilkCollectionScreen() {
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>Lactose %</Text>
+            <Input value={lactosePercentage} onChangeText={setLactosePercentage} placeholder="e.g. 4.9" keyboardType="decimal-pad" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
             <Text style={styles.label}>SCC (k/mL)</Text>
             <Input value={sccCount} onChangeText={setSccCount} placeholder="limit 1,500k" keyboardType="number-pad" />
           </View>
-          <View style={[styles.field, { flex: 1 }]}>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
             <Text style={styles.label}>TBC (k/mL)</Text>
             <Input value={tbcCount} onChangeText={setTbcCount} placeholder="e.g. 25" keyboardType="number-pad" />
           </View>
+          <View style={{ flex: 1 }} />
         </View>
 
         {!!sccWarning && (
@@ -191,6 +236,51 @@ export default function OrganicSheepMilkCollectionScreen() {
             <Text style={styles.warningText}>SCC exceeds the 1,500k/mL regulatory limit for organic sheep milk — collection may be rejected</Text>
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>ABR Test</Text>
+
+        <Text style={styles.label}>ABR Result</Text>
+        <View style={styles.chipRow}>
+          {ABR_OPTIONS.map(opt => {
+            const active = antibioticResidueTestResult === opt;
+            const col = ABR_COLORS[opt];
+            return (
+              <Pressable
+                key={opt}
+                style={[styles.chip, active && { backgroundColor: col.bg, borderColor: col.border }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setAntibioticResidueTestResult(active ? "" : opt);
+                }}
+              >
+                <Text style={[styles.chipText, active && { color: col.text, fontFamily: fonts.semiBold }]}>{opt}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {antibioticResidueTestResult === "Positive" && (
+          <View style={styles.positiveWarning}>
+            <Feather name="alert-triangle" size={14} color="#dc2626" />
+            <Text style={styles.positiveWarningText}>Positive ABR result — contact your milk buyer immediately.</Text>
+          </View>
+        )}
+
+        <View style={styles.row}>
+          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
+            <Text style={styles.label}>ABR Tested By</Text>
+            <Input value={abrTestedBy} onChangeText={setAbrTestedBy} placeholder="Name" />
+          </View>
+          <View style={[styles.field, { flex: 1 }]}>
+            <Text style={styles.label}>Kit Lot</Text>
+            <Input value={abrTestKitLot} onChangeText={setAbrTestKitLot} placeholder="Lot number" />
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Kit Batch</Text>
+          <Input value={abrTestKitBatch} onChangeText={setAbrTestKitBatch} placeholder="Batch number" />
+        </View>
 
         <Text style={styles.sectionTitle}>Organic Status</Text>
 
@@ -207,6 +297,8 @@ export default function OrganicSheepMilkCollectionScreen() {
           <Text style={styles.label}>Organic Premium (pence/litre)</Text>
           <Input value={organicPremiumPence} onChangeText={setOrganicPremiumPence} placeholder="e.g. 8" keyboardType="number-pad" />
         </View>
+
+        <ToggleRow label="This is a retest of a previous collection" value={isRetest} onChange={setIsRetest} />
 
         <Text style={styles.sectionTitle}>References</Text>
 
@@ -242,8 +334,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row" },
   field: { marginBottom: spacing.sm },
   label: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text, marginBottom: spacing.xs },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  chip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+  chipText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary },
   warning: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: "#fef3c7", borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm },
   warningText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", flex: 1 },
+  positiveWarning: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: "#fef2f2", borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm },
+  positiveWarningText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#dc2626", flex: 1 },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight, marginBottom: spacing.xs },
   toggleLabel: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   saveBtn: { marginTop: spacing.md },
