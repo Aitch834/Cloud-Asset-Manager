@@ -35,6 +35,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2 } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
@@ -273,8 +274,25 @@ type CollectionRecord = {
   volumeLitres: string;
   fatPercentage: string | null;
   proteinPercentage: string | null;
+  lactosePercentage: string | null;
   sccCount: number | null;
   tbcCount: number | null;
+  milkTemperatureCelsius: string | null;
+  tempTestedBy: string | null;
+  antibioticResidueTestResult: string | null;
+  abrTestedBy: string | null;
+  abrTestKitLot: string | null;
+  abrTestKitBatch: string | null;
+  isRetest: boolean | null;
+  retestOfId: number | null;
+  buyerLabResultsStatus: string | null;
+  buyerLabResultsDate: string | null;
+  buyerLabRef: string | null;
+  buyerSccCount: number | null;
+  buyerTbcCount: number | null;
+  buyerFatPercentage: string | null;
+  buyerProteinPercentage: string | null;
+  buyerLactosePercentage: string | null;
   isOrganicCollection: boolean;
   nonOrganicReason: string | null;
   processorRef: string | null;
@@ -494,6 +512,7 @@ function HerdConversionTab({ farmId, farmName }: { farmId: number; farmName: str
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Ref</p><p className="font-medium">{fmtRaw(viewRecord.certificationRef)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parallel Production</p><p className="font-medium">{viewRecord.parallelProduction ? "Yes" : "No"}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-dairy-herd-conversion" recordId={viewRecord.id} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -840,6 +859,19 @@ function CollectionMonthlySummary({ records, monthLabel, farmName }: { records: 
   );
 }
 
+// ─── AbrBadge ────────────────────────────────────────────────────────────────
+
+function AbrBadge({ result }: { result?: string | null }) {
+  if (!result || result === "not-tested") return <span className="text-gray-400 text-xs">—</span>;
+  const map: Record<string, string> = {
+    negative: "bg-green-100 text-green-800",
+    positive: "bg-red-100 text-red-800",
+    borderline: "bg-amber-100 text-amber-800",
+    invalid: "bg-gray-100 text-gray-600",
+  };
+  return <Badge className={`text-xs ${map[result] ?? "bg-gray-100 text-gray-600"}`}>{result}</Badge>;
+}
+
 // ─── MilkCollectionsTab ───────────────────────────────────────────────────────
 
 function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
@@ -851,6 +883,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
   const [viewRecord, setViewRecord] = useState<CollectionRecord | null>(null);
   const [form, setForm] = useState<Partial<CollectionRecord>>({});
   const [raiseTaskFor, setRaiseTaskFor] = useState<CollectionRecord | null>(null);
+  const [formTab, setFormTab] = useState("collection");
 
   // Month filter — default to current month
   const now = new Date();
@@ -927,9 +960,10 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
         ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.primaryEmailAddress?.emailAddress || null)
         : null,
     });
+    setFormTab("collection");
     setOpen(true);
   }
-  function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setFormTab("collection"); setOpen(true); }
 
   const f = (k: keyof CollectionRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -975,6 +1009,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             <TableHead>Fat %</TableHead>
             <TableHead>Protein %</TableHead>
             <TableHead>SCC</TableHead>
+            <TableHead>ABR</TableHead>
             <TableHead>Organic</TableHead>
             <TableHead>Net Value</TableHead>
             <TableHead className="w-32" />
@@ -983,7 +1018,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
         <TableBody>
           {filteredRecords.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                 {records.length > 0
                   ? `No collections for ${monthLabel} — use the arrows to browse other months.`
                   : "No milk collection records yet — click Add Collection to begin."}
@@ -998,6 +1033,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <TableCell>{r.fatPercentage ? `${r.fatPercentage}%` : "—"}</TableCell>
               <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
               <TableCell><CollectionSccBadge v={r.sccCount} /></TableCell>
+              <TableCell><AbrBadge result={r.antibioticResidueTestResult} /></TableCell>
               <TableCell>
                 <div className="flex flex-col gap-0.5">
                   <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-100"}>
@@ -1043,8 +1079,20 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle Registration</p><p className="font-medium">{fmtRaw(viewRecord.vehicleRegistration)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fat %</p><p className="font-medium">{viewRecord.fatPercentage ? `${viewRecord.fatPercentage}%` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protein %</p><p className="font-medium">{viewRecord.proteinPercentage ? `${viewRecord.proteinPercentage}%` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (000s/ml)</p><p className="font-medium">{viewRecord.sccCount ? `${viewRecord.sccCount}k` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (000s/ml)</p><p className="font-medium">{viewRecord.tbcCount ? `${viewRecord.tbcCount}k` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (k/mL)</p><p className="font-medium"><CollectionSccBadge v={viewRecord.sccCount} /></p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (k/mL)</p><p className="font-medium">{viewRecord.tbcCount ? `${viewRecord.tbcCount}k` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk Temperature</p><p className="font-medium">{viewRecord.milkTemperatureCelsius ? `${viewRecord.milkTemperatureCelsius} °C` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Result</p><p className="font-medium"><AbrBadge result={viewRecord.antibioticResidueTestResult} /></p></div>
+              {viewRecord.abrTestedBy && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Tested By</p><p className="font-medium">{viewRecord.abrTestedBy}</p></div>}
+              {viewRecord.lactosePercentage && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lactose %</p><p className="font-medium">{viewRecord.lactosePercentage}%</p></div>}
+              {viewRecord.isRetest && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Retest</p><p className="font-medium text-amber-700">Follow-up retest{viewRecord.retestOfId ? ` of record #${viewRecord.retestOfId}` : ""}</p></div>}
+              {viewRecord.buyerLabResultsStatus && <>
+                <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Buyer Lab Results — {viewRecord.buyerLabResultsStatus}</p></div>
+                {viewRecord.buyerLabResultsDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Results Date</p><p className="font-medium">{viewRecord.buyerLabResultsDate}</p></div>}
+                {viewRecord.buyerLabRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Ref</p><p className="font-medium">{viewRecord.buyerLabRef}</p></div>}
+                {viewRecord.buyerSccCount != null && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Buyer SCC</p><p className="font-medium">{viewRecord.buyerSccCount.toLocaleString()} k/mL</p></div>}
+                {viewRecord.buyerFatPercentage && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Buyer Fat %</p><p className="font-medium">{viewRecord.buyerFatPercentage}%</p></div>}
+              </>}
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Certified</p>
                 <p className="font-medium">{viewRecord.isOrganicCollection
@@ -1066,6 +1114,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Recorded By</p><p className="font-medium">{viewRecord.recordedByUserName}</p></div>
               )}
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-dairy-collection" recordId={viewRecord.id} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -1081,137 +1130,190 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             <DialogTitle>{editing ? "Edit" : "Add"} Milk Collection</DialogTitle>
             <DialogDescription>Record each milk collection with quality metrics and organic certification status.</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Collection Date *</Label>
-              <Input type="date" value={form.collectionDate ?? ""} onChange={f("collectionDate")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Volume (litres) *</Label>
-              <Input type="number" step="0.01" value={form.volumeLitres ?? ""} onChange={f("volumeLitres")} />
-            </div>
+          <Tabs value={formTab} onValueChange={setFormTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="collection">Collection</TabsTrigger>
+              <TabsTrigger value="quality">Quality & ABR</TabsTrigger>
+              <TabsTrigger value="buyer">Buyer Lab</TabsTrigger>
+            </TabsList>
 
-            <div className="col-span-2 space-y-1">
-              <Label>Collector (Milk Buyer)</Label>
-              {suppliers.length > 0 && (
-                <Select
-                  value={form.collectorSupplierId ? String(form.collectorSupplierId) : "__other__"}
-                  onValueChange={(v) => {
-                    if (v === "__other__") {
-                      setForm(p => ({ ...p, collectorSupplierId: null }));
-                    } else {
-                      const sup = suppliers.find(s => s.id === Number(v));
-                      setForm(p => ({ ...p, collectorSupplierId: Number(v), collectorName: sup?.name ?? p.collectorName ?? null }));
-                    }
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Choose from suppliers register…" /></SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                    <SelectItem value="__other__">Other — enter name below</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              {!form.collectorSupplierId && (
-                <Input
-                  value={form.collectorName ?? ""}
-                  onChange={f("collectorName")}
-                  placeholder="e.g. Arla UK Ltd"
-                  className={suppliers.length > 0 ? "mt-1" : ""}
-                />
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label>Vehicle Registration</Label>
-              <Input value={form.vehicleRegistration ?? ""} onChange={f("vehicleRegistration")} placeholder="e.g. AB12 CDE" />
-            </div>
-            <div className="space-y-1">
-              <Label>Processor Ref</Label>
-              <Input value={form.processorRef ?? ""} onChange={f("processorRef")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Fat %</Label>
-              <Input type="number" step="0.01" value={form.fatPercentage ?? ""} onChange={f("fatPercentage")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Protein %</Label>
-              <Input type="number" step="0.01" value={form.proteinPercentage ?? ""} onChange={f("proteinPercentage")} />
-            </div>
-            <div className="space-y-1">
-              <Label>SCC (000s/ml)</Label>
-              <Input type="number" step="1" value={form.sccCount ?? ""} onChange={(e) => setForm(p => ({ ...p, sccCount: e.target.value ? Number(e.target.value) : null }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>TBC (000s/ml)</Label>
-              <Input type="number" step="1" value={form.tbcCount ?? ""} onChange={(e) => setForm(p => ({ ...p, tbcCount: e.target.value ? Number(e.target.value) : null }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Collection Docket / Receipt Ref</Label>
-              <Input value={form.collectionSlipRef ?? ""} onChange={f("collectionSlipRef")} placeholder="Docket number from tanker driver" />
-            </div>
-            <div className="space-y-1">
-              <Label>Deductions (pence)</Label>
-              <Input type="number" value={form.deductionsPence ?? ""} onChange={(e) => setForm(p => ({ ...p, deductionsPence: e.target.value ? Number(e.target.value) : null }))} />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label>Net Value (pence)</Label>
-              <Input type="number" value={form.netValuePence ?? ""} onChange={(e) => setForm(p => ({ ...p, netValuePence: e.target.value ? Number(e.target.value) : null }))} />
-            </div>
-
-            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
-              <Checkbox
-                checked={form.isOrganicCollection ?? true}
-                onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicCollection: !!v, nonOrganicReason: !!v ? null : p.nonOrganicReason }))}
-                id="organic-cert"
-              />
-              <Label htmlFor="organic-cert" className="cursor-pointer font-normal">This collection is certified as Organic</Label>
-            </div>
-            {!form.isOrganicCollection && (
-              <div className="col-span-2 space-y-1">
-                <Label className="text-amber-700">Reason — non-organic collection *</Label>
-                <Input
-                  value={form.nonOrganicReason ?? ""}
-                  onChange={f("nonOrganicReason")}
-                  placeholder="e.g. Antibiotic withdrawal period, conversion milk…"
-                  className="border-amber-300 focus-visible:ring-amber-400"
-                />
-                <p className="text-xs text-amber-600">Required. This milk will be sold as conventional. Notify your certifier if this occurs regularly.</p>
+            <TabsContent value="collection" className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Collection Date *</Label>
+                  <Input type="date" value={form.collectionDate ?? ""} onChange={f("collectionDate")} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Volume (litres) *</Label>
+                  <Input type="number" step="0.01" value={form.volumeLitres ?? ""} onChange={f("volumeLitres")} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label>Collector (Milk Buyer)</Label>
+                  {suppliers.length > 0 && (
+                    <Select
+                      value={form.collectorSupplierId ? String(form.collectorSupplierId) : "__other__"}
+                      onValueChange={(v) => {
+                        if (v === "__other__") {
+                          setForm(p => ({ ...p, collectorSupplierId: null }));
+                        } else {
+                          const sup = suppliers.find(s => s.id === Number(v));
+                          setForm(p => ({ ...p, collectorSupplierId: Number(v), collectorName: sup?.name ?? p.collectorName ?? null }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Choose from suppliers register…" /></SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                        <SelectItem value="__other__">Other — enter name below</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {!form.collectorSupplierId && (
+                    <Input value={form.collectorName ?? ""} onChange={f("collectorName")} placeholder="e.g. Arla UK Ltd" className={suppliers.length > 0 ? "mt-1" : ""} />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label>Vehicle Registration</Label>
+                  <Input value={form.vehicleRegistration ?? ""} onChange={f("vehicleRegistration")} placeholder="e.g. AB12 CDE" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Processor Ref</Label>
+                  <Input value={form.processorRef ?? ""} onChange={f("processorRef")} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Collection Docket / Receipt Ref</Label>
+                  <Input value={form.collectionSlipRef ?? ""} onChange={f("collectionSlipRef")} placeholder="Docket number from tanker driver" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Deductions (pence)</Label>
+                  <Input type="number" value={form.deductionsPence ?? ""} onChange={(e) => setForm(p => ({ ...p, deductionsPence: e.target.value ? Number(e.target.value) : null }))} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label>Net Value (pence)</Label>
+                  <Input type="number" value={form.netValuePence ?? ""} onChange={(e) => setForm(p => ({ ...p, netValuePence: e.target.value ? Number(e.target.value) : null }))} />
+                </div>
+                <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
+                  <Checkbox
+                    checked={form.isOrganicCollection ?? true}
+                    onCheckedChange={(v) => setForm((p) => ({ ...p, isOrganicCollection: !!v, nonOrganicReason: !!v ? null : p.nonOrganicReason }))}
+                    id="organic-cert"
+                  />
+                  <Label htmlFor="organic-cert" className="cursor-pointer font-normal">This collection is certified as Organic</Label>
+                </div>
+                {!form.isOrganicCollection && (
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-amber-700">Reason — non-organic collection *</Label>
+                    <Input value={form.nonOrganicReason ?? ""} onChange={f("nonOrganicReason")} placeholder="e.g. Antibiotic withdrawal period, conversion milk…" className="border-amber-300 focus-visible:ring-amber-400" />
+                    <p className="text-xs text-amber-600">Required. This milk will be sold as conventional. Notify your certifier if this occurs regularly.</p>
+                  </div>
+                )}
+                <div className="col-span-2 space-y-1">
+                  <Label>Witnessed By (farm staff present at collection)</Label>
+                  {members.length > 0 ? (
+                    <Select value={form.witnessedBy ?? "__none__"} onValueChange={(v) => setForm(p => ({ ...p, witnessedBy: v === "__none__" ? null : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Not specified —</SelectItem>
+                        {members.map(m => (
+                          <SelectItem key={m.id} value={`${m.firstName} ${m.lastName}`}>{m.firstName} {m.lastName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={form.witnessedBy ?? ""} onChange={f("witnessedBy")} placeholder="Name of farm staff present" />
+                  )}
+                </div>
+                {form.recordedByUserName && (
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wide">Recorded By (system user)</Label>
+                    <Input value={form.recordedByUserName} readOnly className="bg-muted/40 text-muted-foreground cursor-default" />
+                  </div>
+                )}
+                <div className="col-span-2 space-y-1">
+                  <Label>Notes</Label>
+                  <Textarea value={form.notes ?? ""} onChange={f("notes")} rows={3} />
+                </div>
               </div>
-            )}
+            </TabsContent>
 
-            <div className="col-span-2 space-y-1">
-              <Label>Witnessed By (farm staff present at collection)</Label>
-              {members.length > 0 ? (
-                <Select
-                  value={form.witnessedBy ?? "__none__"}
-                  onValueChange={(v) => setForm(p => ({ ...p, witnessedBy: v === "__none__" ? null : v }))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Not specified —</SelectItem>
-                    {members.map(m => (
-                      <SelectItem key={m.id} value={`${m.firstName} ${m.lastName}`}>{m.firstName} {m.lastName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input value={form.witnessedBy ?? ""} onChange={f("witnessedBy")} placeholder="Name of farm staff present" />
-              )}
-            </div>
-
-            {form.recordedByUserName && (
-              <div className="col-span-2 space-y-1">
-                <Label className="text-muted-foreground text-xs uppercase tracking-wide">Recorded By (system user)</Label>
-                <Input value={form.recordedByUserName} readOnly className="bg-muted/40 text-muted-foreground cursor-default" />
+            <TabsContent value="quality" className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Milk Temperature (°C)</Label>
+                  <Input type="number" step="0.1" value={form.milkTemperatureCelsius ?? ""} onChange={f("milkTemperatureCelsius")} placeholder="e.g. 4.2" />
+                  <p className="text-xs text-gray-400">Target: ≤6°C at point of collection</p>
+                </div>
+                <div className="space-y-1"><Label>Temp Tested By</Label><Input value={form.tempTestedBy ?? ""} onChange={f("tempTestedBy")} /></div>
+                <div className="space-y-1">
+                  <Label>ABR Test Result</Label>
+                  <Select value={form.antibioticResidueTestResult ?? "__none__"} onValueChange={(v) => setForm(p => ({ ...p, antibioticResidueTestResult: v === "__none__" ? null : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select result…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Not tested —</SelectItem>
+                      <SelectItem value="negative">Negative</SelectItem>
+                      <SelectItem value="positive">Positive ⚠</SelectItem>
+                      <SelectItem value="borderline">Borderline — repeat required</SelectItem>
+                      <SelectItem value="invalid">Invalid — repeat required</SelectItem>
+                      <SelectItem value="not-tested">Not tested</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>ABR Tested By</Label><Input value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} /></div>
+                <div className="space-y-1"><Label>ABR Test Kit Lot</Label><Input value={form.abrTestKitLot ?? ""} onChange={f("abrTestKitLot")} placeholder="Lot number" /></div>
+                <div className="space-y-1"><Label>ABR Test Kit Batch</Label><Input value={form.abrTestKitBatch ?? ""} onChange={f("abrTestKitBatch")} placeholder="Batch / expiry" /></div>
+                <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
+                  <Checkbox checked={form.isRetest ?? false} onCheckedChange={(v) => setForm(p => ({ ...p, isRetest: !!v }))} id="is-retest" />
+                  <Label htmlFor="is-retest" className="cursor-pointer font-normal">This is a follow-up retest of a previous non-negative result</Label>
+                </div>
+                {form.isRetest && (
+                  <div className="col-span-2 space-y-1">
+                    <Label>Retest of (original record)</Label>
+                    <Select value={form.retestOfId ? String(form.retestOfId) : "__none__"} onValueChange={(v) => setForm(p => ({ ...p, retestOfId: v === "__none__" ? null : Number(v) }))}>
+                      <SelectTrigger><SelectValue placeholder="Select original record…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None selected —</SelectItem>
+                        {records.filter(r => r.id !== editing?.id && (r.antibioticResidueTestResult === "positive" || r.antibioticResidueTestResult === "borderline" || r.antibioticResidueTestResult === "invalid")).slice(0, 40).map(r => (
+                          <SelectItem key={r.id} value={String(r.id)}>{fmt(r.collectionDate)} — ABR {r.antibioticResidueTestResult}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1"><Label>SCC (k/mL)</Label><Input type="number" step="1" value={form.sccCount ?? ""} onChange={(e) => setForm(p => ({ ...p, sccCount: e.target.value ? Number(e.target.value) : null }))} /><p className="text-xs text-gray-400">UK limit: 200k (organic)</p></div>
+                <div className="space-y-1"><Label>TBC (k/mL)</Label><Input type="number" step="1" value={form.tbcCount ?? ""} onChange={(e) => setForm(p => ({ ...p, tbcCount: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>Fat %</Label><Input type="number" step="0.01" value={form.fatPercentage ?? ""} onChange={f("fatPercentage")} /></div>
+                <div className="space-y-1"><Label>Protein %</Label><Input type="number" step="0.01" value={form.proteinPercentage ?? ""} onChange={f("proteinPercentage")} /></div>
+                <div className="col-span-2 space-y-1"><Label>Lactose %</Label><Input type="number" step="0.01" value={form.lactosePercentage ?? ""} onChange={f("lactosePercentage")} /></div>
               </div>
-            )}
+            </TabsContent>
 
-            <div className="col-span-2 space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={form.notes ?? ""} onChange={f("notes")} rows={3} />
-            </div>
-          </div>
+            <TabsContent value="buyer" className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 rounded-md border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-xs text-blue-800">Buyer lab results are the processor's independent measurements. Enter them when you receive the results report from your milk buyer.</p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Buyer Lab Results Status</Label>
+                  <Select value={form.buyerLabResultsStatus ?? "__none__"} onValueChange={(v) => setForm(p => ({ ...p, buyerLabResultsStatus: v === "__none__" ? null : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select status…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Not received —</SelectItem>
+                      <SelectItem value="pass">Pass</SelectItem>
+                      <SelectItem value="fail">Fail</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Lab Results Date</Label><Input type="date" value={String(form.buyerLabResultsDate ?? "").slice(0, 10)} onChange={f("buyerLabResultsDate")} /></div>
+                <div className="col-span-2 space-y-1"><Label>Lab Reference</Label><Input value={form.buyerLabRef ?? ""} onChange={f("buyerLabRef")} placeholder="Buyer's lab report reference" /></div>
+                <div className="space-y-1"><Label>Buyer SCC (k/mL)</Label><Input type="number" value={form.buyerSccCount ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerSccCount: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>Buyer TBC (k/mL)</Label><Input type="number" value={form.buyerTbcCount ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerTbcCount: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>Buyer Fat %</Label><Input type="number" step="0.01" value={form.buyerFatPercentage ?? ""} onChange={f("buyerFatPercentage")} /></div>
+                <div className="space-y-1"><Label>Buyer Protein %</Label><Input type="number" step="0.01" value={form.buyerProteinPercentage ?? ""} onChange={f("buyerProteinPercentage")} /></div>
+                <div className="col-span-2 space-y-1"><Label>Buyer Lactose %</Label><Input type="number" step="0.01" value={form.buyerLactosePercentage ?? ""} onChange={f("buyerLactosePercentage")} /></div>
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
@@ -1407,6 +1509,7 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Reference</p><p className="font-medium">{fmtRaw(viewRecord.derogationReference)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
+              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-dairy-feed" recordId={viewRecord.id} /></div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
