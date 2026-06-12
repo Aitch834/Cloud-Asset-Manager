@@ -6,7 +6,19 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+// Radix UI v2.1+ throws when a SelectItem receives value="". Many forms in this
+// codebase use `value={form.field || ""}` as an "unselected" sentinel, which
+// previously worked but now causes the "A <Select.Item /> must have a value
+// prop that is not an empty string" crash. Normalise "" → undefined here so
+// that every <Select> in the app shows its placeholder correctly without needing
+// individual fixes at each call site.
+const Select = ({
+  value,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) => (
+  <SelectPrimitive.Root value={value === "" ? undefined : value} {...props} />
+);
+Select.displayName = "Select";
 
 const SelectGroup = SelectPrimitive.Group
 

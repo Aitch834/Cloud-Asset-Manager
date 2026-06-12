@@ -2844,7 +2844,7 @@ export function MobilityTab({ farmId }: { farmId: number }) {
 
 // ─── ABR Test Kit Stock Section ───────────────────────────────────────────────
 
-function AbrKitStockSection({ farmId }: { farmId: number }) {
+export function AbrKitStockSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AbrKitStock | null>(null);

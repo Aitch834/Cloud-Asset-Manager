@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
+import { AbrKitStockSection } from "@/pages/DairyPage";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -983,6 +984,9 @@ ${allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(mon
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ABR Kit Stock */}
+      <AbrKitStockSection farmId={farmId} />
 
       {/* Tank Dialog */}
       <Dialog open={tankDialog} onOpenChange={setTankDialog}>
