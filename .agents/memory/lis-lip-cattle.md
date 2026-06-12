@@ -25,9 +25,12 @@ It is entirely separate from CLA (the sheep/goat/deer platform):
 
 ## Subscription keys (June 2026)
 
-- `LIS_LIP_SUBSCRIPTION_KEY` — **received & saved** — LIS API - Sandbox - v1.0 (movements + animal registration)
-- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY` — **received & saved** — My LivestockInformation API - Sandbox - v1.0 (keeper/holding data, CPH lookups)
-- `LIS_LIP_LUIS_SUBSCRIPTION_KEY` — **pending** — LUIS API Sandbox - v2.0 (ear tag ID issuance/validation)
+- `LIS_LIP_SUBSCRIPTION_KEY` — **saved** — LIS API - Sandbox - v1.0 (primary)
+- `LIS_LIP_SUBSCRIPTION_KEY_2` — **saved** — LIS API - Sandbox - v1.0 (secondary/rotation)
+- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY` — **saved** — My LivestockInformation API - Sandbox - v1.0 (primary)
+- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY_2` — **saved** — My LivestockInformation API - Sandbox - v1.0 (secondary/rotation)
+- `LIS_LIP_LUIS_SUBSCRIPTION_KEY` — **pending** — LUIS API Sandbox - v2.0 primary (ear tag ID issuance/validation)
+- `LIS_LIP_LUIS_SUBSCRIPTION_KEY_2` — **pending** — LUIS API Sandbox - v2.0 secondary
 
 ## LIP API endpoints (Alpha — subject to change)
 
