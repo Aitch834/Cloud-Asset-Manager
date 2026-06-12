@@ -112,3 +112,5 @@ channel = "stable-25_05"
 
 [userenv.shared]
 LIS_USE_SANDBOX_API = "true"
+LIS_LIP_REDIRECT_URL = "https://api.bdefarmtrac.co.uk/api/lis/callback"
+LIS_LIP_API_BASE = "https://api.service.livestockinformation.org.uk"
