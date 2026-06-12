@@ -23,14 +23,11 @@ It is entirely separate from CLA (the sheep/goat/deer platform):
 - `LIS_LIP_REDIRECT_URL` = `https://api.bdefarmtrac.co.uk/api/lis/callback`
 - `LIS_LIP_API_BASE` = `https://api.service.livestockinformation.org.uk`
 
-## Pending — subscription keys (June 2026)
+## Subscription keys (June 2026)
 
-Three sandbox API subscription requests submitted, awaiting approval (up to 5 working days):
-1. **LIS API - Sandbox - v1.0** — main movements + animal registration API
-2. **LUIS API Sandbox - v2.0** — Livestock Unique Identifier System (ear tag ID issuance/validation)
-3. **My LivestockInformation API - Sandbox - v1.0** — keeper/holding data, CPH lookups
-
-When keys arrive: save as `LIS_LIP_SUBSCRIPTION_KEY` (or separate keys per API if different).
+- `LIS_LIP_SUBSCRIPTION_KEY` — **received & saved** — LIS API - Sandbox - v1.0 (movements + animal registration)
+- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY` — **received & saved** — My LivestockInformation API - Sandbox - v1.0 (keeper/holding data, CPH lookups)
+- `LIS_LIP_LUIS_SUBSCRIPTION_KEY` — **pending** — LUIS API Sandbox - v2.0 (ear tag ID issuance/validation)
 
 ## LIP API endpoints (Alpha — subject to change)
 
