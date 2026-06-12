@@ -9,4 +9,5 @@
 - [RLS fix script — regex multistatement pitfall](rls-fix-regex-multistatement.md) — bulk regex-line-replace silently drops trailing content; check with tsc after any bulk script
 - [TanStack Query shared-key cache-shape mismatch](tanstack-query-shared-key-shape-mismatch.md) — never unwrap arrays inside queryFn for shared keys; normalise at access point with Array.isArray guard
 - [LIS credentials & integration status](lis-credentials.md) — both secrets set; Beta Sandbox client ID documented; pending: client_secret confirmation from LIS support
+- [LIS LIP Cattle credentials & integration status](lis-lip-cattle.md) — LIP secrets saved; 3 sandbox API subscriptions pending approval (up to 5 working days); schema additions and build sequencing documented
 - [LIS Beta Sandbox test data](lis-test-data.md) — 2 users, 14 CPHs, herds/tags for sheep/goat/deer; passwords in attached_assets/testData_1781087138915.json
