@@ -80,6 +80,40 @@ On `livestockMovementsTable`: `departureTime`, `arrivalTime`, `haulierVehicleReg
 
 New: `breedCodesTable` (seeded from `GET /breeds`) — code, name, species
 
+## Animal status gap — applies to ALL species (cattle + sheep)
+
+Current app model has only 3 statuses: `active`, `sold`, `dead`.
+LIS Cattle portal explicitly supports: lost, stolen, found, imported, exported.
+The CLA sheep API has equivalent exceptional notifications. This gap affects both
+integrations simultaneously and should be fixed in a single schema change.
+
+### Status values to add to `livestockAnimalsTable.status`
+
+| Value | Meaning | Regulatory note |
+|---|---|---|
+| `lost` | Missing, whereabouts unknown | Must notify LIS within 7 days |
+| `stolen` | Confirmed theft | Must notify police + LIS |
+| `found` | Recovered after lost/stolen | Reinstates animal record; returns to `active` |
+| `exported` | Sent abroad | Distinct from standard sale — requires export health cert |
+| `imported` | Arrived from abroad | Distinct from standard purchase — requires import checks, CPH notification |
+
+### Additional table needed: `animalExceptionalEventsTable`
+Lost/stolen/found events need a dedicated event log (not just a status flip):
+- `animalId`, `eventType` (lost | stolen | found), `eventDate`
+- `lastSeenLocation`, `policeRef` (for stolen), `recoveryDetails` (for found)
+- Links back to the originating lost/stolen record when found
+
+### Movement type additions for `livestockMovementsTable`
+- `export_abroad` — off-farm movement to another country
+- `import_abroad` — on-farm movement arriving from another country
+(Currently both are conflated with standard sale/purchase movement types)
+
+### UI changes required
+- Animal register status filter tabs: add Lost, Stolen, Exported, Imported alongside active/sold/dead
+- New "Report Lost / Stolen" action on animal record
+- "Mark as Found" action that closes the exceptional event and reactivates the animal
+- Movement form: expose export/import abroad as distinct movement types with relevant extra fields
+
 ## Build sequencing
 
 Do NOT start LIP cattle integration code until:
