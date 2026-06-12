@@ -872,6 +872,16 @@ function AbrBadge({ result }: { result?: string | null }) {
   return <Badge className={`text-xs ${map[result] ?? "bg-gray-100 text-gray-600"}`}>{result}</Badge>;
 }
 
+function LabResultsBadge({ status }: { status?: string | null }) {
+  if (!status) return <span className="text-gray-400 text-xs">—</span>;
+  const map: Record<string, string> = {
+    pass: "bg-green-100 text-green-800",
+    fail: "bg-red-100 text-red-800",
+    pending: "bg-amber-100 text-amber-800",
+  };
+  return <Badge className={`text-xs ${map[status] ?? "bg-gray-100 text-gray-600"}`}>{status}</Badge>;
+}
+
 // ─── MilkCollectionsTab ───────────────────────────────────────────────────────
 
 function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
@@ -928,6 +938,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     enabled: !!farmId,
   });
   const members = membersData?.members ?? [];
+  const staffNames = members.map(m => `${m.firstName} ${m.lastName}`.trim()).filter(Boolean);
 
   const save = useMutation({
     mutationFn: () => {
@@ -1010,6 +1021,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
             <TableHead>Protein %</TableHead>
             <TableHead>SCC</TableHead>
             <TableHead>ABR</TableHead>
+            <TableHead>Lab</TableHead>
             <TableHead>Organic</TableHead>
             <TableHead>Net Value</TableHead>
             <TableHead className="w-32" />
@@ -1018,7 +1030,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
         <TableBody>
           {filteredRecords.length === 0 && (
             <TableRow>
-              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                 {records.length > 0
                   ? `No collections for ${monthLabel} — use the arrows to browse other months.`
                   : "No milk collection records yet — click Add Collection to begin."}
@@ -1034,6 +1046,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
               <TableCell><CollectionSccBadge v={r.sccCount} /></TableCell>
               <TableCell><AbrBadge result={r.antibioticResidueTestResult} /></TableCell>
+              <TableCell><LabResultsBadge status={r.buyerLabResultsStatus} /></TableCell>
               <TableCell>
                 <div className="flex flex-col gap-0.5">
                   <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-100"}>
@@ -1114,7 +1127,10 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Recorded By</p><p className="font-medium">{viewRecord.recordedByUserName}</p></div>
               )}
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmtRaw(viewRecord.notes)}</p></div>
-              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-dairy-collection" recordId={viewRecord.id} /></div>
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Attachments — documents &amp; buyer lab report</p>
+                <RecordAttachments farmId={farmId} recordType="organic-dairy-collection" recordId={viewRecord.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -1243,7 +1259,11 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                   <Input type="number" step="0.1" value={form.milkTemperatureCelsius ?? ""} onChange={f("milkTemperatureCelsius")} placeholder="e.g. 4.2" />
                   <p className="text-xs text-gray-400">Target: ≤6°C at point of collection</p>
                 </div>
-                <div className="space-y-1"><Label>Temp Tested By</Label><Input value={form.tempTestedBy ?? ""} onChange={f("tempTestedBy")} /></div>
+                <div className="space-y-1">
+                  <Label>Temp Tested By</Label>
+                  <datalist id="dairy-staff-list-org">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+                  <Input list="dairy-staff-list-org" placeholder="Name of tester" value={form.tempTestedBy ?? ""} onChange={f("tempTestedBy")} />
+                </div>
                 <div className="space-y-1">
                   <Label>ABR Test Result</Label>
                   <Select value={form.antibioticResidueTestResult ?? "__none__"} onValueChange={(v) => setForm(p => ({ ...p, antibioticResidueTestResult: v === "__none__" ? null : v }))}>
@@ -1258,7 +1278,10 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1"><Label>ABR Tested By</Label><Input value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} /></div>
+                <div className="space-y-1">
+                  <Label>ABR Tested By</Label>
+                  <Input list="dairy-staff-list-org" placeholder="Name of tester" value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} />
+                </div>
                 <div className="space-y-1"><Label>ABR Test Kit Lot</Label><Input value={form.abrTestKitLot ?? ""} onChange={f("abrTestKitLot")} placeholder="Lot number" /></div>
                 <div className="space-y-1"><Label>ABR Test Kit Batch</Label><Input value={form.abrTestKitBatch ?? ""} onChange={f("abrTestKitBatch")} placeholder="Batch / expiry" /></div>
                 <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">

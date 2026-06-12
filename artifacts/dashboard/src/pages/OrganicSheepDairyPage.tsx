@@ -339,6 +339,16 @@ function AbrBadge({ result }: { result?: string | null }) {
   return <Badge className={`text-xs ${map[result] ?? "bg-gray-100 text-gray-600"}`}>{result}</Badge>;
 }
 
+function LabResultsBadge({ status }: { status?: string | null }) {
+  if (!status) return <span className="text-gray-400 text-xs">—</span>;
+  const map: Record<string, string> = {
+    pass: "bg-green-100 text-green-800",
+    fail: "bg-red-100 text-red-800",
+    pending: "bg-amber-100 text-amber-800",
+  };
+  return <Badge className={`text-xs ${map[status] ?? "bg-gray-100 text-gray-600"}`}>{status}</Badge>;
+}
+
 // ─── OrganicCollectionsTab ────────────────────────────────────────────────────
 
 function OrganicCollectionsTab({ farmId }: { farmId: number }) {
@@ -361,6 +371,14 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/collections`)).then(r => r.json()),
   });
   const records: CollectionRecord[] = data?.records ?? [];
+
+  const { data: membersData } = useQuery<{ members: Array<{ id: number; firstName: string; lastName: string }> }>({
+    queryKey: ["farm-members-sheep-dairy", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/members`)).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const staffNames = (membersData?.members ?? []).map(m => `${m.firstName} ${m.lastName}`.trim()).filter(Boolean);
   const years = useMemo(() => [...new Set(records.map(r => r.collectionDate?.slice(0, 4)).filter(Boolean))].sort().reverse() as string[], [records]);
   const filteredRecords = useMemo(() => yearFilter === "all" ? records : records.filter(r => r.collectionDate?.startsWith(yearFilter)), [records, yearFilter]);
 
@@ -432,6 +450,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
               <TableHead>Volume (L)</TableHead>
               <TableHead>SCC (k/mL)</TableHead>
               <TableHead>ABR</TableHead>
+              <TableHead>Lab</TableHead>
               <TableHead>Fat %</TableHead>
               <TableHead>Protein %</TableHead>
               <TableHead>Organic</TableHead>
@@ -441,7 +460,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
           </TableHeader>
           <TableBody>
             {filteredRecords.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8"><Droplets className="w-7 h-7 mx-auto mb-2 opacity-40" />No milk collection records {yearFilter !== "all" ? `for ${yearFilter}` : "yet"}.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8"><Droplets className="w-7 h-7 mx-auto mb-2 opacity-40" />No milk collection records {yearFilter !== "all" ? `for ${yearFilter}` : "yet"}.</TableCell></TableRow>
             )}
             {filteredRecords.map(r => (
               <TableRow key={r.id}>
@@ -449,6 +468,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
                 <TableCell>{r.volumeLitres ? parseFloat(r.volumeLitres).toLocaleString() : "—"}</TableCell>
                 <TableCell><SheepSccBadge v={r.sccCount} /></TableCell>
                 <TableCell><AbrBadge result={r.antibioticResidueTestResult} /></TableCell>
+                <TableCell><LabResultsBadge status={r.buyerLabResultsStatus} /></TableCell>
                 <TableCell>{r.fatPercentage ? `${r.fatPercentage}%` : "—"}</TableCell>
                 <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
                 <TableCell>
@@ -509,7 +529,10 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Value</p><p className="font-medium">{formatPence(viewRec.netValuePence)}</p></div>
               {viewRec.witnessedBy && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Witnessed By</p><p className="font-medium">{viewRec.witnessedBy}</p></div>}
               {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
-              <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="organic-sheep-dairy-collection" recordId={viewRec.id} /></div>
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Attachments — documents &amp; buyer lab report</p>
+                <RecordAttachments farmId={farmId} recordType="organic-sheep-dairy-collection" recordId={viewRec.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRec); setViewRec(null); }}>Edit</Button>
@@ -565,7 +588,11 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
                   <Input type="number" step="0.1" value={form.milkTemperatureCelsius ?? ""} onChange={f("milkTemperatureCelsius")} placeholder="e.g. 4.2" />
                   <p className="text-xs text-gray-400">Target: ≤6°C at collection</p>
                 </div>
-                <div className="space-y-1"><Label>Temp Tested By</Label><Input value={form.tempTestedBy ?? ""} onChange={f("tempTestedBy")} /></div>
+                <div className="space-y-1">
+                  <Label>Temp Tested By</Label>
+                  <datalist id="sheep-dairy-staff-list">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+                  <Input list="sheep-dairy-staff-list" placeholder="Name of tester" value={form.tempTestedBy ?? ""} onChange={f("tempTestedBy")} />
+                </div>
                 <div className="space-y-1">
                   <Label>ABR Test Result</Label>
                   <Select value={form.antibioticResidueTestResult ?? "__none__"} onValueChange={v => set("antibioticResidueTestResult", v === "__none__" ? null : v)}>
@@ -580,7 +607,10 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1"><Label>ABR Tested By</Label><Input value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} /></div>
+                <div className="space-y-1">
+                  <Label>ABR Tested By</Label>
+                  <Input list="sheep-dairy-staff-list" placeholder="Name of tester" value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} />
+                </div>
                 <div className="space-y-1"><Label>ABR Test Kit Lot</Label><Input value={form.abrTestKitLot ?? ""} onChange={f("abrTestKitLot")} placeholder="Lot number" /></div>
                 <div className="space-y-1"><Label>ABR Test Kit Batch</Label><Input value={form.abrTestKitBatch ?? ""} onChange={f("abrTestKitBatch")} placeholder="Batch / expiry" /></div>
                 <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
