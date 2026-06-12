@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openPrintWindow } from "@/lib/print-report";
 import { VMD_MEDICINES } from "@/data/vmdMedicines";
+import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -3506,6 +3507,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
 
       {/* ── Section 4: ABR Test Kit Stock ───────────────────────────────────── */}
       <AbrKitStockSection farmId={farmId} />
+      <AbrProcurementSection farmId={farmId} />
 
     </div>
   );

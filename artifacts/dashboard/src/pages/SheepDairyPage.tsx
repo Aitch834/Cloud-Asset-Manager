@@ -17,6 +17,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { AbrKitStockSection } from "@/pages/DairyPage";
+import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -987,6 +988,7 @@ ${allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(mon
 
       {/* ABR Kit Stock */}
       <AbrKitStockSection farmId={farmId} />
+      <AbrProcurementSection farmId={farmId} />
 
       {/* Tank Dialog */}
       <Dialog open={tankDialog} onOpenChange={setTankDialog}>

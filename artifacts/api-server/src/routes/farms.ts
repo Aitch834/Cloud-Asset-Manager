@@ -400,6 +400,11 @@ import {
   organicGoatDairyCollectionsTable,
   organicGoatDairyFeedTable,
   organicGoatDairyTreatmentsTable,
+  dairyAbrSuppliersTable,
+  dairyAbrPurchaseOrdersTable,
+  dairyAbrPoItemsTable,
+  dairyAbrGrnsTable,
+  dairyAbrInvoicesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
@@ -13891,6 +13896,180 @@ router.delete("/farms/:farmId/dairy/abr-test-kit-stock/:itemId", requireAuth, re
   if (!farmId) return;
   const itemId = parseInt(req.params.itemId as string);
   await db.delete(dairyAbrTestKitStockTable).where(and(eq(dairyAbrTestKitStockTable.id, itemId), eq(dairyAbrTestKitStockTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── ABR Suppliers ───────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/abr-suppliers", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const suppliers = await db.select().from(dairyAbrSuppliersTable).where(eq(dairyAbrSuppliersTable.farmId, farmId)).orderBy(asc(dairyAbrSuppliersTable.companyName));
+  res.json({ suppliers });
+});
+
+router.post("/farms/:farmId/dairy/abr-suppliers", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { companyName, contactName, phone, email, addressLine1, addressLine2, city, postcode, accountRef, paymentTermsDays, notes } = req.body;
+  if (!companyName) { res.status(400).json({ error: "companyName is required" }); return; }
+  const [supplier] = await db.insert(dairyAbrSuppliersTable).values({ farmId, companyName, contactName: contactName || null, phone: phone || null, email: email || null, addressLine1: addressLine1 || null, addressLine2: addressLine2 || null, city: city || null, postcode: postcode || null, accountRef: accountRef || null, paymentTermsDays: paymentTermsDays ? parseInt(paymentTermsDays) : null, notes: notes || null }).returning();
+  res.json({ supplier });
+});
+
+router.put("/farms/:farmId/dairy/abr-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { companyName, contactName, phone, email, addressLine1, addressLine2, city, postcode, accountRef, paymentTermsDays, notes } = req.body;
+  const [supplier] = await db.update(dairyAbrSuppliersTable).set({ companyName, contactName: contactName || null, phone: phone || null, email: email || null, addressLine1: addressLine1 || null, addressLine2: addressLine2 || null, city: city || null, postcode: postcode || null, accountRef: accountRef || null, paymentTermsDays: paymentTermsDays ? parseInt(paymentTermsDays) : null, notes: notes || null, updatedAt: new Date() }).where(and(eq(dairyAbrSuppliersTable.id, id), eq(dairyAbrSuppliersTable.farmId, farmId))).returning();
+  res.json({ supplier });
+});
+
+router.delete("/farms/:farmId/dairy/abr-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(dairyAbrSuppliersTable).where(and(eq(dairyAbrSuppliersTable.id, parseInt(req.params.id as string)), eq(dairyAbrSuppliersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── ABR Purchase Orders ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/abr-purchase-orders", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const orders = await db.select().from(dairyAbrPurchaseOrdersTable).where(eq(dairyAbrPurchaseOrdersTable.farmId, farmId)).orderBy(desc(dairyAbrPurchaseOrdersTable.orderDate));
+  const orderIds = orders.map(o => o.id);
+  const items = orderIds.length > 0 ? await db.select().from(dairyAbrPoItemsTable).where(inArray(dairyAbrPoItemsTable.poId, orderIds)) : [];
+  const itemsByPo: Record<number, typeof items> = {};
+  for (const item of items) { if (!itemsByPo[item.poId]) itemsByPo[item.poId] = []; itemsByPo[item.poId].push(item); }
+  res.json({ orders: orders.map(o => ({ ...o, items: itemsByPo[o.id] ?? [] })) });
+});
+
+router.post("/farms/:farmId/dairy/abr-purchase-orders", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { supplierId, poNumber, orderDate, expectedDeliveryDate, status, notes, items } = req.body;
+  if (!poNumber || !orderDate) { res.status(400).json({ error: "poNumber and orderDate are required" }); return; }
+  const [order] = await db.insert(dairyAbrPurchaseOrdersTable).values({ farmId, supplierId: supplierId ? parseInt(supplierId) : null, poNumber, orderDate, expectedDeliveryDate: expectedDeliveryDate || null, status: status || "draft", notes: notes || null }).returning();
+  if (Array.isArray(items) && items.length > 0) {
+    await db.insert(dairyAbrPoItemsTable).values(items.map((it: { productName: string; quantityOrdered?: number; unitPricePence?: number; notes?: string }) => ({ poId: order.id, productName: it.productName, quantityOrdered: it.quantityOrdered ?? 1, unitPricePence: it.unitPricePence ?? null, notes: it.notes ?? null })));
+  }
+  const savedItems = await db.select().from(dairyAbrPoItemsTable).where(eq(dairyAbrPoItemsTable.poId, order.id));
+  res.json({ order: { ...order, items: savedItems } });
+});
+
+router.put("/farms/:farmId/dairy/abr-purchase-orders/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { supplierId, poNumber, orderDate, expectedDeliveryDate, status, notes } = req.body;
+  const [order] = await db.update(dairyAbrPurchaseOrdersTable).set({ supplierId: supplierId ? parseInt(supplierId) : null, poNumber, orderDate, expectedDeliveryDate: expectedDeliveryDate || null, status: status || "draft", notes: notes || null, updatedAt: new Date() }).where(and(eq(dairyAbrPurchaseOrdersTable.id, id), eq(dairyAbrPurchaseOrdersTable.farmId, farmId))).returning();
+  res.json({ order });
+});
+
+router.delete("/farms/:farmId/dairy/abr-purchase-orders/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(dairyAbrPoItemsTable).where(eq(dairyAbrPoItemsTable.poId, parseInt(req.params.id as string)));
+  await db.delete(dairyAbrPurchaseOrdersTable).where(and(eq(dairyAbrPurchaseOrdersTable.id, parseInt(req.params.id as string)), eq(dairyAbrPurchaseOrdersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── ABR PO Items (individual CRUD within a PO) ──────────────────────────────
+
+router.post("/farms/:farmId/dairy/abr-purchase-orders/:poId/items", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = parseInt(req.params.poId as string);
+  const [po] = await db.select({ id: dairyAbrPurchaseOrdersTable.id }).from(dairyAbrPurchaseOrdersTable).where(and(eq(dairyAbrPurchaseOrdersTable.id, poId), eq(dairyAbrPurchaseOrdersTable.farmId, farmId)));
+  if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+  const { productName, quantityOrdered, unitPricePence, notes } = req.body;
+  const [item] = await db.insert(dairyAbrPoItemsTable).values({ poId, productName, quantityOrdered: quantityOrdered ?? 1, unitPricePence: unitPricePence ?? null, notes: notes || null }).returning();
+  res.json({ item });
+});
+
+router.put("/farms/:farmId/dairy/abr-po-items/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { productName, quantityOrdered, unitPricePence, notes } = req.body;
+  const [item] = await db.update(dairyAbrPoItemsTable).set({ productName, quantityOrdered: quantityOrdered ?? 1, unitPricePence: unitPricePence ?? null, notes: notes || null }).where(eq(dairyAbrPoItemsTable.id, id)).returning();
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/dairy/abr-po-items/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(dairyAbrPoItemsTable).where(eq(dairyAbrPoItemsTable.id, parseInt(req.params.id as string)));
+  res.json({ success: true });
+});
+
+// ─── ABR Goods Received Notes ────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/abr-grns", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const grns = await db.select().from(dairyAbrGrnsTable).where(eq(dairyAbrGrnsTable.farmId, farmId)).orderBy(desc(dairyAbrGrnsTable.receivedDate));
+  res.json({ grns });
+});
+
+router.post("/farms/:farmId/dairy/abr-grns", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { poId, grnNumber, receivedDate, receivedBy, conditionOnArrival, notes } = req.body;
+  if (!receivedDate) { res.status(400).json({ error: "receivedDate is required" }); return; }
+  const [grn] = await db.insert(dairyAbrGrnsTable).values({ farmId, poId: poId ? parseInt(poId) : null, grnNumber: grnNumber || null, receivedDate, receivedBy: receivedBy || null, conditionOnArrival: conditionOnArrival || null, notes: notes || null }).returning();
+  res.json({ grn });
+});
+
+router.put("/farms/:farmId/dairy/abr-grns/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { poId, grnNumber, receivedDate, receivedBy, conditionOnArrival, notes } = req.body;
+  const [grn] = await db.update(dairyAbrGrnsTable).set({ poId: poId ? parseInt(poId) : null, grnNumber: grnNumber || null, receivedDate, receivedBy: receivedBy || null, conditionOnArrival: conditionOnArrival || null, notes: notes || null }).where(and(eq(dairyAbrGrnsTable.id, id), eq(dairyAbrGrnsTable.farmId, farmId))).returning();
+  res.json({ grn });
+});
+
+router.delete("/farms/:farmId/dairy/abr-grns/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(dairyAbrGrnsTable).where(and(eq(dairyAbrGrnsTable.id, parseInt(req.params.id as string)), eq(dairyAbrGrnsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── ABR Invoices ────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/abr-invoices", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const invoices = await db.select().from(dairyAbrInvoicesTable).where(eq(dairyAbrInvoicesTable.farmId, farmId)).orderBy(desc(dairyAbrInvoicesTable.invoiceDate));
+  res.json({ invoices });
+});
+
+router.post("/farms/:farmId/dairy/abr-invoices", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { supplierId, poId, invoiceNumber, invoiceDate, dueDate, netAmountPence, vatAmountPence, grossAmountPence, paymentStatus, paymentDate, paymentReference, notes } = req.body;
+  if (!invoiceNumber || !invoiceDate) { res.status(400).json({ error: "invoiceNumber and invoiceDate are required" }); return; }
+  const [invoice] = await db.insert(dairyAbrInvoicesTable).values({ farmId, supplierId: supplierId ? parseInt(supplierId) : null, poId: poId ? parseInt(poId) : null, invoiceNumber, invoiceDate, dueDate: dueDate || null, netAmountPence: netAmountPence ?? null, vatAmountPence: vatAmountPence ?? null, grossAmountPence: grossAmountPence ?? null, paymentStatus: paymentStatus || "unpaid", paymentDate: paymentDate || null, paymentReference: paymentReference || null, notes: notes || null }).returning();
+  res.json({ invoice });
+});
+
+router.put("/farms/:farmId/dairy/abr-invoices/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { supplierId, poId, invoiceNumber, invoiceDate, dueDate, netAmountPence, vatAmountPence, grossAmountPence, paymentStatus, paymentDate, paymentReference, notes } = req.body;
+  const [invoice] = await db.update(dairyAbrInvoicesTable).set({ supplierId: supplierId ? parseInt(supplierId) : null, poId: poId ? parseInt(poId) : null, invoiceNumber, invoiceDate, dueDate: dueDate || null, netAmountPence: netAmountPence ?? null, vatAmountPence: vatAmountPence ?? null, grossAmountPence: grossAmountPence ?? null, paymentStatus: paymentStatus || "unpaid", paymentDate: paymentDate || null, paymentReference: paymentReference || null, notes: notes || null, updatedAt: new Date() }).where(and(eq(dairyAbrInvoicesTable.id, id), eq(dairyAbrInvoicesTable.farmId, farmId))).returning();
+  res.json({ invoice });
+});
+
+router.delete("/farms/:farmId/dairy/abr-invoices/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(dairyAbrInvoicesTable).where(and(eq(dairyAbrInvoicesTable.id, parseInt(req.params.id as string)), eq(dairyAbrInvoicesTable.farmId, farmId)));
   res.json({ success: true });
 });
 

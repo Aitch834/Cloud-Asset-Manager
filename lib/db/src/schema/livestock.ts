@@ -504,6 +504,7 @@ export const dairyAbrTestKitStockTable = pgTable("dairy_abr_test_kit_stock", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   productName: text("product_name").notNull(),
   supplier: text("supplier"),
+  supplierId: integer("supplier_id"),
   lotNumber: text("lot_number"),
   batchNumber: text("batch_number"),
   expiryDate: date("expiry_date"),
@@ -513,6 +514,77 @@ export const dairyAbrTestKitStockTable = pgTable("dairy_abr_test_kit_stock", {
   lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyAbrSuppliersTable = pgTable("dairy_abr_suppliers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  city: text("city"),
+  postcode: text("postcode"),
+  accountRef: text("account_ref"),
+  paymentTermsDays: integer("payment_terms_days"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyAbrPurchaseOrdersTable = pgTable("dairy_abr_purchase_orders", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierId: integer("supplier_id").references(() => dairyAbrSuppliersTable.id),
+  poNumber: text("po_number").notNull(),
+  orderDate: date("order_date").notNull(),
+  expectedDeliveryDate: date("expected_delivery_date"),
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyAbrPoItemsTable = pgTable("dairy_abr_po_items", {
+  id: serial("id").primaryKey(),
+  poId: integer("po_id").notNull().references(() => dairyAbrPurchaseOrdersTable.id),
+  productName: text("product_name").notNull(),
+  quantityOrdered: integer("quantity_ordered").notNull().default(1),
+  unitPricePence: integer("unit_price_pence"),
+  notes: text("notes"),
+});
+
+export const dairyAbrGrnsTable = pgTable("dairy_abr_grns", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  poId: integer("po_id").references(() => dairyAbrPurchaseOrdersTable.id),
+  grnNumber: text("grn_number"),
+  receivedDate: date("received_date").notNull(),
+  receivedBy: text("received_by"),
+  conditionOnArrival: text("condition_on_arrival"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyAbrInvoicesTable = pgTable("dairy_abr_invoices", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierId: integer("supplier_id").references(() => dairyAbrSuppliersTable.id),
+  poId: integer("po_id").references(() => dairyAbrPurchaseOrdersTable.id),
+  invoiceNumber: text("invoice_number").notNull(),
+  invoiceDate: date("invoice_date").notNull(),
+  dueDate: date("due_date"),
+  netAmountPence: integer("net_amount_pence"),
+  vatAmountPence: integer("vat_amount_pence"),
+  grossAmountPence: integer("gross_amount_pence"),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  paymentDate: date("payment_date"),
+  paymentReference: text("payment_reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const dairyDctRecordsTable = pgTable("dairy_dct_records", {
