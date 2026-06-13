@@ -100,6 +100,7 @@ interface FarmFormData {
   appaRef: string;
   appaRegistrationDate: string;
   fsaWineProductionRef: string;
+  harvestStrictStorage: boolean;
 }
 
 function farmToFormData(farm: Farm & {
@@ -166,6 +167,7 @@ function farmToFormData(farm: Farm & {
     appaRef: (farm as any).appaRef || "",
     appaRegistrationDate: (farm as any).appaRegistrationDate || "",
     fsaWineProductionRef: (farm as any).fsaWineProductionRef || "",
+    harvestStrictStorage: !!(farm as any).harvestStrictStorage,
   };
 }
 
@@ -672,7 +674,7 @@ function InvoicingCard({
 }: {
   farmId: number | null;
   formData: FarmFormData;
-  updateField: (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated">, value: string) => void;
+  updateField: (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated" | "harvestStrictStorage">, value: string) => void;
   onLogoPathChange: (path: string) => void;
 }) {
   const { toast } = useToast();
@@ -979,7 +981,7 @@ export default function FarmSettings() {
     );
   }
 
-  const updateField = (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated">, value: string) => {
+  const updateField = (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated" | "harvestStrictStorage">, value: string) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : prev);
   };
 
@@ -1077,6 +1079,7 @@ export default function FarmSettings() {
       holdingType: formData.holdingType || undefined,
       assuranceBody: formData.assuranceBody.trim() || undefined,
       isNvzDesignated: formData.isNvzDesignated,
+      harvestStrictStorage: formData.harvestStrictStorage,
       country: formData.country || "england",
       eaml2Email: formData.eaml2Email.trim() || undefined,
       flockMark: formData.flockMark.trim() || undefined,
@@ -1449,6 +1452,23 @@ export default function FarmSettings() {
                   </span>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Enables NVZ closed period warnings and the 170 kg N/ha organic manure limit across all relevant modules. You can also flag individual fields within the Field Register.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border hover:bg-black/5 transition-colors group">
+                <Checkbox
+                  checked={formData.harvestStrictStorage}
+                  onCheckedChange={checked =>
+                    setFormData(prev => prev ? { ...prev, harvestStrictStorage: !!checked } : prev)
+                  }
+                  className="mt-0.5"
+                />
+                <div>
+                  <span className="text-sm font-medium group-hover:text-foreground">
+                    Require storage record for every harvest
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    When enabled, the harvest reconciliation panel will flag any harvest that has no storage record — even where only transport legs have been recorded. Suitable for farms where all crop must pass through an on-farm or third-party store before sale. Leave off if crop is sometimes collected directly from the field by the buyer.
                   </p>
                 </div>
               </label>

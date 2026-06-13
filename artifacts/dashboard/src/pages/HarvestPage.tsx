@@ -35,6 +35,8 @@ import {
   Pencil,
   Scale,
   MapPin,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
@@ -168,6 +170,9 @@ export default function HarvestPage() {
         {tab === "log" && (
           <HarvestLogTab
             harvests={harvests}
+            transports={transports}
+            storages={storages}
+            farmRecord={farmRecord}
             equipment={equipment}
             fieldCrops={fieldCrops}
             farmId={farmId}
@@ -216,13 +221,14 @@ function StatCard({ icon, label, value, bg, iconBg }: { icon: React.ReactNode; l
   );
 }
 
-function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRefresh, toast }: any) {
+function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, fieldCrops, farmId, loading, onRefresh, toast }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const { displayName: currentUserName } = useUserRole();
   const [search, setSearch] = useState("");
   const [filterField, setFilterField] = useState("__all__");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [reconcileOpen, setReconcileOpen] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -308,6 +314,25 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
 
   const vehicleEquipment: any[] = equipment.filter((e: any) => VEHICLE_TYPES.has(e.type));
 
+  // ── Reconciliation: orphaned harvest records ──────────────────────────────
+  const strictStorage = !!farmRecord?.harvestStrictStorage;
+  const yearHarvests = harvests.filter((r: any) => isInCropYear(r.harvestDate, cropYear));
+  const transportOrphans = yearHarvests.filter((r: any) => {
+    const hasTransport = transports.some((t: any) => t.harvestRecordId === r.id);
+    const hasStorage = storages.some((s: any) => s.harvestRecordId === r.id);
+    return hasTransport && !hasStorage;
+  });
+  const noMovement = yearHarvests.filter((r: any) => {
+    const hasTransport = transports.some((t: any) => t.harvestRecordId === r.id);
+    const hasStorage = storages.some((s: any) => s.harvestRecordId === r.id);
+    return !hasTransport && !hasStorage;
+  });
+  // strict mode: every harvest must have a storage record
+  const strictNoStorage = strictStorage
+    ? yearHarvests.filter((r: any) => !storages.some((s: any) => s.harvestRecordId === r.id))
+    : [];
+  const orphanCount = strictStorage ? strictNoStorage.length : transportOrphans.length + noMovement.length;
+
   // Unique field names for the current crop year, for the dropdown
   const fieldNamesInYear = Array.from(
     new Set(
@@ -370,6 +395,103 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <Plus size={14} className="mr-1" />Log Harvest
         </Button>
       </div>
+
+      {/* ── Reconciliation panel ── */}
+      {yearHarvests.length > 0 && (
+        orphanCount > 0 ? (
+          <div style={{ marginBottom: "1rem", border: "1px solid #fcd34d", borderRadius: 10, background: "#fffbeb", overflow: "hidden" }}>
+            <button
+              onClick={() => setReconcileOpen(o => !o)}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <AlertTriangle size={16} color="#d97706" />
+                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e" }}>
+                  {orphanCount} harvest{orphanCount !== 1 ? "s" : ""} may be missing records — review needed
+                </span>
+              </div>
+              {reconcileOpen ? <ChevronDown size={16} color="#92400e" /> : <ChevronRight size={16} color="#92400e" />}
+            </button>
+            {reconcileOpen && (
+              <div style={{ borderTop: "1px solid #fde68a", padding: "0.75rem 1rem" }}>
+                {strictStorage ? (
+                  <>
+                    <p style={{ fontSize: "0.8rem", color: "#78350f", marginBottom: "0.5rem" }}>
+                      <strong>Strict mode is on</strong> — every harvest must have a storage record. The following harvests do not:
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {strictNoStorage.map((r: any) => (
+                        <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#92400e" }}>
+                          <span style={{ minWidth: 90, color: "#78350f", fontWeight: 500 }}>{fmt(r.harvestDate)}</span>
+                          <span>{r.field?.name ?? "—"}</span>
+                          <span style={{ color: "#a16207" }}>·</span>
+                          <span>{r.crop?.name ?? "—"}</span>
+                          {r.yieldTonnes && <span style={{ marginLeft: "auto", color: "#78350f" }}>{Number(r.yieldTonnes).toFixed(2)} t</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {transportOrphans.length > 0 && (
+                      <div style={{ marginBottom: noMovement.length > 0 ? "0.75rem" : 0 }}>
+                        <p style={{ fontSize: "0.8rem", color: "#78350f", fontWeight: 600, marginBottom: "0.4rem" }}>
+                          Transport recorded — no storage intake ({transportOrphans.length})
+                        </p>
+                        <p style={{ fontSize: "0.75rem", color: "#92400e", marginBottom: "0.4rem" }}>
+                          A transport leg has been logged for these harvests but no storage record has been entered. If the crop went direct to a buyer, this can be dismissed. Otherwise, add a storage intake record.
+                        </p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          {transportOrphans.map((r: any) => (
+                            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#92400e" }}>
+                              <span style={{ minWidth: 90, color: "#78350f", fontWeight: 500 }}>{fmt(r.harvestDate)}</span>
+                              <span>{r.field?.name ?? "—"}</span>
+                              <span style={{ color: "#a16207" }}>·</span>
+                              <span>{r.crop?.name ?? "—"}</span>
+                              {r.yieldTonnes && <span style={{ marginLeft: "auto", color: "#78350f" }}>{Number(r.yieldTonnes).toFixed(2)} t</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {noMovement.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: "0.8rem", color: "#78350f", fontWeight: 600, marginBottom: "0.4rem" }}>
+                          No movement records at all ({noMovement.length})
+                        </p>
+                        <p style={{ fontSize: "0.75rem", color: "#92400e", marginBottom: "0.4rem" }}>
+                          These harvests have no transport legs and no storage intake — there is no record of where the crop went.
+                        </p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          {noMovement.map((r: any) => (
+                            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#92400e" }}>
+                              <span style={{ minWidth: 90, color: "#78350f", fontWeight: 500 }}>{fmt(r.harvestDate)}</span>
+                              <span>{r.field?.name ?? "—"}</span>
+                              <span style={{ color: "#a16207" }}>·</span>
+                              <span>{r.crop?.name ?? "—"}</span>
+                              {r.yieldTonnes && <span style={{ marginLeft: "auto", color: "#78350f" }}>{Number(r.yieldTonnes).toFixed(2)} t</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                <p style={{ fontSize: "0.75rem", color: "#a16207", marginTop: "0.75rem" }}>
+                  Use the <strong>Storage Records</strong> tab to log intake, or the <strong>Transport Legs</strong> tab to review dispatches.
+                  {!strictStorage && " If all crop for a harvest went direct to a buyer with no on-farm storage, no action is needed."}
+                  {" "}To change when this warning triggers, adjust <em>Require storage record for every harvest</em> in Farm Settings.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem", padding: "0.625rem 1rem", border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
+            <CheckCircle2 size={16} color="#16a34a" />
+            <span style={{ fontSize: "0.8rem", color: "#15803d", fontWeight: 500 }}>All harvests in this crop year are reconciled</span>
+          </div>
+        )
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>

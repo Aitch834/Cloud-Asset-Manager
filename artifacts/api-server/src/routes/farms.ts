@@ -507,6 +507,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     isNvzDesignated, country,
     eaml2Email, flockMark, herdMark, pigHerdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
     appaRef, appaRegistrationDate, fsaWineProductionRef,
+    harvestStrictStorage,
   } = req.body;
 
   if (!name) { res.status(400).json({ error: "Farm name is required" }); return; }
@@ -555,6 +556,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     appaRef: appaRef ?? null,
     appaRegistrationDate: appaRegistrationDate ?? null,
     fsaWineProductionRef: fsaWineProductionRef ?? null,
+    harvestStrictStorage: harvestStrictStorage ?? false,
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();

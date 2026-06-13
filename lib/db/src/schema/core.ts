@@ -74,6 +74,7 @@ export const farmsTable = pgTable("farms", {
   paymentTermsDays: integer("payment_terms_days").default(30),
   invoiceFooterText: text("invoice_footer_text"),
   invoiceLogoPath: text("invoice_logo_path"),
+  harvestStrictStorage: boolean("harvest_strict_storage").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
