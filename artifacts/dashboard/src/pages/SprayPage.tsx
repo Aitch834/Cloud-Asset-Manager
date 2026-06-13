@@ -2175,6 +2175,7 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
   const [threshForm, setThreshForm] = useState<any>({});
   const [logForm, setLogForm] = useState<any>({});
   const [detailTab, setDetailTab] = useState<"thresholds" | "monitoring">("thresholds");
+  const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
   const setP = (k: string, v: any) => setPlanForm((f: any) => ({ ...f, [k]: v }));
   const setT = (k: string, v: any) => setThreshForm((f: any) => ({ ...f, [k]: v }));
   const setL = (k: string, v: any) => setLogForm((f: any) => ({ ...f, [k]: v }));
@@ -2512,25 +2513,57 @@ ${(monitoringLogs as any[]).length === 0 ? "<p style='font-style:italic;color:#8
                           <tr>{["Date", "Pest / Weed", "Severity", "Threshold?", "Observation / Count", "Action Taken", "Inspector", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
                         </thead>
                         <tbody className="divide-y">
-                          {(monitoringLogs as any[]).map((l: any) => (
-                            <tr key={l.id} className={`hover:bg-gray-50 ${l.thresholdBreached ? "bg-red-50" : ""}`}>
-                              <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDate(l.logDate)}</td>
-                              <td className="px-3 py-2 text-xs font-medium">{l.pestOrWeed}</td>
-                              <td className="px-3 py-2 text-xs">
-                                {l.severity ? <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${l.severity === "Critical" ? "bg-red-100 text-red-700" : l.severity === "High" ? "bg-orange-100 text-orange-700" : l.severity === "Medium" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{l.severity}</span> : "—"}
-                              </td>
-                              <td className="px-3 py-2 text-xs">{l.thresholdBreached ? <span className="text-red-600 font-medium">⚠ Yes</span> : <span className="text-gray-400">No</span>}</td>
-                              <td className="px-3 py-2 text-xs max-w-[140px] truncate" title={l.observation}>{l.observation ?? "—"}</td>
-                              <td className="px-3 py-2 text-xs max-w-[100px] truncate" title={l.actionTaken}>{l.actionTaken ?? "—"}</td>
-                              <td className="px-3 py-2 text-xs">{l.inspector ?? "—"}</td>
-                              <td className="px-3 py-2">
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingLog(l); setLogForm({ ...l }); setLogOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteLog(l.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {(monitoringLogs as any[]).map((l: any) => {
+                            const isExpanded = expandedLogId === l.id;
+                            const hasDetail = !!(l.observation || l.actionTaken);
+                            const baseBg = l.thresholdBreached ? "bg-red-50" : "";
+                            return (
+                              <React.Fragment key={l.id}>
+                                <tr className={`hover:bg-gray-50 ${baseBg} ${isExpanded ? "border-b-0" : ""}`}>
+                                  <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDate(l.logDate)}</td>
+                                  <td className="px-3 py-2 text-xs font-medium">{l.pestOrWeed}</td>
+                                  <td className="px-3 py-2 text-xs">
+                                    {l.severity ? <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${l.severity === "Critical" ? "bg-red-100 text-red-700" : l.severity === "High" ? "bg-orange-100 text-orange-700" : l.severity === "Medium" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{l.severity}</span> : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 text-xs">{l.thresholdBreached ? <span className="text-red-600 font-medium">⚠ Yes</span> : <span className="text-gray-400">No</span>}</td>
+                                  <td className="px-3 py-2 text-xs max-w-[140px] truncate">{l.observation ?? "—"}</td>
+                                  <td className="px-3 py-2 text-xs max-w-[100px] truncate">{l.actionTaken ?? "—"}</td>
+                                  <td className="px-3 py-2 text-xs">{l.inspector ?? "—"}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex gap-1 items-center">
+                                      {hasDetail && (
+                                        <Button size="sm" variant="ghost" className="h-7 px-1.5 text-gray-400" title={isExpanded ? "Collapse" : "Show full details"} onClick={() => setExpandedLogId(isExpanded ? null : l.id)}>
+                                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                        </Button>
+                                      )}
+                                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditingLog(l); setLogForm({ ...l }); setLogOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => deleteLog(l.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isExpanded && (
+                                  <tr className={baseBg}>
+                                    <td colSpan={8} className="px-3 pb-3 pt-0">
+                                      <div className="bg-white border border-gray-200 rounded-lg p-3 grid grid-cols-1 gap-2">
+                                        {l.observation && (
+                                          <div>
+                                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Observation / Count</p>
+                                            <p className="text-xs text-gray-700 leading-relaxed">{l.observation}</p>
+                                          </div>
+                                        )}
+                                        {l.actionTaken && (
+                                          <div>
+                                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Action Taken</p>
+                                            <p className="text-xs text-gray-700 leading-relaxed">{l.actionTaken}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

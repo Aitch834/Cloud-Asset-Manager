@@ -706,6 +706,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
 function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }: any) {
   const [search, setSearch] = useState("");
   const [filterProduct, setFilterProduct] = useState("all");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const filtered = (movements ?? []).filter((m: any) => {
     if (filterProduct !== "all" && String(m.stockItemId) !== filterProduct) return false;
@@ -735,7 +736,7 @@ function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Product", "Type", "Qty Change", "Source", "Notes"].map(h => (
+                {["Date", "Product", "Type", "Qty Change", "Source", "Notes", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
                 ))}
               </tr>
@@ -744,25 +745,50 @@ function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }
               {filtered.map((m: any, i: number) => {
                 const qty = parseFloat(m.quantityChange ?? "0");
                 const isIn = qty > 0;
+                const isExpanded = expandedId === m.id;
+                const isLast = i === filtered.length - 1;
                 return (
-                  <tr key={m.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                    <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(m.movedAt)}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{m.stockItemName || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem" }}>{movementBadge(m.movementType, m.quantityChange)}</td>
-                    <td style={{ padding: "0.625rem 0.875rem" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4, color: isIn ? "#166534" : "#b91c1c", fontWeight: 600 }}>
-                        {isIn ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                        {Math.abs(qty) % 1 === 0 ? Math.abs(qty).toFixed(0) : Math.abs(qty).toFixed(2)} {m.stockItemUnit || ""}
-                      </span>
-                    </td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem" }}>
-                      {m.referenceType === "spray_application" && "Spray Record"}
-                      {m.referenceType === "medicine_record" && "Medicine Record"}
-                      {m.referenceType === "delivery" && "Goods Received"}
-                      {(!m.referenceType || m.referenceType === "manual") && "Manual"}
-                    </td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.notes || "—"}</td>
-                  </tr>
+                  <React.Fragment key={m.id}>
+                    <tr style={{ borderBottom: isExpanded || isLast ? "none" : "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(m.movedAt)}</td>
+                      <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{m.stockItemName || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.875rem" }}>{movementBadge(m.movementType, m.quantityChange)}</td>
+                      <td style={{ padding: "0.625rem 0.875rem" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, color: isIn ? "#166534" : "#b91c1c", fontWeight: 600 }}>
+                          {isIn ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                          {Math.abs(qty) % 1 === 0 ? Math.abs(qty).toFixed(0) : Math.abs(qty).toFixed(2)} {m.stockItemUnit || ""}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem" }}>
+                        {m.referenceType === "spray_application" && "Spray Record"}
+                        {m.referenceType === "medicine_record" && "Medicine Record"}
+                        {m.referenceType === "delivery" && "Goods Received"}
+                        {(!m.referenceType || m.referenceType === "manual") && "Manual"}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.notes || "—"}</td>
+                      <td style={{ padding: "0.375rem 0.5rem", textAlign: "center" }}>
+                        {m.notes && (
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : m.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: "2px 4px", borderRadius: 4, display: "flex", alignItems: "center" }}
+                            title={isExpanded ? "Collapse" : "Show full note"}
+                          >
+                            <ChevronDown size={14} style={{ transition: "transform 0.15s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && m.notes && (
+                      <tr style={{ borderBottom: isLast ? "none" : "1px solid #f3f4f6" }}>
+                        <td colSpan={7} style={{ padding: "0 0.875rem 0.75rem 0.875rem" }}>
+                          <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.625rem 0.875rem" }}>
+                            <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 4px" }}>Note</p>
+                            <p style={{ fontSize: "0.875rem", color: "#374151", margin: 0, lineHeight: 1.5 }}>{m.notes}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
