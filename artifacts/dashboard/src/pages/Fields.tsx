@@ -3671,7 +3671,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                 ) : (
                                   <div className="relative">
                                     <select
-                                      className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded pl-1 pr-5 py-1 appearance-none focus:outline-none focus:ring-1 focus:ring-green-400 ${cropName ? "font-medium text-gray-700" : "text-gray-500"}`}
+                                      className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded pl-1 py-1 appearance-none focus:outline-none focus:ring-1 focus:ring-green-400 ${cropName ? "font-medium text-gray-700 pr-8" : "text-gray-500 pr-5"}`}
                                       value={cropName}
                                       onChange={e => void handleCellChange(field.id, y, e.target.value)}
                                     >
@@ -3682,6 +3682,15 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                         </option>
                                       ))}
                                     </select>
+                                    {cropName && (
+                                      <button
+                                        title="Remove primary crop"
+                                        onClick={() => void handleCellChange(field.id, y, "")}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-90 transition-opacity"
+                                      >
+                                        <X className="w-2.5 h-2.5 text-gray-500" />
+                                      </button>
+                                    )}
                                     <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                                   </div>
                                 )}

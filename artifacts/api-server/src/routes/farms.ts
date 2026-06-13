@@ -1121,7 +1121,7 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
     .where(eq(fieldsTable.farmId, farmId))
-    .orderBy(desc(fieldCropAssignmentsTable.createdAt));
+    .orderBy(asc(fieldCropAssignmentsTable.createdAt));
   res.json({ records });
 });
 
