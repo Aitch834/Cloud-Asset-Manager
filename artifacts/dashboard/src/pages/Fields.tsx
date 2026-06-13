@@ -3256,6 +3256,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
   const [localOverrides, setLocalOverrides] = useState<Record<string, string | null>>({});
   const [fieldNotes, setFieldNotes] = useState<Record<number, string>>({});
   const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
+  const [expandedNotesId, setExpandedNotesId] = useState<number | null>(null);
 
   const assignmentMap = useMemo(() => {
     const map: Record<string, AssignmentRec> = {};
@@ -3421,10 +3422,10 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
       {!isLoading && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-          <table className="w-full text-sm border-collapse bg-white" style={{ minWidth: 860 }}>
+          <table className="text-sm border-collapse bg-white" style={{ minWidth: `${140 + 60 + YEARS.length * 108}px` }}>
             <thead>
               <tr>
-                <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 border-b border-r border-gray-200 z-10 min-w-[140px]">
+                <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 border-b border-r border-gray-200 z-10 min-w-[160px]">
                   Field
                 </th>
                 <th className="text-center px-2 py-2.5 font-medium text-gray-500 text-xs border-b border-r border-gray-100 w-14">ha</th>
@@ -3432,7 +3433,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                   const isPast = y < currentYear;
                   const isCurrent = y === currentYear;
                   return (
-                    <th key={y} className={`px-1 py-2 text-center text-xs font-semibold border-b min-w-[100px] ${
+                    <th key={y} className={`px-1 py-2 text-center text-xs font-semibold border-b min-w-[108px] ${
                       isCurrent ? "bg-green-50 text-green-800" :
                       isPast    ? "bg-gray-50 text-gray-500" :
                                   "bg-sky-50/50 text-sky-800"
@@ -3444,104 +3445,139 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                     </th>
                   );
                 })}
-                <th className="text-left px-3 py-2.5 font-medium text-gray-500 text-xs border-b border-l border-gray-100 min-w-[140px]">
-                  Notes (current year)
-                </th>
               </tr>
             </thead>
             <tbody>
               {activeFields.map((field, fi) => {
                 const metrics = fieldMetrics[fi];
+                const isNotesExpanded = expandedNotesId === field.id;
+                const hasCurrentAssignment = !!assignmentMap[`${field.id}:${currentYear}`];
+                const existingNotes = assignmentMap[`${field.id}:${currentYear}`]?.notes ?? "";
+                const colSpan = 2 + YEARS.length;
                 return (
-                  <tr key={field.id} className={fi < activeFields.length - 1 ? "border-b border-gray-100" : ""}>
-                    {/* Field name cell */}
-                    <td className="px-3 py-2 sticky left-0 bg-white border-r border-gray-100 z-10">
-                      <div className="font-medium text-gray-800 text-sm leading-tight">
-                        {field.name ?? `Field ${field.id}`}
-                      </div>
-                      {(metrics?.diversity ?? 0) >= 3 && (
-                        <div className="text-[11px] text-green-600 mt-0.5">✓ {metrics?.diversity} crops — good diversity</div>
-                      )}
-                      {(metrics?.diversity ?? 0) === 2 && (
-                        <div className="text-[11px] text-amber-600 mt-0.5">⚠ 2 crops — low diversity</div>
-                      )}
-                      {(metrics?.diversity ?? 0) === 1 && (
-                        <div className="text-[11px] text-red-500 mt-0.5">⚠ Monoculture risk</div>
-                      )}
-                      {metrics?.osrTooClose && (
-                        <div className="text-[11px] text-amber-600">⚠ OSR too frequent</div>
-                      )}
-                    </td>
-                    {/* Area */}
-                    <td className="px-2 py-2 text-xs text-gray-400 text-center border-r border-gray-100">
-                      {field.areaHectares ? parseFloat(String(field.areaHectares)).toFixed(1) : "—"}
-                    </td>
-                    {/* Year cells */}
-                    {YEARS.map(y => {
-                      const key = `${field.id}:${y}`;
-                      const cropName = getCellCrop(field.id, y);
-                      const isSaving = savingCell === key;
-                      const isPast = y < currentYear;
-                      const isCurrent = y === currentYear;
-                      const hasRecord = !!assignmentMap[key];
-                      const bg = cropName ? getCropColor(cropName) : (isPast ? "#f9fafb" : "#fff");
-
-                      return (
-                        <td key={y} style={{ background: bg }} className={`px-1 py-1 relative ${isCurrent ? "ring-1 ring-inset ring-green-200" : ""}`}>
-                          {isSaving ? (
-                            <div className="flex items-center justify-center h-7">
-                              <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin" />
+                  <React.Fragment key={field.id}>
+                    <tr className={fi < activeFields.length - 1 && !isNotesExpanded ? "border-b border-gray-100" : ""}>
+                      {/* Field name cell */}
+                      <td className="px-3 py-2 sticky left-0 bg-white border-r border-gray-100 z-10">
+                        <div className="flex items-start justify-between gap-1">
+                          <div>
+                            <div className="font-medium text-gray-800 text-sm leading-tight">
+                              {field.name ?? `Field ${field.id}`}
                             </div>
-                          ) : (
-                            <select
-                              className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 ${isPast && cropName ? "font-medium text-gray-700" : "text-gray-600"}`}
-                              value={cropName}
-                              onChange={e => handleCellChange(field.id, y, e.target.value)}
-                            >
-                              <option value="">—</option>
-                              {farmCrops.length > 0 && (
-                                <optgroup label="Farm Crops">
-                                  {farmCrops.map(c => (
-                                    <option key={c.id} value={c.name}>
-                                      {c.name}{c.variety ? ` (${c.variety})` : ""}
-                                    </option>
-                                  ))}
-                                </optgroup>
+                            {(metrics?.diversity ?? 0) >= 3 && (
+                              <div className="text-[11px] text-green-600 mt-0.5">✓ {metrics?.diversity} crops — good diversity</div>
+                            )}
+                            {(metrics?.diversity ?? 0) === 2 && (
+                              <div className="text-[11px] text-amber-600 mt-0.5">⚠ 2 crops — low diversity</div>
+                            )}
+                            {(metrics?.diversity ?? 0) === 1 && (
+                              <div className="text-[11px] text-red-500 mt-0.5">⚠ Monoculture risk</div>
+                            )}
+                            {metrics?.osrTooClose && (
+                              <div className="text-[11px] text-amber-600">⚠ OSR too frequent</div>
+                            )}
+                          </div>
+                          <button
+                            title={isNotesExpanded ? "Hide notes" : "Show / edit notes"}
+                            onClick={() => setExpandedNotesId(isNotesExpanded ? null : field.id)}
+                            className={`flex-shrink-0 mt-0.5 p-0.5 rounded transition-colors ${
+                              isNotesExpanded
+                                ? "text-green-600 bg-green-50"
+                                : existingNotes
+                                  ? "text-green-500 hover:text-green-700"
+                                  : "text-gray-300 hover:text-gray-500"
+                            }`}
+                          >
+                            <StickyNote className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                      {/* Area */}
+                      <td className="px-2 py-2 text-xs text-gray-400 text-center border-r border-gray-100">
+                        {field.areaHectares ? parseFloat(String(field.areaHectares)).toFixed(1) : "—"}
+                      </td>
+                      {/* Year cells */}
+                      {YEARS.map(y => {
+                        const key = `${field.id}:${y}`;
+                        const cropName = getCellCrop(field.id, y);
+                        const isSaving = savingCell === key;
+                        const isPast = y < currentYear;
+                        const isCurrent = y === currentYear;
+                        const hasRecord = !!assignmentMap[key];
+                        const bg = cropName ? getCropColor(cropName) : (isPast ? "#f9fafb" : "#fff");
+
+                        return (
+                          <td key={y} style={{ background: bg }} className={`px-1 py-1 relative ${isCurrent ? "ring-1 ring-inset ring-green-200" : ""}`}>
+                            {isSaving ? (
+                              <div className="flex items-center justify-center h-7">
+                                <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin" />
+                              </div>
+                            ) : (
+                              <select
+                                className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 ${isPast && cropName ? "font-medium text-gray-700" : "text-gray-600"}`}
+                                value={cropName}
+                                onChange={e => handleCellChange(field.id, y, e.target.value)}
+                              >
+                                <option value="">—</option>
+                                {farmCrops.length > 0 && (
+                                  <optgroup label="Farm Crops">
+                                    {farmCrops.map(c => (
+                                      <option key={c.id} value={c.name}>
+                                        {c.name}{c.variety ? ` (${c.variety})` : ""}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {genericExtras.length > 0 && (
+                                  <optgroup label="Rotation Categories">
+                                    {genericExtras.map(c => <option key={c} value={c}>{c}</option>)}
+                                  </optgroup>
+                                )}
+                              </select>
+                            )}
+                            {hasRecord && !isSaving && (
+                              <span
+                                className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400"
+                                title="Saved crop history record"
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {/* Expanded notes row */}
+                    {isNotesExpanded && (
+                      <tr className="border-b border-gray-100 bg-gray-50/60">
+                        <td colSpan={colSpan} className="px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <StickyNote className="w-3.5 h-3.5 text-green-500 mt-1.5 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                                Notes — {field.name ?? `Field ${field.id}`} ({currentYear} season)
+                              </p>
+                              {hasCurrentAssignment ? (
+                                <div className="flex items-start gap-2">
+                                  <textarea
+                                    className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-400 bg-white resize-y"
+                                    rows={3}
+                                    placeholder="Enter rotation notes for this field — variety choice, break crop reason, disease pressure, ground conditions…"
+                                    value={fieldNotes[field.id] ?? ""}
+                                    onChange={e => setFieldNotes(p => ({ ...p, [field.id]: e.target.value }))}
+                                    onBlur={() => handleSaveNotes(field.id)}
+                                  />
+                                  {savingNotes[field.id] && (
+                                    <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin mt-2 shrink-0" />
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-400 italic">Assign a crop to {currentYear} before adding notes.</p>
                               )}
-                              {genericExtras.length > 0 && (
-                                <optgroup label="Rotation Categories">
-                                  {genericExtras.map(c => <option key={c} value={c}>{c}</option>)}
-                                </optgroup>
-                              )}
-                            </select>
-                          )}
-                          {/* Green dot = confirmed DB record */}
-                          {hasRecord && !isSaving && (
-                            <span
-                              className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400"
-                              title="Saved crop history record"
-                            />
-                          )}
+                            </div>
+                          </div>
                         </td>
-                      );
-                    })}
-                    {/* Notes */}
-                    <td className="px-2 py-1 border-l border-gray-100">
-                      <div className="flex items-center gap-1">
-                        <input
-                          className="w-full text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 disabled:bg-gray-50 disabled:text-gray-400"
-                          placeholder={assignmentMap[`${field.id}:${currentYear}`] ? "Rotation notes…" : "Add this year's crop first"}
-                          disabled={!assignmentMap[`${field.id}:${currentYear}`]}
-                          value={fieldNotes[field.id] ?? ""}
-                          onChange={e => setFieldNotes(p => ({ ...p, [field.id]: e.target.value }))}
-                          onBlur={() => handleSaveNotes(field.id)}
-                        />
-                        {savingNotes[field.id] && (
-                          <div className="w-3 h-3 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin shrink-0" />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
