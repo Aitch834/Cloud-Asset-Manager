@@ -3261,6 +3261,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
   const [showSecondCropFor, setShowSecondCropFor] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
+  const [osrWarnPending, setOsrWarnPending] = useState<{ fieldId: number; year: number; cropName: string } | null>(null);
 
   const assignmentMap = useMemo(() => {
     const map: Record<string, AssignmentRec[]> = {};
@@ -3337,7 +3338,25 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     return data.record?.id ?? null;
   };
 
-  const handleCellChange = async (fieldId: number, year: number, cropName: string) => {
+  const isOsrCrop = (name: string) => {
+    const l = name.toLowerCase();
+    return l.includes("oilseed") || l.includes("rape");
+  };
+
+  const wouldBreakOsrRule = (fieldId: number, year: number, cropName: string): boolean => {
+    if (!isOsrCrop(cropName)) return false;
+    const otherOsrYears = YEARS.filter(y => {
+      if (y === year) return false;
+      return isOsrCrop(getCellCrop(fieldId, y));
+    });
+    const allOsrYears = [...otherOsrYears, year].sort((a, b) => a - b);
+    for (let i = 0; i < allOsrYears.length - 1; i++) {
+      if (((allOsrYears[i + 1] ?? 0) - (allOsrYears[i] ?? 0)) < 4) return true;
+    }
+    return false;
+  };
+
+  const doSaveCellChange = async (fieldId: number, year: number, cropName: string) => {
     const key = `${fieldId}:${year}`;
     const existing = assignmentMap[key]?.[0];
     setLocalOverrides(p => ({ ...p, [key]: cropName || null }));
@@ -3377,6 +3396,14 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     } finally {
       setSavingCell(null);
     }
+  };
+
+  const handleCellChange = async (fieldId: number, year: number, cropName: string) => {
+    if (cropName && wouldBreakOsrRule(fieldId, year, cropName)) {
+      setOsrWarnPending({ fieldId, year, cropName });
+      return;
+    }
+    await doSaveCellChange(fieldId, year, cropName);
   };
 
   const handleAddSecondaryCrop = async (fieldId: number, year: number, cropName: string) => {
@@ -3846,6 +3873,41 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
           </div>
         </div>
       )}
+
+      {/* OSR break-interval confirmation dialog */}
+      <Dialog open={!!osrWarnPending} onOpenChange={open => { if (!open) setOsrWarnPending(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              OSR Rotation Warning
+            </DialogTitle>
+            <DialogDescription className="text-gray-700 pt-1">
+              Adding <span className="font-semibold">{osrWarnPending?.cropName}</span> here would place OSR within 4 years of a previous OSR crop on this field.
+              <br /><br />
+              Short OSR breaks increase the risk of <span className="font-medium">clubroot</span> and <span className="font-medium">disease resistance</span> build-up. The recommended minimum break is <span className="font-medium">4 years</span>.
+              <br /><br />
+              Are you sure you want to add this crop anyway?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setOsrWarnPending(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (osrWarnPending) {
+                  void doSaveCellChange(osrWarnPending.fieldId, osrWarnPending.year, osrWarnPending.cropName);
+                  setOsrWarnPending(null);
+                }
+              }}
+            >
+              Add anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
