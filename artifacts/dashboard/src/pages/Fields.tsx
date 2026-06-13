@@ -3257,11 +3257,19 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
   const [fieldNotes, setFieldNotes] = useState<Record<number, string>>({});
   const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
   const [expandedNotesId, setExpandedNotesId] = useState<number | null>(null);
+  const [pendingCellChange, setPendingCellChange] = useState<{ fieldId: number; year: number; cropName: string } | null>(null);
+  const [showRotationMgr, setShowRotationMgr] = useState(false);
+  const [showSecondCropFor, setShowSecondCropFor] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
 
   const assignmentMap = useMemo(() => {
-    const map: Record<string, AssignmentRec> = {};
+    const map: Record<string, AssignmentRec[]> = {};
     for (const a of assignmentsQ.data?.records ?? []) {
-      if (a.year) map[`${a.fieldId}:${a.year}`] = a;
+      if (a.year) {
+        const k = `${a.fieldId}:${a.year}`;
+        (map[k] ??= []).push(a);
+      }
     }
     return map;
   }, [assignmentsQ.data]);
@@ -3279,17 +3287,23 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
   }, [assignmentsQ.data]);
 
   const farmCrops = cropsQ.data?.records ?? [];
-  const farmCropNames = useMemo(() => new Set(farmCrops.map(c => c.name.toLowerCase())), [farmCrops]);
+  const actualFarmCrops = useMemo(() => farmCrops.filter(c => c.category !== "rotation-generic"), [farmCrops]);
+  const rotationGenericCrops = useMemo(() => farmCrops.filter(c => c.category === "rotation-generic"), [farmCrops]);
+  const actualFarmCropNames = useMemo(() => new Set(actualFarmCrops.map(c => c.name.toLowerCase())), [actualFarmCrops]);
+  const rotationGenericNames = useMemo(() => new Set(rotationGenericCrops.map(c => c.name.toLowerCase())), [rotationGenericCrops]);
   const genericExtras = useMemo(
-    () => ROTATION_CROPS.filter(r => !farmCropNames.has(r.toLowerCase())),
-    [farmCropNames],
+    () => ROTATION_CROPS.filter(r => !actualFarmCropNames.has(r.toLowerCase()) && !rotationGenericNames.has(r.toLowerCase())),
+    [actualFarmCropNames, rotationGenericNames],
   );
 
   const getCellCrop = (fieldId: number, year: number): string => {
     const key = `${fieldId}:${year}`;
     if (key in localOverrides) return localOverrides[key] ?? "";
-    return assignmentMap[key]?.cropName ?? "";
+    return assignmentMap[key]?.[0]?.cropName ?? "";
   };
+
+  const getSecondaryCrops = (fieldId: number, year: number): AssignmentRec[] =>
+    (assignmentMap[`${fieldId}:${year}`] ?? []).slice(1);
 
   const fieldMetrics = useMemo(() => {
     return activeFields.map(f => {
@@ -3324,9 +3338,9 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     return data.record?.id ?? null;
   };
 
-  const handleCellChange = async (fieldId: number, year: number, cropName: string) => {
+  const executeCellChange = async (fieldId: number, year: number, cropName: string) => {
     const key = `${fieldId}:${year}`;
-    const existing = assignmentMap[key];
+    const existing = assignmentMap[key]?.[0];
     setLocalOverrides(p => ({ ...p, [key]: cropName || null }));
     setSavingCell(key);
     try {
@@ -3366,9 +3380,64 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     }
   };
 
+  const handleCellChange = (fieldId: number, year: number, cropName: string) => {
+    const existing = assignmentMap[`${fieldId}:${year}`]?.[0];
+    if (year < currentYear && existing && cropName !== existing.cropName) {
+      setPendingCellChange({ fieldId, year, cropName });
+      return;
+    }
+    void executeCellChange(fieldId, year, cropName);
+  };
+
+  const handleAddSecondaryCrop = async (fieldId: number, year: number, cropName: string) => {
+    if (!cropName) { setShowSecondCropFor(null); return; }
+    const cropId = await findOrCreateCrop(cropName);
+    if (!cropId) return;
+    const res = await fetch(`/api/farms/${farmId}/field-crops`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldId, cropId, year, season: String(year) }),
+    });
+    if (!res.ok) { toast({ title: "Failed to add catch crop", variant: "destructive" }); return; }
+    await qc.invalidateQueries({ queryKey: ["field-crops-planner", farmId] });
+    setShowSecondCropFor(null);
+  };
+
+  const handleRemoveSecondaryCrop = async (assignmentId: number) => {
+    const res = await fetch(`/api/farms/${farmId}/field-crops/${assignmentId}`, { method: "DELETE" });
+    if (!res.ok) { toast({ title: "Failed to remove", variant: "destructive" }); return; }
+    await qc.invalidateQueries({ queryKey: ["field-crops-planner", farmId] });
+  };
+
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setSavingCategory(true);
+    try {
+      const res = await fetch(`/api/farms/${farmId}/crops`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, category: "rotation-generic" }),
+      });
+      if (!res.ok) throw new Error("Failed to add");
+      await qc.invalidateQueries({ queryKey: ["crops-planner", farmId] });
+      setNewCategoryName("");
+    } catch (err) {
+      toast({ title: "Failed to add category", description: String(err), variant: "destructive" });
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    const res = await fetch(`/api/farms/${farmId}/crops/${id}`, { method: "DELETE" });
+    if (!res.ok) { toast({ title: "Failed to remove", variant: "destructive" }); return; }
+    await qc.invalidateQueries({ queryKey: ["crops-planner", farmId] });
+  };
+
   const handleSaveNotes = async (fieldId: number) => {
     const notes = fieldNotes[fieldId] ?? "";
-    const assignment = assignmentMap[`${fieldId}:${currentYear}`];
+    const assignment = assignmentMap[`${fieldId}:${currentYear}`]?.[0];
     if (!assignment) return;
     setSavingNotes(p => ({ ...p, [fieldId]: true }));
     try {
@@ -3398,12 +3467,119 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
   return (
     <div className="space-y-4">
+
+      {/* Historic change confirmation dialog */}
+      {pendingCellChange && (
+        <Dialog open onOpenChange={() => setPendingCellChange(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Change confirmed crop record?
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2 text-left text-sm text-gray-600">
+                  <p>You are about to change the confirmed <strong>{pendingCellChange.year}</strong> crop record to <strong>{pendingCellChange.cropName || "blank (remove assignment)"}</strong>.</p>
+                  <p className="font-medium text-gray-700">This will cascade to:</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li><strong>Harvest records</strong> — any yield logs linked to this field-year assignment will now show the new crop type</li>
+                    <li><strong>NMP nutrient calculations</strong> — nitrogen requirements are crop-specific; changing retrospectively alters those figures</li>
+                    <li><strong>Regenerated reports</strong> — if you re-print or re-export compliance documents for {pendingCellChange.year}, they will show the updated crop</li>
+                  </ul>
+                  <div className="text-amber-700 bg-amber-50 border border-amber-100 rounded px-3 py-2 text-xs mt-1">
+                    Already-printed or submitted documents are static and unaffected — but an inspector comparing them to live system data will see a discrepancy. Only proceed to correct a genuine data entry error.
+                  </div>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingCellChange(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const { fieldId, year, cropName } = pendingCellChange;
+                  setPendingCellChange(null);
+                  void executeCellChange(fieldId, year, cropName);
+                }}
+              >
+                Change Historic Record
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Rotation Categories manager dialog */}
+      <Dialog open={showRotationMgr} onOpenChange={setShowRotationMgr}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Rotation Categories</DialogTitle>
+            <DialogDescription>
+              These generic types appear in the Rotation Categories dropdown when no farm-specific crop variety is defined. Add your own to match your rotation plan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Built-in types (read-only)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ROTATION_CROPS.map(r => (
+                  <span key={r} className="text-xs bg-gray-100 text-gray-500 border border-gray-200 rounded px-2 py-0.5">{r}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Custom types</p>
+              {rotationGenericCrops.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No custom types added yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {rotationGenericCrops.map(c => (
+                    <span key={c.id} className="flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5">
+                      {c.name}
+                      <button
+                        title="Remove"
+                        onClick={() => void handleDeleteCategory(c.id)}
+                        className="hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="New rotation type name…"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") void handleAddCategory(); }}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-green-400"
+              />
+              <Button
+                size="sm"
+                onClick={() => void handleAddCategory()}
+                disabled={!newCategoryName.trim() || savingCategory}
+              >
+                {savingCategory ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                Add
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRotationMgr(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Guidance */}
       <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
         <Sprout className="w-4 h-4 mt-0.5 shrink-0" />
         <div>
-          <strong>Crop Rotation Planner</strong> — Changes are saved directly to your crop history records and flow through to spray records, harvest logs and compliance reports.
-          Past years show confirmed assignments from your farm data; future years are your plan. Avoid continuous cropping — OSR should not return to the same field more than once in 4 years.
+          <strong>Crop Rotation Planner</strong> — Changes save directly to your crop history and flow through to spray records, harvest logs and compliance reports.
+          Future years show your plan; past years show confirmed assignments. Avoid continuous cropping — OSR should not return to the same field more than once in 4 years.
+          Each cell also supports a second catch/cover crop entry via the <em>+ catch crop</em> link.
         </div>
       </div>
 
@@ -3422,18 +3598,27 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
       {!isLoading && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-          <table className="text-sm border-collapse bg-white" style={{ minWidth: `${140 + 60 + YEARS.length * 108}px` }}>
+          <table className="text-sm border-collapse bg-white" style={{ minWidth: `${140 + 60 + YEARS.length * 150}px` }}>
             <thead>
               <tr>
                 <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 border-b border-r border-gray-200 z-10 min-w-[160px]">
-                  Field
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Field</span>
+                    <button
+                      title="Manage Rotation Categories"
+                      onClick={() => setShowRotationMgr(true)}
+                      className="text-[10px] font-normal text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap"
+                    >
+                      Rotation types ⚙
+                    </button>
+                  </div>
                 </th>
                 <th className="text-center px-2 py-2.5 font-medium text-gray-500 text-xs border-b border-r border-gray-100 w-14">ha</th>
                 {YEARS.map(y => {
                   const isPast = y < currentYear;
                   const isCurrent = y === currentYear;
                   return (
-                    <th key={y} className={`px-1 py-2 text-center text-xs font-semibold border-b min-w-[108px] ${
+                    <th key={y} className={`px-1 py-2 text-center text-xs font-semibold border-b min-w-[150px] ${
                       isCurrent ? "bg-green-50 text-green-800" :
                       isPast    ? "bg-gray-50 text-gray-500" :
                                   "bg-sky-50/50 text-sky-800"
@@ -3451,8 +3636,8 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
               {activeFields.map((field, fi) => {
                 const metrics = fieldMetrics[fi];
                 const isNotesExpanded = expandedNotesId === field.id;
-                const hasCurrentAssignment = !!assignmentMap[`${field.id}:${currentYear}`];
-                const existingNotes = assignmentMap[`${field.id}:${currentYear}`]?.notes ?? "";
+                const hasCurrentAssignment = (assignmentMap[`${field.id}:${currentYear}`]?.length ?? 0) > 0;
+                const existingNotes = assignmentMap[`${field.id}:${currentYear}`]?.[0]?.notes ?? "";
                 const colSpan = 2 + YEARS.length;
                 return (
                   <React.Fragment key={field.id}>
@@ -3503,9 +3688,30 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                         const isSaving = savingCell === key;
                         const isPast = y < currentYear;
                         const isCurrent = y === currentYear;
-                        const hasRecord = !!assignmentMap[key];
+                        const hasRecord = (assignmentMap[key]?.length ?? 0) > 0;
                         const bg = cropName ? getCropColor(cropName) : (isPast ? "#f9fafb" : "#fff");
-
+                        const secondaryCrops = getSecondaryCrops(field.id, y);
+                        const isAddingSecond = showSecondCropFor === key;
+                        const cellOptions = (
+                          <>
+                            <option value="">—</option>
+                            {actualFarmCrops.length > 0 && (
+                              <optgroup label="Farm Crops">
+                                {actualFarmCrops.map(c => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name}{c.variety ? ` — ${c.variety}` : ""}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {(rotationGenericCrops.length > 0 || genericExtras.length > 0) && (
+                              <optgroup label="Rotation Categories">
+                                {rotationGenericCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                {genericExtras.map(c => <option key={c} value={c}>{c}</option>)}
+                              </optgroup>
+                            )}
+                          </>
+                        );
                         return (
                           <td key={y} style={{ background: bg }} className={`px-1 py-1 relative ${isCurrent ? "ring-1 ring-inset ring-green-200" : ""}`}>
                             {isSaving ? (
@@ -3513,31 +3719,72 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                 <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin" />
                               </div>
                             ) : (
-                              <select
-                                className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-green-400 ${isPast && cropName ? "font-medium text-gray-700" : "text-gray-600"}`}
-                                value={cropName}
-                                onChange={e => handleCellChange(field.id, y, e.target.value)}
-                              >
-                                <option value="">—</option>
-                                {farmCrops.length > 0 && (
-                                  <optgroup label="Farm Crops">
-                                    {farmCrops.map(c => (
-                                      <option key={c.id} value={c.name}>
-                                        {c.name}{c.variety ? ` (${c.variety})` : ""}
-                                      </option>
-                                    ))}
-                                  </optgroup>
+                              <div className="space-y-0.5">
+                                {/* Primary crop — hidden native arrow replaced with custom chevron */}
+                                <div className="relative">
+                                  <select
+                                    className={`w-full text-xs border-0 bg-transparent cursor-pointer rounded pl-1 pr-5 py-1 appearance-none focus:outline-none focus:ring-1 focus:ring-green-400 ${isPast && cropName ? "font-medium text-gray-700" : "text-gray-600"}`}
+                                    value={cropName}
+                                    onChange={e => handleCellChange(field.id, y, e.target.value)}
+                                  >
+                                    {cellOptions}
+                                  </select>
+                                  <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                                </div>
+                                {/* Secondary / catch crops */}
+                                {secondaryCrops.map(sc => (
+                                  <div key={sc.id}
+                                    className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium"
+                                    style={{ background: getCropColor(sc.cropName), color: "#374151" }}>
+                                    <span className="flex-1 truncate">{sc.cropName}</span>
+                                    <button
+                                      title="Remove catch crop"
+                                      onClick={() => void handleRemoveSecondaryCrop(sc.id)}
+                                      className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                                {/* Add catch crop trigger */}
+                                {cropName && !isAddingSecond && secondaryCrops.length < 2 && (
+                                  <button
+                                    title="Add catch / cover crop for this year"
+                                    onClick={() => setShowSecondCropFor(key)}
+                                    className="w-full text-[10px] text-gray-300 hover:text-green-500 text-left pl-1 leading-tight transition-colors"
+                                  >
+                                    + catch crop
+                                  </button>
                                 )}
-                                {genericExtras.length > 0 && (
-                                  <optgroup label="Rotation Categories">
-                                    {genericExtras.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </optgroup>
+                                {/* Inline add-secondary select */}
+                                {isAddingSecond && (
+                                  <div className="flex items-center gap-0.5">
+                                    <div className="relative flex-1">
+                                      <select
+                                        className="w-full text-[10px] border border-green-300 bg-white cursor-pointer rounded pl-1 pr-5 py-0.5 appearance-none focus:outline-none focus:ring-1 focus:ring-green-400 text-gray-600"
+                                        defaultValue=""
+                                        onChange={e => void handleAddSecondaryCrop(field.id, y, e.target.value)}
+                                      >
+                                        <option value="">Select…</option>
+                                        {actualFarmCrops.map(c => <option key={c.id} value={c.name}>{c.name}{c.variety ? ` — ${c.variety}` : ""}</option>)}
+                                        {rotationGenericCrops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                        {genericExtras.map(c => <option key={c} value={c}>{c}</option>)}
+                                      </select>
+                                      <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-gray-400 pointer-events-none" />
+                                    </div>
+                                    <button
+                                      onClick={() => setShowSecondCropFor(null)}
+                                      className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
                                 )}
-                              </select>
+                              </div>
                             )}
                             {hasRecord && !isSaving && (
                               <span
-                                className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400"
+                                className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400 pointer-events-none"
                                 title="Saved crop history record"
                               />
                             )}
@@ -3589,7 +3836,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
       {!isLoading && (
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
-            {[...farmCrops.map(c => c.name), ...genericExtras].slice(0, 16).map(c => (
+            {[...actualFarmCrops.map(c => c.name), ...rotationGenericCrops.map(c => c.name), ...genericExtras].slice(0, 16).map(c => (
               <span key={c} className="text-xs px-2 py-0.5 rounded border border-gray-200"
                 style={{ background: getCropColor(c) }}>
                 {c}
@@ -3600,8 +3847,11 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-green-400" /> Saved to crop history
             </span>
-            <span>Past years are editable if you need to correct historical records</span>
-            <span>Notes are saved to the current year's crop assignment</span>
+            <span className="flex items-center gap-1 text-amber-500">
+              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+              Editing past years cascades to harvest records, NMP calculations and reports — only use to correct data entry errors
+            </span>
+            <span>Notes save to the current year's crop assignment</span>
           </div>
         </div>
       )}
