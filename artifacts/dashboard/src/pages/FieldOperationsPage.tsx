@@ -219,6 +219,7 @@ export default function FieldOperationsPage() {
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("__all__");
+  const [filterField, setFilterField] = useState("__all__");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -328,8 +329,11 @@ export default function FieldOperationsPage() {
     if (filterType !== "__all__") {
       list = list.filter((r: any) => r.operationType === filterType);
     }
+    if (filterField !== "__all__") {
+      list = list.filter((r: any) => r.fieldName === filterField);
+    }
     return list;
-  }, [records, search, filterType, cropYear]);
+  }, [records, search, filterType, filterField, cropYear]);
 
   // Stats — all scoped to the selected crop year
   const thisYearRecords = records.filter((r: any) => isInCropYear(r.operationDate, cropYear));
@@ -546,6 +550,17 @@ export default function FieldOperationsPage() {
               className="pl-9"
             />
           </div>
+          <Select value={filterField} onValueChange={setFilterField}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="All fields" />
+            </SelectTrigger>
+            <SelectContent className="max-h-64 overflow-y-auto">
+              <SelectItem value="__all__">All fields</SelectItem>
+              {(fieldsQ.data ?? []).map((f: any) => (
+                <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-full sm:w-56">
               <Filter className="w-4 h-4 mr-2 text-gray-400 inline" />

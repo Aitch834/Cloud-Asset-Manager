@@ -307,6 +307,7 @@ export default function FieldInspectionsPage() {
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterField, setFilterField] = useState<string>("__all__");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [allYears, setAllYears] = useState(false);
   const [resolvedThisMonthMode, setResolvedThisMonthMode] = useState(false);
@@ -469,6 +470,7 @@ export default function FieldInspectionsPage() {
     }
     const matchSearch = !search || r.fieldName.toLowerCase().includes(search.toLowerCase()) || r.inspector?.toLowerCase().includes(search.toLowerCase());
     const matchAction = filterAction === "all" || r.actionRequired === filterAction;
+    const matchField = filterField === "__all__" || r.fieldName === filterField;
     const matchStatus = filterStatus === "all"
       ? true
       : filterStatus === "open"
@@ -478,7 +480,7 @@ export default function FieldInspectionsPage() {
           : filterStatus === "monitor"
             ? r.actionRequired === "monitor" && !r.isResolved
             : true;
-    return matchSearch && matchAction && matchStatus;
+    return matchSearch && matchAction && matchField && matchStatus;
   });
 
   const resolveMutation = useMutation({
@@ -627,6 +629,17 @@ export default function FieldInspectionsPage() {
                 className="pl-9"
               />
             </div>
+            <Select value={filterField} onValueChange={setFilterField}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="All fields" />
+              </SelectTrigger>
+              <SelectContent className="max-h-64 overflow-y-auto">
+                <SelectItem value="__all__">All fields</SelectItem>
+                {registeredFields.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setAllYears(false); setResolvedThisMonthMode(false); }}>
               <SelectTrigger className="w-44">
                 <SelectValue placeholder="Status" />
