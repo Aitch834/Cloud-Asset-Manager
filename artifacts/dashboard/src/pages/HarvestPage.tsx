@@ -221,6 +221,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const { displayName: currentUserName } = useUserRole();
   const [search, setSearch] = useState("");
+  const [filterField, setFilterField] = useState("__all__");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
@@ -307,8 +308,19 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
 
   const vehicleEquipment: any[] = equipment.filter((e: any) => VEHICLE_TYPES.has(e.type));
 
+  // Unique field names for the current crop year, for the dropdown
+  const fieldNamesInYear = Array.from(
+    new Set(
+      harvests
+        .filter((r: any) => isInCropYear(r.harvestDate, cropYear))
+        .map((r: any) => r.field?.name)
+        .filter(Boolean)
+    )
+  ).sort() as string[];
+
   const filtered = harvests.filter((r: any) => {
     if (!isInCropYear(r.harvestDate, cropYear)) return false;
+    if (filterField !== "__all__" && r.field?.name !== filterField) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -342,7 +354,18 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <Select value={filterField} onValueChange={v => { setFilterField(v); }}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All fields" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64 overflow-y-auto">
+            <SelectItem value="__all__">All fields</SelectItem>
+            {fieldNamesInYear.map(name => (
+              <SelectItem key={name} value={name}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <CropYearSelector value={cropYear} onChange={v => { setCropYear(v); setFilterField("__all__"); }} />
         <Button size="sm" onClick={() => { setForm({ ...emptyForm, recordedBy: currentUserName || "" }); setEditRecord(null); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Harvest
         </Button>
