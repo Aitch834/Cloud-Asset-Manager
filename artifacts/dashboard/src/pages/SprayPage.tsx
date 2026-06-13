@@ -445,6 +445,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const bbchStages = useLookupStrings("spray_bbch_stages");
 
   const [search, setSearch] = useState<string>(initialSearch ?? "");
+  const [filterField, setFilterField] = useState("__all__");
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -685,8 +686,18 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  const fieldNamesInYear = Array.from(
+    new Set(
+      applications
+        .filter((r: any) => isInCropYear(r.applicationDate, cropYear))
+        .map((r: any) => r.fieldName)
+        .filter(Boolean)
+    )
+  ).sort() as string[];
+
   const filtered = applications.filter((r: any) => {
     if (!isInCropYear(r.applicationDate, cropYear)) return false;
+    if (filterField !== "__all__" && r.fieldName !== filterField) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return r.fieldName?.toLowerCase().includes(s) || r.productName?.toLowerCase().includes(s) || r.operatorName?.toLowerCase().includes(s) || r.reasonForApplication?.toLowerCase().includes(s);
@@ -695,12 +706,23 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   return (
     <>
       {historyField && <FieldSprayHistoryDialog field={historyField} applications={applications} onClose={() => setHistoryField(null)} />}
-      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search applications..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <Select value={filterField} onValueChange={setFilterField}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All fields" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64 overflow-y-auto">
+            <SelectItem value="__all__">All fields</SelectItem>
+            {fieldNamesInYear.map(name => (
+              <SelectItem key={name} value={name}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <CropYearSelector value={cropYear} onChange={v => { setCropYear(v); setFilterField("__all__"); }} />
         <Button size="sm" onClick={() => { setForm(emptyForm); setDeliveryStockItemId(null); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Application</Button>
       </div>
 
@@ -2713,6 +2735,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [soilAutoFilled, setSoilAutoFilled] = useState(false);
   const [bufferAutoFilled, setBufferAutoFilled] = useState(false);
+  const [filterField, setFilterField] = useState("__all__");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewRecord, setReviewRecord] = useState<any>(null);
   const [reviewForm, setReviewForm] = useState<{ confirmedOutcome: string; reviewNotes: string }>({ confirmedOutcome: "full_buffer_maintained", reviewNotes: "" });
@@ -2765,6 +2788,11 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     queryFn: () => fetch(`/api/farms/${farmId}/staff`).then(r => r.json()).then(d => d.staff ?? []),
     enabled: !!farmId,
   });
+
+  const lerapFilterFields = (() => {
+    const ids = Array.from(new Set(records.map((r: any) => r.fieldId).filter((id: any) => id != null))) as number[];
+    return ids.map((id: number) => fields.find((f: any) => f.id === id)).filter(Boolean).sort((a: any, b: any) => a.name.localeCompare(b.name));
+  })();
 
   function openAdd() { setEditing(null); setForm({ step: "3", outcome: "pending" }); setCropAutoFilled(false); setSoilAutoFilled(false); setBufferAutoFilled(false); setOpen(true); }
   function openEdit(r: any) { setEditing(r); setForm({ ...r }); setCropAutoFilled(false); setSoilAutoFilled(false); setBufferAutoFilled(false); setOpen(true); }
@@ -2851,12 +2879,30 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
         </div>
       ) : (
         <div className="overflow-x-auto">
+          {lerapFilterFields.length > 1 && (
+            <div className="flex items-center gap-2 mb-3">
+              <Select value={filterField} onValueChange={setFilterField}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All fields" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64 overflow-y-auto">
+                  <SelectItem value="__all__">All fields</SelectItem>
+                  {lerapFilterFields.map((f: any) => (
+                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {filterField !== "__all__" && (
+                <span className="text-xs text-gray-500">Filtered to 1 field</span>
+              )}
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead className="text-xs text-gray-500 bg-gray-50">
               <tr>{["Ref","Date","Field","Product","Assessment Level","Watercourse","Std. Buffer","LERAP Buffer","Outcome","Valid Until","Assessor",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
-              {records.map((r: any) => (
+              {records.filter((r: any) => filterField === "__all__" || r.fieldId === Number(filterField)).map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">LERAP-{r.id}</td>
                   <td className="px-3 py-2">{fmtDate(r.assessmentDate)}</td>
