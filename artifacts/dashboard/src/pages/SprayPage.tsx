@@ -346,6 +346,7 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
 // ─── Field Spray History Dialog ────────────────────────────────────────────────
 function FieldSprayHistoryDialog({ field, applications, onClose }: { field: { id: number; name: string }; applications: any[]; onClose: () => void }) {
   const [yearFilter, setYearFilter] = React.useState<number | "all">("all");
+  const [expandedId, setExpandedId] = React.useState<number | null>(null);
   const currentYear = new Date().getFullYear();
   const recentYears = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
   const fieldApps = applications.filter((a: any) => a.fieldId === field.id);
@@ -383,24 +384,69 @@ function FieldSprayHistoryDialog({ field, applications, onClose }: { field: { id
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Product", "Crop", "Rate", "Area (ha)", "Operator", "Reason", "Batch"].map(h => (
+                  {["Date", "Product", "Crop", "Rate", "Area (ha)", "Operator", "Reason", "Batch", ""].map(h => (
                     <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r: any, i: number) => (
-                  <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280" }}>{fmtDate(r.applicationDate)}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#1e40af" }}>{r.productName || "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", color: "#065f46" }}>{r.targetCrop || "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.areaSprayedHa || "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.operatorName || "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reasonForApplication || "—"}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151" }}>{r.batchNumber || "—"}</td>
-                  </tr>
-                ))}
+                {filtered.map((r: any, i: number) => {
+                  const isExpanded = expandedId === r.id;
+                  const bg = i % 2 === 0 ? "#fff" : "#fafafa";
+                  const hasExtra = !!(r.reasonForApplication || r.notes || r.growthStage || r.waterVolumeLitres != null || r.windSpeedKmh != null || r.temperatureC != null || r.bufferZoneMetres != null || r.certificateNumber || r.lotNumber);
+                  return (
+                    <React.Fragment key={r.id}>
+                      <tr style={{ borderBottom: isExpanded ? "none" : "1px solid #f3f4f6", background: bg }}>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280" }}>{fmtDate(r.applicationDate)}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#1e40af" }}>{r.productName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: "#065f46" }}>{r.targetCrop || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.areaSprayedHa || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.operatorName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reasonForApplication || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#374151" }}>{r.batchNumber || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.5rem", textAlign: "center" }}>
+                          {hasExtra && (
+                            <button
+                              onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: "2px 4px", borderRadius: 4, display: "flex", alignItems: "center" }}
+                              title={isExpanded ? "Collapse" : "Show full details"}
+                            >
+                              <ChevronDown size={15} style={{ transition: "transform 0.15s", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr style={{ background: bg, borderBottom: "1px solid #f3f4f6" }}>
+                          <td colSpan={9} style={{ padding: "0 0.75rem 0.75rem 0.75rem" }}>
+                            <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem 1rem", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem 1.5rem" }}>
+                              {r.reasonForApplication && (
+                                <div style={{ gridColumn: "1 / -1" }}>
+                                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Reason for Application</span>
+                                  <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151", lineHeight: 1.5 }}>{r.reasonForApplication}</p>
+                                </div>
+                              )}
+                              {r.notes && (
+                                <div style={{ gridColumn: "1 / -1" }}>
+                                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Notes</span>
+                                  <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151", lineHeight: 1.5 }}>{r.notes}</p>
+                                </div>
+                              )}
+                              {r.growthStage && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Growth Stage</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151" }}>{r.growthStage}</p></div>}
+                              {r.waterVolumeLitres != null && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Water Volume</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151" }}>{r.waterVolumeLitres} L/ha</p></div>}
+                              {r.temperatureC != null && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Temperature</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151" }}>{r.temperatureC}°C</p></div>}
+                              {(r.windSpeedKmh != null || r.windDirection) && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Wind</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151" }}>{[r.windSpeedKmh != null ? `${r.windSpeedKmh} km/h` : null, r.windDirection].filter(Boolean).join(" · ")}</p></div>}
+                              {r.bufferZoneMetres != null && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Buffer Zone</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151" }}>{r.bufferZoneMetres} m</p></div>}
+                              {r.certificateNumber && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Certificate No.</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151", fontFamily: "monospace" }}>{r.certificateNumber}</p></div>}
+                              {r.lotNumber && <div><span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Lot No.</span><p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#374151", fontFamily: "monospace" }}>{r.lotNumber}</p></div>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}
