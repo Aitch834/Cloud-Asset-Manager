@@ -27,6 +27,7 @@ import {
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
+import { FieldSchematicMap } from "@/components/fields/FieldSchematicMap";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +48,9 @@ interface FieldRecord {
   soilType?: string;
   currentUse?: string;
   isActive?: boolean;
+  isNvz?: boolean;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
   tenureType?: string | null;
   landlordSupplierId?: number | null;
   tenancyStartDate?: string | null;
@@ -1090,7 +1094,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure" | "rotation">("fields");
+  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -1294,6 +1298,7 @@ export default function FieldsPage() {
         <TabButton active={tab === "seed"} onClick={() => setTab("seed")}>Seed Records</TabButton>
         <TabButton active={tab === "tenure"} onClick={() => setTab("tenure")}>Land Tenure</TabButton>
         <TabButton active={tab === "rotation"} onClick={() => setTab("rotation")}>Crop Rotation</TabButton>
+        <TabButton active={tab === "map"} onClick={() => setTab("map")}>Field Map</TabButton>
       </TabBar>
 
       {/* ── FIELDS TAB ── */}
@@ -2884,6 +2889,16 @@ export default function FieldsPage() {
 
       {/* ── CROP ROTATION PLANNER TAB ── */}
       {tab === "rotation" && <CropRotationPlanner farmId={farmId} fields={fields} fieldsLoading={fieldsLoading} />}
+
+      {/* ── FIELD MAP TAB ── */}
+      {tab === "map" && (
+        <FieldSchematicMap
+          fields={fields}
+          currentCropByField={currentCropByField as Record<number, { fieldId: number; cropName?: string; season?: string; year?: number; plantingDate?: string; expectedHarvestDate?: string }>}
+          currentLandUseByField={currentLandUseByField as Record<number, { fieldId: number; landUse: string }>}
+          selectedYear={selectedYear}
+        />
+      )}
 
       {/* ── LAND TENURE REGISTER TAB ── */}
       {tab === "tenure" && (() => {
