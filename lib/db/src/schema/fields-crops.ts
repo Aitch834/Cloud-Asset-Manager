@@ -51,8 +51,15 @@ export const cropsTable = pgTable("crops", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   name: text("name").notNull(),
-  variety: text("variety"),
   category: text("category"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cropVarietiesTable = pgTable("crop_varieties", {
+  id: serial("id").primaryKey(),
+  cropId: integer("crop_id").notNull().references(() => cropsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  variety: text("variety"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -69,7 +76,7 @@ export const cropDocumentsTable = pgTable("crop_documents", {
 export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   id: serial("id").primaryKey(),
   fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
-  cropId: integer("crop_id").notNull().references(() => cropsTable.id),
+  varietyId: integer("variety_id").notNull().references(() => cropVarietiesTable.id),
   plantingDate: timestamp("planting_date", { withTimezone: true }),
   expectedHarvestDate: timestamp("expected_harvest_date", { withTimezone: true }),
   seedRate: numeric("seed_rate", { precision: 10, scale: 2 }),

@@ -7,7 +7,7 @@
 import { db } from "@workspace/db";
 import {
   farmsTable, tenantsTable, farmMembersTable,
-  fieldsTable, cropsTable, fieldCropAssignmentsTable, harvestRecordsTable,
+  fieldsTable, cropsTable, cropVarietiesTable, fieldCropAssignmentsTable, harvestRecordsTable,
   storageLocationsTable, merchantStorageChargesTable, seedDrillingRecordsTable, fieldInspectionsTable, fieldOperationsTable,
   sprayProductsTable, sprayApplicationsTable,
   nutrientManagementPlansTable, nmpFieldEntriesTable, nvzFertiliserApplicationsTable,
@@ -224,29 +224,40 @@ async function seedFields(farmId: number) {
 async function seedCropsAndAssignments(farmId: number) {
   const existing = await db.select().from(cropsTable).where(eq(cropsTable.farmId, farmId)).limit(1);
   if (existing.length > 0) return;
-  const crops = await db.insert(cropsTable).values([
-    { farmId, name: "Winter Wheat (KWS Zyatt)", category: "cereal", variety: "KWS Zyatt" },
-    { farmId, name: "Winter OSR (Architect)", category: "oilseed", variety: "Architect" },
-    { farmId, name: "Spring Barley (Laureate)", category: "cereal", variety: "Laureate" },
-    { farmId, name: "Sugar Beet (Alize KWS)", category: "root_crop", variety: "Alize KWS" },
-    { farmId, name: "Winter Barley (KWS Orwell)", category: "cereal", variety: "KWS Orwell" },
-    { farmId, name: "Spring Field Beans (Tundra)", category: "pulse", variety: "Tundra" },
+  const cropTypes = await db.insert(cropsTable).values([
+    { farmId, name: "Winter Wheat", category: "cereal" },
+    { farmId, name: "Winter OSR", category: "oilseed" },
+    { farmId, name: "Spring Barley", category: "cereal" },
+    { farmId, name: "Sugar Beet", category: "root_crop" },
+    { farmId, name: "Winter Barley", category: "cereal" },
+    { farmId, name: "Spring Field Beans", category: "pulse" },
   ]).returning();
-  const [ww, osr, sb, beet, wb, fb] = crops;
+  const [wwType, osrType, sbType, beetType, wbType, fbType] = cropTypes;
+  if (!wwType || !osrType || !sbType || !beetType || !wbType || !fbType) return;
+
+  const varieties = await db.insert(cropVarietiesTable).values([
+    { farmId, cropId: wwType.id, variety: "KWS Zyatt" },
+    { farmId, cropId: osrType.id, variety: "Architect" },
+    { farmId, cropId: sbType.id, variety: "Laureate" },
+    { farmId, cropId: beetType.id, variety: "Alize KWS" },
+    { farmId, cropId: wbType.id, variety: "KWS Orwell" },
+    { farmId, cropId: fbType.id, variety: "Tundra" },
+  ]).returning();
+  const [ww, osr, sb, beet, wb, fb] = varieties;
 
   const fields = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId));
   const [hf, nb, sm, lf, bf, ta, tr, nd] = fields;
   if (!hf || !nb || !sm || !lf || !bf || !ta || !tr || !nd || !ww || !osr || !sb || !beet || !wb || !fb) return;
 
   await db.insert(fieldCropAssignmentsTable).values([
-    { fieldId: hf.id, cropId: ww.id, plantingDate: d(`${prevYr}-10-08`), expectedHarvestDate: d(`${yr}-08-10`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
-    { fieldId: nb.id, cropId: osr.id, plantingDate: d(`${prevYr}-08-22`), expectedHarvestDate: d(`${yr}-07-15`), seedRate: "3.5", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
-    { fieldId: sm.id, cropId: sb.id, plantingDate: d(`${yr}-04-05`), expectedHarvestDate: d(`${yr}-08-20`), seedRate: "175", seedUnit: "kg/ha", season: `${yr}`, year: yr },
-    { fieldId: lf.id, cropId: ww.id, plantingDate: d(`${prevYr}-10-12`), expectedHarvestDate: d(`${yr}-08-12`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
-    { fieldId: bf.id, cropId: beet.id, plantingDate: d(`${yr}-04-15`), expectedHarvestDate: d(`${yr}-10-01`), seedRate: "100000", seedUnit: "seeds/ha", season: `${yr}`, year: yr },
-    { fieldId: ta.id, cropId: fb.id, plantingDate: d(`${yr}-03-01`), expectedHarvestDate: d(`${yr}-09-15`), seedRate: "200", seedUnit: "kg/ha", season: `${yr}`, year: yr },
-    { fieldId: tr.id, cropId: wb.id, plantingDate: d(`${prevYr}-10-02`), expectedHarvestDate: d(`${yr}-07-25`), seedRate: "165", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
-    { fieldId: nd.id, cropId: ww.id, plantingDate: d(`${prevYr}-10-20`), expectedHarvestDate: d(`${yr}-08-18`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
+    { fieldId: hf.id, varietyId: ww.id, plantingDate: d(`${prevYr}-10-08`), expectedHarvestDate: d(`${yr}-08-10`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
+    { fieldId: nb.id, varietyId: osr.id, plantingDate: d(`${prevYr}-08-22`), expectedHarvestDate: d(`${yr}-07-15`), seedRate: "3.5", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
+    { fieldId: sm.id, varietyId: sb.id, plantingDate: d(`${yr}-04-05`), expectedHarvestDate: d(`${yr}-08-20`), seedRate: "175", seedUnit: "kg/ha", season: `${yr}`, year: yr },
+    { fieldId: lf.id, varietyId: ww.id, plantingDate: d(`${prevYr}-10-12`), expectedHarvestDate: d(`${yr}-08-12`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
+    { fieldId: bf.id, varietyId: beet.id, plantingDate: d(`${yr}-04-15`), expectedHarvestDate: d(`${yr}-10-01`), seedRate: "100000", seedUnit: "seeds/ha", season: `${yr}`, year: yr },
+    { fieldId: ta.id, varietyId: fb.id, plantingDate: d(`${yr}-03-01`), expectedHarvestDate: d(`${yr}-09-15`), seedRate: "200", seedUnit: "kg/ha", season: `${yr}`, year: yr },
+    { fieldId: tr.id, varietyId: wb.id, plantingDate: d(`${prevYr}-10-02`), expectedHarvestDate: d(`${yr}-07-25`), seedRate: "165", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
+    { fieldId: nd.id, varietyId: ww.id, plantingDate: d(`${prevYr}-10-20`), expectedHarvestDate: d(`${yr}-08-18`), seedRate: "180", seedUnit: "kg/ha", season: `${prevYr}/${yr}`, year: prevYr },
   ]);
 
   await db.insert(seedDrillingRecordsTable).values([

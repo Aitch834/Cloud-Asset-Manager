@@ -62,9 +62,10 @@ interface FieldRecord {
 
 interface CropRecord {
   id: number;
+  cropId?: number;
   name: string;
-  variety?: string;
-  category?: string;
+  variety?: string | null;
+  category?: string | null;
 }
 
 interface CropDocRecord {
@@ -79,8 +80,10 @@ interface CropDocRecord {
 interface FieldCropAssignment {
   id: number;
   fieldId: number;
-  cropId: number;
+  varietyId: number;
+  cropId?: number;
   cropName: string;
+  variety?: string | null;
   plantingDate?: string;
   expectedHarvestDate?: string;
   actualHarvestDate?: string | null;
@@ -91,7 +94,7 @@ interface FieldCropAssignment {
 
 interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; }
 interface CropFormData { name: string; variety: string; category: string; }
-interface AssignCropFormData { cropId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
+interface AssignCropFormData { varietyId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
 
 interface LandUseRecord {
   id: number;
@@ -294,8 +297,9 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, landUseRe
   const rows: FieldUseRow[] = fields.map(f => {
     const asgn = assignments.find(a => a.fieldId === f.id && (a.year === year || (!a.year && year === CURRENT_YEAR)));
     if (asgn) {
-      const crop = crops.find(c => c.id === asgn.cropId);
-      return { fieldId: f.id, fieldName: f.name, fieldReference: f.fieldReference, soilType: f.soilType, areaHectares: f.areaHectares, type: "crop", cropName: crop?.name ?? "—", season: asgn.season, plantingDate: asgn.plantingDate, expectedHarvestDate: asgn.expectedHarvestDate, actualHarvestDate: asgn.actualHarvestDate, notes: asgn.notes };
+      const cropVar = crops.find(c => c.id === asgn.varietyId);
+      const cropName = cropVar ? (cropVar.name + (cropVar.variety ? ` — ${cropVar.variety}` : "")) : (asgn.cropName ?? "—");
+      return { fieldId: f.id, fieldName: f.name, fieldReference: f.fieldReference, soilType: f.soilType, areaHectares: f.areaHectares, type: "crop", cropName, season: asgn.season, plantingDate: asgn.plantingDate, expectedHarvestDate: asgn.expectedHarvestDate, actualHarvestDate: asgn.actualHarvestDate, notes: asgn.notes };
     }
     const lu = landUseRecords.find(r => r.fieldId === f.id && r.year === year);
     if (lu) {
@@ -1154,13 +1158,16 @@ export default function FieldsPage() {
   const fieldHarvests: FieldHarvestRecord[] = fieldHarvestsQ.data ?? [];
 
   const [isUploadingCropDoc, setIsUploadingCropDoc] = useState(false);
+  const expandedCropTypeId = expandedVarietyId
+    ? (cropsData?.records as CropRecord[] | undefined)?.find(c => c.id === expandedVarietyId)?.cropId ?? null
+    : null;
   const cropDocsQ = useQuery<CropDocRecord[]>({
-    queryKey: ["crop-docs", safeFarmId, expandedVarietyId],
+    queryKey: ["crop-docs", safeFarmId, expandedCropTypeId],
     queryFn: () =>
-      fetch(`/api/farms/${safeFarmId}/crops/${expandedVarietyId}/documents`)
+      fetch(`/api/farms/${safeFarmId}/crops/${expandedCropTypeId}/documents`)
         .then(r => r.json())
         .then((d: { documents?: CropDocRecord[] }) => d.documents ?? []),
-    enabled: !!farmId && !!expandedVarietyId,
+    enabled: !!farmId && !!expandedCropTypeId,
   });
   const cropDocs: CropDocRecord[] = cropDocsQ.data ?? [];
 
@@ -1254,7 +1261,7 @@ export default function FieldsPage() {
   const onSubmitAssign = (values: AssignCropFormData) => {
     if (!assignForField) return;
     assignCrop(
-      { farmId, data: { ...values, fieldId: assignForField.id, cropId: Number(values.cropId), year: CURRENT_YEAR, season: values.season } },
+      { farmId, data: { ...values, fieldId: assignForField.id, varietyId: Number(values.varietyId), year: CURRENT_YEAR, season: values.season } },
       { onSuccess: () => { setAssignForField(null); assignForm.reset(); } }
     );
   };
@@ -1277,8 +1284,8 @@ export default function FieldsPage() {
     });
   };
 
-  const cropSeasonAssignments = (cropId: number) => assignments.filter(a =>
-    a.cropId === cropId &&
+  const cropSeasonAssignments = (varietyId: number) => assignments.filter(a =>
+    a.varietyId === varietyId &&
     (selectedYear === CURRENT_YEAR ? (a.year === CURRENT_YEAR || !a.year) : a.year === selectedYear)
   );
 
@@ -1802,8 +1809,10 @@ export default function FieldsPage() {
                                             <button
                                               onClick={async () => {
                                                 if (!confirm("Remove this document?")) return;
-                                                await fetch(`/api/farms/${safeFarmId}/crops/${crop.id}/documents/${doc.id}`, { method: "DELETE" });
-                                                queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, crop.id] });
+                                                const cropTypeId = crop.cropId ?? null;
+                                                if (!cropTypeId) return;
+                                                await fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents/${doc.id}`, { method: "DELETE" });
+                                                queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, cropTypeId] });
                                               }}
                                               className="flex-shrink-0 p-1 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors"
                                               title="Remove"
@@ -1827,16 +1836,18 @@ export default function FieldsPage() {
                                         onChange={async e => {
                                           const file = e.target.files?.[0];
                                           if (!file) return;
+                                          const cropTypeId = crop.cropId ?? null;
+                                          if (!cropTypeId) return;
                                           setIsUploadingCropDoc(true);
                                           try {
                                             const result = await uploadFile(file);
                                             if (!result) return;
-                                            await fetch(`/api/farms/${safeFarmId}/crops/${crop.id}/documents`, {
+                                            await fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents`, {
                                               method: "POST",
                                               headers: { "Content-Type": "application/json" },
                                               body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, ""), documentUrl: result.objectPath, documentName: file.name }),
                                             });
-                                            queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, crop.id] });
+                                            queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, cropTypeId] });
                                             e.target.value = "";
                                           } finally {
                                             setIsUploadingCropDoc(false);
@@ -2748,7 +2759,7 @@ export default function FieldsPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Crop</label>
                 <select
-                  {...assignForm.register("cropId", { required: true, valueAsNumber: true })}
+                  {...assignForm.register("varietyId", { required: true, valueAsNumber: true })}
                   className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
                 >
                   <option value="">Select a crop...</option>
@@ -3216,9 +3227,9 @@ const CROP_CATEGORY: Record<string, string> = {
   "Cover Crop / Break": "break-crops", "Grass Ley": "grass", "Fallow / SFI": "uncropped",
 };
 
-type CropRec = { id: number; name: string; variety?: string | null; category?: string | null };
+type CropRec = { id: number; cropId?: number; name: string; variety?: string | null; category?: string | null };
 type AssignmentRec = {
-  id: number; fieldId: number; cropId: number; cropName: string;
+  id: number; fieldId: number; varietyId: number; cropId?: number; cropName: string; variety?: string | null;
   year: number | null; season: string | null; notes: string | null;
 };
 
@@ -3299,7 +3310,9 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
   const getCellCrop = (fieldId: number, year: number): string => {
     const key = `${fieldId}:${year}`;
     if (key in localOverrides) return localOverrides[key] ?? "";
-    return assignmentMap[key]?.[0]?.cropName ?? "";
+    const a = assignmentMap[key]?.[0];
+    if (!a) return "";
+    return a.cropName + (a.variety ? ` — ${a.variety}` : "");
   };
 
   const getSecondaryCrops = (fieldId: number, year: number): AssignmentRec[] =>
@@ -3324,13 +3337,18 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
   const anyOsrWarning = fieldMetrics.some(m => m.osrTooClose);
 
-  const findOrCreateCrop = async (name: string): Promise<number | null> => {
-    const existing = farmCrops.find(c => c.name.toLowerCase() === name.toLowerCase());
-    if (existing) return existing.id;
+  const resolveVarietyId = async (displayStr: string): Promise<number | null> => {
+    const matched = farmCrops.find(c => {
+      const combined = c.name + (c.variety ? ` — ${c.variety}` : "");
+      return combined === displayStr;
+    });
+    if (matched) return matched.id;
+    const byName = farmCrops.find(c => c.name.toLowerCase() === displayStr.toLowerCase() && !c.variety);
+    if (byName) return byName.id;
     const res = await fetch(`/api/farms/${farmId}/crops`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, category: CROP_CATEGORY[name] ?? "other" }),
+      body: JSON.stringify({ name: displayStr, category: CROP_CATEGORY[displayStr] ?? "rotation-generic" }),
     });
     if (!res.ok) return null;
     const data = await res.json() as { record?: { id: number } };
@@ -3368,23 +3386,23 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
           if (!res.ok) throw new Error("Delete failed");
         }
       } else if (existing) {
-        const cropId = await findOrCreateCrop(cropName);
-        if (!cropId) throw new Error("Could not resolve crop");
-        if (cropId !== existing.cropId) {
+        const varietyId = await resolveVarietyId(cropName);
+        if (!varietyId) throw new Error("Could not resolve crop");
+        if (varietyId !== existing.varietyId) {
           const res = await fetch(`/api/farms/${farmId}/field-crops/${existing.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cropId }),
+            body: JSON.stringify({ varietyId }),
           });
           if (!res.ok) throw new Error("Update failed");
         }
       } else {
-        const cropId = await findOrCreateCrop(cropName);
-        if (!cropId) throw new Error("Could not resolve crop");
+        const varietyId = await resolveVarietyId(cropName);
+        if (!varietyId) throw new Error("Could not resolve crop");
         const res = await fetch(`/api/farms/${farmId}/field-crops`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fieldId, cropId, year, season: String(year) }),
+          body: JSON.stringify({ fieldId, varietyId, year, season: String(year) }),
         });
         if (!res.ok) throw new Error("Create failed");
       }
@@ -3408,12 +3426,12 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
   const handleAddSecondaryCrop = async (fieldId: number, year: number, cropName: string) => {
     if (!cropName) { setShowSecondCropFor(null); return; }
-    const cropId = await findOrCreateCrop(cropName);
-    if (!cropId) return;
+    const varietyId = await resolveVarietyId(cropName);
+    if (!varietyId) return;
     const res = await fetch(`/api/farms/${farmId}/field-crops`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fieldId, cropId, year, season: String(year) }),
+      body: JSON.stringify({ fieldId, varietyId, year, season: String(year) }),
     });
     if (!res.ok) { toast({ title: "Failed to add catch crop", variant: "destructive" }); return; }
     await qc.invalidateQueries({ queryKey: ["field-crops-planner", farmId] });
@@ -3514,7 +3532,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                       {c.name}
                       <button
                         title="Remove"
-                        onClick={() => void handleDeleteCategory(c.id)}
+                        onClick={() => void handleDeleteCategory(c.cropId ?? c.id)}
                         className="hover:text-red-500 transition-colors"
                       >
                         <X className="w-2.5 h-2.5" />
@@ -3659,7 +3677,6 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                         const bg = cropName ? getCropColor(cropName) : (isPast ? "#f8fafc" : "#fff");
                         const secondaryCrops = getSecondaryCrops(field.id, y);
                         const isAddingSecond = showSecondCropFor === key;
-                        const primaryCropObj = actualFarmCrops.find(c => c.name === cropName);
                         return (
                           <td key={y} style={{ background: bg }} className={`px-2 py-1.5 relative${isCurrent ? " ring-1 ring-inset ring-green-200" : ""}`}>
                             {isSaving ? (
@@ -3672,17 +3689,11 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                 {cropName ? (
                                   <div>
                                     <div className="text-xs font-medium text-gray-700 leading-snug">{cropName}</div>
-                                    {primaryCropObj?.variety && (
-                                      <div className="text-[10px] text-gray-400 mt-0.5">{primaryCropObj.variety}</div>
-                                    )}
-                                    {secondaryCrops.map(sc => {
-                                      const scObj = actualFarmCrops.find(c => c.name === sc.cropName);
-                                      return (
-                                        <div key={sc.id} className="text-[10px] text-gray-400 mt-0.5 italic">
-                                          + {sc.cropName}{scObj?.variety ? ` — ${scObj.variety}` : ""}
-                                        </div>
-                                      );
-                                    })}
+                                    {secondaryCrops.map(sc => (
+                                      <div key={sc.id} className="text-[10px] text-gray-400 mt-0.5 italic">
+                                        + {sc.cropName}{sc.variety ? ` — ${sc.variety}` : ""}
+                                      </div>
+                                    ))}
                                   </div>
                                 ) : (
                                   <span className="text-gray-300 text-xs select-none">—</span>
@@ -3704,7 +3715,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                     >
                                       <option value="">— select crop —</option>
                                       {actualFarmCrops.map(c => (
-                                        <option key={c.id} value={c.name}>
+                                        <option key={c.id} value={c.name + (c.variety ? ` — ${c.variety}` : "")}>
                                           {c.name}{c.variety ? ` — ${c.variety}` : ""}
                                         </option>
                                       ))}
@@ -3723,8 +3734,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                 )}
                                 {/* Secondary / catch crops */}
                                 {secondaryCrops.map(sc => {
-                                  const scObj = actualFarmCrops.find(c => c.name === sc.cropName);
-                                  const scLabel = scObj?.variety ? `${sc.cropName} — ${scObj.variety}` : sc.cropName;
+                                  const scLabel = sc.cropName + (sc.variety ? ` — ${sc.variety}` : "");
                                   return (
                                     <div key={sc.id}
                                       className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium"
@@ -3761,7 +3771,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                       >
                                         <option value="">Select crop…</option>
                                         {actualFarmCrops.map(c => (
-                                          <option key={c.id} value={c.name}>
+                                          <option key={c.id} value={c.name + (c.variety ? ` — ${c.variety}` : "")}>
                                             {c.name}{c.variety ? ` — ${c.variety}` : ""}
                                           </option>
                                         ))}

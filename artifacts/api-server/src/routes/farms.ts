@@ -14,6 +14,7 @@ import {
   fieldTenureDocumentsTable,
   fieldBoundariesTable,
   cropsTable,
+  cropVarietiesTable,
   cropDocumentsTable,
   fieldCropAssignmentsTable,
   fieldSeasonLandUseTable,
@@ -1024,14 +1025,37 @@ router.post("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTena
 router.get("/farms/:farmId/crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(cropsTable).where(eq(cropsTable.farmId, farmId)).orderBy(desc(cropsTable.createdAt));
+  const records = await db
+    .select({
+      id: cropVarietiesTable.id,
+      cropId: cropsTable.id,
+      farmId: cropsTable.farmId,
+      name: cropsTable.name,
+      category: cropsTable.category,
+      variety: cropVarietiesTable.variety,
+      createdAt: cropVarietiesTable.createdAt,
+    })
+    .from(cropVarietiesTable)
+    .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
+    .where(eq(cropsTable.farmId, farmId))
+    .orderBy(asc(cropsTable.name), asc(cropVarietiesTable.createdAt));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(cropsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const { name, category, variety } = req.body as { name?: string; category?: string; variety?: string };
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  let [cropType] = await db.select({ id: cropsTable.id }).from(cropsTable)
+    .where(and(eq(cropsTable.farmId, farmId), sql`LOWER(${cropsTable.name}) = LOWER(${name})`)).limit(1);
+  if (!cropType) {
+    [cropType] = await db.insert(cropsTable).values({ farmId, name, category: category ?? null }).returning({ id: cropsTable.id });
+  } else if (category) {
+    await db.update(cropsTable).set({ category }).where(eq(cropsTable.id, cropType.id));
+  }
+  const [varietyRow] = await db.insert(cropVarietiesTable).values({ cropId: cropType.id, farmId, variety: variety ?? null }).returning();
+  const record = { id: varietyRow.id, cropId: cropType.id, farmId, name, category: category ?? null, variety: varietyRow.variety, createdAt: varietyRow.createdAt };
   res.status(201).json({ record });
 });
 
@@ -1040,7 +1064,13 @@ router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cropsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cropsTable.id, recordId), eq(cropsTable.farmId, farmId))).returning();
+  const { name, category } = req.body as { name?: string; category?: string };
+  const updateData: Record<string, unknown> = {};
+  if (name) updateData.name = name;
+  if (category !== undefined) updateData.category = category ?? null;
+  if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "No updatable fields" }); return; }
+  const [record] = await db.update(cropsTable).set(updateData).where(and(eq(cropsTable.id, recordId), eq(cropsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Crop not found" }); return; }
   res.json({ record });
 });
 
@@ -1101,12 +1131,14 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       fieldName: fieldsTable.name,
       fieldReference: fieldsTable.fieldReference,
       areaHectares: fieldsTable.areaHectares,
-      cropId: fieldCropAssignmentsTable.cropId,
+      varietyId: fieldCropAssignmentsTable.varietyId,
+      cropId: cropVarietiesTable.cropId,
       cropName: cropsTable.name,
       plantingDate: fieldCropAssignmentsTable.plantingDate,
       expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
       season: fieldCropAssignmentsTable.season,
       year: fieldCropAssignmentsTable.year,
+      variety: cropVarietiesTable.variety,
       notes: fieldCropAssignmentsTable.notes,
       createdAt: fieldCropAssignmentsTable.createdAt,
       // Earliest actual harvest date recorded against this assignment, if any.
@@ -1119,7 +1151,8 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
     })
     .from(fieldCropAssignmentsTable)
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .where(eq(fieldsTable.farmId, farmId))
     .orderBy(asc(fieldCropAssignmentsTable.createdAt));
   res.json({ records });
@@ -1132,9 +1165,9 @@ router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireMod
     const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, req.body.fieldId), eq(fieldsTable.farmId, farmId))).limit(1);
     if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
   }
-  if (req.body.cropId) {
-    const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, req.body.cropId), eq(cropsTable.farmId, farmId))).limit(1);
-    if (!crop) { res.status(400).json({ error: "Crop not found on this farm" }); return; }
+  if (req.body.varietyId) {
+    const [variety] = await db.select({ id: cropVarietiesTable.id }).from(cropVarietiesTable).where(and(eq(cropVarietiesTable.id, req.body.varietyId), eq(cropVarietiesTable.farmId, farmId))).limit(1);
+    if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
   }
   const [record] = await db.insert(fieldCropAssignmentsTable).values(sanitiseBody(req.body as Record<string, unknown>)).returning();
   res.status(201).json({ record });
@@ -1147,12 +1180,12 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const allowed: Record<string, unknown> = {};
   if (req.body.notes !== undefined) allowed.notes = req.body.notes || null;
-  if (req.body.cropId !== undefined) {
-    const cropId = Number(req.body.cropId);
-    if (isNaN(cropId)) { res.status(400).json({ error: "Invalid cropId" }); return; }
-    const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, cropId), eq(cropsTable.farmId, farmId))).limit(1);
-    if (!crop) { res.status(400).json({ error: "Crop not found on this farm" }); return; }
-    allowed.cropId = cropId;
+  if (req.body.varietyId !== undefined) {
+    const varietyId = Number(req.body.varietyId);
+    if (isNaN(varietyId)) { res.status(400).json({ error: "Invalid varietyId" }); return; }
+    const [variety] = await db.select({ id: cropVarietiesTable.id }).from(cropVarietiesTable).where(and(eq(cropVarietiesTable.id, varietyId), eq(cropVarietiesTable.farmId, farmId))).limit(1);
+    if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
+    allowed.varietyId = varietyId;
   }
   if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
   const [existing] = await db
@@ -1269,7 +1302,8 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .leftJoin(equipmentTable, eq(harvestRecordsTable.equipmentId, equipmentTable.id))
     .where(whereClause)
     .orderBy(desc(harvestRecordsTable.harvestDate));
@@ -1278,7 +1312,7 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
       ...r.harvest_records,
       fieldCropAssignment: r.field_crop_assignments,
       field: r.fields,
-      crop: r.crops,
+      crop: { ...r.crops, variety: r.crop_varieties?.variety ?? null },
       equipment: r.equipment,
     })),
   });
@@ -1294,12 +1328,13 @@ router.get("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, requ
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .leftJoin(equipmentTable, eq(harvestRecordsTable.equipmentId, equipmentTable.id))
     .where(and(eq(harvestRecordsTable.id, recordId), eq(fieldsTable.farmId, farmId)));
   if (!rows.length) { res.status(404).json({ error: "Not found" }); return; }
   const r = rows[0];
-  res.json({ record: { ...r.harvest_records, field: r.fields, crop: r.crops, equipment: r.equipment } });
+  res.json({ record: { ...r.harvest_records, field: r.fields, crop: { ...r.crops, variety: r.crop_varieties?.variety ?? null }, equipment: r.equipment } });
 });
 
 router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -1336,7 +1371,8 @@ router.get("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requi
     .innerJoin(harvestRecordsTable, eq(cropTransportRecordsTable.harvestRecordId, harvestRecordsTable.id))
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .where(eq(fieldsTable.farmId, farmId))
     .orderBy(desc(cropTransportRecordsTable.departureTime));
   res.json({
@@ -1344,7 +1380,7 @@ router.get("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requi
       ...r.crop_transport_records,
       harvest: r.harvest_records,
       field: r.fields,
-      crop: r.crops,
+      crop: { ...r.crops, variety: r.crop_varieties?.variety ?? null },
     })),
   });
 });
@@ -1375,14 +1411,15 @@ router.get("/farms/:farmId/harvest-storage", requireAuth, requireTenant, require
     .from(cropStorageRecordsTable)
     .leftJoin(harvestRecordsTable, eq(cropStorageRecordsTable.harvestRecordId, harvestRecordsTable.id))
     .leftJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
-    .leftJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .leftJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .leftJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .where(eq(cropStorageRecordsTable.farmId, farmId))
     .orderBy(desc(cropStorageRecordsTable.dateIn));
   res.json({
     records: records.map((r) => ({
       ...r.crop_storage_records,
       harvest: r.harvest_records,
-      crop: r.crops,
+      crop: { ...r.crops, variety: r.crop_varieties?.variety ?? null },
     })),
   });
 });
@@ -14321,9 +14358,10 @@ router.get("/farms/:farmId/crop-for-field", requireAuth, requireTenant, requireM
   if (!field) { res.json({ cropName: null, variety: null, found: false }); return; }
 
   const [assignment] = await db
-    .select({ cropName: cropsTable.name, variety: cropsTable.variety })
+    .select({ cropName: cropsTable.name, variety: cropVarietiesTable.variety })
     .from(fieldCropAssignmentsTable)
-    .innerJoin(cropsTable, eq(cropsTable.id, fieldCropAssignmentsTable.cropId))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+    .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .where(and(
       eq(fieldCropAssignmentsTable.fieldId, field.id),
       sql`(${fieldCropAssignmentsTable.plantingDate} IS NULL OR ${fieldCropAssignmentsTable.plantingDate} <= ${lookupDate.toISOString()}::timestamptz)`,
@@ -15000,17 +15038,19 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart as any), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd as any))),
 
     // ── Field Crops: expected harvest dates ───────────────────────────────────
-    db.select({ id: fieldCropAssignmentsTable.id, expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
+    db.select({ id: fieldCropAssignmentsTable.id, expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropVarietiesTable.variety, fieldId: fieldsTable.id })
       .from(fieldCropAssignmentsTable)
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
       .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart as any), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd as any))),
 
     // ── Field Crops: planting dates ───────────────────────────────────────────
-    db.select({ id: fieldCropAssignmentsTable.id, plantingDate: fieldCropAssignmentsTable.plantingDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropsTable.variety, fieldId: fieldsTable.id })
+    db.select({ id: fieldCropAssignmentsTable.id, plantingDate: fieldCropAssignmentsTable.plantingDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropVarietiesTable.variety, fieldId: fieldsTable.id })
       .from(fieldCropAssignmentsTable)
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
-      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
       .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart as any), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd as any))),
 
     // ── Livestock Purchase Invoices: outstanding/overdue with payment due in range ──
@@ -16207,12 +16247,13 @@ router.get("/:farmId/reports/gross-margin", requireAuth, requireTenant, requireM
       areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
       moisturePercent: harvestRecordsTable.moisturePercent,
       cropName: cropsTable.name,
-      variety: cropsTable.variety,
+      variety: cropVarietiesTable.variety,
       fieldId: fieldCropAssignmentsTable.fieldId,
     })
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .where(and(eq(fieldsTable.farmId, farmId), gte(harvestRecordsTable.harvestDate, startDate), lt(harvestRecordsTable.harvestDate, endDate)));
 
@@ -16237,11 +16278,12 @@ router.get("/:farmId/reports/grain-position", requireAuth, requireTenant, requir
       yieldTonnes: harvestRecordsTable.yieldTonnes,
       areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
       cropName: cropsTable.name,
-      variety: cropsTable.variety,
+      variety: cropVarietiesTable.variety,
     })
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .where(and(eq(fieldsTable.farmId, farmId), gte(harvestRecordsTable.harvestDate, startDate), lt(harvestRecordsTable.harvestDate, endDate)));
 
@@ -16297,7 +16339,8 @@ router.get("/:farmId/reports/year-on-year", requireAuth, requireTenant, requireM
     })
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
-    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .where(eq(fieldsTable.farmId, farmId));
 
@@ -24774,10 +24817,11 @@ router.get("/farms/:farmId/reports/season-report", requireAuth, requireTenant, a
       season: fieldCropAssignmentsTable.season,
       year: fieldCropAssignmentsTable.year,
       cropName: cropsTable.name,
-      cropVariety: cropsTable.variety,
+      cropVariety: cropVarietiesTable.variety,
       cropCategory: cropsTable.category,
     }).from(fieldCropAssignmentsTable)
-      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+      .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .where(and(eq(fieldsTable.farmId, farmId), eq(fieldCropAssignmentsTable.year, year))),
     db.select({

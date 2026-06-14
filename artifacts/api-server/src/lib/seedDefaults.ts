@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable, cropStockLevelsTable, cropStockMovementsTable } from "@workspace/db/schema";
+import { cropsTable, cropVarietiesTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable, cropStockLevelsTable, cropStockMovementsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -175,7 +175,11 @@ async function seedCropData(farmId: number) {
   if (existingCrops.length > 0) return;
 
   const seededCrops = await db.insert(cropsTable).values(
-    DEV_CROPS.map(c => ({ ...c, farmId }))
+    DEV_CROPS.map(c => ({ name: c.name, category: c.category, farmId }))
+  ).returning();
+
+  const seededVarieties = await db.insert(cropVarietiesTable).values(
+    DEV_CROPS.map((c, i) => ({ cropId: seededCrops[i]!.id, farmId, variety: c.variety }))
   ).returning();
 
   const fields = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId));
@@ -183,10 +187,10 @@ async function seedCropData(farmId: number) {
 
   const currentYear = new Date().getFullYear();
   const assignments = [
-    { fieldId: fields[0]?.id, cropId: seededCrops[0]?.id, plantingDate: new Date(`${currentYear - 1}-10-12`), expectedHarvestDate: new Date(`${currentYear}-08-20`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
-    { fieldId: fields[1]?.id, cropId: seededCrops[1]?.id, plantingDate: new Date(`${currentYear - 1}-09-05`), expectedHarvestDate: new Date(`${currentYear}-07-25`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
-    { fieldId: fields[2]?.id, cropId: seededCrops[2]?.id, plantingDate: new Date(`${currentYear}-04-03`), expectedHarvestDate: new Date(`${currentYear}-08-15`), season: `Spring ${currentYear}`, year: currentYear },
-  ].filter(a => a.fieldId && a.cropId);
+    { fieldId: fields[0]?.id, varietyId: seededVarieties[0]?.id, plantingDate: new Date(`${currentYear - 1}-10-12`), expectedHarvestDate: new Date(`${currentYear}-08-20`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
+    { fieldId: fields[1]?.id, varietyId: seededVarieties[1]?.id, plantingDate: new Date(`${currentYear - 1}-09-05`), expectedHarvestDate: new Date(`${currentYear}-07-25`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
+    { fieldId: fields[2]?.id, varietyId: seededVarieties[2]?.id, plantingDate: new Date(`${currentYear}-04-03`), expectedHarvestDate: new Date(`${currentYear}-08-15`), season: `Spring ${currentYear}`, year: currentYear },
+  ].filter(a => a.fieldId && a.varietyId);
 
   if (assignments.length > 0) {
     await db.insert(fieldCropAssignmentsTable).values(assignments as typeof fieldCropAssignmentsTable.$inferInsert[]);
