@@ -24,19 +24,19 @@
  * Policy (both):              B2C_1_ROPC_Auth
  */
 
-// Correct B2C endpoints from LIS Developer Hub (Additional Credentials page, June 2026).
-// Auth uses Azure B2C with a custom policy (B2C_1A_SIGNIN), NOT standard AAD login.microsoftonline.com.
-// b2c-authority from dev hub: livestockinformationb2cprod.b2clogin.com/.../B2C_1A_SIGNIN/v2.0
+// Auth uses the standard AAD v2 endpoint (login.microsoftonline.com), NOT b2clogin.com / B2C_1A_SIGNIN.
+// B2C_1A_SIGNIN is interactive-only; ROPC (grant_type=password) returns AADB2C90057 against it.
+// Do NOT include "openid" in scope — it triggers implicit-flow errors on B2C policies.
 const LIS_B2C_TOKEN_URL_PROD =
-  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+  "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
 const LIS_B2C_SCOPE_PROD =
-  "openid https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
+  "https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
-// Sandbox/Beta B2C tenant — api-scopes from dev hub: apim-cla-ext/user_impersonation
+// Sandbox/Beta B2C tenant
 const LIS_B2C_TOKEN_URL_SANDBOX =
-  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+  "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token";
 const LIS_B2C_SCOPE_SANDBOX =
-  "openid https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
+  "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
 function isSandboxApi(): boolean {
   return process.env.LIS_USE_SANDBOX_API === "true";
