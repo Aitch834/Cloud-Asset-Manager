@@ -5,7 +5,8 @@ import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
   ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
   Reply, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown, Bold, Italic, Underline, List, ListOrdered,
+  AlignLeft, AlignCenter, Eraser,
 } from "lucide-react";
 
 const CATEGORIES = ["general", "onboarding", "billing", "support", "compliance"];
@@ -114,6 +115,114 @@ function CustomerSelect({
   );
 }
 
+const EMAIL_DISCLAIMER = `<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;"/><p style="font-size:11px;color:#9ca3af;line-height:1.6;margin:0;">This email and any attachments are confidential and intended solely for the named recipient(s). If you have received this email in error, please notify the sender immediately, delete it from your system, and do not disclose the contents to any other person. The views expressed are those of the individual sender and may not represent BDE Farm Trac. BDE Farm Trac is a trading name of BDE Technology Ltd, registered in England and Wales. This email has been scanned for viruses, but BDE Farm Trac accepts no liability for any damage caused by any virus transmitted by this email.</p>`;
+
+function hasEditorContent(html: string): boolean {
+  if (!html) return false;
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return !!(div.textContent?.trim());
+}
+
+function RichTextEditor({
+  value,
+  onChange,
+  placeholder = "Write your message…",
+  minRows = 8,
+  autoFocus = false,
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  minRows?: number;
+  autoFocus?: boolean;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastSetRef = useRef<string>(value);
+
+  useEffect(() => {
+    if (editorRef.current && value !== lastSetRef.current) {
+      editorRef.current.innerHTML = value;
+      lastSetRef.current = value;
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (autoFocus) editorRef.current?.focus();
+  }, [autoFocus]);
+
+  function exec(command: string, arg?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, arg);
+    const html = editorRef.current?.innerHTML ?? "";
+    lastSetRef.current = html;
+    onChange(html);
+  }
+
+  function handleInput() {
+    const html = editorRef.current?.innerHTML ?? "";
+    lastSetRef.current = html;
+    onChange(html);
+  }
+
+  function ToolBtn({
+    cmd, arg, title, children, extraClass = "",
+  }: {
+    cmd: string; arg?: string; title: string; children: React.ReactNode; extraClass?: string;
+  }) {
+    return (
+      <button
+        type="button"
+        title={title}
+        onMouseDown={(e) => { e.preventDefault(); exec(cmd, arg); }}
+        className={`flex items-center justify-center w-7 h-7 rounded text-xs hover:bg-muted active:bg-muted/80 ${extraClass}`}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-border bg-muted/20 select-none">
+        <select
+          title="Text size"
+          defaultValue="3"
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => exec("fontSize", e.target.value)}
+          className="text-xs border border-border rounded px-1.5 py-0.5 bg-background h-7 mr-1"
+        >
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="4">Large</option>
+          <option value="5">X-Large</option>
+        </select>
+        <div className="w-px h-5 bg-border mx-0.5" />
+        <ToolBtn cmd="bold" title="Bold" extraClass="font-bold"><Bold className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn cmd="italic" title="Italic"><Italic className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn cmd="underline" title="Underline"><Underline className="w-3.5 h-3.5" /></ToolBtn>
+        <div className="w-px h-5 bg-border mx-0.5" />
+        <ToolBtn cmd="insertUnorderedList" title="Bullet list"><List className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn cmd="insertOrderedList" title="Numbered list"><ListOrdered className="w-3.5 h-3.5" /></ToolBtn>
+        <div className="w-px h-5 bg-border mx-0.5" />
+        <ToolBtn cmd="justifyLeft" title="Align left"><AlignLeft className="w-3.5 h-3.5" /></ToolBtn>
+        <ToolBtn cmd="justifyCenter" title="Align centre"><AlignCenter className="w-3.5 h-3.5" /></ToolBtn>
+        <div className="w-px h-5 bg-border mx-0.5" />
+        <ToolBtn cmd="removeFormat" title="Clear formatting"><Eraser className="w-3.5 h-3.5" /></ToolBtn>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        data-placeholder={placeholder}
+        style={{ minHeight: `${minRows * 1.65}rem` }}
+        className="px-3 py-2.5 text-sm focus:outline-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground [&:empty]:before:pointer-events-none"
+      />
+    </div>
+  );
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -138,11 +247,11 @@ function InboxTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
+  const [replyDisclaimer, setReplyDisclaimer] = useState(true);
   const [replying, setReplying] = useState(false);
   const [replyResult, setReplyResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
-  const replyRef = useRef<HTMLTextAreaElement>(null);
 
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
@@ -195,11 +304,12 @@ function InboxTab() {
 
   async function handleReply(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected || !replyBody.trim()) return;
+    if (!selected || !hasEditorContent(replyBody)) return;
     setReplying(true);
     setReplyResult(null);
     try {
-      const r = await api.replyToEmail(selected.uid, replyBody.trim(), secret);
+      const body = replyDisclaimer ? replyBody + EMAIL_DISCLAIMER : replyBody;
+      const r = await api.replyToEmail(selected.uid, body, secret);
       if (r.sent) {
         setReplyResult({ ok: true, message: "Reply sent successfully" });
         setReplyBody("");
@@ -352,7 +462,7 @@ function InboxTab() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => { setReplyOpen((o) => !o); setTimeout(() => replyRef.current?.focus(), 50); }}
+                  onClick={() => { setReplyOpen((o) => !o); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted transition-colors"
                 >
                   <Reply className="w-3.5 h-3.5" /> Reply
@@ -395,24 +505,25 @@ function InboxTab() {
                   </span>
                 </div>
                 <form onSubmit={handleReply}>
-                  <textarea
-                    ref={replyRef}
-                    value={replyBody}
-                    onChange={(e) => setReplyBody(e.target.value)}
-                    rows={6}
-                    placeholder="Write your reply…"
-                    className="w-full px-4 py-3 text-sm resize-none focus:outline-none"
-                  />
+                  <div className="p-4">
+                    <RichTextEditor
+                      value={replyBody}
+                      onChange={setReplyBody}
+                      placeholder="Write your reply…"
+                      minRows={6}
+                      autoFocus
+                    />
+                  </div>
                   {replyResult && (
                     <div className={`px-4 py-2 text-xs flex items-center gap-2 ${replyResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
                       {replyResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                       {replyResult.message}
                     </div>
                   )}
-                  <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-muted/20">
+                  <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-muted/20 flex-wrap">
                     <button
                       type="submit"
-                      disabled={replying || !replyBody.trim()}
+                      disabled={replying || !hasEditorContent(replyBody)}
                       className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50 hover:bg-primary/90 transition-colors"
                     >
                       {replying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
@@ -425,6 +536,15 @@ function InboxTab() {
                     >
                       Cancel
                     </button>
+                    <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={replyDisclaimer}
+                        onChange={(e) => setReplyDisclaimer(e.target.checked)}
+                        className="rounded"
+                      />
+                      Include email disclaimer
+                    </label>
                   </div>
                 </form>
               </div>
@@ -453,6 +573,7 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [includeDisclaimer, setIncludeDisclaimer] = useState(true);
 
   useEffect(() => {
     api.getEmailTemplates(secret)
@@ -474,16 +595,17 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.to.trim() || !form.subject.trim() || !form.body.trim()) return;
+    if (!form.to.trim() || !form.subject.trim() || !hasEditorContent(form.body)) return;
     setSending(true);
     setResult(null);
     try {
+      const body = includeDisclaimer ? form.body + EMAIL_DISCLAIMER : form.body;
       const r = await api.sendEmail(
         {
           to: form.to.trim(),
           toName: form.toName.trim() || undefined,
           subject: form.subject.trim(),
-          body: form.body.trim(),
+          body,
           templateId: selectedTemplateId ?? undefined,
         },
         secret
@@ -577,20 +699,12 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
 
         <div>
           <label className="block text-sm font-medium mb-1">Message</label>
-          <textarea
+          <RichTextEditor
             value={form.body}
-            onChange={(e) => set("body", e.target.value)}
-            required
-            rows={12}
-            placeholder="Write your message here…
-
-HTML is supported for formatting (e.g. <p>, <strong>, <a href=...>).
-Plain text also works fine."
-            className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono resize-y"
+            onChange={(html) => set("body", html)}
+            placeholder="Write your message here…"
+            minRows={12}
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            HTML is supported — the message is automatically wrapped in the BDE Farm Trac branded email layout.
-          </p>
         </div>
 
         {result && (
@@ -600,16 +714,16 @@ Plain text also works fine."
           </div>
         )}
 
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3 pt-1 flex-wrap">
           <button
             type="submit"
-            disabled={sending || !form.to.trim() || !form.subject.trim() || !form.body.trim()}
+            disabled={sending || !form.to.trim() || !form.subject.trim() || !hasEditorContent(form.body)}
             className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50 hover:bg-primary/90 transition-colors"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {sending ? "Sending…" : "Send Email"}
           </button>
-          {(form.to || form.subject || form.body) && (
+          {(form.to || form.subject || hasEditorContent(form.body)) && (
             <button
               type="button"
               onClick={() => { setForm({ to: "", toName: "", subject: "", body: "" }); setSelectedTemplateId(null); setResult(null); }}
@@ -618,6 +732,15 @@ Plain text also works fine."
               Clear
             </button>
           )}
+          <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeDisclaimer}
+              onChange={(e) => setIncludeDisclaimer(e.target.checked)}
+              className="rounded"
+            />
+            Include email disclaimer
+          </label>
         </div>
       </form>
     </div>
