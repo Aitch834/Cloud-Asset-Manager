@@ -581,6 +581,40 @@ export default function FieldOperationsPage() {
           <CropYearSelector value={cropYear} onChange={setCropYear} />
         </div>
 
+        {/* Filtered totals strip */}
+        {!opsQ.isLoading && filtered.length > 0 && (() => {
+          const filtArea = filtered.reduce((s: number, r: any) => s + (parseFloat(r.areaHa) || 0), 0);
+          const filtMachHrs = filtered.reduce((s: number, r: any) => s + (parseFloat(r.machineHours) || 0), 0);
+          const filtLabHrs = filtered.reduce((s: number, r: any) => s + (parseFloat(r.labourHours) || 0), 0);
+          const filtCost = filtered.reduce((s: number, r: any) => s + computeOpCost(r), 0);
+          return (
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Area Worked</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{filtArea.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
+              </div>
+              {filtMachHrs > 0 && (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 140 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Machine Hours</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{filtMachHrs.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>hrs</span></p>
+                </div>
+              )}
+              {filtLabHrs > 0 && (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 140 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Labour Hours</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{filtLabHrs.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>hrs</span></p>
+                </div>
+              )}
+              {filtCost > 0 && (
+                <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Est. Cost</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>{fmtGbp(filtCost)}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Table */}
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           {opsQ.isLoading ? (

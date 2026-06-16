@@ -1941,6 +1941,36 @@ export default function FuelEnergyPage() {
                 </Button>
               </div>
             </div>
+            {filteredDeliveries.length > 0 && (() => {
+              const totalCostPence = filteredDeliveries.reduce((s: number, d: any) => s + (d.netAmountPence ? Number(d.netAmountPence) : 0), 0);
+              const hasCost = filteredDeliveries.some((d: any) => d.netAmountPence);
+              const byFuel: Record<string, number> = {};
+              filteredDeliveries.forEach((d: any) => {
+                const ft = String(d.fuelType ?? "other");
+                byFuel[ft] = (byFuel[ft] ?? 0) + parseFloat(String(d.quantityLitres ?? 0));
+              });
+              const fuelRows = Object.entries(byFuel).sort((a, b) => b[1] - a[1]);
+              return (
+                <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  <div style={{ background: "#fef9c3", border: "1px solid #fef08a", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                    <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#854d0e", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Delivered</p>
+                    <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{totalDeliveredYTD.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+                  </div>
+                  {hasCost && (
+                    <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                      <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Cost</p>
+                      <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>£{(totalCostPence / 100).toFixed(2)}</p>
+                    </div>
+                  )}
+                  {fuelRows.length > 1 && fuelRows.map(([ft, litres]) => (
+                    <div key={ft} style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                      <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>{ft}</p>
+                      <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{litres.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             {filteredDeliveries.length === 0 ? (
               <div className="text-center py-16 text-gray-400"><Truck className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No deliveries in {deliveryCropYear}</p><p className="text-sm">Change the crop year selector above or log a new delivery</p></div>
             ) : (
@@ -2086,6 +2116,29 @@ export default function FuelEnergyPage() {
                 <span className="text-xs text-gray-500 ml-auto self-center">{filteredUsages.length} of {usages.filter(u => { if (selectedUsageCY) { const ud = new Date(String(u.usageDate)); return ud >= selectedUsageCY.start && ud <= selectedUsageCY.end; } return true; }).length} records</span>
               )}
             </div>
+            {filteredUsages.length > 0 && (() => {
+              const totalUsedL = filteredUsages.reduce((s: number, u: any) => s + parseFloat(String(u.quantityLitres ?? 0)), 0);
+              const byActivity: Record<string, number> = {};
+              filteredUsages.forEach((u: any) => {
+                const act = String(u.qualifyingActivity ?? "Other");
+                byActivity[act] = (byActivity[act] ?? 0) + parseFloat(String(u.quantityLitres ?? 0));
+              });
+              const actRows = Object.entries(byActivity).sort((a, b) => b[1] - a[1]);
+              return (
+                <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  <div style={{ background: "#fef9c3", border: "1px solid #fef08a", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                    <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#854d0e", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Usage</p>
+                    <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+                  </div>
+                  {actRows.length > 1 && actRows.map(([act, litres]) => (
+                    <div key={act} style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                      <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>{act}</p>
+                      <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{litres.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             {filteredUsages.length === 0 ? (
               <div className="text-center py-16 text-gray-400"><Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No usage records match filters</p><p className="text-sm">Try adjusting the filters or crop year above</p></div>
             ) : (

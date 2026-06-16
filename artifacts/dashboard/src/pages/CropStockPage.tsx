@@ -1504,11 +1504,55 @@ function MovementsTab({ farmId }: { farmId: number }) {
 
   const hasFilter = filterCropYear !== "__all__" || !!filterFrom || !!filterTo;
 
+  const moveSummary = useMemo(() => {
+    const totalIn = filtered.filter(r => r.direction === "in").reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+    const totalOut = filtered.filter(r => r.direction === "out").reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+    const byType: Record<string, { in: number; out: number }> = {};
+    filtered.forEach(r => {
+      const key = r.commodity ?? "Unknown";
+      if (!byType[key]) byType[key] = { in: 0, out: 0 };
+      const qty = parseFloat(r.quantityTonnes ?? "0");
+      if (r.direction === "in") byType[key].in += qty; else byType[key].out += qty;
+    });
+    const rows = Object.entries(byType).sort((a, b) => (b[1].in + b[1].out) - (a[1].in + a[1].out));
+    return { totalIn, totalOut, net: totalIn - totalOut, rows };
+  }, [filtered]);
+
   const handlePrintMovements = () => {
     const fName = farmData?.record?.name ?? "Farm";
     const cph = farmData?.record?.cphNumber ?? undefined;
 
     const sorted = [...filtered];
+
+    const filterDesc = filterCropYear !== "__all__"
+      ? `Crop year ${filterCropYear}`
+      : filterFrom || filterTo
+        ? [filterFrom && `From ${new Date(filterFrom).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, filterTo && `To ${new Date(filterTo).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`].filter(Boolean).join(" — ")
+        : "All movements";
+
+    const pIn = moveSummary.totalIn;
+    const pOut = moveSummary.totalOut;
+    const pNet = moveSummary.net;
+    const summaryHtml = sorted.length > 0 ? `
+      <div style="margin-bottom:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px 16px;">
+        <p style="font-size:7.5px;font-weight:700;text-transform:uppercase;color:#6b7280;letter-spacing:0.06em;margin:0 0 8px;">Movement Summary — ${filterDesc ?? "All movements"}</p>
+        <table style="border-collapse:collapse;width:auto;margin-bottom:${moveSummary.rows.length > 1 ? "12px" : "0"};">
+          <tbody><tr>
+            <td style="padding:2px 24px 2px 0;"><p style="font-size:7px;font-weight:700;text-transform:uppercase;color:#15803d;margin:0 0 2px;">Total IN</p><p style="font-size:14px;font-weight:800;color:#14532d;margin:0;">${pIn.toFixed(3)} t</p></td>
+            <td style="padding:2px 24px 2px 0;"><p style="font-size:7px;font-weight:700;text-transform:uppercase;color:#b91c1c;margin:0 0 2px;">Total OUT</p><p style="font-size:14px;font-weight:800;color:#7f1d1d;margin:0;">${pOut.toFixed(3)} t</p></td>
+            <td style="padding:2px 0;"><p style="font-size:7px;font-weight:700;text-transform:uppercase;color:${pNet >= 0 ? "#15803d" : "#b91c1c"};margin:0 0 2px;">Net Movement</p><p style="font-size:14px;font-weight:800;color:${pNet >= 0 ? "#14532d" : "#7f1d1d"};margin:0;">${pNet >= 0 ? "+" : ""}${pNet.toFixed(3)} t</p></td>
+          </tr></tbody>
+        </table>
+        ${moveSummary.rows.length > 1 ? `<table style="border-collapse:collapse;font-size:8px;">
+          <thead><tr>
+            <th style="padding:2px 16px 2px 0;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb;">Commodity</th>
+            <th style="padding:2px 16px;text-align:right;font-weight:600;color:#166534;border-bottom:1px solid #e5e7eb;">IN (t)</th>
+            <th style="padding:2px 16px;text-align:right;font-weight:600;color:#991b1b;border-bottom:1px solid #e5e7eb;">OUT (t)</th>
+            <th style="padding:2px 0;text-align:right;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb;">NET (t)</th>
+          </tr></thead>
+          <tbody>${moveSummary.rows.map(([c, v]) => { const n = v.in - v.out; return `<tr><td style="padding:2px 16px 2px 0;color:#374151;">${c}</td><td style="padding:2px 16px;text-align:right;color:#166534;">${v.in > 0 ? v.in.toFixed(3) : "—"}</td><td style="padding:2px 16px;text-align:right;color:#991b1b;">${v.out > 0 ? v.out.toFixed(3) : "—"}</td><td style="padding:2px 0;text-align:right;font-weight:700;color:${n >= 0 ? "#166534" : "#991b1b"};">${n >= 0 ? "+" : ""}${n.toFixed(3)}</td></tr>`; }).join("")}</tbody>
+        </table>` : ""}
+      </div>` : "";
 
     const dirBadge = (dir: string) => dir === "in"
       ? '<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6px;font-weight:700;">IN</span>'
@@ -1548,12 +1592,6 @@ function MovementsTab({ farmId }: { farmId: number }) {
       ${sorted.length === 0 ? '<p style="color:#6b7280;font-size:8px;margin-top:12px;">No movements recorded.</p>' : ""}
     `;
 
-    const filterDesc = filterCropYear !== "__all__"
-      ? `Crop year ${filterCropYear}`
-      : filterFrom || filterTo
-        ? [filterFrom && `From ${new Date(filterFrom).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, filterTo && `To ${new Date(filterTo).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`].filter(Boolean).join(" — ")
-        : "All movements";
-
     const html = buildProReport({
       title: "Crop Stock — Movement Audit Log",
       subtitle: `Immutable record of all grain stock changes — ${filterDesc}`,
@@ -1561,7 +1599,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
       cphNumber: cph,
       recordCount: sorted.length,
       recordLabel: "movement",
-      tableHtml,
+      tableHtml: summaryHtml + tableHtml,
       footerNote: "This is an immutable audit log. All entries are permanent records of grain movements. " +
         "Red Tractor requires full traceability from harvest through storage to dispatch. Retain for 3 years.",
       landscape: true,
@@ -1620,6 +1658,55 @@ function MovementsTab({ farmId }: { farmId: number }) {
           {filtered.length} of {records.length} movement{records.length !== 1 ? "s" : ""}
         </span>
       </div>
+
+      {filtered.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 10 }}>
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px" }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total IN</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{moveSummary.totalIn.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t</span></p>
+            </div>
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px" }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b91c1c", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total OUT</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#7f1d1d", lineHeight: 1, margin: 0 }}>{moveSummary.totalOut.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t</span></p>
+            </div>
+            <div style={{ background: moveSummary.net >= 0 ? "#f0fdf4" : "#fef2f2", border: `1px solid ${moveSummary.net >= 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 8, padding: "10px 14px" }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: moveSummary.net >= 0 ? "#15803d" : "#b91c1c", letterSpacing: "0.06em", margin: "0 0 3px" }}>Net Movement</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: moveSummary.net >= 0 ? "#14532d" : "#7f1d1d", lineHeight: 1, margin: 0 }}>{moveSummary.net >= 0 ? "+" : ""}{moveSummary.net.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t</span></p>
+            </div>
+          </div>
+          {moveSummary.rows.length > 0 && (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ padding: "6px 14px", borderBottom: "1px solid #f3f4f6", background: "#f9fafb" }}>
+                <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em", margin: 0 }}>By Commodity</p>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <th style={{ padding: "5px 14px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>Commodity</th>
+                    <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#166534", fontSize: "0.7rem" }}>IN (t)</th>
+                    <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#991b1b", fontSize: "0.7rem" }}>OUT (t)</th>
+                    <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>NET (t)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {moveSummary.rows.map(([comm, v]) => {
+                    const n = v.in - v.out;
+                    return (
+                      <tr key={comm} style={{ borderBottom: "1px solid #f9fafb" }}>
+                        <td style={{ padding: "4px 14px", fontWeight: 500 }}>{comm}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right", color: "#16a34a" }}>{v.in > 0 ? `${v.in.toFixed(3)} t` : "—"}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right", color: "#dc2626" }}>{v.out > 0 ? `${v.out.toFixed(3)} t` : "—"}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right", fontWeight: 700, color: n >= 0 ? "#16a34a" : "#dc2626" }}>{n >= 0 ? "+" : ""}{n.toFixed(3)} t</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>

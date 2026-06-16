@@ -493,6 +493,74 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
         )
       )}
 
+      {!loading && filtered.length > 0 && (() => {
+        const totalYield = filtered.reduce((s: number, r: any) => s + parseFloat(String(r.yieldTonnes || 0)), 0);
+        const totalArea = filtered.reduce((s: number, r: any) => s + parseFloat(String(r.areaHarvestedHa || 0)), 0);
+        const avgYieldPerHa = totalArea > 0 ? totalYield / totalArea : null;
+        const moistureRows = filtered.filter((r: any) => r.moisturePercent);
+        const avgMoisture = moistureRows.length > 0 ? moistureRows.reduce((s: number, r: any) => s + parseFloat(String(r.moisturePercent)), 0) / moistureRows.length : null;
+        const byCrop: Record<string, { tonnes: number; ha: number }> = {};
+        filtered.forEach((r: any) => {
+          const key = r.crop?.name ?? "Unknown";
+          if (!byCrop[key]) byCrop[key] = { tonnes: 0, ha: 0 };
+          byCrop[key].tonnes += parseFloat(String(r.yieldTonnes || 0));
+          byCrop[key].ha += parseFloat(String(r.areaHarvestedHa || 0));
+        });
+        const cropRows = Object.entries(byCrop).sort((a, b) => b[1].tonnes - a[1].tonnes);
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: cropRows.length > 1 ? 10 : 0 }}>
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Yield</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{totalYield.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t</span></p>
+              </div>
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Area</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{totalArea.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
+              </div>
+              {avgYieldPerHa !== null && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px" }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>Avg Yield</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{avgYieldPerHa.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t/ha</span></p>
+                </div>
+              )}
+              {avgMoisture !== null && (
+                <div style={{ background: "#fef9c3", border: "1px solid #fef08a", borderRadius: 8, padding: "10px 14px" }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#854d0e", letterSpacing: "0.06em", margin: "0 0 3px" }}>Avg Moisture</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{avgMoisture.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>%</span></p>
+                </div>
+              )}
+            </div>
+            {cropRows.length > 1 && (
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ padding: "6px 14px", borderBottom: "1px solid #f3f4f6", background: "#f9fafb" }}>
+                  <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em", margin: 0 }}>By Crop</p>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <th style={{ padding: "5px 14px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>Crop</th>
+                      <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#78350f", fontSize: "0.7rem" }}>Yield (t)</th>
+                      <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#78350f", fontSize: "0.7rem" }}>Area (ha)</th>
+                      <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>t/ha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cropRows.map(([crop, v]) => (
+                      <tr key={crop} style={{ borderBottom: "1px solid #f9fafb" }}>
+                        <td style={{ padding: "4px 14px", fontWeight: 500 }}>{crop}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right" }}>{v.tonnes > 0 ? `${v.tonnes.toFixed(2)} t` : "—"}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right" }}>{v.ha > 0 ? `${v.ha.toFixed(2)} ha` : "—"}</td>
+                        <td style={{ padding: "4px 14px", textAlign: "right", fontWeight: 600, color: "#92400e" }}>{v.ha > 0 ? (v.tonnes / v.ha).toFixed(2) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {loading ? (
         <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
       ) : filtered.length === 0 ? (

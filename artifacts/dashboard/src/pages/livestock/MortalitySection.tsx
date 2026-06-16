@@ -656,6 +656,32 @@ export function MortalitySection({ farmId }: { farmId: number }) {
         ))}
       </div>
 
+      {!isLoading && filtered.length > 0 && (() => {
+        const bySp: Record<string, number> = {};
+        filtered.forEach(r => { bySp[r.species] = (bySp[r.species] || 0) + 1; });
+        const spRows = Object.entries(bySp).sort((a, b) => b[1] - a[1]);
+        const totalCost = filtered.reduce((s: number, r: any) => s + (r.invoiceAmount ? parseFloat(String(r.invoiceAmount)) : 0), 0);
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b91c1c", letterSpacing: "0.06em", margin: "0 0 3px" }}>Deaths (filtered)</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#7f1d1d", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+            </div>
+            {spRows.map(([sp, n]) => (
+              <div key={sp} style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "10px 16px", minWidth: 100 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "capitalize", color: "#c2410c", letterSpacing: "0.06em", margin: "0 0 3px" }}>{sp}</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#9a3412", lineHeight: 1, margin: 0 }}>{n}</p>
+              </div>
+            ))}
+            {totalCost > 0 && (
+              <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Disposal Cost</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>£{totalCost.toFixed(2)}</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (

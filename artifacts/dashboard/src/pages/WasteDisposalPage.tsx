@@ -497,6 +497,59 @@ export default function WasteDisposalPage() {
           <Button onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
 
+        {!q.isLoading && filtered.length > 0 && (() => {
+          const totalWeight = filtered.reduce((s: number, r: any) => s + (r.weightTonnes ? parseFloat(String(r.weightTonnes)) : 0), 0);
+          const hasWeight = filtered.some((r: any) => r.weightTonnes);
+          const byType: Record<string, { count: number; weight: number }> = {};
+          filtered.forEach((r: any) => {
+            const key = r.wasteType || "Unclassified";
+            if (!byType[key]) byType[key] = { count: 0, weight: 0 };
+            byType[key].count++;
+            if (r.weightTonnes) byType[key].weight += parseFloat(String(r.weightTonnes));
+          });
+          const typeRows = Object.entries(byType).sort((a, b) => b[1].count - a[1].count).slice(0, 6);
+          return (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: typeRows.length > 1 ? 10 : 0, flexWrap: "wrap" }}>
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Records</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+                </div>
+                {hasWeight && (
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                    <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Weight</p>
+                    <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{totalWeight.toFixed(3)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>t</span></p>
+                  </div>
+                )}
+              </div>
+              {typeRows.length > 1 && (
+                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ padding: "6px 14px", borderBottom: "1px solid #f3f4f6", background: "#f9fafb" }}>
+                    <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em", margin: 0 }}>By Type</p>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <th style={{ padding: "5px 14px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>Waste Type</th>
+                        <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>Records</th>
+                        {hasWeight && <th style={{ padding: "5px 14px", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.7rem" }}>Weight (t)</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {typeRows.map(([type, v]) => (
+                        <tr key={type} style={{ borderBottom: "1px solid #f9fafb" }}>
+                          <td style={{ padding: "4px 14px", fontWeight: 500 }}>{type}</td>
+                          <td style={{ padding: "4px 14px", textAlign: "right" }}>{v.count}</td>
+                          {hasWeight && <td style={{ padding: "4px 14px", textAlign: "right" }}>{v.weight > 0 ? `${v.weight.toFixed(3)} t` : "—"}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {q.isLoading ? (
           <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
         ) : filtered.length === 0 ? (

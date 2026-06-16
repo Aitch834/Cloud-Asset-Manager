@@ -772,6 +772,29 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         <Button size="sm" onClick={() => { setForm(emptyForm); setDeliveryStockItemId(null); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Application</Button>
       </div>
 
+      {!loading && filtered.length > 0 && (() => {
+        const totalArea = filtered.reduce((s: number, r: any) => s + parseFloat(String(r.areaSprayedHa || 0)), 0);
+        const hasWater = filtered.some((r: any) => r.waterVolumeLitres);
+        const totalWater = hasWater ? filtered.reduce((s: number, r: any) => s + parseFloat(String(r.waterVolumeLitres || 0)), 0) : 0;
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Applications</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+            </div>
+            <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Area Treated</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{totalArea.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
+            </div>
+            {hasWater && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 160 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Water Volume</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{totalWater.toFixed(0)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
         <EmptyState icon={<Droplets size={28} color="#9ca3af" />} title="No spray applications recorded" subtitle="Log each field application to build your Red Tractor crop inputs record." />
       ) : (
