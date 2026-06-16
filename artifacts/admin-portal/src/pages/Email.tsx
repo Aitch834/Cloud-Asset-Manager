@@ -115,7 +115,7 @@ function CustomerSelect({
   );
 }
 
-const EMAIL_DISCLAIMER = `<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;"/><p style="font-size:11px;color:#9ca3af;line-height:1.6;margin:0;">This email and any attachments are confidential and intended solely for the named recipient(s). If you have received this email in error, please notify the sender immediately, delete it from your system, and do not disclose the contents to any other person. The views expressed are those of the individual sender and may not represent BDE Farm Trac. BDE Farm Trac is a trading name of BDE Technology Ltd, registered in England and Wales. This email has been scanned for viruses, but BDE Farm Trac accepts no liability for any damage caused by any virus transmitted by this email.</p>`;
+const EMAIL_DISCLAIMER = `<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px;"/><p style="font-size:11px;color:#9ca3af;line-height:1.6;margin:0;">This email and any attachments are confidential and intended solely for the named recipient(s). If you have received this email in error, please notify the sender immediately, delete it from your system, and do not disclose the contents to any other person. The views expressed are those of the individual sender and may not represent BDE Farm Trac. BDE Farm Trac is a trading name of Barnett Davies Enterprises Ltd, registered in England and Wales. This email has been scanned for viruses, but BDE Farm Trac accepts no liability for any damage caused by any virus transmitted by this email.</p>`;
 
 function hasEditorContent(html: string): boolean {
   if (!html) return false;
@@ -884,9 +884,9 @@ function SentTab() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="bg-muted/30 rounded-lg p-4 text-sm whitespace-pre-wrap font-mono leading-relaxed">
-                {preview.body}
-              </div>
+              <div className="bg-muted/30 rounded-lg p-4 text-sm leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: preview.body }}
+              />
             </div>
           </div>
         </div>
@@ -1142,9 +1142,9 @@ function TemplatesTab() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="bg-muted/30 rounded-lg p-4 text-sm whitespace-pre-wrap font-mono leading-relaxed">
-                {preview.body}
-              </div>
+              <div className="bg-muted/30 rounded-lg p-4 text-sm leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: preview.body }}
+              />
             </div>
           </div>
         </div>
