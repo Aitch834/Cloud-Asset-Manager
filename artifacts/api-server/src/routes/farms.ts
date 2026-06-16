@@ -18494,6 +18494,26 @@ router.delete("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTen
   res.json({ success: true });
 });
 
+// Fresh Produce — Packhouse / Cold Store Locations (stored as type="packhouse" in storageLocationsTable)
+router.get("/farms/:farmId/fresh-produce-storage-locations", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const records = await db.select().from(storageLocationsTable).where(and(eq(storageLocationsTable.farmId, farmId), eq(storageLocationsTable.type, "packhouse"))).orderBy(storageLocationsTable.name);
+  res.json(records);
+});
+router.post("/farms/:farmId/fresh-produce-storage-locations", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { name } = req.body as { name: string };
+  if (!name?.trim()) { res.status(400).json({ error: "Name is required" }); return; }
+  const [record] = await db.insert(storageLocationsTable).values({ farmId, name: name.trim(), type: "packhouse" } as any).returning();
+  res.status(201).json(record);
+});
+router.delete("/farms/:farmId/fresh-produce-storage-locations/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(storageLocationsTable).where(and(eq(storageLocationsTable.id, id), eq(storageLocationsTable.farmId, farmId), eq(storageLocationsTable.type, "packhouse")));
+  res.json({ success: true });
+});
+
 // Fresh Produce — Packhouse (module key updated from horticulture to fresh-produce)
 router.get("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

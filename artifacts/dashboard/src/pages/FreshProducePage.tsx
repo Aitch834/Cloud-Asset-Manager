@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw, XCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -648,54 +649,194 @@ function useHarvestRecords(farmId: number) {
   });
 }
 
+const COND_STYLE = (cond: unknown) => {
+  if (cond === "Rejected") return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca" };
+  if (cond === "Poor")     return { bg: "#fff7ed", color: "#9a3412", border: "#fed7aa" };
+  if (cond === "Good" || cond === "Acceptable") return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" };
+  return { bg: "#f9fafb", color: "#6b7280", border: "#e5e7eb" };
+};
+
 export function IntakeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["fp-intake", farmId], queryFn: () => fetch(api(`farms/${farmId}/fresh-produce-intake`), { credentials: "include" }).then(r => r.json()) });
+  const [manageLocOpen, setManageLocOpen] = useState(false);
+  const [newLocName, setNewLocName] = useState("");
+
+  const { data: records = [], isLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["fp-intake", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/fresh-produce-intake`), { credentials: "include" }).then(r => r.json()),
+  });
   const { data: harvestRecords = [] } = useHarvestRecords(farmId);
+  const { data: crops = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["horti-crops", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/horticulture-crops`), { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: storageLocs = [], refetch: refetchLocs } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["fp-storage-locs", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/fresh-produce-storage-locations`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const knownStaff = [...new Set(records.map(r => r.receivedBy as string).filter(Boolean))].sort() as string[];
+
+  // Fire a toast when pre-cooling end time is reached (and no achieved temp recorded yet)
+  useEffect(() => {
+    const endTime = String(form.preCoolingEndTime ?? "");
+    if (!endTime || form.achievedTemperatureC) return;
+    const [h, m] = endTime.split(":").map(Number);
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+    const diff = target.getTime() - now.getTime();
+    if (diff <= 0) return;
+    const timerId = setTimeout(() => {
+      toast({ title: "Pre-cooling end time reached", description: "Record the achieved temperature for this batch.", variant: "destructive" });
+    }, diff);
+    return () => clearTimeout(timerId);
+  }, [form.preCoolingEndTime, form.achievedTemperatureC]);
 
   const save = useMutation({
-    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/fresh-produce-intake`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/fresh-produce-intake`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b),
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fp-intake", farmId] }); setOpen(false); setForm({}); },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/fresh-produce-intake/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fp-intake", farmId] }),
   });
+  const addLoc = useMutation({
+    mutationFn: (name: string) => fetch(api(`farms/${farmId}/fresh-produce-storage-locations`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name }),
+    }),
+    onSuccess: () => { refetchLocs(); setNewLocName(""); },
+  });
+  const delLoc = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/fresh-produce-storage-locations/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => refetchLocs(),
+  });
 
   function onHarvestSelect(harvestId: string) {
     if (harvestId === "__none__") { setForm(f => ({ ...f, harvestRecordId: "", harvestBatchRef: "" })); return; }
     const hr = harvestRecords.find(h => String(h.id) === harvestId);
-    if (hr) setForm(f => ({ ...f, harvestRecordId: String(hr.id), harvestBatchRef: hr.harvestBatchRef }));
+    if (hr) setForm(f => ({ ...f, harvestRecordId: String(hr.id), harvestBatchRef: hr.harvestBatchRef, quantityKg: hr.quantityKg }));
   }
+
+  const conditionBad = form.conditionOnArrival === "Poor" || form.conditionOnArrival === "Rejected";
+  const batchRejected = form.accepted === false;
+
+  // Tab-level alert counts
+  const rejectedCount = records.filter(r => r.accepted === false || r.accepted === "false").length;
+  const poorCount     = records.filter(r => r.conditionOnArrival === "Poor" || r.conditionOnArrival === "Rejected").length;
+
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Pre-Cooling / Intake Records</h3>
-        <Button size="sm" onClick={() => { setForm({ foreignBodyCheck: false, pestDamageCheck: false, accepted: true }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1" />Add Intake Record
-        </Button>
-      </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-        <DataTable
-          cols={[
-            { key: "intakeDate", label: "Intake Date", fmt: r => fmtDate(r.intakeDate) },
-            { key: "harvestBatchRef", label: "Harvest Batch" },
-            { key: "productName", label: "Product" },
-            { key: "quantityKg", label: "Qty (kg)" },
-            { key: "conditionOnArrival", label: "Condition" },
-            { key: "intakeTemperatureC", label: "Intake Temp (°C)" },
-            { key: "accepted", label: "Accepted", fmt: r => r.accepted ? "Yes" : "Rejected" },
-          ]}
-          rows={records as Record<string, unknown>[]}
-          onView={setViewRecord}
-          onDelete={r => del.mutate(r.id as number)}
-        />
+
+      {/* ── Tab-level banners ── */}
+      {rejectedCount > 0 && (
+        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.85rem", color: "#991b1b", alignItems: "flex-start" }}>
+          <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span><strong>{rejectedCount} rejected batch{rejectedCount > 1 ? "es" : ""} on record</strong> — segregate, document fully and notify your quality/compliance manager.</span>
+        </div>
+      )}
+      {poorCount > 0 && (
+        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, fontSize: "0.85rem", color: "#9a3412", alignItems: "flex-start" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span><strong>{poorCount} record{poorCount > 1 ? "s" : ""} with Poor or Rejected condition on arrival</strong> — investigate the source and review pre-harvest practices.</span>
+        </div>
       )}
 
+      {/* ── Toolbar ── */}
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Pre-Cooling / Intake Records</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setManageLocOpen(true)}>
+            <Warehouse className="w-3.5 h-3.5 mr-1" />Locations
+          </Button>
+          <Button size="sm" onClick={() => { setForm({ foreignBodyCheck: false, pestDamageCheck: false, accepted: true }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" />Add Intake Record
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Intake list ── */}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic py-6 text-center">No intake records yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                {(["Date", "Batch", "Product", "Qty (kg)", "Condition", "Temp (°C)", "Accepted", "Checks", ""] as string[]).map(h => (
+                  <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map(r => {
+                const condBad    = r.conditionOnArrival === "Poor" || r.conditionOnArrival === "Rejected";
+                const notAccepted = r.accepted === false || r.accepted === "false";
+                const fbMissing  = !r.foreignBodyCheck || r.foreignBodyCheck === "false";
+                const pdMissing  = !r.pestDamageCheck  || r.pestDamageCheck  === "false";
+                const preCoolingAlert = (() => {
+                  if (!r.preCoolingEndTime || r.achievedTemperatureC) return false;
+                  if (r.intakeDate !== today) return false;
+                  const [hh, mm] = String(r.preCoolingEndTime).split(":").map(Number);
+                  const end = new Date(); end.setHours(hh, mm, 0, 0);
+                  return end < new Date();
+                })();
+                const cs = COND_STYLE(r.conditionOnArrival);
+                const rowBg = notAccepted ? "#fef2f2" : condBad ? "#fff7ed" : "";
+                return (
+                  <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6", background: rowBg }}>
+                    <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{fmtDate(r.intakeDate)}</td>
+                    <td className="py-2 pr-3">
+                      {fmt(r.harvestBatchRef)}
+                      {!!r.harvestRecordId && <span className="ml-1 text-xs text-green-600" title="Linked to harvest record">●</span>}
+                    </td>
+                    <td className="py-2 pr-3">{fmt(r.productName)}</td>
+                    <td className="py-2 pr-3">{fmt(r.quantityKg)}</td>
+                    <td className="py-2 pr-3">
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "2px 6px", borderRadius: 4, display: "inline-block", background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
+                        {fmt(r.conditionOnArrival)}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {fmt(r.intakeTemperatureC)}
+                      {preCoolingAlert && <span className="ml-1 text-red-500 font-bold text-xs" title="Pre-cooling end time passed — achieved temp not yet recorded">⚠</span>}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "2px 6px", borderRadius: 4, display: "inline-block", background: notAccepted ? "#fef2f2" : "#f0fdf4", color: notAccepted ? "#991b1b" : "#15803d", border: `1px solid ${notAccepted ? "#fecaca" : "#bbf7d0"}` }}>
+                        {notAccepted ? "Rejected" : "Yes"}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div style={{ display: "flex", gap: 3 }}>
+                        {([["FB", fbMissing, "Foreign body check"], ["PD", pdMissing, "Pest damage check"]] as [string, boolean, string][]).map(([label, missing, title]) => (
+                          <span key={label} title={title} style={{ fontSize: "0.68rem", fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: missing ? "#fef2f2" : "#f0fdf4", color: missing ? "#991b1b" : "#15803d", border: `1px solid ${missing ? "#fecaca" : "#bbf7d0"}` }}>
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2">
+                      <div className="flex gap-1 justify-end">
+                        <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── View dialog ── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "44rem" }}>
@@ -715,8 +856,8 @@ export function IntakeTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Achieved Temp (°C)</p><p className="font-medium">{fmt(viewRecord.achievedTemperatureC)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Storage Location</p><p className="font-medium">{fmt(viewRecord.storageLocation)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Received By</p><p className="font-medium">{fmt(viewRecord.receivedBy)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Foreign Body Check</p><p className="font-medium">{viewRecord.foreignBodyCheck ? "Yes" : "No"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pest Damage Check</p><p className="font-medium">{viewRecord.pestDamageCheck ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Foreign Body Check</p><p className="font-medium">{viewRecord.foreignBodyCheck ? "✓ Yes" : "✗ No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pest Damage Check</p><p className="font-medium">{viewRecord.pestDamageCheck ? "✓ Yes" : "✗ No"}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
             </div>
             <DialogFooter><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
@@ -724,10 +865,48 @@ export function IntakeTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
+      {/* ── Manage Packhouse Locations dialog ── */}
+      <Dialog open={manageLocOpen} onOpenChange={setManageLocOpen}>
+        <DialogContent style={{ maxWidth: "32rem" }}>
+          <DialogHeader><DialogTitle>Packhouse / Cold Store Locations</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Define your packhouse and cold store locations. These appear as a pick-list in the Storage Location field for full traceability (e.g. "Cold Store A — Bay 3").</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Cold Store A, Pre-cooling Chamber 1…"
+                value={newLocName}
+                onChange={e => setNewLocName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && newLocName.trim()) addLoc.mutate(newLocName.trim()); }}
+              />
+              <Button onClick={() => { if (newLocName.trim()) addLoc.mutate(newLocName.trim()); }} disabled={addLoc.isPending || !newLocName.trim()}>
+                <Plus className="w-4 h-4 mr-1" />Add
+              </Button>
+            </div>
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {storageLocs.length === 0 && (
+                <p className="text-xs text-muted-foreground italic text-center py-4">No locations yet — add your first above.</p>
+              )}
+              {storageLocs.map(loc => (
+                <div key={String(loc.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 12px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+                  <span className="text-sm">{String(loc.name)}</span>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => delLoc.mutate(loc.id as number)} disabled={delLoc.isPending}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => setManageLocOpen(false)}>Done</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add Intake Record dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Pre-Cooling / Intake Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+
+            {/* Harvest link */}
             <div className="col-span-2">
               <Label>Link to Harvest Record</Label>
               <Select value={form.harvestRecordId ? String(form.harvestRecordId) : "__none__"} onValueChange={onHarvestSelect}>
@@ -737,35 +916,139 @@ export function IntakeTab({ farmId }: { farmId: number }) {
                   {harvestRecords.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.harvestBatchRef} — {fmtDate(h.harvestDate)} ({fmt(h.quantityKg)} kg)</SelectItem>)}
                 </SelectContent>
               </Select>
-              {form.harvestRecordId && <p className="text-xs text-green-700 mt-1">✓ Linked to harvest record — full field-to-packhouse traceability chain maintained.</p>}
+              {form.harvestRecordId && <p className="text-xs text-green-700 mt-1">✓ Linked — batch ref and quantity auto-filled. Full field-to-packhouse traceability maintained.</p>}
             </div>
+
             <div><Label>Intake Date *</Label><Input type="date" value={String(form.intakeDate ?? "")} onChange={e => setForm(f => ({ ...f, intakeDate: e.target.value }))} /></div>
             <div><Label>Harvest Batch Ref *</Label><Input value={String(form.harvestBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, harvestBatchRef: e.target.value }))} /></div>
-            <div><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
+
+            {/* Product Name — datalist from crop register */}
+            <div className="col-span-2">
+              <Label>Product Name *</Label>
+              <Input
+                list="fp-crop-names"
+                value={String(form.productName ?? "")}
+                onChange={e => setForm(f => ({ ...f, productName: e.target.value }))}
+                placeholder="Type or select from crop register…"
+              />
+              <datalist id="fp-crop-names">
+                {crops.map(c => (
+                  <option key={String(c.id)} value={`${String(c.cropName)}${c.variety ? ` — ${String(c.variety)}` : ""}`} />
+                ))}
+              </datalist>
+              {crops.length > 0 && !form.productName && <p className="text-xs text-muted-foreground mt-1">Suggestions from your crop register — or type a custom name.</p>}
+            </div>
+
             <div><Label>Quantity (kg)</Label><Input type="number" step="0.01" value={String(form.quantityKg ?? "")} onChange={e => setForm(f => ({ ...f, quantityKg: e.target.value }))} /></div>
-            <div><Label>Condition on Arrival</Label>
+
+            {/* Condition on arrival */}
+            <div>
+              <Label>Condition on Arrival</Label>
               <Select value={String(form.conditionOnArrival ?? "")} onValueChange={v => setForm(f => ({ ...f, conditionOnArrival: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                 <SelectContent>{["Good", "Acceptable", "Poor", "Rejected"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Received By</Label><Input value={String(form.receivedBy ?? "")} onChange={e => setForm(f => ({ ...f, receivedBy: e.target.value }))} /></div>
+
+            {/* Received By — datalist from previous records */}
+            <div>
+              <Label>Received By</Label>
+              <Input
+                list="fp-staff-names"
+                value={String(form.receivedBy ?? "")}
+                onChange={e => setForm(f => ({ ...f, receivedBy: e.target.value }))}
+                placeholder="Name of receiver…"
+              />
+              <datalist id="fp-staff-names">
+                {knownStaff.map(s => <option key={s} value={s} />)}
+              </datalist>
+            </div>
+
+            {/* Condition warning */}
+            {conditionBad && (
+              <div className="col-span-2" style={{ display: "flex", gap: 8, padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, fontSize: "0.82rem", color: "#9a3412", alignItems: "flex-start" }}>
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span><strong>Poor or Rejected condition selected.</strong> Segregate this batch immediately, document the issue in full, and notify your quality/compliance manager before intake proceeds.</span>
+              </div>
+            )}
+
             <div><Label>Intake Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.intakeTemperatureC ?? "")} onChange={e => setForm(f => ({ ...f, intakeTemperatureC: e.target.value }))} /></div>
             <div><Label>Target Storage Temp (°C)</Label><Input type="number" step="0.1" value={String(form.targetStorageTemperatureC ?? "")} onChange={e => setForm(f => ({ ...f, targetStorageTemperatureC: e.target.value }))} /></div>
             <div><Label>Pre-Cooling Start Time</Label><Input type="time" value={String(form.preCoolingStartTime ?? "")} onChange={e => setForm(f => ({ ...f, preCoolingStartTime: e.target.value }))} /></div>
-            <div><Label>Pre-Cooling End Time</Label><Input type="time" value={String(form.preCoolingEndTime ?? "")} onChange={e => setForm(f => ({ ...f, preCoolingEndTime: e.target.value }))} /></div>
+            <div>
+              <Label>Pre-Cooling End Time</Label>
+              <Input type="time" value={String(form.preCoolingEndTime ?? "")} onChange={e => setForm(f => ({ ...f, preCoolingEndTime: e.target.value }))} />
+              {form.preCoolingEndTime && !form.achievedTemperatureC && (
+                <p className="text-xs text-blue-600 mt-1">⏰ An alert will appear when this time is reached if no achieved temperature has been recorded.</p>
+              )}
+            </div>
             <div><Label>Achieved Temperature (°C)</Label><Input type="number" step="0.1" value={String(form.achievedTemperatureC ?? "")} onChange={e => setForm(f => ({ ...f, achievedTemperatureC: e.target.value }))} /></div>
-            <div><Label>Storage Location</Label><Input value={String(form.storageLocation ?? "")} onChange={e => setForm(f => ({ ...f, storageLocation: e.target.value }))} /></div>
-            <div className="col-span-2 space-y-2">
-              {([["foreignBodyCheck", "Foreign body check completed?"], ["pestDamageCheck", "Pest damage check completed?"]] as [string, string][]).map(([k, l]) => (
-                <div key={k} className="flex items-center gap-2"><Checkbox id={k} checked={Boolean(form[k])} onCheckedChange={v => setForm(f => ({ ...f, [k]: Boolean(v) }))} /><Label htmlFor={k}>{l}</Label></div>
-              ))}
-              <div className="flex items-center gap-2">
-                <Checkbox id="accepted" checked={form.accepted !== false} onCheckedChange={v => setForm(f => ({ ...f, accepted: Boolean(v) }))} />
-                <Label htmlFor="accepted">Batch accepted into store?</Label>
+
+            {/* Storage Location — managed pick-list or free-text fallback */}
+            <div>
+              <Label>Storage Location</Label>
+              {storageLocs.length > 0 ? (
+                <Select value={String(form.storageLocation ?? "")} onValueChange={v => setForm(f => ({ ...f, storageLocation: v === "__other__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select location…" /></SelectTrigger>
+                  <SelectContent>
+                    {storageLocs.map(loc => <SelectItem key={String(loc.id)} value={String(loc.name)}>{String(loc.name)}</SelectItem>)}
+                    <SelectItem value="__other__">Other / free text…</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex gap-2">
+                  <Input value={String(form.storageLocation ?? "")} onChange={e => setForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="Enter location…" className="flex-1" />
+                  <Button variant="outline" size="sm" onClick={() => setManageLocOpen(true)} title="Add managed locations">
+                    <Warehouse className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+              {storageLocs.length === 0 && <p className="text-xs text-muted-foreground mt-1">Add managed locations via the Locations button for a consistent pick-list.</p>}
+            </div>
+
+            {/* Checkboxes with inline warnings */}
+            <div className="col-span-2 space-y-3 pt-1">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="foreignBodyCheck" checked={Boolean(form.foreignBodyCheck)} onCheckedChange={v => setForm(f => ({ ...f, foreignBodyCheck: Boolean(v) }))} />
+                  <Label htmlFor="foreignBodyCheck">Foreign body check completed?</Label>
+                </div>
+                {!form.foreignBodyCheck && (
+                  <p style={{ marginLeft: 24, marginTop: 4, fontSize: "0.78rem", color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
+                    This check is required — inspect produce thoroughly for foreign bodies before intake is recorded.
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="pestDamageCheck" checked={Boolean(form.pestDamageCheck)} onCheckedChange={v => setForm(f => ({ ...f, pestDamageCheck: Boolean(v) }))} />
+                  <Label htmlFor="pestDamageCheck">Pest damage check completed?</Label>
+                </div>
+                {!form.pestDamageCheck && (
+                  <p style={{ marginLeft: 24, marginTop: 4, fontSize: "0.78rem", color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
+                    Inspect produce for pest damage and contamination before storing.
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="accepted" checked={form.accepted !== false} onCheckedChange={v => setForm(f => ({ ...f, accepted: Boolean(v) }))} />
+                  <Label htmlFor="accepted">Batch accepted into store?</Label>
+                </div>
+                {batchRejected && (
+                  <p style={{ marginLeft: 24, marginTop: 4, fontSize: "0.78rem", color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
+                    <strong>Rejection:</strong> Quarantine this batch, complete the rejection reason below, and notify your quality/compliance manager immediately.
+                  </p>
+                )}
               </div>
             </div>
-            {form.accepted === false && <div className="col-span-2"><Label>Rejection Reason</Label><Textarea value={String(form.rejectionReason ?? "")} onChange={e => setForm(f => ({ ...f, rejectionReason: e.target.value }))} rows={2} /></div>}
+
+            {form.accepted === false && (
+              <div className="col-span-2">
+                <Label>Rejection Reason</Label>
+                <Textarea value={String(form.rejectionReason ?? "")} onChange={e => setForm(f => ({ ...f, rejectionReason: e.target.value }))} rows={2} placeholder="Describe why this batch was rejected…" />
+              </div>
+            )}
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
