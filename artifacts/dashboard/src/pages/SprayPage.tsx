@@ -2298,6 +2298,7 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
     const res = await fetch(url, { method: editingLog ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logForm) });
     if (!res.ok) { toast({ title: "Error saving log entry", variant: "destructive" }); return; }
     qc.invalidateQueries({ queryKey: ["ipm-monitoring-logs", farmId, selectedPlan?.id] });
+    qc.invalidateQueries({ queryKey: ["notifications", farmId] });
     setLogOpen(false);
     toast({ title: editingLog ? "Log entry updated" : "Monitoring entry recorded" });
   }

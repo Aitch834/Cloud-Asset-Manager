@@ -1688,6 +1688,102 @@ function maybeRunWeeklyDigest() {
 }
 
 
+// ── RIDDOR Accident Notification ──────────────────────────────────────────────────────
+export async function createRiddorNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  personName: string; incidentLocation: string; riddorCategory?: string | null;
+}) {
+  const category = params.riddorCategory ? " (" + params.riddorCategory + ")" : "";
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "riddor_accident", severity: "critical",
+    title: "RIDDOR Reportable Accident — " + params.personName,
+    message: "A RIDDOR-reportable incident involving " + params.personName + " at " + params.incidentLocation + category + " must be reported to the HSE. Log the HSE reference in H&S → Accident Book once submitted.",
+    relatedModule: "risk-waste", relatedId: params.recordId,
+    dedupeKey: "riddor-accident-" + params.recordId,
+  });
+}
+
+// ── BCMS Mortality Pending ──────────────────────────────────────────────────────────────────────
+export async function createBcmsMortalityPendingNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  species: string; tagNumber?: string | null; dateOfDeath: string;
+}) {
+  const animal = params.tagNumber ? params.species + " (Tag: " + params.tagNumber + ")" : params.species;
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "bcms_pending", severity: "warning",
+    title: "BCMS Notification Pending — " + params.species + " Mortality",
+    message: "A mortality record for " + animal + " (died " + params.dateOfDeath + ") was saved without confirming BCMS notification. Cattle deaths must be notified to BCMS within 7 days.",
+    relatedModule: "livestock-management", relatedId: params.recordId,
+    dedupeKey: "bcms-pending-" + params.recordId,
+  });
+}
+
+// ── Biosecurity Declaration Missing ───────────────────────────────────────────────────────────────
+export async function createBiosecurityDeclarationMissingNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  visitorName: string; declType: "biosecurity" | "health";
+}) {
+  const declLabel = params.declType === "biosecurity" ? "Biosecurity Declaration" : "Health Declaration";
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "biosecurity_declaration_missing", severity: "warning",
+    title: "Biosecurity — " + declLabel + " Not Signed: " + params.visitorName,
+    message: "Visitor/contractor record for " + params.visitorName + " was saved without a signed " + declLabel.toLowerCase() + ". Ensure the declaration is completed before site access is granted.",
+    relatedModule: "biosecurity", relatedId: params.recordId,
+    dedupeKey: "biosec-" + params.declType + "-missing-" + params.recordId,
+  });
+}
+
+// ── Herd Health Follow-Up Pending ─────────────────────────────────────────────────────────────────────
+export async function createHerdHealthFollowUpNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  eventTitle: string; followUpDate?: string | null;
+}) {
+  const byWhen = params.followUpDate ? " by " + params.followUpDate : "";
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "herd_health_followup", severity: "warning",
+    title: "Herd Health Follow-Up Pending: " + params.eventTitle,
+    message: "A herd health event \"" + params.eventTitle + "\" requires a follow-up" + byWhen + ". Mark follow-up as completed once carried out.",
+    relatedModule: "livestock-management", relatedId: params.recordId,
+    dedupeKey: "herd-followup-" + params.recordId,
+  });
+}
+
+// ── IPM Threshold Breached ─────────────────────────────────────────────────────────────────────────────
+export async function createIpmThresholdBreachedNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  pestOrWeed: string; logDate: string; severity?: string | null;
+}) {
+  const sevNote = params.severity ? " (severity: " + params.severity + ")" : "";
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "spray_threshold_breached", severity: "warning",
+    title: "IPM Threshold Breached — " + params.pestOrWeed,
+    message: "A monitoring log for " + params.pestOrWeed + " on " + params.logDate + sevNote + " has exceeded the action threshold. Review the IPM plan and consider an intervention.",
+    relatedModule: "sprays-inputs", relatedId: params.recordId,
+    dedupeKey: "ipm-threshold-" + params.recordId,
+  });
+}
+
+// ── Reportable / Notifiable Disease ─────────────────────────────────────────────────────────────────
+export async function createReportableDiseaseNotification(params: {
+  tenantId: number; farmId: number; recordId: number;
+  condition: string; ahrbiNotified: boolean;
+}) {
+  const notifNote = params.ahrbiNotified ? "" : " AHRBI/DAERA has NOT been notified — report immediately.";
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "reportable_disease", severity: "critical",
+    title: "Reportable Disease Suspected — " + params.condition,
+    message: "A disease monitoring observation for \"" + params.condition + "\" has been flagged as a reportable/notifiable disease." + notifNote + " Contact your vet and the relevant authority without delay.",
+    relatedModule: "sheep-production", relatedId: params.recordId,
+    dedupeKey: "reportable-disease-" + params.recordId,
+  });
+}
+
 // ── Fresh Produce Intake Notifications ───────────────────────────────────────
 
 export async function createFpIntakeRejectionNotification(params: {

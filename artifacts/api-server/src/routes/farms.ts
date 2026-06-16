@@ -408,7 +408,7 @@ import {
   dairyAbrInvoicesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -2942,6 +2942,14 @@ router.post("/farms/:farmId/herd-health-events", requireAuth, requireTenant, req
   const followUpDate = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
   const [record] = await db.insert(herdHealthEventsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, eventDate, followUpDate }).returning();
   res.status(201).json({ record });
+  if ((req.body.followUpRequired === true || req.body.followUpRequired === "true") && !(req.body.followUpCompleted === true || req.body.followUpCompleted === "true")) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createHerdHealthFollowUpNotification({ tenantId: farm.tenantId, farmId, recordId: (record as any).id, eventTitle: String(req.body.title ?? req.body.eventType ?? "Health Event"), followUpDate: req.body.followUpDate ? String(req.body.followUpDate) : null });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.put("/farms/:farmId/herd-health-events/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -2956,6 +2964,14 @@ router.put("/farms/:farmId/herd-health-events/:recordId", requireAuth, requireTe
   body.followUpDate = followUpDate;
   const [record] = await db.update(herdHealthEventsTable).set(body).where(and(eq(herdHealthEventsTable.id, recordId), eq(herdHealthEventsTable.farmId, farmId))).returning();
   res.json({ record });
+  if ((req.body.followUpRequired === true || req.body.followUpRequired === "true") && !(req.body.followUpCompleted === true || req.body.followUpCompleted === "true")) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createHerdHealthFollowUpNotification({ tenantId: farm.tenantId, farmId, recordId, eventTitle: String(req.body.title ?? req.body.eventType ?? "Health Event"), followUpDate: req.body.followUpDate ? String(req.body.followUpDate) : null });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.delete("/farms/:farmId/herd-health-events/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -3262,6 +3278,17 @@ router.post("/farms/:farmId/visitors", requireAuth, requireTenant, requireModule
   if (!farmId) return;
   const [record] = await db.insert(visitorContractorLogTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.status(201).json({ record });
+  void (async () => {
+    try {
+      const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+      if (!farm) return;
+      const visitorName = String(req.body.visitorName ?? req.body.personName ?? "Visitor");
+      const biosecSigned = req.body.biosecurityDeclarationSigned === true || req.body.biosecurityDeclarationSigned === "true";
+      const healthSigned = req.body.healthDeclarationSigned === true || req.body.healthDeclarationSigned === "true";
+      if (!biosecSigned) await createBiosecurityDeclarationMissingNotification({ tenantId: farm.tenantId, farmId, recordId: (record as any).id, visitorName, declType: "biosecurity" });
+      if (!healthSigned) await createBiosecurityDeclarationMissingNotification({ tenantId: farm.tenantId, farmId, recordId: (record as any).id, visitorName, declType: "health" });
+    } catch { /* fire-and-forget */ }
+  })();
 });
 
 router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -3271,6 +3298,17 @@ router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, requ
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(visitorContractorLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(visitorContractorLogTable.id, recordId), eq(visitorContractorLogTable.farmId, farmId))).returning();
   res.json({ record });
+  void (async () => {
+    try {
+      const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+      if (!farm) return;
+      const visitorName = String(req.body.visitorName ?? req.body.personName ?? "Visitor");
+      const biosecSigned = req.body.biosecurityDeclarationSigned === true || req.body.biosecurityDeclarationSigned === "true";
+      const healthSigned = req.body.healthDeclarationSigned === true || req.body.healthDeclarationSigned === "true";
+      if (!biosecSigned) await createBiosecurityDeclarationMissingNotification({ tenantId: farm.tenantId, farmId, recordId, visitorName, declType: "biosecurity" });
+      if (!healthSigned) await createBiosecurityDeclarationMissingNotification({ tenantId: farm.tenantId, farmId, recordId, visitorName, declType: "health" });
+    } catch { /* fire-and-forget */ }
+  })();
 });
 
 // ─── Pest Control ─────────────────────────────────
@@ -12624,6 +12662,14 @@ router.post("/farms/:farmId/mortality-records", requireAuth, requireTenant, requ
     await db.update(livestockAnimalsTable).set({ status: "dead", updatedAt: new Date() }).where(and(eq(livestockAnimalsTable.id, parseInt(animalId)), eq(livestockAnimalsTable.farmId, farmId)));
   }
   res.json({ record });
+  if (!(rest.bcmsNotified === true || rest.bcmsNotified === "true")) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createBcmsMortalityPendingNotification({ tenantId: farm.tenantId, farmId, recordId: (record as any).id, species: String(rest.species ?? "Animal"), tagNumber: rest.tagNumber ? String(rest.tagNumber) : null, dateOfDeath: String(rest.dateOfDeath ?? "unknown") });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.put("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12637,6 +12683,14 @@ router.put("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTen
     contractorId: contractorId ? parseInt(contractorId) : null,
   }).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId))).returning();
   res.json({ record });
+  if (!(rest.bcmsNotified === true || rest.bcmsNotified === "true") && record) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createBcmsMortalityPendingNotification({ tenantId: farm.tenantId, farmId, recordId, species: String(rest.species ?? (record as any).species ?? "Animal"), tagNumber: rest.tagNumber ? String(rest.tagNumber) : null, dateOfDeath: String(rest.dateOfDeath ?? (record as any).dateOfDeath ?? "unknown") });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.delete("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -21868,6 +21922,7 @@ router.post("/farms/:farmId/accident-book", requireAuth, requireTenant, requireM
         for (const m of managers) {
           if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
         }
+        await createRiddorNotification({ tenantId: farm.tenantId, farmId, recordId: record.id, personName, incidentLocation: location, riddorCategory: req.body.riddorCategory ? String(req.body.riddorCategory) : null });
       } catch { /* fire-and-forget */ }
     })();
   }
@@ -21880,6 +21935,14 @@ router.put("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant,
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(accidentBookTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId))).returning();
   res.json({ record });
+  if ((req.body.riddorReportable === true || req.body.riddorReportable === "true") && record) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createRiddorNotification({ tenantId: farm.tenantId, farmId, recordId: record.id, personName: String(req.body.personName ?? "A person"), incidentLocation: String(req.body.incidentLocation ?? "location not specified"), riddorCategory: req.body.riddorCategory ? String(req.body.riddorCategory) : null });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.delete("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -26620,6 +26683,14 @@ router.post("/farms/:farmId/sheep-disease-monitoring", requireAuth, requireTenan
   const b = req.body as Record<string, unknown>;
   const [row] = await (db.insert(sheepDiseaseMonitoringTable) as any).values({ farmId, flockId: b.flockId ? parseInt(String(b.flockId)) : null, observationDate: String(b.observationDate ?? ""), condition: String(b.condition ?? ""), numberOfAnimalsAffected: b.numberOfAnimalsAffected ? parseInt(String(b.numberOfAnimalsAffected)) : null, severity: b.severity ? String(b.severity) : null, actionTaken: b.actionTaken ? String(b.actionTaken) : null, vetConsulted: b.vetConsulted === true || b.vetConsulted === "true", vetName: b.vetName ? String(b.vetName) : null, treatmentProduct: b.treatmentProduct ? String(b.treatmentProduct) : null, outcome: b.outcome ? String(b.outcome) : null, reportableDisease: b.reportableDisease === true || b.reportableDisease === "true", ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true", notes: b.notes ? String(b.notes) : null }).returning();
   res.json({ record: row });
+  if (b.reportableDisease === true || b.reportableDisease === "true") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createReportableDiseaseNotification({ tenantId: farm.tenantId, farmId, recordId: (row as any).id, condition: String(b.condition ?? "Unknown"), ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true" });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 router.put("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -26632,6 +26703,14 @@ router.put("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTe
   const [row] = await db.update(sheepDiseaseMonitoringTable).set(updates).where(and(eq(sheepDiseaseMonitoringTable.id, id), eq(sheepDiseaseMonitoringTable.farmId, farmId))).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record: row });
+  if (b.reportableDisease === true || b.reportableDisease === "true") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createReportableDiseaseNotification({ tenantId: farm.tenantId, farmId, recordId: id, condition: String(b.condition ?? updates.condition ?? "Unknown"), ahrbiNotified: b.ahrbiNotified === true || b.ahrbiNotified === "true" });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 router.delete("/farms/:farmId/sheep-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("sheep-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -27975,6 +28054,14 @@ router.post("/farms/:farmId/ipm-plans/:planId/monitoring-logs", requireAuth, req
     notes: ms(b.notes),
   }).returning();
   res.json({ record });
+  if (Boolean(b.thresholdBreached)) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createIpmThresholdBreachedNotification({ tenantId: farm.tenantId, farmId, recordId: (record as any).id, pestOrWeed: String(b.pestOrWeed ?? "Unknown"), logDate: String(b.logDate ?? ""), severity: b.severity ? String(b.severity) : null });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.put("/farms/:farmId/ipm-plans/:planId/monitoring-logs/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -27989,6 +28076,14 @@ router.put("/farms/:farmId/ipm-plans/:planId/monitoring-logs/:id", requireAuth, 
   const [record] = await db.update(ipmMonitoringLogsTable).set(updates).where(and(eq(ipmMonitoringLogsTable.id, id), eq(ipmMonitoringLogsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
+  if (updates.thresholdBreached === true || b.thresholdBreached === true || b.thresholdBreached === "true") {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        if (farm) await createIpmThresholdBreachedNotification({ tenantId: farm.tenantId, farmId, recordId: id, pestOrWeed: String(updates.pestOrWeed ?? b.pestOrWeed ?? "Unknown"), logDate: String(updates.logDate ?? b.logDate ?? ""), severity: updates.severity ? String(updates.severity) : (b.severity ? String(b.severity) : null) });
+      } catch { /* fire-and-forget */ }
+    })();
+  }
 });
 
 router.delete("/farms/:farmId/ipm-plans/:planId/monitoring-logs/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {

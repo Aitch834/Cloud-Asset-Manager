@@ -224,12 +224,12 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/visitors`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/visitors/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
   });
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/visitors/${id}`, { method: "DELETE" }),

@@ -218,6 +218,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
   open: boolean; onClose: () => void; farmId: number; herds: any[]; editRecord: any | null; onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [form, setForm] = useState<any>(emptyForm);
 
   React.useEffect(() => {
@@ -256,7 +257,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
       if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
-    onSuccess: () => { toast({ title: editRecord ? "Event updated" : "Clinical event logged" }); onSaved(); onClose(); },
+    onSuccess: () => { toast({ title: editRecord ? "Event updated" : "Clinical event logged" }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); onSaved(); onClose(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 

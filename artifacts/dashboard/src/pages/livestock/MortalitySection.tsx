@@ -563,11 +563,11 @@ export function MortalitySection({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: typeof EMPTY_FULL) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["animals", farmId] }); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["animals", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
   });
   const updateMut = useMutation({
     mutationFn: (body: typeof EMPTY_FULL & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditRecord(null); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setEditRecord(null); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),

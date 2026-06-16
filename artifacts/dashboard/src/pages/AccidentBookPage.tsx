@@ -576,7 +576,7 @@ export default function AccidentBookPage() {
     setAddOpen(true);
   }
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["accident-book", farmId] });
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); };
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/accident-book`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
