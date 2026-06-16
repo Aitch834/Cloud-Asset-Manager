@@ -9,7 +9,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach", "fp_intake_rejected"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -1685,6 +1685,71 @@ function maybeRunWeeklyDigest() {
     lastDigestDay = today;
     runWeeklyDigest().catch((err) => console.error("[ALERTS] Weekly digest error:", err));
   }
+}
+
+
+// ── Fresh Produce Intake Notifications ───────────────────────────────────────
+
+export async function createFpIntakeRejectionNotification(params: {
+  tenantId: number; farmId: number; intakeId: number;
+  productName: string; batchRef: string; rejectionReason?: string | null;
+}) {
+  const label = params.productName ? `${params.productName} (${params.batchRef})` : params.batchRef;
+  const title = `Fresh Produce — Batch Rejected: ${label}`;
+  const message = `Batch ${params.batchRef}${params.productName ? ` (${params.productName})` : ""} was rejected on intake and must be quarantined. A quality/compliance review is required immediately.${params.rejectionReason ? ` Reason: ${params.rejectionReason}` : ""}`;
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "fp_intake_rejected", severity: "critical",
+    title, message,
+    relatedModule: "fresh-produce", relatedId: params.intakeId,
+    dedupeKey: `fp-intake-rejected-${params.intakeId}`,
+  });
+}
+
+export async function createFpPoorConditionNotification(params: {
+  tenantId: number; farmId: number; intakeId: number;
+  productName: string; batchRef: string; condition: string;
+}) {
+  const label = params.productName ? `${params.productName} (${params.batchRef})` : params.batchRef;
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "fp_poor_condition", severity: "warning",
+    title: `Fresh Produce — Poor Condition on Arrival: ${label}`,
+    message: `Batch ${params.batchRef}${params.productName ? ` (${params.productName})` : ""} arrived in ${params.condition.toLowerCase()} condition. Investigate the source and review pre-harvest practices to prevent recurrence.`,
+    relatedModule: "fresh-produce", relatedId: params.intakeId,
+    dedupeKey: `fp-poor-condition-${params.intakeId}`,
+  });
+}
+
+export async function createFpCheckMissingNotification(params: {
+  tenantId: number; farmId: number; intakeId: number;
+  productName: string; batchRef: string; checkType: "foreign-body" | "pest-damage";
+}) {
+  const checkLabel = params.checkType === "foreign-body" ? "Foreign Body Check" : "Pest Damage Check";
+  const label = params.productName ? `${params.productName} (${params.batchRef})` : params.batchRef;
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "fp_check_missing", severity: "warning",
+    title: `Fresh Produce — ${checkLabel} Not Completed: ${label}`,
+    message: `Intake record for batch ${params.batchRef}${params.productName ? ` (${params.productName})` : ""} was saved without completing the ${checkLabel.toLowerCase()}. This check must be carried out and the record updated.`,
+    relatedModule: "fresh-produce", relatedId: params.intakeId,
+    dedupeKey: `fp-${params.checkType}-missing-${params.intakeId}`,
+  });
+}
+
+export async function createFpPreCoolingPendingNotification(params: {
+  tenantId: number; farmId: number; intakeId: number;
+  productName: string; batchRef: string; preCoolingEndTime: string;
+}) {
+  const label = params.productName ? `${params.productName} (${params.batchRef})` : params.batchRef;
+  await upsertNotification({
+    tenantId: params.tenantId, farmId: params.farmId,
+    type: "fp_precooling_pending", severity: "warning",
+    title: `Fresh Produce — Pre-Cooling Temperature Pending: ${label}`,
+    message: `Batch ${params.batchRef}${params.productName ? ` (${params.productName})` : ""} has a pre-cooling end time of ${params.preCoolingEndTime} but no achieved temperature has been recorded. Please log the temperature reading.`,
+    relatedModule: "fresh-produce", relatedId: params.intakeId,
+    dedupeKey: `fp-precooling-pending-${params.intakeId}`,
+  });
 }
 
 export function startAlertingJob() {

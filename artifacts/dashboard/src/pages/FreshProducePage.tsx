@@ -700,11 +700,19 @@ export function IntakeTab({ farmId }: { farmId: number }) {
     mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/fresh-produce-intake`), {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fp-intake", farmId] }); setOpen(false); setForm({}); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fp-intake", farmId] });
+      qc.invalidateQueries({ queryKey: ["notifications", farmId] });
+      setOpen(false);
+      setForm({});
+    },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/fresh-produce-intake/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fp-intake", farmId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fp-intake", farmId] });
+      qc.invalidateQueries({ queryKey: ["notifications", farmId] });
+    },
   });
   const addLoc = useMutation({
     mutationFn: (name: string) => fetch(api(`farms/${farmId}/fresh-produce-storage-locations`), {
@@ -726,28 +734,10 @@ export function IntakeTab({ farmId }: { farmId: number }) {
   const conditionBad = form.conditionOnArrival === "Poor" || form.conditionOnArrival === "Rejected";
   const batchRejected = form.accepted === false;
 
-  // Tab-level alert counts
-  const rejectedCount = records.filter(r => r.accepted === false || r.accepted === "false").length;
-  const poorCount     = records.filter(r => r.conditionOnArrival === "Poor" || r.conditionOnArrival === "Rejected").length;
-
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="space-y-4">
-
-      {/* ── Tab-level banners ── */}
-      {rejectedCount > 0 && (
-        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.85rem", color: "#991b1b", alignItems: "flex-start" }}>
-          <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span><strong>{rejectedCount} rejected batch{rejectedCount > 1 ? "es" : ""} on record</strong> — segregate, document fully and notify your quality/compliance manager.</span>
-        </div>
-      )}
-      {poorCount > 0 && (
-        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, fontSize: "0.85rem", color: "#9a3412", alignItems: "flex-start" }}>
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span><strong>{poorCount} record{poorCount > 1 ? "s" : ""} with Poor or Rejected condition on arrival</strong> — investigate the source and review pre-harvest practices.</span>
-        </div>
-      )}
 
       {/* ── Toolbar ── */}
       <div className="flex justify-between items-center">

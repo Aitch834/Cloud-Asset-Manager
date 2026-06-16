@@ -408,7 +408,7 @@ import {
   dairyAbrInvoicesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -18478,13 +18478,81 @@ router.get("/farms/:farmId/fresh-produce-intake", requireAuth, requireTenant, re
 });
 router.post("/farms/:farmId/fresh-produce-intake", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const [row] = await db.insert(freshProduceIntakeTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = req.body as Record<string, unknown>;
+  const [row] = await db.insert(freshProduceIntakeTable).values({ ...sanitiseBody(body), farmId }).returning();
+  // Fire intake notifications (non-blocking)
+  void (async () => {
+    try {
+      const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+      if (!farm) return;
+      const { tenantId } = farm;
+      const intakeId = (row as any).id as number;
+      const productName = String(body.productName ?? "");
+      const batchRef    = String(body.harvestBatchRef ?? "");
+      const accepted    = body.accepted === false || body.accepted === "false";
+      const condition   = String(body.conditionOnArrival ?? "");
+      const fbCheck     = Boolean(body.foreignBodyCheck) && body.foreignBodyCheck !== "false";
+      const pdCheck     = Boolean(body.pestDamageCheck)  && body.pestDamageCheck  !== "false";
+      const endTime     = String(body.preCoolingEndTime ?? "");
+      const achievedTemp = body.achievedTemperatureC;
+      if (accepted) {
+        await createFpIntakeRejectionNotification({ tenantId, farmId, intakeId, productName, batchRef, rejectionReason: String(body.rejectionReason ?? "") || null });
+      } else if (condition === "Poor" || condition === "Rejected") {
+        await createFpPoorConditionNotification({ tenantId, farmId, intakeId, productName, batchRef, condition });
+      }
+      if (!fbCheck) {
+        await createFpCheckMissingNotification({ tenantId, farmId, intakeId, productName, batchRef, checkType: "foreign-body" });
+      }
+      if (!pdCheck) {
+        await createFpCheckMissingNotification({ tenantId, farmId, intakeId, productName, batchRef, checkType: "pest-damage" });
+      }
+      if (endTime && !achievedTemp) {
+        await createFpPreCoolingPendingNotification({ tenantId, farmId, intakeId, productName, batchRef, preCoolingEndTime: endTime });
+      }
+    } catch (err) {
+      console.error("[FP Intake] Notification error:", err);
+    }
+  })();
   res.json(row);
 });
 router.put("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(freshProduceIntakeTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId))).returning();
+  const body = req.body as Record<string, unknown>;
+  const [row] = await db.update(freshProduceIntakeTable).set(sanitiseBody(body)).where(and(eq(freshProduceIntakeTable.id, id), eq(freshProduceIntakeTable.farmId, farmId))).returning();
+  // Re-evaluate notifications on update (non-blocking)
+  void (async () => {
+    try {
+      const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+      if (!farm) return;
+      const { tenantId } = farm;
+      const intakeId = id;
+      const productName = String(body.productName ?? "");
+      const batchRef    = String(body.harvestBatchRef ?? "");
+      const accepted    = body.accepted === false || body.accepted === "false";
+      const condition   = String(body.conditionOnArrival ?? "");
+      const fbCheck     = Boolean(body.foreignBodyCheck) && body.foreignBodyCheck !== "false";
+      const pdCheck     = Boolean(body.pestDamageCheck)  && body.pestDamageCheck  !== "false";
+      const endTime     = String(body.preCoolingEndTime ?? "");
+      const achievedTemp = body.achievedTemperatureC;
+      if (accepted) {
+        await createFpIntakeRejectionNotification({ tenantId, farmId, intakeId, productName, batchRef, rejectionReason: String(body.rejectionReason ?? "") || null });
+      } else if (condition === "Poor" || condition === "Rejected") {
+        await createFpPoorConditionNotification({ tenantId, farmId, intakeId, productName, batchRef, condition });
+      }
+      if (!fbCheck) {
+        await createFpCheckMissingNotification({ tenantId, farmId, intakeId, productName, batchRef, checkType: "foreign-body" });
+      }
+      if (!pdCheck) {
+        await createFpCheckMissingNotification({ tenantId, farmId, intakeId, productName, batchRef, checkType: "pest-damage" });
+      }
+      if (endTime && !achievedTemp) {
+        await createFpPreCoolingPendingNotification({ tenantId, farmId, intakeId, productName, batchRef, preCoolingEndTime: endTime });
+      }
+    } catch (err) {
+      console.error("[FP Intake] Notification error (PUT):", err);
+    }
+  })();
   res.json(row);
 });
 router.delete("/farms/:farmId/fresh-produce-intake/:id", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "delete"), async (req: Request, res: Response): Promise<void> => {
