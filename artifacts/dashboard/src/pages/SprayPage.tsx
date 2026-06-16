@@ -308,10 +308,17 @@ export default function SprayPage() {
           <CropYearSelector value={cropYear} onChange={setCropYear} />
           <span className="text-xs text-gray-400">{cropYearLabel(cropYear)}</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: "1.5rem" }}>
           <StatCard icon={<Droplets size={18} color="#0369a1" />} label="Applications" value={yearApplications.length} bg="#f0f9ff" iconBg="#e0f2fe" />
           <StatCard icon={<FlaskConical size={18} color="#7c3aed" />} label="Products Registered" value={products.length} bg="#f5f3ff" iconBg="#ede9fe" />
           <StatCard icon={<Droplets size={18} color="#166534" />} label="Fields Treated" value={new Set(yearApplications.map((a: any) => a.fieldId)).size} bg="#f0fdf4" iconBg="#dcfce7" />
+          <StatCard
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>}
+            label="Area Treated (ha)"
+            value={yearApplications.reduce((s: number, a: any) => s + parseFloat(String(a.areaSprayedHa || 0)), 0).toFixed(2) + " ha"}
+            bg="#fffbeb"
+            iconBg="#fef3c7"
+          />
         </div>
         <TabBar className="mb-5">
           <TabButton active={tab === "applications"} onClick={() => setTab("applications")}>Applications Log</TabButton>

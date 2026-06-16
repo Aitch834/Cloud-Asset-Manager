@@ -4938,6 +4938,41 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
           <p className="text-sm mt-1">Add your first delivery to start tracking stock and verifying batch numbers at AI service time.</p>
         </div>
       ) : (
+        <>
+          {/* ── Summary strip ── */}
+          {(() => {
+            const totalReceived = straws.reduce((s, r) => s + (r.strawsReceived ?? 0), 0);
+            const totalUsed = straws.reduce((s, r) => s + (r.strawsUsed ?? 0), 0);
+            const totalInStock = straws.reduce((s, r) => s + Math.max(0, (r.strawsReceived ?? 0) - (r.strawsUsed ?? 0)), 0);
+            const totalCostPence = straws.reduce((s, r) => s + ((r.unitCostPence ?? 0) * (r.strawsReceived ?? 0)), 0);
+            const hasCost = straws.some(r => r.unitCostPence);
+            return (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                <div style={{ background: totalInStock > 0 ? "#f0fdf4" : "#fef2f2", border: `1px solid ${totalInStock > 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: totalInStock > 0 ? "#15803d" : "#b91c1c", letterSpacing: "0.06em", margin: "0 0 3px" }}>In Stock</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: totalInStock > 0 ? "#14532d" : "#7f1d1d", lineHeight: 1, margin: 0 }}>{totalInStock}</p>
+                  <p style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: 2 }}>straw{totalInStock !== 1 ? "s" : ""}</p>
+                </div>
+                <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 100 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Received</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>{totalReceived}</p>
+                  <p style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: 2 }}>straws</p>
+                </div>
+                <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 100 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Used to Date</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>{totalUsed}</p>
+                  <p style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: 2 }}>straws</p>
+                </div>
+                {hasCost && (
+                  <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                    <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>Stock Value</p>
+                    <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>£{(totalCostPence / 100).toFixed(2)}</p>
+                    <p style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: 2 }}>total received</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         <div className="border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
@@ -4977,6 +5012,7 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Delete confirm */}
