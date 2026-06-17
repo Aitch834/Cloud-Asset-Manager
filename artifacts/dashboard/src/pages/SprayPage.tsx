@@ -1193,8 +1193,8 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                         ))}
                       </SelectContent>
                     </Select>
-                    {form.operatorMemberId && (
-                      <Input className="mt-1" style={{ fontSize: "0.8rem" }} value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
+                    {!form.operatorMemberId && (
+                      <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="Or type a name if not in staff list…" value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
                     )}
                   </>
                 ) : (
@@ -1269,16 +1269,18 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Buffer Zone Distance (m)</Label>
-                <Input type="number" step="0.5" placeholder="e.g. 5, 10, 20" value={form.bufferZoneMetres ?? ""} onChange={e => setForm((f: any) => ({ ...f, bufferZoneMetres: e.target.value }))} />
-                {form.bufferZoneMetres && (
-                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Buffer zone of {form.bufferZoneMetres}m recorded</p>
-                )}
-              </div>
-              <div>
                 <Label>Water Source Nearby</Label>
-                <Select value={form.waterSourceNearby ?? ""} onValueChange={v => setForm((f: any) => ({ ...f, waterSourceNearby: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <Select value={form.waterSourceNearby ?? ""} onValueChange={v => {
+                  const source = v === "__none__" ? "" : v;
+                  const suggested: Record<string, number> = { ditch: 5, stream: 5, pond: 5, borehole: 50 };
+                  const min = source ? suggested[source] : undefined;
+                  setForm((f: any) => ({
+                    ...f,
+                    waterSourceNearby: source,
+                    bufferZoneMetres: (!f.bufferZoneMetres && min != null) ? String(min) : f.bufferZoneMetres,
+                  }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="None / Not applicable" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None / Not applicable</SelectItem>
                     <SelectItem value="ditch">Ditch / Drain</SelectItem>
@@ -1287,6 +1289,26 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     <SelectItem value="borehole">Borehole / Well</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label>Buffer Zone Distance (m)</Label>
+                <Input type="number" step="0.5" placeholder="e.g. 5, 10, 20" value={form.bufferZoneMetres ?? ""} onChange={e => setForm((f: any) => ({ ...f, bufferZoneMetres: e.target.value }))} />
+                {form.bufferZoneMetres && form.waterSourceNearby && form.waterSourceNearby !== "__none__" && (
+                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>
+                    &#10003; {form.bufferZoneMetres}m recorded —{" "}
+                    {form.waterSourceNearby === "borehole"
+                      ? "SPZ minimum 50m"
+                      : "CoP minimum 5m · check product label / LERAP rating"}
+                  </p>
+                )}
+                {form.bufferZoneMetres && (!form.waterSourceNearby || form.waterSourceNearby === "__none__") && (
+                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Buffer zone of {form.bufferZoneMetres}m recorded</p>
+                )}
+                {form.waterSourceNearby && form.waterSourceNearby !== "__none__" && !form.bufferZoneMetres && (
+                  <p style={{ fontSize: "0.72rem", color: "#f59e0b", marginTop: 3 }}>
+                    &#9888; Water source selected — enter the buffer zone maintained
+                  </p>
+                )}
               </div>
             </div>
             <div>
