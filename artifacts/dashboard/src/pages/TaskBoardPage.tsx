@@ -613,6 +613,7 @@ export default function TaskBoardPage() {
   const [memberFilter, setMemberFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [completedWindow, setCompletedWindow] = useState("90d");
+  const [sortOrder, setSortOrder] = useState("due-asc");
   const [boardPrinting, setBoardPrinting] = useState(false);
 
   useEffect(() => {
@@ -632,6 +633,42 @@ export default function TaskBoardPage() {
     { value: "12m",  label: "Last 12 months" },
     { value: "all",  label: "All time" },
   ];
+
+  const SORT_OPTIONS: { value: string; label: string }[] = [
+    { value: "due-asc",    label: "Due date ↑ (soonest)" },
+    { value: "due-desc",   label: "Due date ↓ (latest)" },
+    { value: "raised-desc", label: "Date raised ↓ (newest)" },
+    { value: "raised-asc",  label: "Date raised ↑ (oldest)" },
+    { value: "staff-az",   label: "Staff name A→Z" },
+    { value: "title-az",   label: "Title A→Z" },
+  ];
+
+  function applySortOrder(items: Assignment[]): Assignment[] {
+    return [...items].sort((a, b) => {
+      switch (sortOrder) {
+        case "due-asc": {
+          const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+          const db = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+          return da - db;
+        }
+        case "due-desc": {
+          const da = a.dueDate ? new Date(a.dueDate).getTime() : -Infinity;
+          const db = b.dueDate ? new Date(b.dueDate).getTime() : -Infinity;
+          return db - da;
+        }
+        case "raised-desc":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "raised-asc":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "staff-az":
+          return (a.staffName ?? "").localeCompare(b.staffName ?? "");
+        case "title-az":
+          return a.title.localeCompare(b.title);
+        default:
+          return 0;
+      }
+    });
+  }
 
   function applyCompletedWindow(items: Assignment[]): Assignment[] {
     if (completedWindow === "all") return items;
@@ -710,9 +747,9 @@ export default function TaskBoardPage() {
     return true;
   });
 
-  const pending = filtered.filter(r => r.status === "pending" || r.status === "in_progress");
+  const pending = applySortOrder(filtered.filter(r => r.status === "pending" || r.status === "in_progress"));
   const completedAll = filtered.filter(r => r.status === "completed" || r.status === "cancelled");
-  const completed = applyCompletedWindow(completedAll);
+  const completed = applySortOrder(applyCompletedWindow(completedAll));
 
   // Staff names for the member filter dropdown — scoped to selected department
   const staffNames = deptMemberNames
@@ -843,9 +880,18 @@ export default function TaskBoardPage() {
               {moduleNames.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
-          {(searchQuery || statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all" || moduleFilter !== "all") && (
+          <select
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value)}
+            className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {SORT_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          {(searchQuery || statusFilter !== "all" || deptFilter !== "all" || memberFilter !== "all" || moduleFilter !== "all" || sortOrder !== "due-asc") && (
             <button
-              onClick={() => { setSearchQuery(""); setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); setModuleFilter("all"); }}
+              onClick={() => { setSearchQuery(""); setStatusFilter("all"); setDeptFilter("all"); setMemberFilter("all"); setModuleFilter("all"); setSortOrder("due-asc"); }}
               className="text-xs text-foreground/50 hover:text-foreground underline underline-offset-2"
             >
               Clear all
@@ -870,6 +916,7 @@ export default function TaskBoardPage() {
             {deptFilter !== "all" && <span>Department: {deptFilter} · </span>}
             {memberFilter !== "all" && <span>Staff: {memberFilter} · </span>}
             {moduleFilter !== "all" && <span>Module: {moduleFilter} · </span>}
+            Sorted by: {SORT_OPTIONS.find(o => o.value === sortOrder)?.label} ·{" "}
             {filtered.length} assignment{filtered.length !== 1 ? "s" : ""}
           </p>
         </div>
