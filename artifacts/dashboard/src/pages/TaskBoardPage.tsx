@@ -11,7 +11,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
 
 type Assignment = {
@@ -606,6 +606,13 @@ export default function TaskBoardPage() {
 
   function applyCompletedWindow(items: Assignment[]): Assignment[] {
     if (completedWindow === "all") return items;
+    if (completedWindow.startsWith("year:")) {
+      const yr = parseInt(completedWindow.slice(5), 10);
+      return items.filter(r => {
+        const d = r.completedAt ?? r.createdAt;
+        return d ? new Date(d).getFullYear() === yr : false;
+      });
+    }
     const now = new Date();
     const cutoff = new Date(now);
     if (completedWindow === "30d") cutoff.setDate(now.getDate() - 30);
@@ -629,6 +636,17 @@ export default function TaskBoardPage() {
 
   const records = data?.records ?? [];
   const staff = staffData?.members ?? [];
+
+  const completedYears = useMemo(() => {
+    const years = new Set<string>();
+    records.forEach(r => {
+      if (r.status === "completed" || r.status === "cancelled") {
+        const d = r.completedAt ?? r.createdAt;
+        if (d) years.add(new Date(d).getFullYear().toString());
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [records]);
 
   // Unique departments from staff list
   const departments: { name: string; colour: string | null }[] = (() => {
@@ -856,9 +874,18 @@ export default function TaskBoardPage() {
                 onChange={e => setCompletedWindow(e.target.value)}
                 className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70"
               >
-                {WINDOW_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
+                <optgroup label="Rolling window">
+                  {WINDOW_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
+                {completedYears.length > 0 && (
+                  <optgroup label="By year">
+                    {completedYears.map(y => (
+                      <option key={y} value={`year:${y}`}>{y}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             {completed.length === 0 ? (
